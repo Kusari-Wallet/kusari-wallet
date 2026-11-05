@@ -131,4 +131,7 @@ jobs:
             adb shell "/data/local/tmp/zec-bridge --selftest https://zec.rocks:443; echo exit=\$?" | tee "$RUNNER_TEMP/out.txt"
             grep -q "selftest ok" "$RUNNER_TEMP/out.txt"
       - uses: actions/upload-artifact@v4
-        with: { name: zec-bridge-android-arm64, path: ${{ runner.temp }}/bin/zec-bridge-arm64, retention-days: 30 }
+        with:
+          name: zec-bridge-android-arm64
+          path: ${{ runner.temp }}/bin/zec-bridge-arm64
+          retention-days: 30
