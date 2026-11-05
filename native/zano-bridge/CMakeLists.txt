@@ -1,7 +1,8 @@
 cmake_minimum_required(VERSION 3.20)
 project(zano_bridge CXX)
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+# The prebuilt Zano libraries use the shared C++ runtime (/MD), so this must match.
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
 # A Windows path arrives with backslashes.
 file(TO_CMAKE_PATH "${ZANO_NATIVE_LIB_PATH}" ZANO_ROOT)
 set(Z ${ZANO_ROOT}/_install_windows)
