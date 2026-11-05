@@ -1068,6 +1068,7 @@ export class WalletService extends EventEmitter {
       available: this.zecAvailable,
       started: this.zec !== null,
       error: this.zec?.lastError ?? null,
+      phase: this.zec?.phase ?? null,
       detail: zecEngineInfo(this.dev.zecBin),
     };
   }

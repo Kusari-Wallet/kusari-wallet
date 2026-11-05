@@ -9,10 +9,11 @@ let fail = process.env.FAKE_ZEC_FAIL_SYNC_ONCE === '1';
 const fresh = () => ({ accounts: 0, birthday: null, total: 0, spendable: 0, transparent: 0, syncs: 0, history: [] });
 const U = 'u1' + 'q'.repeat(150);
 const T = 't1' + 'a'.repeat(33);
+const HANG = Symbol('hang');
 const methods = {
   validate: (p) => /^(u1|zs1|t1|t3|tex1)/.test(p.address),
   open: (p) => { note({ m: 'open', server: p.server, socks: p.socks ?? null, hasDb: Boolean(p.db) }); db = p.db ? JSON.parse(Buffer.from(p.db, 'base64')) : fresh(); return true; },
-  account: (p) => { note({ m: 'account', index: p.index, birthday: p.birthday ?? null, seedWords: p.seed.split(' ').length }); db.birthday = p.birthday ?? null; db.total = 150000000; db.spendable = 100000000; db.transparent = 50000000; return db.accounts++; },
+  account: (p) => { const hang = process.env.FAKE_ZEC_HANG_FLAG; if (hang && !fs.existsSync(hang)) { fs.writeFileSync(hang, ''); return HANG; }  note({ m: 'account', index: p.index, birthday: p.birthday ?? null, seedWords: p.seed.split(' ').length }); db.birthday = p.birthday ?? null; db.total = 150000000; db.spendable = 100000000; db.transparent = 50000000; return db.accounts++; },
   sync: () => { const die = process.env.FAKE_ZEC_DIE_FLAG; if (die && db.syncs > 0 && !fs.existsSync(die)) { fs.writeFileSync(die, ''); process.exit(1); } if (fail) { fail = false; throw new Error('transport error'); } db.syncs++; return true; },
   summary: () => ({ total: db.total, spendable: db.spendable, transparent: db.transparent, tip: 3200000, scanned: 3200000 }),
   address: () => ({ unified: U, transparent: T }),
@@ -24,6 +25,6 @@ const methods = {
 };
 readline.createInterface({ input: process.stdin }).on('line', async (line) => {
   const r = JSON.parse(line);
-  try { process.stdout.write(JSON.stringify({ id: r.id, result: methods[r.m](r.p) }) + '\n'); }
+  try { const result = methods[r.m](r.p); if (result === HANG) return; process.stdout.write(JSON.stringify({ id: r.id, result }) + '\n'); }
   catch (e) { process.stdout.write(JSON.stringify({ id: r.id, error: e.message }) + '\n'); }
 });

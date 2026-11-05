@@ -148,6 +148,27 @@ test('an engine that dies comes back from the saved state', { timeout: 90000 }, 
   assert.equal(logged().filter((l) => l.m === 'account').length, 1, 'the account came back from the file');
 });
 
+test('a stuck connection is given up on, and the next server gets the same seed', { timeout: 30000 }, async () => {
+  const { ZecClient } = require('../dist/main/zec');
+  const { startZecEngine } = require('../dist/main/zec-process');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'zec-stuck-'));
+  const log = path.join(dir, 'engine.log');
+  const flag = path.join(dir, 'hung');
+  Object.assign(process.env, { FAKE_ZEC_LOG: log, FAKE_ZEC_HANG_FLAG: flag });
+  const c = new ZecClient({ engine: () => startZecEngine(ENGINE), dir, secret: 'x', servers: ['https://one', 'https://two'], canConnect: () => true, onChange: () => {}, accountLimitMs: 400 }, TRON);
+  await c.start();
+  await until(() => fs.existsSync(flag));
+  assert.match(c.phase, /계정 만드는 중 \(서버 1\)/);
+  await until(() => c.balance());
+  delete process.env.FAKE_ZEC_HANG_FLAG;
+  const lines = fs.readFileSync(log, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  assert.deepEqual(lines.filter((l) => l.m === 'open').map((l) => l.server), ['https://one', 'https://two']);
+  assert.equal(lines.filter((l) => l.m === 'account').at(-1).seedWords, 12);
+  assert.equal(c.phase, '최신');
+  assert.equal(c.receive.unified, U);
+  await c.stop();
+});
+
 test('rescan needs the password and starts over from the date', { timeout: 60000 }, async (t) => {
   const { service, logged, moneroSeed } = await wallet(t);
   await service.restore(PW, TRON, moneroSeed, '');

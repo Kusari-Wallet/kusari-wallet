@@ -15,6 +15,10 @@ const SECONDS_PER_BLOCK = 75;
 const NU5 = { height: 1_687_104, time: Date.UTC(2022, 4, 31) };
 const SAPLING_HEIGHT = 419_200;
 
+const ACCOUNT_LIMIT_MS = 150_000;
+const FRESH_SCAN_LIMIT_MS = 300_000;
+const STUCK = new Error('Zcash 서버가 응답하지 않아. 다른 서버로 다시 시도해.');
+
 export type ZecDraft = { to: string; value: bigint; fee: bigint };
 
 export function isZecAddress(address: string): boolean {
@@ -49,6 +53,7 @@ export interface ZecOptions {
   /** False while Tor is still connecting: nothing goes out until it's up. */
   canConnect: () => boolean;
   onChange: () => void;
+  accountLimitMs?: number;
 }
 
 type View = { total: bigint; spendable: bigint; transparent: bigint; tip: number; scanned: number };
@@ -68,6 +73,8 @@ export class ZecClient {
   private view: View | null = null;
   private addresses: { unified: string; transparent: string } | null = null;
   lastError: string | null = null;
+  /** What it's doing right now, in words, for Settings. */
+  phase = '시작 전';
 
   /** The seed is only kept until the account exists, which takes the network once. */
   constructor(private readonly o: ZecOptions, seed: string, birthday?: number) {
@@ -82,6 +89,11 @@ export class ZecClient {
     const next = this.queue.then(task, task);
     this.queue = next.catch(() => undefined);
     return next;
+  }
+
+  private limited<T>(ms: number, work: Promise<T>): Promise<T> {
+    let timer: ReturnType<typeof setTimeout>;
+    return Promise.race([work, new Promise<T>((_, reject) => { timer = setTimeout(() => reject(STUCK), ms); })]).finally(() => clearTimeout(timer));
   }
 
   private call(method: string, params: Record<string, unknown> = {}) {
@@ -145,7 +157,7 @@ export class ZecClient {
 
   private async tick(): Promise<void> {
     if (this.stopped) return;
-    if (!this.o.canConnect()) { this.schedule(3000); return; }
+    if (!this.o.canConnect()) { this.phase = 'Tor 연결 대기'; this.schedule(3000); return; }
     await this.syncNow();
     this.schedule(ZEC_SYNC_MS);
   }
@@ -157,24 +169,34 @@ export class ZecClient {
       this.syncing = true;
       this.o.onChange();
       try {
+        let fresh = false;
         if (this.account === null) {
-          this.account = await this.call('account', { seed: this.seed, index: ZEC_INDEX, ...(this.birthday ? { birthday: this.birthday } : {}) });
+          this.phase = `계정 만드는 중 (서버 ${this.serverIndex % this.o.servers.length + 1})`;
+          this.account = await this.limited(this.o.accountLimitMs ?? ACCOUNT_LIMIT_MS, this.call('account', { seed: this.seed, index: ZEC_INDEX, ...(this.birthday ? { birthday: this.birthday } : {}) }));
+          fresh = !this.birthday;
           this.seed = null;
           await this.loadAddresses();
           await this.save();
+          this.o.onChange();
         }
-        await this.call('sync');
+        this.phase = `블록 스캔 중 (서버 ${this.serverIndex % this.o.servers.length + 1})`;
+        // A new account starts near the tip, so a long wait means a stuck connection, not a long scan.
+        await (fresh ? this.limited(FRESH_SCAN_LIMIT_MS, this.call('sync')) : this.call('sync'));
         await this.loadSummary();
         await this.save();
         this.firstScanDone = true;
         this.lastError = null;
+        this.phase = '최신';
       } catch (e) {
         const message = (e as Error).message;
         this.lastError = /Grpc|transport|dns error|Unavailable/i.test(message) ? 'Zcash 서버에 연결하지 못했어. 다른 서버로 다시 시도해.' : message.slice(0, 160);
         this.serverIndex++;
+        this.phase = '오류, 곧 다시 시도';
         if (this.engine && !this.stopped) {
           // If the engine itself died, what's on disk is the last good scan. Nothing is lost but the rescan.
-          const died = message.includes('엔진이 종료');
+          const stuck = e === STUCK;
+          const died = stuck || message.includes('엔진이 종료');
+          if (stuck) this.engine.close();
           if (died) this.engine = this.o.engine();
           const db = died
             ? (await this.readState().catch(() => null))?.db

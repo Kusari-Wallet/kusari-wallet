@@ -889,7 +889,7 @@ async function renderReceive(current?: string): Promise<void> {
       addresses = await wallet.addresses();
       address = addresses?.[asset] ?? '';
     }
-    if (!address) throw new Error('주소를 불러오지 못했어. 다시 열어봐.');
+    if (!address) throw new Error(asset === 'ZEC' ? 'Zcash 지갑을 준비하는 중이야. 진행 상태는 설정의 Zcash 엔진에서 볼 수 있어.' : '주소를 불러오지 못했어. 다시 열어봐.');
     const qr = await wallet.qr(address);
     if (!addressEl.isConnected) return;
     setKids(qrFrame, h('img', { src: qr, alt: `${coinName(asset)} 받는 주소 QR 코드` }));
@@ -1484,7 +1484,7 @@ async function renderSettings(): Promise<void> {
         h('p', { class: 'hint' }, '노드, API 키, Tor를 바꾸면 지갑이 잠겨. 다시 열면 적용돼.')),
       bioSection,
       h('div', { class: 'section', id: 'zec-info' }, h('h3', {}, 'Zcash 엔진'),
-        h('p', { class: 'small', id: 'zec-info-state' }, zecInfo.available ? (zecInfo.started ? '실행됨' : '찾았지만 실행 안 됨') : '못 찾음'),
+        h('p', { class: 'small', id: 'zec-info-state' }, zecInfo.available ? (zecInfo.started ? `실행됨: ${zecInfo.phase}` : '찾았지만 실행 안 됨') : '못 찾음'),
         zecInfo.error && h('p', { class: 'small' }, zecInfo.error),
         h('p', { class: 'small', id: 'zec-info-list' }, `목록: ${ASSETS.includes('ZEC') ? 'ZEC 포함' : 'ZEC 없음'} / 잔액 조회: ${refreshNote}`),
         h('p', { class: 'muted small mono' }, zecInfo.detail)),
