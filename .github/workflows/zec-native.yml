@@ -35,3 +35,86 @@ jobs:
           tor --SocksPort 9150 --DataDirectory "$RUNNER_TEMP/tor" --Log "notice stdout" > "$RUNNER_TEMP/tor.log" &
           for i in $(seq 1 120); do grep -q "Bootstrapped 100" "$RUNNER_TEMP/tor.log" && break; sleep 2; done
           timeout 900 webzjs/target/release/zec-bridge --selftest https://zec.rocks:443 9150
+
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get WebZjs at a fixed commit
+        shell: bash
+        run: |
+          git clone https://github.com/ChainSafe/WebZjs webzjs
+          git -C webzjs checkout a50df944c32243cb8da9f86e7d52cb65ac926439
+          cp -r native/zec-bridge webzjs/crates/zec-bridge
+          cd webzjs
+          sed -i 's|"crates/webzjs-wallet",|"crates/webzjs-wallet",\n    "crates/zec-bridge",|' Cargo.toml
+          sed -i 's/pub(crate) db:/pub db:/; s/pub(crate) network:/pub network:/' crates/webzjs-wallet/src/wallet.rs
+      - name: Build
+        shell: bash
+        working-directory: webzjs
+        env:
+          CARGO_PROFILE_RELEASE_LTO: thin
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: 16
+          CARGO_PROFILE_RELEASE_STRIP: symbols
+        run: |
+          choco install -y protoc --no-progress
+          cargo build --release -p zec-bridge
+          ls -la target/release/zec-bridge.exe
+          sha256sum target/release/zec-bridge.exe
+          target/release/zec-bridge.exe --version
+      - name: Real account and scan
+        shell: bash
+        run: timeout 900 webzjs/target/release/zec-bridge.exe --selftest https://zec.rocks:443
+      - uses: actions/upload-artifact@v4
+        with: { name: zec-bridge-windows-x64, path: webzjs/target/release/zec-bridge.exe, retention-days: 30 }
+
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get WebZjs at a fixed commit
+        run: |
+          git clone https://github.com/ChainSafe/WebZjs webzjs
+          git -C webzjs checkout a50df944c32243cb8da9f86e7d52cb65ac926439
+          cp -r native/zec-bridge webzjs/crates/zec-bridge
+          cd webzjs
+          sed -i 's|"crates/webzjs-wallet",|"crates/webzjs-wallet",\n    "crates/zec-bridge",|' Cargo.toml
+          sed -i 's/pub(crate) db:/pub db:/; s/pub(crate) network:/pub network:/' crates/webzjs-wallet/src/wallet.rs
+      - name: Build
+        working-directory: webzjs
+        env:
+          CARGO_PROFILE_RELEASE_LTO: thin
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: 16
+          CARGO_PROFILE_RELEASE_STRIP: symbols
+          ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_LATEST_HOME }}
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq protobuf-compiler
+          cargo +stable install cargo-ndk --version 3.5.4 --locked
+          rustup target add aarch64-linux-android x86_64-linux-android
+          export ANDROID_NDK_HOME="$ANDROID_NDK_LATEST_HOME"
+          cargo ndk -t arm64-v8a -t x86_64 --platform 26 build --release -p zec-bridge
+          ls -la target/aarch64-linux-android/release/zec-bridge target/x86_64-linux-android/release/zec-bridge
+          sha256sum target/aarch64-linux-android/release/zec-bridge target/x86_64-linux-android/release/zec-bridge
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Real account and scan on an emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: |
+            adb push webzjs/target/x86_64-linux-android/release/zec-bridge /data/local/tmp/zec-bridge
+            adb shell chmod 755 /data/local/tmp/zec-bridge
+            adb shell /data/local/tmp/zec-bridge --version
+            adb shell "/data/local/tmp/zec-bridge --selftest https://zec.rocks:443; echo exit=\$?" | tee "$RUNNER_TEMP/out.txt"
+            grep -q "selftest ok" "$RUNNER_TEMP/out.txt"
+      - uses: actions/upload-artifact@v4
+        with: { name: zec-bridge-android-arm64, path: webzjs/target/aarch64-linux-android/release/zec-bridge, retention-days: 30 }
