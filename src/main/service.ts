@@ -726,7 +726,8 @@ export class WalletService extends EventEmitter {
   async newSubaddress() { return this.session().monero.createSubaddress(); }
 
   async qr(text: string): Promise<string> {
-    if (text.length > 200) throw new Error('QR로 만들 수 없는 값이야.');
+    // A Zcash unified address runs past 200 characters.
+    if (text.length > 500) throw new Error('QR로 만들 수 없는 값이야.');
     return QRCode.toDataURL(text, { margin: 1, width: 320, errorCorrectionLevel: 'M', color: { dark: '#16302b', light: '#ffffff' } });
   }
 

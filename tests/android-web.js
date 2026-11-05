@@ -139,7 +139,7 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
       zecWrite: (line) => {
         const r = JSON.parse(line);
         window.__zecCalls.push(r.m);
-        const answers = { validate: true, open: true, account: 0, sync: true, summary: { total: 150000000, spendable: 100000000, transparent: 50000000, tip: 3200000, scanned: 3200000 }, address: { unified: 'u1' + 'q'.repeat(150), transparent: 't1' + 'a'.repeat(33) }, dump: btoa('{}'), history: { tip: 3200000, items: [] } };
+        const answers = { validate: true, open: true, account: 0, sync: true, summary: { total: 150000000, spendable: 100000000, transparent: 50000000, tip: 3200000, scanned: 3200000 }, address: { unified: 'u1' + 'q'.repeat(211), transparent: 't1' + 'a'.repeat(33) }, dump: btoa('{}'), history: { tip: 3200000, items: [] } };
         setTimeout(() => window.__zecLine(JSON.stringify({ id: r.id, result: answers[r.m] })));
         return true;
       },

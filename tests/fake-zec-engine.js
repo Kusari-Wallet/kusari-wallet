@@ -7,7 +7,7 @@ const note = (o) => { if (log) fs.appendFileSync(log, JSON.stringify(o) + '\n');
 let db = null;
 let fail = process.env.FAKE_ZEC_FAIL_SYNC_ONCE === '1';
 const fresh = () => ({ accounts: 0, birthday: null, total: 0, spendable: 0, transparent: 0, syncs: 0, history: [] });
-const U = 'u1' + 'q'.repeat(150);
+const U = 'u1' + 'q'.repeat(211); // as long as a real one
 const T = 't1' + 'a'.repeat(33);
 const HANG = Symbol('hang');
 const methods = {

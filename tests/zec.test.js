@@ -10,7 +10,7 @@ const { zecEngineAvailable } = require('../dist/main/zec-process');
 const ENGINE = path.join(__dirname, 'fake-zec-engine.js');
 const PW = 'correct horse battery';
 const TRON = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
-const U = 'u1' + 'q'.repeat(150);
+const U = 'u1' + 'q'.repeat(211);
 const T = 't1' + 'a'.repeat(33);
 const OTHER = 'u1' + 'p'.repeat(150);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -68,6 +68,7 @@ test('restore from a date, scan, send, shield, reopen', { timeout: 60000 }, asyn
   const a = await service.addresses();
   assert.equal(a.ZEC, U);
   assert.equal(a.ZEC_T, T);
+  assert.ok((await service.qr(a.ZEC)).length > 100, 'a unified address fits in a QR code');
 
   // Nothing readable on disk, and the seed nowhere near it.
   const raw = fs.readFileSync(path.join(dir, 'zec-state.json'), 'utf8');
