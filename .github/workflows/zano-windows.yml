@@ -17,7 +17,7 @@ jobs:
           git -C zlib lfs pull --include "_install_windows/**"
       - name: Build
         run: |
-          cmake -S native/zano-bridge -B out -A x64 -DZANO_NATIVE_LIB_PATH=$PWD/zlib
+          cmake -S native/zano-bridge -B out -A x64 "-DZANO_NATIVE_LIB_PATH=$($PWD.Path)/zlib"
           cmake --build out --config Release
       - name: It starts
         run: out/Release/zano-bridge.exe --version
