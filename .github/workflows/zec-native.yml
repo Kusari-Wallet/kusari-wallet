@@ -111,6 +111,11 @@ jobs:
           cp webzjs/target/x86_64-linux-android/release/zec-bridge "$RUNNER_TEMP/bin/zec-bridge-x86_64"
           rm -rf webzjs/target ~/.cargo/registry ~/.cargo/git
           df -h / | tail -1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zec-bridge-android-arm64
+          path: ${{ runner.temp }}/bin/zec-bridge-arm64
+          retention-days: 30
       - name: Start Tor
         run: |
           sudo apt-get install -y -qq tor
@@ -123,8 +128,9 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
       - name: Real account and scan on an emulator
+        # The emulator tool sometimes never returns after the script is done, so the verdict is read below.
         timeout-minutes: 25
-        continue-on-error: false
+        continue-on-error: true
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
@@ -141,9 +147,8 @@ jobs:
             sleep 30
             adb shell "getprop net.dns1; ping -c 1 -W 5 zec.rocks | head -2" || true
             adb shell "/data/local/tmp/zec-bridge --selftest https://zec.rocks:443; echo exit=\\$?" || true
-            grep -q "selftest ok" "$RUNNER_TEMP/tor.txt"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: zec-bridge-android-arm64
-          path: ${{ runner.temp }}/bin/zec-bridge-arm64
-          retention-days: 30
+            sed -i 's/^/out: /' "$RUNNER_TEMP/tor.txt"
+      - name: Verdict
+        run: |
+          cat "$RUNNER_TEMP/tor.txt"
+          grep -q "selftest ok" "$RUNNER_TEMP/tor.txt"
