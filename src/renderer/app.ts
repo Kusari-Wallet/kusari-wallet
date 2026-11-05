@@ -8,6 +8,8 @@ type Child = Node | string | null | undefined | false;
 const ALL_ASSETS: Asset[] = ['XMR', 'BTC', 'ETH', 'TRX', 'USDTE', 'USDT', 'DCR', 'DASH', 'ZEC'];
 // Zcash needs its engine, which isn't in every build or on every phone.
 let ASSETS: Asset[] = ALL_ASSETS.filter((a) => a !== 'ZEC');
+let zecInSession = false;
+let refreshNote = '아직 응답 없음';
 const COIN: Record<Asset, { label: string; file: string; note: string }> = {
   BTC: { label: 'BTC', file: 'coins/btc.png', note: '수수료는 네트워크 상황에 따라 달라지고, 확인 화면에서 볼 수 있어.' },
   TRX: { label: 'TRX', file: 'coins/trx.png', note: 'USDT를 보낼 때 드는 수수료도 TRX로 나가.' },
@@ -360,6 +362,9 @@ async function enterWallet(): Promise<void> {
   overview = null;
   homeTab = 'assets';
   addresses = await wallet.addresses().catch(() => null);
+  // Decided here because the first balance round can take a while on a phone, and the row shouldn't wait for it.
+  zecInSession = await wallet.zecInfo().then((i: any) => Boolean(i.started)).catch(() => false);
+  ASSETS = zecInSession ? ALL_ASSETS : ALL_ASSETS.filter((a) => a !== 'ZEC');
   torState = (await wallet.torInfo().catch(() => null))?.enabled ? (await wallet.torInfo()).state : null;
   renderHome();
   void refresh(); // Balances fill in on the home screen; a slow node or Tor must not hold it back.
@@ -371,12 +376,12 @@ async function refresh(): Promise<void> {
   try {
     const [next, nextPrices] = await Promise.all([wallet.overview(), wallet.prices().catch(() => null)]);
     overview = next;
-    ASSETS = next.balances.ZEC ? ALL_ASSETS : ALL_ASSETS.filter((a) => a !== 'ZEC');
+    refreshNote = `${new Date().toLocaleTimeString('ko-KR')} 응답, ZEC ${next.balances.ZEC ? (next.balances.ZEC.ok ? '잔액 있음' : next.balances.ZEC.pending ? '대기' : '실패') : '없음'}`;
     addresses = next.addresses;
     torState = next.tor;
     prices = nextPrices;
     onData?.();
-  } catch { /* locked meanwhile */ }
+  } catch (e) { refreshNote = `오류: ${(e as Error).message}`; /* usually just locked meanwhile */ }
 }
 
 
@@ -1481,6 +1486,7 @@ async function renderSettings(): Promise<void> {
       h('div', { class: 'section', id: 'zec-info' }, h('h3', {}, 'Zcash 엔진'),
         h('p', { class: 'small', id: 'zec-info-state' }, zecInfo.available ? (zecInfo.started ? '실행됨' : '찾았지만 실행 안 됨') : '못 찾음'),
         zecInfo.error && h('p', { class: 'small' }, zecInfo.error),
+        h('p', { class: 'small', id: 'zec-info-list' }, `목록: ${ASSETS.includes('ZEC') ? 'ZEC 포함' : 'ZEC 없음'} / 잔액 조회: ${refreshNote}`),
         h('p', { class: 'muted small mono' }, zecInfo.detail)),
       h('div', { class: 'section' }, h('h3', {}, '시드 백업'), seedBox.el,
         h('label', { class: 'field' }, h('span', {}, '비밀번호'), seedPw), rev, seedOut),
