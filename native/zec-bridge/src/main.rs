@@ -39,6 +39,17 @@ type Zw = Wallet<MemoryWalletDb<Network>, Channel>;
 /// Same rule as Zashi: below this, shielding would mostly pay the fee.
 const SHIELD_MIN: Zatoshis = Zatoshis::const_from_u64(100_000);
 
+/// The parameters live beside the engine. Loading checks their hash and panics on a bad file,
+/// so a missing one is turned into an answer first.
+fn prover() -> Result<LocalTxProver, String> {
+    let spend = std::env::var("ZEC_SAPLING_SPEND").map_err(|_| "proving parameters not set")?;
+    let output = std::env::var("ZEC_SAPLING_OUTPUT").map_err(|_| "proving parameters not set")?;
+    if !std::path::Path::new(&spend).is_file() || !std::path::Path::new(&output).is_file() {
+        return Err("proving parameters missing".into());
+    }
+    Ok(LocalTxProver::new(std::path::Path::new(&spend), std::path::Path::new(&output)))
+}
+
 fn policy() -> Result<ConfirmationsPolicy, String> {
     validate_confirmations_policy(3, 10, true).map_err(fail)
 }
@@ -80,6 +91,7 @@ async fn send(w: &Zw, seed: &str, index: u32, account: u32, to: ZcashAddress, va
     if fee > max_fee {
         return Err(format!("fee rose to {fee} from the {max_fee} shown"));
     }
+    drop(prover()?); // Fails here, before anything is built, if the parameters aren't usable.
     let txids = w.create_proposed_transactions(proposal, &usk).await.map_err(fail)?;
     w.send_authorized_transactions(&txids).await.map_err(fail)?;
     Ok(json!({ "txids": txids.iter().map(|t| t.to_string()).collect::<Vec<_>>(), "fee": fee }))
@@ -120,7 +132,7 @@ async fn shield(w: &Zw, seed: &str, index: u32, account: u32) -> Result<Value, S
             confirmations,
         )
         .map_err(|e| format!("{e:?}"))?;
-        let prover = LocalTxProver::bundled();
+        let prover = prover()?;
         create_proposed_transactions::<
             _,
             _,
@@ -337,6 +349,10 @@ async fn selftest(server: &str, socks: Option<u16>) -> Result<(), String> {
     {
         return Err("address check is wrong".into());
     }
+    if std::env::var("ZEC_SAPLING_SPEND").is_ok() {
+        drop(prover()?);
+        println!("proving parameters ok");
+    }
     say("history", &call(&mut w, "history", &json!({ "account": id })).await?);
     say("quote refused", &json!(call(&mut w, "quote", &json!({ "account": id, "to": a["unified"], "value": 100000 })).await.is_err()));
     say("shield refused", &json!(call(&mut w, "shield", &json!({ "seed": phrase, "index": 0, "account": id })).await.err()));
@@ -355,6 +371,15 @@ async fn selftest(server: &str, socks: Option<u16>) -> Result<(), String> {
 #[tokio::main]
 async fn main() {
     let args: Vec<String> = std::env::args().collect();
+    if std::env::args().nth(1).as_deref() == Some("--check-params") {
+        return match prover() {
+            Ok(_) => println!("proving parameters ok"),
+            Err(e) => {
+                println!("{e}");
+                std::process::exit(1);
+            }
+        };
+    }
     if args.get(1).map(String::as_str) == Some("--version") {
         println!("zec-bridge {}", env!("CARGO_PKG_VERSION"));
         return;

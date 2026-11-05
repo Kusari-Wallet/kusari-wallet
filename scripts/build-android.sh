@@ -24,7 +24,11 @@ else dalvik-exchange --dex --min-sdk-version=26 --output="$B/dex/classes.dex" "$
 (cd "$B/dex" && zip -q "$B/app.apk" classes.dex)
 rm -rf "$B/native"; mkdir -p "$B/native/lib"; cp -r android/jniLibs/arm64-v8a android/jniLibs/armeabi-v7a "$B/native/lib/"
 # The Zcash engine is built separately and only for 64-bit ARM. Without it the app simply has no ZEC.
-if [ -f native-bin/android/libzecbridge.so ]; then cp native-bin/android/libzecbridge.so "$B/native/lib/arm64-v8a/"; fi
+if [ -f native-bin/android/libzecbridge.so ]; then
+  cp native-bin/android/libzecbridge.so "$B/native/lib/arm64-v8a/"
+  cp native-bin/params/sapling-spend.params "$B/native/lib/arm64-v8a/libzecspend.so"
+  cp native-bin/params/sapling-output.params "$B/native/lib/arm64-v8a/libzecoutput.so"
+fi
 (cd "$B/native" && zip -qr "$B/app.apk" lib)
 
 KS="$ROOT/android/release.keystore"; PROPS="$ROOT/android/keystore.properties"

@@ -20,7 +20,11 @@ export const zecEngineAvailable = (override?: string): boolean => findEngine(ove
 export function startZecEngine(override?: string): ZecEngine {
   const file = findEngine(override);
   if (!file) throw new Error('이 빌드에는 Zcash 엔진이 없어.');
-  const child = spawn(file, [], { stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true });
+  const dir = path.dirname(file);
+  const child = spawn(file, [], {
+    stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true,
+    env: { ...process.env, ZEC_SAPLING_SPEND: path.join(dir, 'sapling-spend.params'), ZEC_SAPLING_OUTPUT: path.join(dir, 'sapling-output.params') },
+  });
   const waiting = new Map<number, { resolve: (v: any) => void; reject: (e: Error) => void }>();
   let next = 1;
   let buffer = '';
