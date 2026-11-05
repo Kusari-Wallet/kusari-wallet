@@ -1,0 +1,244 @@
+package dev.edge.vaultwallet;
+
+import android.Manifest;
+import android.app.Activity;
+import android.content.ActivityNotFoundException;
+import android.content.ClipData;
+import android.content.ClipDescription;
+import android.content.ClipboardManager;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.net.Uri;
+import android.os.Bundle;
+import android.os.PersistableBundle;
+import android.view.WindowManager;
+import android.webkit.JavascriptInterface;
+import android.webkit.ValueCallback;
+import android.webkit.WebChromeClient;
+import android.webkit.PermissionRequest;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+
+import org.json.JSONObject;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+public class MainActivity extends Activity {
+    private static final String HOST = "appassets.androidplatform.net";
+    private static final String ORIGIN = "https://" + HOST;
+    private static final List<String> EXPLORERS = Arrays.asList(
+            "https://mempool.space/", "https://etherscan.io/", "https://dcrdata.decred.org/", "https://insight.dash.org/", "https://tronscan.org/", "https://nile.tronscan.org/", "https://xmrchain.net/", "https://stagenet.xmrchain.net/");
+
+    private final LocalProxy proxy = new LocalProxy(ORIGIN);
+    private static final int CAMERA_REQUEST = 41;
+    private int cameraRequestId = -1;
+    private WebView web;
+    private BiometricVault biometric;
+    private TorProcess tor;
+
+    @Override
+    protected void onCreate(Bundle state) {
+        super.onCreate(state);
+        // Keeps seed words out of screenshots and the recent-apps preview.
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
+        biometric = new BiometricVault(this);
+        tor = new TorProcess(new File(getApplicationInfo().nativeLibraryDir, "libtor.so"), new File(getFilesDir(), "tor"), new TorProcess.Listener() {
+            @Override public void onState(String phase, int percent, String error) {
+                final String script = "window.__torState&&window.__torState(" + JSONObject.quote(phase) + "," + percent + "," + JSONObject.quote(error) + ")";
+                runOnUiThread(new Runnable() { @Override public void run() { if (web != null) web.evaluateJavascript(script, null); } });
+            }
+        });
+        web = new WebView(this);
+        web.setBackgroundColor(0xFF070707);
+        WebSettings s = web.getSettings();
+        s.setJavaScriptEnabled(true);
+        s.setDomStorageEnabled(true);
+        s.setAllowFileAccess(false);
+        s.setAllowContentAccess(false);
+        s.setGeolocationEnabled(false);
+        s.setSaveFormData(false);
+        s.setSupportMultipleWindows(false);
+        s.setJavaScriptCanOpenWindowsAutomatically(false);
+        // Pages are local assets only. This lets them reach the local forwarder over http://127.0.0.1.
+        s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+        web.addJavascriptInterface(new Bridge(), "VaultNative");
+        web.setWebChromeClient(new WebChromeClient() {
+            @Override public void onPermissionRequest(PermissionRequest request) {
+                // QR scanning only: the app's own page, video only, after the person allowed the camera.
+                String[] wanted = request.getResources();
+                boolean videoOnly = wanted.length == 1 && PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(wanted[0]);
+                boolean ours = HOST.equals(request.getOrigin().getHost());
+                if (videoOnly && ours && checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) request.grant(wanted);
+                else request.deny();
+            }
+        });
+        web.setWebViewClient(new WebViewClient() {
+            @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                return !HOST.equals(request.getUrl().getHost());
+            }
+            @Override public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+                Uri url = request.getUrl();
+                if (!HOST.equals(url.getHost())) return null;
+                return asset(url.getPath());
+            }
+        });
+        setContentView(web);
+        if (state == null) web.loadUrl(ORIGIN + "/index.html");
+        else web.restoreState(state);
+    }
+
+    private WebResourceResponse asset(String path) {
+        String name = path == null || path.equals("/") ? "index.html" : path.replaceFirst("^/+", "");
+        Map<String, String> headers = new HashMap<>();
+        headers.put("Cache-Control", "no-store");
+        try {
+            if (name.contains("..")) throw new IOException("bad path");
+            InputStream in = getAssets().open("www/" + name);
+            return new WebResourceResponse(mime(name), mime(name).startsWith("text/") ? "utf-8" : null, 200, "OK", headers, in);
+        } catch (IOException e) {
+            return new WebResourceResponse("text/plain", "utf-8", 404, "Not Found", headers, null);
+        }
+    }
+
+    private static String mime(String name) {
+        if (name.endsWith(".html")) return "text/html";
+        if (name.endsWith(".js")) return "text/javascript";
+        if (name.endsWith(".css")) return "text/css";
+        if (name.endsWith(".png")) return "image/png";
+        if (name.endsWith(".woff2")) return "font/woff2";
+        if (name.endsWith(".wasm")) return "application/wasm";
+        return "application/octet-stream";
+    }
+
+    @Override protected void onDestroy() {
+        tor.stop();
+        super.onDestroy();
+    }
+
+    @Override protected void onPause() {
+        super.onPause();
+        web.evaluateJavascript("window.__appPaused && window.__appPaused()", null);
+    }
+
+    @Override public void onBackPressed() {
+        web.evaluateJavascript("window.__appBack && window.__appBack()", new ValueCallback<String>() {
+            @Override public void onReceiveValue(String value) {
+                if (!"true".equals(value)) moveTaskToBack(true);
+            }
+        });
+    }
+
+    @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
+        super.onRequestPermissionsResult(requestCode, permissions, results);
+        if (requestCode != CAMERA_REQUEST || cameraRequestId < 0) return;
+        boolean ok = results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED;
+        int id = cameraRequestId;
+        cameraRequestId = -1;
+        bioResult(id, ok, ok ? "" : "camera-denied");
+    }
+
+    private void bioResult(int id, boolean ok, String value) {
+        final String script = "window.__bioResult(" + id + "," + ok + "," + JSONObject.quote(value) + ")";
+        runOnUiThread(new Runnable() { @Override public void run() { web.evaluateJavascript(script, null); } });
+    }
+
+    public final class Bridge {
+        @JavascriptInterface public int proxyPort(String upstream) { return proxy.portFor(upstream); }
+
+        @JavascriptInterface public void openExternal(final String url) {
+            boolean allowed = false;
+            for (String prefix : EXPLORERS) allowed |= url.startsWith(prefix);
+            if (!allowed) return;
+            runOnUiThread(new Runnable() {
+                @Override public void run() {
+                    try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); } catch (ActivityNotFoundException ignored) { }
+                }
+            });
+        }
+
+        private ClipboardManager clipboard() { return getSystemService(ClipboardManager.class); }
+
+        @JavascriptInterface public void copy(String text) {
+            ClipData clip = ClipData.newPlainText("", text);
+            PersistableBundle extras = new PersistableBundle();
+            extras.putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true);
+            clip.getDescription().setExtras(extras);
+            clipboard().setPrimaryClip(clip);
+        }
+
+        @JavascriptInterface public void clearClip(String text) {
+            ClipData clip = clipboard().getPrimaryClip();
+            if (clip != null && clip.getItemCount() > 0 && text.contentEquals(clip.getItemAt(0).coerceToText(MainActivity.this))) {
+                clipboard().clearPrimaryClip();
+            }
+        }
+
+        @JavascriptInterface public String paste() {
+            ClipData clip = clipboard().getPrimaryClip();
+            return clip == null || clip.getItemCount() == 0 ? "" : String.valueOf(clip.getItemAt(0).coerceToText(MainActivity.this));
+        }
+
+        @JavascriptInterface public void cameraPermission(final int id) {
+            runOnUiThread(new Runnable() {
+                @Override public void run() {
+                    if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                        bioResult(id, true, "");
+                        return;
+                    }
+                    if (cameraRequestId >= 0) bioResult(cameraRequestId, false, "camera-denied");
+                    cameraRequestId = id;
+                    requestPermissions(new String[] { Manifest.permission.CAMERA }, CAMERA_REQUEST);
+                }
+            });
+        }
+
+        @JavascriptInterface public boolean torAvailable() { return tor.available(); }
+
+        @JavascriptInterface public int torPrepare() {
+            try {
+                int port = tor.prepare();
+                proxy.setSocksPort(port);
+                return port;
+            } catch (IOException e) {
+                return 0;
+            }
+        }
+
+        @JavascriptInterface public void torStart() { tor.start(); }
+        @JavascriptInterface public void torStop() { tor.stop(); }
+        @JavascriptInterface public void torDirect() { tor.stop(); proxy.setSocksPort(0); }
+
+        @JavascriptInterface public boolean bioAvailable() { return biometric.available(); }
+        @JavascriptInterface public boolean bioEnabled(String wallet) { return biometric.enabled(wallet); }
+        @JavascriptInterface public void bioDisable(String wallet) { biometric.disable(wallet); }
+
+        @JavascriptInterface public void bioEnable(final int id, final String wallet, final String password) {
+            runOnUiThread(new Runnable() {
+                @Override public void run() {
+                    biometric.enable(wallet, password, new BiometricVault.Callback() {
+                        @Override public void done(boolean ok, String value) { bioResult(id, ok, value); }
+                    });
+                }
+            });
+        }
+
+        @JavascriptInterface public void bioUnlock(final int id, final String wallet) {
+            runOnUiThread(new Runnable() {
+                @Override public void run() {
+                    biometric.unlock(wallet, new BiometricVault.Callback() {
+                        @Override public void done(boolean ok, String value) { bioResult(id, ok, value); }
+                    });
+                }
+            });
+        }
+    }
+}

@@ -1,0 +1,30 @@
+# Builds the Zcash engine from the official source, so the wallet never ships someone else's npm build.
+name: Zcash engine
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      WEBZJS_COMMIT: a50df944c32243cb8da9f86e7d52cb65ac926439
+    steps:
+      - name: Get WebZjs at a fixed commit
+        run: |
+          git clone https://github.com/ChainSafe/WebZjs webzjs
+          git -C webzjs checkout "$WEBZJS_COMMIT"
+      - name: Tools
+        run: |
+          sudo apt-get update && sudo apt-get install -y clang-17
+          echo "CC=clang-17" >> "$GITHUB_ENV"
+          echo "AR=llvm-ar-17" >> "$GITHUB_ENV"
+          curl -sSf https://rustwasm.github.io/wasm-pack/installer/init.sh | sh
+          cargo install just --locked
+      - name: Build
+        working-directory: webzjs
+        run: just build-wallet
+      - name: Hash
+        run: sha256sum webzjs/packages/webzjs-wallet/*.wasm
+      - uses: actions/upload-artifact@v4
+        with: { name: webzjs-wallet, path: webzjs/packages/webzjs-wallet, retention-days: 30 }

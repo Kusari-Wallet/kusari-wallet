@@ -1,0 +1,15 @@
+import { contextBridge, ipcRenderer } from 'electron';
+
+const call = (name: string) => (...args: unknown[]) => ipcRenderer.invoke(`wallet:${name}`, ...args);
+const methods = ['status', 'generateSeeds', 'finishCreate', 'restore', 'unlock', 'lock', 'overview', 'history',
+  'moneroAddresses', 'newSubaddress', 'qr', 'prepareSend', 'cancelSend', 'confirmSend', 'revealSeeds',
+  'changePassword', 'getSettings', 'updateSettings', 'deleteWallet', 'openExplorer', 'activity', 'copy', 'prices', 'paste', 'addresses', 'torInfo', 'installTor', 'swapQuote', 'swapPrepare', 'swapConfirm', 'swapRefresh', 'swapList', 'privacyQuote', 'privacyPrepare', 'privacyRefresh', 'privacySecondQuote', 'privacySecond', 'privacyList', 'walletsList', 'walletRename', 'walletSwitch', 'walletBeginAdd', 'walletCancelAdd', 'feeEstimate', 'tornadoInfo', 'tornadoCheck', 'tornadoDepositPrepare', 'tornadoDepositConfirm', 'tornadoExport', 'tornadoWithdrawQuote', 'tornadoWithdraw', 'tornadoRecover'];
+const events = ['monero-state', 'balance-changed', 'tron-tx', 'locked', 'tor-state', 'tor-install', 'tornado-progress'];
+
+contextBridge.exposeInMainWorld('wallet', {
+  ...Object.fromEntries(methods.map((m) => [m, call(m)])),
+  on: (event: string, fn: (payload: unknown) => void) => {
+    if (!events.includes(event)) throw new Error('unknown event');
+    ipcRenderer.on(`wallet:${event}`, (_e, payload) => fn(payload));
+  },
+});

@@ -1,0 +1,14 @@
+node_modules
+dist
+release
+*.log
+android/build
+android/android-34.jar
+android/release.keystore
+android/keystore.properties
+android/jniLibs/*/libtor.so
+.swap-keys.json
+src/main/swap-keys.generated.ts
+.env*
+*.p12
+*.jks

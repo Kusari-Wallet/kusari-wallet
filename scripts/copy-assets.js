@@ -1,0 +1,12 @@
+const fs = require('fs');
+const path = require('path');
+const root = path.join(__dirname, '..');
+const out = path.join(root, 'dist/renderer');
+fs.mkdirSync(out, { recursive: true });
+for (const f of ['index.html', 'style.css', 'logo.png']) fs.copyFileSync(path.join(root, 'src/renderer', f), path.join(out, f));
+fs.copyFileSync(path.join(root, 'assets/icon.png'), path.join(out, 'icon.png'));
+fs.copyFileSync(path.join(root, 'node_modules/jsqr/dist/jsQR.js'), path.join(out, 'jsQR.js'));
+fs.cpSync(path.join(root, 'src/renderer/coins'), path.join(out, 'coins'), { recursive: true });
+fs.copyFileSync(path.join(root, 'node_modules/pretendard/dist/web/variable/woff2/PretendardVariable.woff2'), path.join(out, 'PretendardVariable.woff2'));
+fs.cpSync(path.join(root, 'assets/tornado'), path.join(root, 'dist/main/tornado'), { recursive: true });
+require('./build-tornado-worker').node().catch((e) => { console.error(e.message); process.exit(1); });
