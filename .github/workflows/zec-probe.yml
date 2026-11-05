@@ -1,0 +1,23 @@
+# Run by hand: shows which Zcash light servers answer, directly and through Tor.
+name: Zcash server check
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Start Tor
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq tor
+          sudo systemctl stop tor || true
+          tor --SocksPort 9150 --DataDirectory "$RUNNER_TEMP/tor" --Log "notice stdout" > "$RUNNER_TEMP/tor.log" &
+          for i in $(seq 1 120); do grep -q "Bootstrapped 100" "$RUNNER_TEMP/tor.log" && break; sleep 2; done
+          tail -1 "$RUNNER_TEMP/tor.log"
+      - name: Probe
+        run: node scripts/probe-zec.js 9150
