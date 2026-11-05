@@ -169,7 +169,8 @@ export class ZecClient {
         this.firstScanDone = true;
         this.lastError = null;
       } catch (e) {
-        this.lastError = (e as Error).message;
+        const message = (e as Error).message;
+        this.lastError = /Grpc|transport|dns error|Unavailable/i.test(message) ? 'Zcash 서버에 연결하지 못했어. 다른 서버로 다시 시도해.' : message.slice(0, 160);
         this.serverIndex++;
         if (this.engine && !this.stopped) {
           const db = this.account !== null ? await this.call('dump').catch(() => undefined) : undefined;

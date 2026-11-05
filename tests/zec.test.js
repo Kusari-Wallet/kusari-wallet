@@ -129,7 +129,7 @@ test('a failed server gives way to the next, keeping the state', { timeout: 6000
   assert.equal(opens[0].server, 'https://one');
   assert.equal(opens[1].server, 'https://two');
   assert.equal(opens[1].hasDb, true);
-  assert.equal(service.zec.lastError, 'transport error');
+  assert.match(service.zec.lastError, /Zcash 서버에 연결하지 못했어/);
   assert.equal(logged().find((l) => l.m === 'account').birthday, null, 'no date, so it starts from now');
 });
 
