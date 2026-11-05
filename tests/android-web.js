@@ -131,7 +131,17 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
       torStart: () => { setTimeout(() => window.__torState('starting', 30, '')); setTimeout(() => window.__torState('ready', 100, ''), 300); },
       torStop: () => setTimeout(() => window.__torState('off', 0, '')),
       torDirect: () => {},
-      zecAvailable: () => false,
+      // The Java side passes lines to and from the engine; this stands in for both.
+      zecAvailable: () => true,
+      zecStart: () => { window.__zecCalls = []; return true; },
+      zecStop: () => {},
+      zecWrite: (line) => {
+        const r = JSON.parse(line);
+        window.__zecCalls.push(r.m);
+        const answers = { validate: true, open: true, account: 0, sync: true, summary: { total: 150000000, spendable: 100000000, transparent: 50000000, tip: 3200000, scanned: 3200000 }, address: { unified: 'u1' + 'q'.repeat(150), transparent: 't1' + 'a'.repeat(33) }, dump: btoa('{}'), history: { tip: 3200000, items: [] } };
+        setTimeout(() => window.__zecLine(JSON.stringify({ id: r.id, result: answers[r.m] })));
+        return true;
+      },
       bioAvailable: () => true,
       bioEnabled: (w) => w === 'main' && saved !== null,
       bioDisable: (w) => { if (w !== 'main') return; saved = null; localStorage.removeItem('bio'); },
@@ -160,6 +170,10 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
   await shot('loading');
   await page.locator('#asset-TRX .amt', { hasText: '50' }).waitFor({ timeout: 60000 });
   console.log('ok vault and wallet created in the WebView bundle in', Date.now() - t0, 'ms; balance arrived through the Java forwarder');
+
+  // Zcash row, shown only when the phone has the engine
+  await page.waitForSelector('#asset-ZEC', { timeout: 30000 });
+  console.log('ok Zcash listed, engine calls:', await page.evaluate(() => window.__zecCalls.join(',')));
 
   // spinner
   await page.evaluate(() => {
