@@ -12,3 +12,4 @@ src/main/swap-keys.generated.ts
 .env*
 *.p12
 *.jks
+native-bin

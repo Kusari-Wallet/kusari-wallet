@@ -11,6 +11,9 @@ zcash_address = { workspace = true }
 zcash_client_memory = { workspace = true, features = ["orchard", "transparent-inputs"] }
 zcash_client_backend = { workspace = true, default-features = false }
 zcash_keys = { workspace = true }
+zcash_primitives = { workspace = true }
+zcash_proofs = { workspace = true, default-features = false, features = ["bundled-prover", "multicore"] }
+zcash_protocol = { workspace = true }
 bip0039 = { workspace = true }
 tonic = { version = "0.14", default-features = false, features = ["channel", "tls-webpki-roots", "tls-ring"] }
 tower = { version = "0.5", default-features = false, features = ["util"] }

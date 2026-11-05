@@ -9,6 +9,8 @@ export interface Secrets {
   moneroFilePasswords: { mainnet: string; testnet: string };
   /** Where Monero scanning starts, one per network. */
   restoreHeights: { mainnet: number; testnet: number };
+  /** Where Zcash scanning starts on a restored wallet, if a date was given. */
+  zecBirthday?: number;
 }
 
 interface VaultFile {

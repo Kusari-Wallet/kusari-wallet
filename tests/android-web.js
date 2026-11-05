@@ -131,6 +131,7 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
       torStart: () => { setTimeout(() => window.__torState('starting', 30, '')); setTimeout(() => window.__torState('ready', 100, ''), 300); },
       torStop: () => setTimeout(() => window.__torState('off', 0, '')),
       torDirect: () => {},
+      zecAvailable: () => false,
       bioAvailable: () => true,
       bioEnabled: (w) => w === 'main' && saved !== null,
       bioDisable: (w) => { if (w !== 'main') return; saved = null; localStorage.removeItem('bio'); },

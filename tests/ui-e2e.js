@@ -38,7 +38,7 @@ const PASSWORD = 'correct horse battery';
   const data = fs.mkdtempSync(path.join(os.tmpdir(), 'vw-ui-'));
   const launch = () => _electron.launch({
     args: ['--no-sandbox', '--use-fake-device-for-media-stream', `--use-file-for-fake-video-capture=${camVideo}`, path.join(__dirname, '..')],
-    env: { ...process.env, VAULT_WALLET_DATA: data, VAULT_DEV_TRON_HOST: `http://127.0.0.1:${server.address().port}`, VAULT_DEV_SOCKS: socks.uri, VAULT_DEV_BTC_API: `http://127.0.0.1:${server.address().port}/btc`, VAULT_DEV_TORNADO: JSON.stringify({ 0.1: '0x12D66f87A04A9E220743712cE6d9bB1B5616B8Fc', 1: '0x47CE0C6eD5B0Ce3d3A51fdb1C52DC66a7c3c2936' }), VAULT_DEV_DASH_API: `http://127.0.0.1:${server.address().port}/dash`, VAULT_DEV_DCR_API: `http://127.0.0.1:${server.address().port}/dcr`, VAULT_DEV_ETH_RPC: `http://127.0.0.1:${server.address().port}/eth/rpc`, VAULT_DEV_ETH_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_SIMPLESWAP_BASE: `http://127.0.0.1:${server.address().port}/simple`, VAULT_DEV_GHOSTSWAP_BASE: `http://127.0.0.1:${server.address().port}/ghost`, VAULT_DEV_SWAP_BASE: `http://127.0.0.1:${server.address().port}/swap`, VAULT_DEV_PRICE_URL: `http://127.0.0.1:${server.address().port}/simple/price`, NO_PROXY: '*' },
+    env: { ...process.env, VAULT_WALLET_DATA: data, VAULT_DEV_TRON_HOST: `http://127.0.0.1:${server.address().port}`, VAULT_DEV_SOCKS: socks.uri, VAULT_DEV_BTC_API: `http://127.0.0.1:${server.address().port}/btc`, VAULT_DEV_TORNADO: JSON.stringify({ 0.1: '0x12D66f87A04A9E220743712cE6d9bB1B5616B8Fc', 1: '0x47CE0C6eD5B0Ce3d3A51fdb1C52DC66a7c3c2936' }), VAULT_DEV_DASH_API: `http://127.0.0.1:${server.address().port}/dash`, VAULT_DEV_ZEC_BIN: path.join(__dirname, 'fake-zec-engine.js'), VAULT_DEV_DCR_API: `http://127.0.0.1:${server.address().port}/dcr`, VAULT_DEV_ETH_RPC: `http://127.0.0.1:${server.address().port}/eth/rpc`, VAULT_DEV_ETH_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_SIMPLESWAP_BASE: `http://127.0.0.1:${server.address().port}/simple`, VAULT_DEV_GHOSTSWAP_BASE: `http://127.0.0.1:${server.address().port}/ghost`, VAULT_DEV_SWAP_BASE: `http://127.0.0.1:${server.address().port}/swap`, VAULT_DEV_PRICE_URL: `http://127.0.0.1:${server.address().port}/simple/price`, NO_PROXY: '*' },
   });
   let app = await launch();
   let page = await app.firstWindow();
@@ -118,7 +118,7 @@ const PASSWORD = 'correct horse battery';
   await page.fill('#from', '');
   await page.click('#next');
   await page.locator('#asset-USDT').waitFor({ timeout: 90000 });
-  assert.deepEqual(await page.locator('.asset').evaluateAll((els) => els.map((e) => e.id)), ['asset-XMR', 'asset-BTC', 'asset-ETH', 'asset-TRX', 'asset-USDTE', 'asset-USDT', 'asset-DCR', 'asset-DASH']);
+  assert.deepEqual(await page.locator('.asset').evaluateAll((els) => els.map((e) => e.id)), ['asset-XMR', 'asset-BTC', 'asset-ETH', 'asset-TRX', 'asset-USDTE', 'asset-USDT', 'asset-DCR', 'asset-DASH', 'asset-ZEC']);
   assert.match(await page.locator('#asset-USDTE').innerText(), /USDT \(Eth\)/);
   assert.match(await page.locator('#asset-USDT').innerText(), /USDT \(Tron\)/);
   await page.locator('#asset-TRX .amt', { hasText: '50' }).waitFor({ timeout: 30000 });
@@ -420,6 +420,55 @@ const PASSWORD = 'correct horse battery';
   await page.click('#send-again');
   await page.click('#back');
   console.log('ok Dash: address, checks, signed send');
+
+  // Zcash, shielded: the engine here is a stand-in, the screens and their checks are real.
+  const zecOther = 'u1' + 'p'.repeat(150);
+  await page.waitForFunction(() => window.wallet.overview().then((o) => o.balances.ZEC && o.balances.ZEC.ok), null, { timeout: 30000 });
+  await page.click('#nav-home');
+  await page.locator('#asset-ZEC').waitFor({ timeout: 20000 });
+  await shot('zec-1-home');
+  await page.click('#asset-ZEC');
+  await page.locator('#zec-shield').waitFor({ timeout: 20000 });
+  await shot('zec-2-detail');
+  await page.click('#detail-receive');
+  await page.locator('#zec-address-kind').waitFor({ timeout: 20000 });
+  assert.match(await page.locator('#my-address').innerText(), /^u1/);
+  await shot('zec-3-receive-shielded');
+  await page.click('#zec-address-kind');
+  await page.waitForFunction(() => document.querySelector('#my-address')?.textContent.startsWith('t1'), null, { timeout: 15000 });
+  await page.getByText('체인에 공개돼').waitFor({ timeout: 5000 });
+  await shot('zec-4-receive-transparent');
+  await page.click('#back');
+  await page.click('#asset-ZEC');
+  await page.click('#detail-send');
+  await page.fill('#to', 'bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu');
+  await page.fill('#amount', '0.25');
+  await page.click('#review');
+  await page.getByText('Zcash 주소가 아니야').waitFor({ timeout: 15000 });
+  await page.fill('#to', zecOther);
+  await page.click('#review');
+  await page.locator('#confirm-send').waitFor({ timeout: 15000 });
+  assert.equal(await page.locator('#review-amount').innerText(), '0.25 ZEC');
+  await shot('zec-5-review');
+  await page.fill('#confirm-pw', PASSWORD);
+  await page.click('#confirm-send');
+  await page.locator('#sent').waitFor({ timeout: 20000 });
+  await page.click('#send-again');
+  await page.click('#back');
+  await page.click('#asset-ZEC');
+  await page.click('#zec-shield');
+  await page.locator('#confirm-shield').waitFor();
+  await shot('zec-6-shield');
+  await page.fill('#confirm-pw', PASSWORD);
+  await page.click('#confirm-shield');
+  await page.locator('#zec-rescan').waitFor({ timeout: 20000 });
+  await page.waitForFunction(() => !document.querySelector('#zec-shield'), null, { timeout: 20000 });
+  await page.click('#zec-rescan');
+  await page.locator('#confirm-rescan').waitFor();
+  await shot('zec-7-rescan');
+  await page.click('#back');
+  await page.click('#back');
+  console.log('ok Zcash: receive both kinds, checks, send, shield');
 
   // Swap result to an outside address
   const OUT_BTC = 'bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu';

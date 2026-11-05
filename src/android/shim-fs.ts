@@ -11,6 +11,12 @@ export const promises = {
   async writeFile(p: string, data: string) { await kvSet(fileKey(p), String(data)); },
   async mkdir() {},
   async rm(p: string) { await kvDelPrefix(fileKey(p)); },
+  async rename(from: string, to: string) {
+    const v = await kvGet<string>(fileKey(from));
+    if (v === undefined) throw new Error('ENOENT');
+    await kvSet(fileKey(to), v);
+    await kvDelPrefix(fileKey(from));
+  },
 };
 export const existsSync = () => false;
 export const mkdirSync = () => undefined;

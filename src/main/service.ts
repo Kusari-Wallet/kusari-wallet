@@ -4,7 +4,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import QRCode from 'qrcode';
 import { formatAmount, parseAmount } from './amount';
-import { Asset, BTC_APIS, BTC_EXPLORER_TX, DECIMALS, DASH_APIS, DASH_EXPLORER_TX, DCR_APIS, DCR_EXPLORER_TX, DEFAULT_SETTINGS, ETH_EXPLORER_TX, ETH_RPCS, ETH_SCOUT, ETH_USDT, NETWORKS, NetworkId, Settings, estimateMainnetHeight } from './config';
+import { Asset, BTC_APIS, BTC_EXPLORER_TX, DECIMALS, DASH_APIS, DASH_EXPLORER_TX, DCR_APIS, DCR_EXPLORER_TX, DEFAULT_SETTINGS, ZEC_EXPLORER_TX, ZEC_SERVERS, ETH_EXPLORER_TX, ETH_RPCS, ETH_SCOUT, ETH_USDT, NETWORKS, NetworkId, Settings, estimateMainnetHeight } from './config';
 import { MIN_PASSWORD, Secrets, Vault } from './vault';
 import { TronClient, TronTransfer, deriveTronAccount, generateTronMnemonic, isTronAddress } from './tron';
 import { socksAgent, getJson, requestJson } from './request';
@@ -12,6 +12,8 @@ import { BtcClient, BtcDraft, btcAccountXpub, estimateVbytes, isBtcAddress } fro
 import { PRICE_SOURCES, PriceMap, PriceSource, coingecko } from './prices';
 import { DEPOSIT_GAS, TORNADO_POOLS, TornadoNote, TornadoStore, WITHDRAW_GAS, abi as tornadoAbi, checkRelayerUrl, denomination, noteSecrets, noteText, relayerFee, relayerStatus, relayerSubmit, tornadoEngineCheck } from './tornado';
 import { runTornado } from './tornado-run';
+import { ZecClient, ZecDraft, isZecAddress, zecHeightForDate } from './zec';
+import { startZecEngine, zecEngineAvailable } from './zec-process';
 import { DashClient, DashDraft, dashAccountXpub, isDashAddress, typicalDashFee } from './dash';
 import { DcrClient, DcrDraft, dcrAccount, isDcrAddress, typicalDcrFee } from './dcr';
 import { EthClient, EthDraft, deriveEthAccount, isEthAddress } from './eth';
@@ -37,6 +39,7 @@ interface Preview {
   eth?: EthDraft;
   dcr?: DcrDraft;
   dash?: DashDraft;
+  zec?: ZecDraft;
 }
 
 export interface BalanceView { ok: boolean; stale?: boolean; pending?: boolean; total: string; spendable: string; error?: string }
@@ -65,6 +68,7 @@ export class WalletService extends EventEmitter {
   private eth: EthClient | null = null;
   private dcr: DcrClient | null = null;
   private dash: DashClient | null = null;
+  private zec: ZecClient | null = null;
   private previews = new Map<string, Preview>();
   private privacyTargets = new Map<string, Asset>();
   private pendingSwaps = new Map<string, { id: string; from: Asset; to: Asset; amount: string; receive: string; rate: string; providerId: SwapProviderId; provider: string; approximate: boolean; withdrawalAddress: string; privacy?: { leg: 'first'; via: string; destination: string } | { leg: 'second'; id: string } }>();
@@ -78,7 +82,7 @@ export class WalletService extends EventEmitter {
   settings: Settings = { ...DEFAULT_SETTINGS };
 
   constructor(private readonly baseDir: string, private readonly kdf?: { N: number; r: number; p: number }, private readonly dev: {
-    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; dcrApi?: string; dashApi?: string; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; btcApi?: string;
+    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; dcrApi?: string; dashApi?: string; zecBin?: string; zecServers?: string[]; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; btcApi?: string;
     /** Android: every outside address goes through the app's local forwarder. */
     route?: (url: string) => string;
     moneroStore?: (net: NetworkId, walletId: string) => MoneroOptions['store'];
@@ -237,6 +241,8 @@ export class WalletService extends EventEmitter {
     } else if (from) throw new Error('복구 시점은 블록 높이나 YYYY-MM-DD로 입력해.');
     const heights = { mainnet: height, testnet: /^\d+$/.test(from) ? height : 0 };
     const secrets = this.newSecrets(tronMnemonic.trim().toLowerCase().split(/\s+/).join(' '), seed, heights);
+    // A Monero block height says nothing about Zcash, so only a date carries over.
+    if (/^\d{4}-\d{2}-\d{2}$/.test(from)) secrets.zecBirthday = zecHeightForDate(new Date(from + 'T00:00:00Z'));
     await this.vault.save(password, secrets);
     await this.commitPendingWallet();
     await this.startSession(secrets);
@@ -300,6 +306,27 @@ export class WalletService extends EventEmitter {
     monero.on('balance', () => this.emit('balance-changed'));
     await monero.open();
     this.monero = monero;
+    await this.startZec(secrets);
+  }
+
+  private get zecAvailable(): boolean { return zecEngineAvailable(this.dev.zecBin); }
+
+  /** Every other coin works without this, so a problem here stays on the Zcash row. */
+  private async startZec(secrets: Secrets): Promise<void> {
+    if (!this.zecAvailable) return;
+    const torPort = this.settings.torEnabled ? Number((await this.tor.allocate()).match(/:(\d+)$/)?.[1]) : undefined;
+    if (this.settings.torEnabled && !torPort) return; // Never fall back to a direct connection.
+    const client = new ZecClient({
+      engine: () => startZecEngine(this.dev.zecBin),
+      dir: this.dir,
+      secret: secrets.moneroFilePasswords.mainnet,
+      servers: this.dev.zecServers ?? ZEC_SERVERS,
+      socks: torPort,
+      canConnect: () => !this.torNotReady,
+      onChange: () => this.emit('balance-changed'),
+    }, secrets.tronMnemonic, secrets.zecBirthday);
+    this.zec = client;
+    try { await client.start(); } catch (e) { client.lastError = (e as Error).message; }
   }
 
   async unlock(password: string): Promise<void> {
@@ -317,6 +344,8 @@ export class WalletService extends EventEmitter {
     this.eth = null;
     this.dcr = null;
     this.dash = null;
+    void this.zec?.stop();
+    this.zec = null;
     this.priceCache = null;
     const monero = this.monero;
     this.monero = null;
@@ -389,6 +418,13 @@ export class WalletService extends EventEmitter {
       }
     };
     const { eth, dcr, dash } = this.session();
+    const zec = this.zec;
+    const zecView = (): BalanceView => {
+      const b = zec?.balance();
+      if (b) return { ok: true, total: formatAmount(b[0], 8), spendable: formatAmount(b[1], 8) };
+      if (zec?.lastError && !this.torNotReady) return { ok: false, total: '', spendable: '', error: this.friendlyError(new Error(zec.lastError)) };
+      return { ok: false, pending: true, total: '', spendable: '' };
+    };
     const [BTC, XMR, ETH, TRX, USDTE, USDT, DCR, DASH] = await Promise.all([
       btcSettle(),
       settle('XMR', async () => { const b = await monero.getBalance(); return [b.total, b.unlocked]; }, 12),
@@ -402,8 +438,9 @@ export class WalletService extends EventEmitter {
     return {
       network: this.settings.network,
       tor: this.settings.torEnabled ? this.tor.state : null,
-      balances: { XMR, BTC, ETH, TRX, USDTE, USDT, DCR, DASH },
-      addresses: { BTC: btc.receiveAddress, XMR: await monero.getPrimaryAddress(), ETH: eth.address, TRX: tron.address, USDTE: eth.address, USDT: tron.address, DCR: dcr.receiveAddress, DASH: dash.receiveAddress },
+      balances: { XMR, BTC, ETH, TRX, USDTE, USDT, DCR, DASH, ...(zec ? { ZEC: zecView() } : {}) },
+      zec: zec ? { ...zec.state(), address: zec.receive?.unified ?? '', transparentAddress: zec.transparentAddress } : null,
+      addresses: { BTC: btc.receiveAddress, XMR: await monero.getPrimaryAddress(), ETH: eth.address, TRX: tron.address, USDTE: eth.address, USDT: tron.address, DCR: dcr.receiveAddress, DASH: dash.receiveAddress, ...(zec ? { ZEC: zec.receive?.unified ?? '' } : {}) },
       monero: monero.state,
     };
   }
@@ -411,7 +448,7 @@ export class WalletService extends EventEmitter {
   /** Answers without any network, so the receive screen never waits on a slow connection. */
   async addresses() {
     const { tron, monero, btc, eth, dcr, dash } = this.session();
-    return { DASH: dash.receiveAddress, BTC: btc.receiveAddress, XMR: await monero.getPrimaryAddress(), ETH: eth.address, TRX: tron.address, USDTE: eth.address, USDT: tron.address, DCR: dcr.receiveAddress };
+    return { DASH: dash.receiveAddress, BTC: btc.receiveAddress, XMR: await monero.getPrimaryAddress(), ETH: eth.address, TRX: tron.address, USDTE: eth.address, USDT: tron.address, DCR: dcr.receiveAddress, ...(this.zec ? { ZEC: this.zec.receive?.unified ?? '', ZEC_T: this.zec.transparentAddress } : {}) };
   }
 
   async torInfo() {
@@ -425,6 +462,7 @@ export class WalletService extends EventEmitter {
   async history(asset: Asset) {
     const { tron, monero, btc, eth, dcr, dash } = this.session();
     if (asset === 'DASH') return dash.getHistory();
+    if (asset === 'ZEC') return this.zec ? this.zec.getHistory() : [];
     if (asset === 'BTC') return btc.getHistory();
     if (asset === 'DCR') return dcr.getHistory();
     if (asset === 'ETH' || asset === 'USDTE') return eth.getHistory(asset);
@@ -480,6 +518,7 @@ export class WalletService extends EventEmitter {
     const valid = asset === 'BTC' ? isBtcAddress(address)
       : asset === 'DCR' ? isDcrAddress(address)
       : asset === 'DASH' ? isDashAddress(address)
+      : asset === 'ZEC' ? isZecAddress(address)
       : asset === 'XMR' ? await monero.isValidAddress(address)
         : asset === 'ETH' || asset === 'USDTE' ? isEthAddress(address)
           : isTronAddress(address);
@@ -490,6 +529,11 @@ export class WalletService extends EventEmitter {
 
   private async myAddress(asset: Asset): Promise<string> {
     const { tron, monero, btc, eth, dcr, dash } = this.session();
+    if (asset === 'ZEC') {
+      // Swap services pay transparent addresses. The coins get shielded on arrival.
+      if (!this.zec?.transparentAddress) throw new Error('Zcash 지갑을 준비하는 중이야. 조금 뒤에 다시 해봐.');
+      return this.zec.transparentAddress;
+    }
     await (asset === 'DASH' ? dash.refresh().catch(() => undefined) : asset === 'BTC' ? btc.refresh().catch(() => undefined) : asset === 'DCR' ? dcr.refresh().catch(() => undefined) : undefined);
     return asset === 'DASH' ? dash.receiveAddress : asset === 'DCR' ? dcr.receiveAddress : asset === 'BTC' ? btc.receiveAddress : asset === 'XMR' ? monero.getPrimaryAddress() : asset === 'ETH' || asset === 'USDTE' ? eth.address : tron.address;
   }
@@ -699,6 +743,7 @@ export class WalletService extends EventEmitter {
       if (asset === 'BTC') return [estimateVbytes(1, 2) * (await btc.feeRate()), 8, 'BTC'];
       if (asset === 'DCR') return [typicalDcrFee(), 8, 'DCR'];
       if (asset === 'DASH') return [typicalDashFee(), 8, 'DASH'];
+      if (asset === 'ZEC') return [15_000n, 8, 'ZEC']; // ZIP-317, a typical transfer
       if (asset === 'ETH') return [await eth.typicalFee(21_000n), 18, 'ETH'];
       if (asset === 'USDTE') return [await eth.typicalFee(65_000n), 18, 'ETH'];
       if (asset === 'USDT') return [await tron.typicalUsdtFee(), 6, 'TRX'];
@@ -901,7 +946,15 @@ export class WalletService extends EventEmitter {
     const warnings: string[] = [];
     let preview: Preview;
 
-    if (asset === 'DASH') {
+    if (asset === 'ZEC') {
+      if (!this.zec) throw new Error('이 기기에서는 Zcash를 쓸 수 없어.');
+      if (!isZecAddress(address)) throw new Error('Zcash 주소가 아니야. u1, zs1, t1로 시작하는 주소만 보낼 수 있어.');
+      const receive = this.zec.receive;
+      if (address === receive?.unified || address === receive?.transparent) throw new Error('내 주소로는 보낼 수 없어.');
+      const draft = await this.zec.draft(address, isMax ? 'max' : parseAmount(amountInput, decimals));
+      if (/^t/.test(address)) warnings.push('투명 주소로 보내면 받는 쪽 주소와 금액이 체인에 공개돼.');
+      preview = this.storePreview({ asset, to: address, amount: draft.value, fee: draft.fee, zec: draft });
+    } else if (asset === 'DASH') {
       if (!isDashAddress(address)) throw new Error('Dash 주소가 아니야. X로 시작하는 주소만 보낼 수 있어.');
       if (address === dash.receiveAddress) throw new Error('내 주소로는 보낼 수 없어.');
       const draft = await dash.draft(address, isMax ? 'max' : parseAmount(amountInput, decimals));
@@ -957,9 +1010,9 @@ export class WalletService extends EventEmitter {
     return {
       id: preview.id, asset, to: address,
       amount: formatAmount(preview.amount, decimals),
-      fee: formatAmount(preview.fee, preview.eth ? 18 : asset === 'XMR' ? 12 : asset === 'BTC' || asset === 'DCR' || asset === 'DASH' ? 8 : 6),
-      feeAsset: preview.eth ? 'ETH' : asset === 'XMR' || asset === 'BTC' || asset === 'DCR' || asset === 'DASH' ? asset : 'TRX',
-      feeIsEstimate: asset !== 'XMR' && asset !== 'BTC' && asset !== 'DCR' && asset !== 'DASH',
+      fee: formatAmount(preview.fee, preview.eth ? 18 : asset === 'XMR' ? 12 : asset === 'BTC' || asset === 'DCR' || asset === 'DASH' || asset === 'ZEC' ? 8 : 6),
+      feeAsset: preview.eth ? 'ETH' : asset === 'XMR' || asset === 'BTC' || asset === 'DCR' || asset === 'DASH' || asset === 'ZEC' ? asset : 'TRX',
+      feeIsEstimate: asset !== 'XMR' && asset !== 'BTC' && asset !== 'DCR' && asset !== 'DASH' && asset !== 'ZEC',
       warnings,
     };
   }
@@ -984,6 +1037,10 @@ export class WalletService extends EventEmitter {
     this.previews.delete(id); // one shot: a retry must go through a fresh preview
     this.balanceMemo.clear(); // money is about to move
 
+    if (preview.zec) {
+      if (!this.zec) throw new Error('Zcash 엔진이 꺼져 있어.');
+      return { hashes: await this.zec.send(preview.zec, secrets.tronMnemonic) };
+    }
     if (preview.dash) return { hashes: [await dash.send(preview.dash, secrets.tronMnemonic)] };
     if (preview.dcr) return { hashes: [await dcr.send(preview.dcr, secrets.tronMnemonic)] };
     if (preview.btc) {
@@ -1001,6 +1058,24 @@ export class WalletService extends EventEmitter {
     const txid = await tron.send(preview.tron as TronTransfer, account.privateKey);
     void tron.waitForResult(txid).then((status) => this.emit('tron-tx', { txid, status, asset: preview.asset }));
     return { hashes: [txid] };
+  }
+
+  // ---- Zcash ----
+
+  async zecShield(password: string) {
+    if (!this.zec) throw new Error('이 기기에서는 Zcash를 쓸 수 없어.');
+    if (this.torNotReady) throw new Error('Tor 연결 중이야. 연결되면 다시 해봐.');
+    const secrets = await this.vault.open(password);
+    return { hashes: await this.zec.shield(secrets.tronMnemonic) };
+  }
+
+  /** date: YYYY-MM-DD. The earlier the date, the longer the scan. */
+  async zecRescan(date: string, password: string): Promise<void> {
+    if (!this.zec) throw new Error('이 기기에서는 Zcash를 쓸 수 없어.');
+    const parsed = /^\d{4}-\d{2}-\d{2}$/.test(date.trim()) ? new Date(date.trim() + 'T00:00:00Z') : null;
+    if (!parsed || Number.isNaN(parsed.getTime())) throw new Error('날짜는 YYYY-MM-DD로 입력해.');
+    const secrets = await this.vault.open(password);
+    await this.zec.rescan(secrets.tronMnemonic, zecHeightForDate(parsed));
   }
 
   // ---- security & settings ----
@@ -1056,7 +1131,7 @@ export class WalletService extends EventEmitter {
     if (id === 'main') {
       // The app's shared files live next to this wallet's, so only its own are removed.
       await fs.rm(path.join(this.dir, 'xmr'), { recursive: true, force: true });
-      for (const f of ['swaps.json', 'privacy-swaps.json', 'tornado.json']) await fs.rm(path.join(this.dir, f), { force: true });
+      for (const f of ['swaps.json', 'privacy-swaps.json', 'tornado.json', 'zec-state.json']) await fs.rm(path.join(this.dir, f), { force: true });
     } else {
       await fs.rm(this.dir, { recursive: true, force: true });
     }
@@ -1077,6 +1152,7 @@ export class WalletService extends EventEmitter {
     const net = NETWORKS[this.settings.network];
     if (asset === 'DCR') return DCR_EXPLORER_TX + hash;
     if (asset === 'DASH') return DASH_EXPLORER_TX + hash;
+    if (asset === 'ZEC') return ZEC_EXPLORER_TX + hash;
     if (asset === 'BTC') return BTC_EXPLORER_TX + hash;
     return (asset === 'XMR' ? net.monero.explorerTx : net.tron.explorerTx) + hash;
   }

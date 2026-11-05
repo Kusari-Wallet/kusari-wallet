@@ -22,7 +22,7 @@ jobs:
           cp -r native/zec-bridge webzjs/crates/zec-bridge
           cd webzjs
           sed -i 's|"crates/webzjs-wallet",|"crates/webzjs-wallet",\n    "crates/zec-bridge",|' Cargo.toml
-          sed -i 's/pub(crate) db:/pub db:/; s/pub(crate) network:/pub network:/' crates/webzjs-wallet/src/wallet.rs
+          sed -i 's/pub(crate) db:/pub db:/; s/pub(crate) network:/pub network:/; s/pub(crate) fn usk_from_seed_str/pub fn usk_from_seed_str/' crates/webzjs-wallet/src/wallet.rs
       - name: Build
         working-directory: webzjs
         env:
@@ -55,7 +55,7 @@ jobs:
           cp -r native/zec-bridge webzjs/crates/zec-bridge
           cd webzjs
           sed -i 's|"crates/webzjs-wallet",|"crates/webzjs-wallet",\n    "crates/zec-bridge",|' Cargo.toml
-          sed -i 's/pub(crate) db:/pub db:/; s/pub(crate) network:/pub network:/' crates/webzjs-wallet/src/wallet.rs
+          sed -i 's/pub(crate) db:/pub db:/; s/pub(crate) network:/pub network:/; s/pub(crate) fn usk_from_seed_str/pub fn usk_from_seed_str/' crates/webzjs-wallet/src/wallet.rs
       - name: Build
         shell: bash
         working-directory: webzjs
@@ -88,7 +88,7 @@ jobs:
           cp -r native/zec-bridge webzjs/crates/zec-bridge
           cd webzjs
           sed -i 's|"crates/webzjs-wallet",|"crates/webzjs-wallet",\n    "crates/zec-bridge",|' Cargo.toml
-          sed -i 's/pub(crate) db:/pub db:/; s/pub(crate) network:/pub network:/' crates/webzjs-wallet/src/wallet.rs
+          sed -i 's/pub(crate) db:/pub db:/; s/pub(crate) network:/pub network:/; s/pub(crate) fn usk_from_seed_str/pub fn usk_from_seed_str/' crates/webzjs-wallet/src/wallet.rs
       - name: Build
         working-directory: webzjs
         env:
@@ -123,6 +123,8 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
       - name: Real account and scan on an emulator
+        timeout-minutes: 25
+        continue-on-error: false
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34

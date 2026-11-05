@@ -12,13 +12,177 @@ use tokio_socks::tcp::Socks5Stream;
 use tonic::transport::{Channel, ClientTlsConfig, Endpoint, Uri};
 use tower::service_fn;
 use webzjs_common::Network;
-use webzjs_wallet::{validation::validate_confirmations_policy, Wallet, PRUNING_DEPTH};
+use webzjs_wallet::{
+    validation::validate_confirmations_policy, wallet::usk_from_seed_str, Wallet, PRUNING_DEPTH,
+};
 use zcash_address::ZcashAddress;
-use zcash_client_backend::data_api::{WalletRead, WalletSummary};
+use zcash_client_backend::data_api::wallet::{
+    create_proposed_transactions, input_selection::GreedyInputSelector, propose_shielding,
+    SpendingKeys,
+};
+use zcash_client_backend::data_api::{
+    wallet::ConfirmationsPolicy, InputSource, WalletCommitmentTrees, WalletRead, WalletSummary,
+};
+use zcash_client_backend::fees::standard::MultiOutputChangeStrategy;
+use zcash_client_backend::fees::{DustOutputPolicy, SplitPolicy, StandardFeeRule};
+use zcash_client_backend::proposal::Proposal;
+use zcash_client_backend::wallet::OvkPolicy;
 use zcash_client_memory::MemoryWalletDb;
 use zcash_keys::keys::UnifiedAddressRequest;
+use zcash_primitives::transaction::fees::FeeRule;
+use zcash_proofs::prover::LocalTxProver;
+use zcash_protocol::value::Zatoshis;
+use zcash_protocol::ShieldedProtocol;
 
 type Zw = Wallet<MemoryWalletDb<Network>, Channel>;
+
+/// Same rule as Zashi: below this, shielding would mostly pay the fee.
+const SHIELD_MIN: Zatoshis = Zatoshis::const_from_u64(100_000);
+
+fn policy() -> Result<ConfirmationsPolicy, String> {
+    validate_confirmations_policy(3, 10, true).map_err(fail)
+}
+
+fn fee_of<N>(p: &Proposal<StandardFeeRule, N>) -> u64 {
+    p.steps().iter().map(|s| s.balance().fee_required().into_u64()).sum()
+}
+
+fn spendable<T: Eq + std::hash::Hash>(s: &WalletSummary<T>) -> u64 {
+    s.account_balances().values().map(|b| b.spendable_value().into_u64()).sum()
+}
+
+/// Works out the amount and fee before anything is signed. "max" means all of it minus the fee,
+/// which depends on how many notes that takes, hence the repeat.
+async fn quote(w: &Zw, account: u32, to: &ZcashAddress, value: Option<u64>) -> Result<(u64, u64), String> {
+    let id = account.into();
+    if let Some(v) = value {
+        let p = w.propose_transfer(id, to.clone(), v).await.map_err(fail)?;
+        return Ok((v, fee_of(&p)));
+    }
+    let s = w.get_wallet_summary().await.map_err(fail)?.ok_or("not scanned yet")?;
+    let all = spendable(&s);
+    let mut fee = 10_000u64;
+    for _ in 0..4 {
+        let v = all.checked_sub(fee).filter(|v| *v > 0).ok_or("nothing to send after the fee")?;
+        let needed = fee_of(&w.propose_transfer(id, to.clone(), v).await.map_err(fail)?);
+        if needed == fee {
+            return Ok((v, fee));
+        }
+        fee = needed;
+    }
+    Err("could not settle on a fee".into())
+}
+
+async fn send(w: &Zw, seed: &str, index: u32, account: u32, to: ZcashAddress, value: u64, max_fee: u64) -> Result<Value, String> {
+    let (usk, _) = usk_from_seed_str(seed, index, &w.network).map_err(fail)?;
+    let proposal = w.propose_transfer(account.into(), to, value).await.map_err(fail)?;
+    let fee = fee_of(&proposal);
+    if fee > max_fee {
+        return Err(format!("fee rose to {fee} from the {max_fee} shown"));
+    }
+    let txids = w.create_proposed_transactions(proposal, &usk).await.map_err(fail)?;
+    w.send_authorized_transactions(&txids).await.map_err(fail)?;
+    Ok(json!({ "txids": txids.iter().map(|t| t.to_string()).collect::<Vec<_>>(), "fee": fee }))
+}
+
+/// Moves everything on the transparent address into the shielded pool. A swap service can only
+/// pay a transparent address, so this is the step that makes those coins private.
+async fn shield(w: &Zw, seed: &str, index: u32, account: u32) -> Result<Value, String> {
+    let (usk, _) = usk_from_seed_str(seed, index, &w.network).map_err(fail)?;
+    let id = account.into();
+    let confirmations = policy()?;
+    let txids = {
+        let mut db = w.db.write().await;
+        let tip = db.chain_height().map_err(fail)?.ok_or("not scanned yet")?;
+        let from: Vec<_> = db
+            .get_transparent_balances(id, tip.into(), confirmations)
+            .map_err(fail)?
+            .into_keys()
+            .collect();
+        if from.is_empty() {
+            return Err("no transparent funds".into());
+        }
+        let change = MultiOutputChangeStrategy::new(
+            StandardFeeRule::Zip317,
+            None,
+            ShieldedProtocol::Orchard,
+            DustOutputPolicy::default(),
+            SplitPolicy::single_output(),
+        );
+        let proposal = propose_shielding::<_, _, _, _, <MemoryWalletDb<Network> as WalletCommitmentTrees>::Error>(
+            &mut *db,
+            &w.network,
+            &GreedyInputSelector::new(),
+            &change,
+            SHIELD_MIN,
+            &from,
+            id,
+            confirmations,
+        )
+        .map_err(|e| format!("{e:?}"))?;
+        let prover = LocalTxProver::bundled();
+        create_proposed_transactions::<
+            _,
+            _,
+            <MemoryWalletDb<Network> as InputSource>::Error,
+            _,
+            <StandardFeeRule as FeeRule>::Error,
+            _,
+        >(
+            &mut *db,
+            &w.network,
+            &prover,
+            &prover,
+            &SpendingKeys::from_unified_spending_key(usk),
+            OvkPolicy::Sender,
+            &proposal,
+        )
+        .map_err(|e| format!("{e:?}"))?
+    };
+    w.send_authorized_transactions(&txids).await.map_err(fail)?;
+    Ok(json!({ "txids": txids.iter().map(|t| t.to_string()).collect::<Vec<_>>() }))
+}
+
+/// Direction and amount per transaction, from what this wallet could decrypt. Fees aren't counted.
+/// Transparent deposits don't appear until they are shielded: this database keeps only a total for them.
+async fn history(w: &Zw, account: u32) -> Result<Value, String> {
+    use std::collections::BTreeMap;
+    use zcash_client_backend::data_api::TransactionStatus;
+    let id: <MemoryWalletDb<Network> as WalletRead>::AccountId = account.into();
+    let db = w.db.read().await;
+    let tip = db.chain_height().map_err(fail)?.map(u32::from);
+    let mut map: BTreeMap<_, (u64, u64)> = BTreeMap::new();
+    for n in db.received_notes().iter() {
+        if n.account_id() == id {
+            map.entry(n.txid()).or_default().0 += n.note().value().into_u64();
+        }
+    }
+    for (k, n) in db.sent_notes().iter() {
+        if n.from_account_id() == id {
+            map.entry(*k.txid()).or_default().1 += n.value().into_u64();
+        }
+    }
+    let list: Vec<Value> = map
+        .into_iter()
+        .map(|(txid, (received, sent))| {
+            let entry = db.tx_table().get(&txid);
+            let height = entry.and_then(|e| e.mined_height()).map(u32::from);
+            let status = match entry.map(|e| e.status()) {
+                Some(TransactionStatus::Mined(_)) => "confirmed",
+                Some(TransactionStatus::NotInMainChain) => {
+                    let expired = match (entry.and_then(|e| e.expiry_height()), tip) {
+                        (Some(x), Some(t)) => u32::from(x) != 0 && t > u32::from(x),
+                        _ => false,
+                    };
+                    if expired { "failed" } else { "pending" }
+                }
+                _ => "pending",
+            };
+            json!({ "txid": txid.to_string(), "received": received, "sent": sent, "height": height, "status": status })
+        })
+        .collect();
+    Ok(json!({ "tip": tip, "items": list }))
+}
 
 fn fail<E: std::fmt::Debug>(e: E) -> String {
     format!("{e:?}")
@@ -49,8 +213,7 @@ fn open(url: &str, socks: Option<u16>, db: Option<&[u8]>) -> Result<Zw, String> 
         Some(bytes) => MemoryWalletDb::decode_new(bytes, network, PRUNING_DEPTH).map_err(fail)?,
         None => MemoryWalletDb::new(network, PRUNING_DEPTH),
     };
-    let policy = validate_confirmations_policy(3, 10, true).map_err(fail)?;
-    Wallet::new(db, channel(url, socks)?, network, policy).map_err(fail)
+    Wallet::new(db, channel(url, socks)?, network, policy()?).map_err(fail)
 }
 
 fn text<'a>(p: &'a Value, k: &str) -> Result<&'a str, String> {
@@ -88,6 +251,11 @@ async fn address(w: &Zw, account: u32) -> Result<Value, String> {
 }
 
 async fn call(w: &mut Option<Zw>, m: &str, p: &Value) -> Result<Value, String> {
+    if m == "validate" {
+        // Mainnet only: this decodes for that network and nothing else.
+        let ok = zcash_keys::address::Address::decode(&Network::MainNetwork, text(p, "address")?).is_some();
+        return Ok(json!(ok));
+    }
     if m == "open" {
         let db = match p["db"].as_str() {
             Some(s) => Some(B64.decode(s).map_err(fail)?),
@@ -116,20 +284,26 @@ async fn call(w: &mut Option<Zw>, m: &str, p: &Value) -> Result<Value, String> {
             Ok(s.map(|s| summary_json(&s)).unwrap_or(Value::Null))
         }
         "address" => address(wallet, number(p, "account")? as u32).await,
+        "quote" => {
+            let to = ZcashAddress::from_str(text(p, "to")?).map_err(fail)?;
+            let (value, fee) = quote(wallet, number(p, "account")? as u32, &to, p["value"].as_u64()).await?;
+            Ok(json!({ "value": value, "fee": fee }))
+        }
         "send" => {
             let to = ZcashAddress::from_str(text(p, "to")?).map_err(fail)?;
-            wallet
-                .transfer(
-                    text(p, "seed")?,
-                    number(p, "index")? as u32,
-                    (number(p, "account")? as u32).into(),
-                    to,
-                    number(p, "value")?,
-                )
-                .await
-                .map_err(fail)?;
-            Ok(json!(true))
+            send(
+                wallet,
+                text(p, "seed")?,
+                number(p, "index")? as u32,
+                number(p, "account")? as u32,
+                to,
+                number(p, "value")?,
+                number(p, "maxFee")?,
+            )
+            .await
         }
+        "shield" => shield(wallet, text(p, "seed")?, number(p, "index")? as u32, number(p, "account")? as u32).await,
+        "history" => history(wallet, number(p, "account")? as u32).await,
         "dump" => Ok(json!(B64.encode(wallet.db_to_bytes().await.map_err(fail)?))),
         _ => Err(format!("unknown method {m}")),
     }
@@ -156,6 +330,16 @@ async fn selftest(server: &str, socks: Option<u16>) -> Result<(), String> {
     if s["total"] != json!(0) || s["tip"].as_u64().unwrap_or(0) < 3_000_000 {
         return Err("unexpected summary".into());
     }
+    // Paths that need no coins: each must answer, and refuse rather than build anything.
+    if call(&mut w, "validate", &json!({ "address": a["unified"] })).await? != json!(true)
+        || call(&mut w, "validate", &json!({ "address": a["transparent"] })).await? != json!(true)
+        || call(&mut w, "validate", &json!({ "address": "tmEZhbWHTpdKMw5it8YDspUXSMGQyFwovpU" })).await? != json!(false)
+    {
+        return Err("address check is wrong".into());
+    }
+    say("history", &call(&mut w, "history", &json!({ "account": id })).await?);
+    say("quote refused", &json!(call(&mut w, "quote", &json!({ "account": id, "to": a["unified"], "value": 100000 })).await.is_err()));
+    say("shield refused", &json!(call(&mut w, "shield", &json!({ "seed": phrase, "index": 0, "account": id })).await.err()));
     let dump = call(&mut w, "dump", &json!({})).await?;
     say("state bytes", &json!(dump.as_str().unwrap_or("").len() * 3 / 4));
     let mut again = None;

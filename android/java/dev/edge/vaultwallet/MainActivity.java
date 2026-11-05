@@ -44,6 +44,7 @@ public class MainActivity extends Activity {
     private WebView web;
     private BiometricVault biometric;
     private TorProcess tor;
+    private ZecProcess zec;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -51,6 +52,10 @@ public class MainActivity extends Activity {
         // Keeps seed words out of screenshots and the recent-apps preview.
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
         biometric = new BiometricVault(this);
+        zec = new ZecProcess(new File(getApplicationInfo().nativeLibraryDir, "libzecbridge.so"), new File(getFilesDir(), "zec"), new ZecProcess.Listener() {
+            @Override public void onLine(String line) { toPage("window.__zecLine&&window.__zecLine(" + JSONObject.quote(line) + ")"); }
+            @Override public void onExit() { toPage("window.__zecExit&&window.__zecExit()"); }
+        });
         tor = new TorProcess(new File(getApplicationInfo().nativeLibraryDir, "libtor.so"), new File(getFilesDir(), "tor"), new TorProcess.Listener() {
             @Override public void onState(String phase, int percent, String error) {
                 final String script = "window.__torState&&window.__torState(" + JSONObject.quote(phase) + "," + percent + "," + JSONObject.quote(error) + ")";
@@ -121,6 +126,7 @@ public class MainActivity extends Activity {
 
     @Override protected void onDestroy() {
         tor.stop();
+        zec.stop();
         super.onDestroy();
     }
 
@@ -149,6 +155,10 @@ public class MainActivity extends Activity {
     private void bioResult(int id, boolean ok, String value) {
         final String script = "window.__bioResult(" + id + "," + ok + "," + JSONObject.quote(value) + ")";
         runOnUiThread(new Runnable() { @Override public void run() { web.evaluateJavascript(script, null); } });
+    }
+
+    private void toPage(final String script) {
+        runOnUiThread(new Runnable() { @Override public void run() { if (web != null) web.evaluateJavascript(script, null); } });
     }
 
     public final class Bridge {
@@ -200,6 +210,11 @@ public class MainActivity extends Activity {
                 }
             });
         }
+
+        @JavascriptInterface public boolean zecAvailable() { return zec.available(); }
+        @JavascriptInterface public boolean zecStart() { return zec.start(); }
+        @JavascriptInterface public boolean zecWrite(String line) { return zec.write(line); }
+        @JavascriptInterface public void zecStop() { zec.stop(); }
 
         @JavascriptInterface public boolean torAvailable() { return tor.available(); }
 

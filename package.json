@@ -1,12 +1,12 @@
 {
   "name": "kusari-wallet",
-  "version": "0.17.0",
+  "version": "0.18.0",
   "description": "XMR, BTC, ETH, TRX, USDT wallet",
   "main": "dist/main/main.js",
   "scripts": {
     "build": "node scripts/gen-keys.js && tsc -p tsconfig.json && tsc -p tsconfig.renderer.json && node scripts/copy-assets.js",
     "start": "npm run build && electron .",
-    "test": "npm run build && node --test tests/unit.test.js tests/tron.test.js tests/monero-busy.test.js tests/tor.test.js tests/swap.test.js tests/btc.test.js tests/eth.test.js tests/privacy.test.js tests/tornado.test.js tests/wallets.test.js tests/prices.test.js tests/balances.test.js tests/dcr.test.js tests/dash.test.js",
+    "test": "npm run build && node --test tests/unit.test.js tests/tron.test.js tests/monero-busy.test.js tests/tor.test.js tests/swap.test.js tests/btc.test.js tests/eth.test.js tests/privacy.test.js tests/tornado.test.js tests/wallets.test.js tests/prices.test.js tests/balances.test.js tests/dcr.test.js tests/dash.test.js tests/zec.test.js",
     "test:monero": "npm run build && node tests/monero-regtest.js",
     "dist:win": "npm run build && electron-builder --win",
     "dist:linux": "npm run build && electron-builder --linux dir",
@@ -75,6 +75,15 @@
       "node_modules/**",
       "dist/main/tornado-worker.js",
       "dist/main/tornado/**"
+    ],
+    "extraResources": [
+      {
+        "from": "native-bin/desktop",
+        "to": "zec",
+        "filter": [
+          "**/*"
+        ]
+      }
     ],
     "win": {
       "target": [

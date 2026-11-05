@@ -16,6 +16,7 @@ const COIN: Record<Asset, { coin: string; network: RegExp; fallback: string }> =
   USDTE: { coin: 'USDT', network: /^(eth|ethereum|erc-?20)$/i, fallback: 'ETH' },
   DCR: { coin: 'DCR', network: /^(dcr|decred)$/i, fallback: 'DCR' },
   DASH: { coin: 'DASH', network: /^dash$/i, fallback: 'DASH' },
+  ZEC: { coin: 'ZEC', network: /^(zec|zcash)$/i, fallback: 'ZEC' },
 };
 
 /** Ethereum addresses differ only in checksum casing, which services often drop. */
@@ -151,6 +152,7 @@ const SIMPLE_COIN: Record<Asset, { ticker: string; network: string }> = {
   USDTE: { ticker: 'usdt', network: 'eth' },
   DCR: { ticker: 'dcr', network: 'dcr' },
   DASH: { ticker: 'dash', network: 'dash' },
+  ZEC: { ticker: 'zec', network: 'zec' },
 };
 
 export class SimpleSwapClient implements SwapProvider {
@@ -212,7 +214,7 @@ export class SimpleSwapClient implements SwapProvider {
 // ---- GhostSwap ----
 
 export const GHOSTSWAP_BASE = 'https://partners-api.ghostswap.io';
-const GHOST_TICKER: Record<Exclude<Asset, 'USDTE'>, string> = { BTC: 'btc', XMR: 'xmr', ETH: 'eth', TRX: 'trx', USDT: 'usdtrx', DCR: 'dcr', DASH: 'dash' };
+const GHOST_TICKER: Record<Exclude<Asset, 'USDTE'>, string> = { BTC: 'btc', XMR: 'xmr', ETH: 'eth', TRX: 'trx', USDT: 'usdtrx', DCR: 'dcr', DASH: 'dash', ZEC: 'zec' };
 
 export class GhostSwapClient implements SwapProvider {
   constructor(private readonly base: string, private readonly bearer: string, private readonly agent?: Agent, private readonly timeoutMs = 30_000) {}
