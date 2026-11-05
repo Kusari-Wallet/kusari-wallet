@@ -111,6 +111,12 @@ jobs:
           cp webzjs/target/x86_64-linux-android/release/zec-bridge "$RUNNER_TEMP/bin/zec-bridge-x86_64"
           rm -rf webzjs/target ~/.cargo/registry ~/.cargo/git
           df -h / | tail -1
+      - name: Start Tor
+        run: |
+          sudo apt-get install -y -qq tor
+          sudo systemctl stop tor || true
+          tor --SocksPort 9150 --DataDirectory "$RUNNER_TEMP/tor" --Log "notice stdout" > "$RUNNER_TEMP/tor.log" &
+          for i in $(seq 1 120); do grep -q "Bootstrapped 100" "$RUNNER_TEMP/tor.log" && break; sleep 2; done
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -128,8 +134,12 @@ jobs:
             adb push "$RUNNER_TEMP/bin/zec-bridge-x86_64" /data/local/tmp/zec-bridge
             adb shell chmod 755 /data/local/tmp/zec-bridge
             adb shell /data/local/tmp/zec-bridge --version
-            adb shell "/data/local/tmp/zec-bridge --selftest https://zec.rocks:443; echo exit=\$?" | tee "$RUNNER_TEMP/out.txt"
-            grep -q "selftest ok" "$RUNNER_TEMP/out.txt"
+            adb reverse tcp:9150 tcp:9150
+            adb shell "/data/local/tmp/zec-bridge --selftest https://zec.rocks:443 9150; echo exit=\\$?" | tee "$RUNNER_TEMP/tor.txt"
+            sleep 30
+            adb shell "getprop net.dns1; ping -c 1 -W 5 zec.rocks | head -2" || true
+            adb shell "/data/local/tmp/zec-bridge --selftest https://zec.rocks:443; echo exit=\\$?" || true
+            grep -q "selftest ok" "$RUNNER_TEMP/tor.txt"
       - uses: actions/upload-artifact@v4
         with:
           name: zec-bridge-android-arm64
