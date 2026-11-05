@@ -133,6 +133,21 @@ test('a failed server gives way to the next, keeping the state', { timeout: 6000
   assert.equal(logged().find((l) => l.m === 'account').birthday, null, 'no date, so it starts from now');
 });
 
+test('an engine that dies comes back from the saved state', { timeout: 90000 }, async (t) => {
+  const flag = path.join(os.tmpdir(), `zec-die-${process.pid}`);
+  fs.rmSync(flag, { force: true });
+  const { service, logged, moneroSeed } = await wallet(t, { FAKE_ZEC_DIE_FLAG: flag });
+  t.after(() => { delete process.env.FAKE_ZEC_DIE_FLAG; fs.rmSync(flag, { force: true }); });
+  await service.restore(PW, TRON, moneroSeed, '');
+  await until(() => service.zec.balance());
+  await service.zec.syncNow(); // the second scan is the one that dies
+  assert.ok(fs.existsSync(flag));
+  assert.equal(logged().filter((l) => l.m === 'open').at(-1).hasDb, true);
+  await service.zec.syncNow();
+  assert.equal(service.zec.lastError, null);
+  assert.equal(logged().filter((l) => l.m === 'account').length, 1, 'the account came back from the file');
+});
+
 test('rescan needs the password and starts over from the date', { timeout: 60000 }, async (t) => {
   const { service, logged, moneroSeed } = await wallet(t);
   await service.restore(PW, TRON, moneroSeed, '');

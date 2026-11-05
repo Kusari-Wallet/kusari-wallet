@@ -13,7 +13,7 @@ const methods = {
   validate: (p) => /^(u1|zs1|t1|t3|tex1)/.test(p.address),
   open: (p) => { note({ m: 'open', server: p.server, socks: p.socks ?? null, hasDb: Boolean(p.db) }); db = p.db ? JSON.parse(Buffer.from(p.db, 'base64')) : fresh(); return true; },
   account: (p) => { note({ m: 'account', index: p.index, birthday: p.birthday ?? null, seedWords: p.seed.split(' ').length }); db.birthday = p.birthday ?? null; db.total = 150000000; db.spendable = 100000000; db.transparent = 50000000; return db.accounts++; },
-  sync: () => { if (fail) { fail = false; throw new Error('transport error'); } db.syncs++; return true; },
+  sync: () => { const die = process.env.FAKE_ZEC_DIE_FLAG; if (die && db.syncs > 0 && !fs.existsSync(die)) { fs.writeFileSync(die, ''); process.exit(1); } if (fail) { fail = false; throw new Error('transport error'); } db.syncs++; return true; },
   summary: () => ({ total: db.total, spendable: db.spendable, transparent: db.transparent, tip: 3200000, scanned: 3200000 }),
   address: () => ({ unified: U, transparent: T }),
   quote: (p) => { const value = p.value ?? db.spendable - 15000; if (value + 15000 > db.spendable) throw new Error('insufficient'); return { value, fee: 15000 }; },

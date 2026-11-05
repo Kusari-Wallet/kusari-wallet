@@ -173,7 +173,12 @@ export class ZecClient {
         this.lastError = /Grpc|transport|dns error|Unavailable/i.test(message) ? 'Zcash 서버에 연결하지 못했어. 다른 서버로 다시 시도해.' : message.slice(0, 160);
         this.serverIndex++;
         if (this.engine && !this.stopped) {
-          const db = this.account !== null ? await this.call('dump').catch(() => undefined) : undefined;
+          // If the engine itself died, what's on disk is the last good scan. Nothing is lost but the rescan.
+          const died = message.includes('엔진이 종료');
+          if (died) this.engine = this.o.engine();
+          const db = died
+            ? (await this.readState().catch(() => null))?.db
+            : this.account !== null ? await this.call('dump').catch(() => undefined) : undefined;
           await this.call('open', this.openParams(db)).catch(() => undefined);
         }
       } finally {
