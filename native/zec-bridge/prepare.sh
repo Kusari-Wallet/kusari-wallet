@@ -12,3 +12,5 @@ sed -i 's/"bundled-prover", "multicore"/"local-prover", "multicore"/' Cargo.toml
 F=crates/webzjs-wallet/src/wallet.rs
 sed -i 's/pub(crate) db:/pub db:/; s/pub(crate) network:/pub network:/; s/pub(crate) fn usk_from_seed_str/pub fn usk_from_seed_str/' "$F"
 sed -i 's/LocalTxProver::bundled()/LocalTxProver::new(std::path::Path::new(\&std::env::var("ZEC_SAPLING_SPEND").unwrap_or_default()), std::path::Path::new(\&std::env::var("ZEC_SAPLING_OUTPUT").unwrap_or_default()))/' "$F"
+# Newer releases of this one need a newer compiler than the pinned nightly.
+cargo update home --precise 0.5.11
