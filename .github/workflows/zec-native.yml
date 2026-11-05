@@ -2,10 +2,15 @@
 name: Zcash native engine
 on:
   workflow_dispatch:
+    inputs:
+      only:
+        description: "all, linux, windows or android"
+        default: all
 permissions:
   contents: read
 jobs:
   build:
+    if: inputs.only == 'all' || inputs.only == 'linux'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
@@ -37,6 +42,7 @@ jobs:
           timeout 900 webzjs/target/release/zec-bridge --selftest https://zec.rocks:443 9150
 
   windows:
+    if: inputs.only == 'all' || inputs.only == 'windows'
     runs-on: windows-latest
     timeout-minutes: 90
     steps:
@@ -70,6 +76,7 @@ jobs:
         with: { name: zec-bridge-windows-x64, path: webzjs/target/release/zec-bridge.exe, retention-days: 30 }
 
   android:
+    if: inputs.only == 'all' || inputs.only == 'android'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
@@ -97,6 +104,13 @@ jobs:
           cargo ndk -t arm64-v8a -t x86_64 --platform 26 build --release -p zec-bridge
           ls -la target/aarch64-linux-android/release/zec-bridge target/x86_64-linux-android/release/zec-bridge
           sha256sum target/aarch64-linux-android/release/zec-bridge target/x86_64-linux-android/release/zec-bridge
+      - name: Free disk space for the emulator
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin"
+          cp webzjs/target/aarch64-linux-android/release/zec-bridge "$RUNNER_TEMP/bin/zec-bridge-arm64"
+          cp webzjs/target/x86_64-linux-android/release/zec-bridge "$RUNNER_TEMP/bin/zec-bridge-x86_64"
+          rm -rf webzjs/target ~/.cargo/registry ~/.cargo/git
+          df -h / | tail -1
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -111,10 +125,10 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           script: |
-            adb push webzjs/target/x86_64-linux-android/release/zec-bridge /data/local/tmp/zec-bridge
+            adb push "$RUNNER_TEMP/bin/zec-bridge-x86_64" /data/local/tmp/zec-bridge
             adb shell chmod 755 /data/local/tmp/zec-bridge
             adb shell /data/local/tmp/zec-bridge --version
             adb shell "/data/local/tmp/zec-bridge --selftest https://zec.rocks:443; echo exit=\$?" | tee "$RUNNER_TEMP/out.txt"
             grep -q "selftest ok" "$RUNNER_TEMP/out.txt"
       - uses: actions/upload-artifact@v4
-        with: { name: zec-bridge-android-arm64, path: webzjs/target/aarch64-linux-android/release/zec-bridge, retention-days: 30 }
+        with: { name: zec-bridge-android-arm64, path: ${{ runner.temp }}/bin/zec-bridge-arm64, retention-days: 30 }
