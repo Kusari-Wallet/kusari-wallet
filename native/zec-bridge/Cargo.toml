@@ -1,0 +1,21 @@
+[package]
+name = "zec-bridge"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+webzjs-wallet = { path = "../webzjs-wallet", default-features = false, features = ["native", "multicore"] }
+webzjs-common = { path = "../webzjs-common" }
+zcash_address = { workspace = true }
+zcash_client_memory = { workspace = true, features = ["orchard", "transparent-inputs"] }
+zcash_client_backend = { workspace = true, default-features = false }
+zcash_keys = { workspace = true }
+bip0039 = { workspace = true }
+tonic = { version = "0.14", default-features = false, features = ["channel", "tls-webpki-roots", "tls-ring"] }
+tower = { version = "0.5", default-features = false, features = ["util"] }
+hyper-util = { version = "0.1", default-features = false, features = ["tokio"] }
+tokio = { version = "1", features = ["rt-multi-thread", "net", "io-util", "time"] }
+tokio-socks = "0.5"
+serde_json = "1"
+base64 = "0.22"
