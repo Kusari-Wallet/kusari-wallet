@@ -15,6 +15,7 @@ const SECONDS_PER_BLOCK = 75;
 const NU5 = { height: 1_687_104, time: Date.UTC(2022, 4, 31) };
 const SAPLING_HEIGHT = 419_200;
 
+const ZEC_RETRY_MS = 5_000;
 const ACCOUNT_LIMIT_MS = 150_000;
 const FRESH_SCAN_LIMIT_MS = 300_000;
 const STUCK = new Error('Zcash 서버가 응답하지 않아. 다른 서버로 다시 시도해.');
@@ -159,7 +160,7 @@ export class ZecClient {
     if (this.stopped) return;
     if (!this.o.canConnect()) { this.phase = 'Tor 연결 대기'; this.schedule(3000); return; }
     await this.syncNow();
-    this.schedule(ZEC_SYNC_MS);
+    this.schedule(this.lastError ? ZEC_RETRY_MS : ZEC_SYNC_MS);
   }
 
   /** Scans to the tip, then saves. A failed server gives way to the next one on the following round. */
