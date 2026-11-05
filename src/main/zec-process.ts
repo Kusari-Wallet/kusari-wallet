@@ -17,6 +17,8 @@ function findEngine(override?: string): string | null {
 
 export const zecEngineAvailable = (override?: string): boolean => findEngine(override) !== null;
 
+export const zecEngineInfo = (override?: string): string => findEngine(override) ?? '엔진 파일 없음';
+
 export function startZecEngine(override?: string): ZecEngine {
   const file = findEngine(override);
   if (!file) throw new Error('이 빌드에는 Zcash 엔진이 없어.');

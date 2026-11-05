@@ -87,6 +87,7 @@ app.whenReady().then(async () => {
   service.on('tornado-progress', (m) => emit('wallet:tornado-progress', m));
 
   handle('wallet:status', () => service.status());
+  handle('wallet:zecInfo', () => service.zecInfo());
   handle('wallet:zecShield', (pw: string) => service.zecShield(pw));
   handle('wallet:zecRescan', (date: string, pw: string) => service.zecRescan(date, pw));
   handle('wallet:generateSeeds', () => service.generateSeeds());

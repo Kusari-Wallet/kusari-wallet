@@ -1374,6 +1374,7 @@ async function renderSettings(): Promise<void> {
   const key = h('input', { id: 'set-key', value: s.tronApiKey, spellcheck: 'false', autocomplete: 'off' });
   const auto = h('input', { id: 'set-auto', type: 'number', min: '1', max: '240', value: String(s.autoLockMinutes) });
   const showPrices = h('input', { type: 'checkbox', id: 'set-prices', checked: s.showPrices });
+  const zecInfo = await wallet.zecInfo();
   const tor = await wallet.torInfo();
   const torBox = errorBox();
   const useTor = h('input', { type: 'checkbox', id: 'set-tor', checked: tor.enabled });
@@ -1477,6 +1478,10 @@ async function renderSettings(): Promise<void> {
         h('div', { class: 'row' }, saveBtn, saved),
         h('p', { class: 'hint' }, '노드, API 키, Tor를 바꾸면 지갑이 잠겨. 다시 열면 적용돼.')),
       bioSection,
+      h('div', { class: 'section', id: 'zec-info' }, h('h3', {}, 'Zcash 엔진'),
+        h('p', { class: 'small', id: 'zec-info-state' }, zecInfo.available ? (zecInfo.started ? '실행됨' : '찾았지만 실행 안 됨') : '못 찾음'),
+        zecInfo.error && h('p', { class: 'small' }, zecInfo.error),
+        h('p', { class: 'muted small mono' }, zecInfo.detail)),
       h('div', { class: 'section' }, h('h3', {}, '시드 백업'), seedBox.el,
         h('label', { class: 'field' }, h('span', {}, '비밀번호'), seedPw), rev, seedOut),
       h('div', { class: 'section' }, h('h3', {}, '비밀번호 변경'), pwBox.el,

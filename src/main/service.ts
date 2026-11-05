@@ -13,7 +13,7 @@ import { PRICE_SOURCES, PriceMap, PriceSource, coingecko } from './prices';
 import { DEPOSIT_GAS, TORNADO_POOLS, TornadoNote, TornadoStore, WITHDRAW_GAS, abi as tornadoAbi, checkRelayerUrl, denomination, noteSecrets, noteText, relayerFee, relayerStatus, relayerSubmit, tornadoEngineCheck } from './tornado';
 import { runTornado } from './tornado-run';
 import { ZecClient, ZecDraft, isZecAddress, zecHeightForDate } from './zec';
-import { startZecEngine, zecEngineAvailable } from './zec-process';
+import { startZecEngine, zecEngineAvailable, zecEngineInfo } from './zec-process';
 import { DashClient, DashDraft, dashAccountXpub, isDashAddress, typicalDashFee } from './dash';
 import { DcrClient, DcrDraft, dcrAccount, isDcrAddress, typicalDcrFee } from './dcr';
 import { EthClient, EthDraft, deriveEthAccount, isEthAddress } from './eth';
@@ -1061,6 +1061,16 @@ export class WalletService extends EventEmitter {
   }
 
   // ---- Zcash ----
+
+  /** For a screenshot when ZEC doesn't show up: holds no addresses, balances or keys. */
+  zecInfo() {
+    return {
+      available: this.zecAvailable,
+      started: this.zec !== null,
+      error: this.zec?.lastError ?? null,
+      detail: zecEngineInfo(this.dev.zecBin),
+    };
+  }
 
   async zecShield(password: string) {
     if (!this.zec) throw new Error('이 기기에서는 Zcash를 쓸 수 없어.');

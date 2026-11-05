@@ -23,6 +23,8 @@ let next = 1;
 
 export const zecEngineAvailable = (): boolean => Boolean(native().zecAvailable());
 
+export const zecEngineInfo = (): string => String(native().zecInfo());
+
 export function startZecEngine(): ZecEngine {
   if (!native().zecStart()) throw new Error('이 기기에서는 Zcash를 쓸 수 없어.');
   return {
