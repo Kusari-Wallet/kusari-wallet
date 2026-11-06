@@ -6,7 +6,8 @@ import { SocksProxyAgent } from 'socks-proxy-agent';
 /** socks5h: the proxy resolves hostnames, so no DNS query leaves this PC. */
 export function socksAgent(proxyUri: string): SocksProxyAgent {
   const { host } = new URL(proxyUri);
-  return new SocksProxyAgent(`socks5h://${host}`, { keepAlive: true, timeout: 60_000 });
+  // A new connection per request: a kept one can stall inside a Tor circuit and only show up as a timeout.
+  return new SocksProxyAgent(`socks5h://${host}`, { keepAlive: false, timeout: 60_000 });
 }
 
 /** For APIs that report problems in the response body: returns the status instead of throwing on it. */

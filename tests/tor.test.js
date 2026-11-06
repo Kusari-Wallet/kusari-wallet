@@ -139,6 +139,20 @@ for (const [name, mutate, pattern] of [
 
 const torBin = (() => { try { return execFileSync('which', ['tor']).toString().trim(); } catch { return ''; } })();
 
+test('every request gets its own Tor connection, so a stalled one is never reused', async (t) => {
+  const socks = await mockSocks();
+  const server = http.createServer((_q, res) => res.end('{"ok":1}'));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  t.after(async () => { server.closeAllConnections(); await new Promise((r) => server.close(r)); await socks.close(); });
+  const url = `http://127.0.0.1:${server.address().port}/x`;
+  const agent = socksAgent(socks.uri);
+  for (let i = 0; i < 3; i++) {
+    assert.deepEqual(await getJson(url, { agent }), { ok: 1 });
+    await new Promise((r) => setTimeout(r, 30));
+  }
+  assert.equal(socks.log.length, 3);
+});
+
 test('real tor process starts, reports progress, listens, and stops', { skip: !torBin }, async () => {
   const tor = new TorManager(tmp(), { binPath: torBin, sources: { bundleBases: [], keyUrls: [], fingerprint: '' } });
   const uri = await tor.allocate();
