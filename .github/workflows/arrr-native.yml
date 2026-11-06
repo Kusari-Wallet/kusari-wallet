@@ -1,0 +1,123 @@
+# Run by hand. Builds the bridge on Pirate's own wallet core at a fixed commit, then runs a real scan with a throwaway seed.
+name: Pirate Chain native engine
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: windows, android or all
+        default: all
+permissions:
+  contents: read
+env:
+  STASHI_COMMIT: dedf63381996c5770945d16a4afa63ec7e35a676
+  CARGO_PROFILE_RELEASE_LTO: thin
+  CARGO_PROFILE_RELEASE_CODEGEN_UNITS: 16
+  CARGO_PROFILE_RELEASE_STRIP: symbols
+jobs:
+  windows:
+    if: ${{ inputs.only != 'android' }}
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      RUSTFLAGS: -C target-feature=+crt-static # no Visual C++ runtime needed on the user's PC
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get Stashi
+        shell: bash
+        run: |
+          git clone https://github.com/PirateNetwork/Pirate-Unified-Light-Wallet stashi
+          git -C stashi checkout "$STASHI_COMMIT"
+          bash native/arrr-bridge/prepare.sh stashi
+      - name: Tools
+        run: choco install -y --no-progress nasm protoc
+      - name: Build
+        shell: bash
+        working-directory: stashi/crates
+        run: |
+          export PATH="$PATH:/c/Program Files/NASM"
+          cargo build --release -p arrr-bridge
+      - name: Real scan
+        shell: bash
+        working-directory: stashi/crates
+        run: |
+          B=$(ls target/release/arrr-bridge.exe ../target/release/arrr-bridge.exe 2>/dev/null | head -1)
+          ls -la "$B"
+          sha256sum "$B"
+          "$B" --version
+          "$B" --selftest https://lightd1.pirate.black:443 - "$RUNNER_TEMP/a"
+          mkdir -p "$RUNNER_TEMP/up"
+          cp "$B" "$RUNNER_TEMP/up/arrr-bridge.exe"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arrr-bridge-windows-x64
+          path: ${{ runner.temp }}/up/arrr-bridge.exe
+          retention-days: 30
+  android:
+    if: ${{ inputs.only != 'windows' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get Stashi
+        run: |
+          git clone https://github.com/PirateNetwork/Pirate-Unified-Light-Wallet stashi
+          git -C stashi checkout "$STASHI_COMMIT"
+          bash native/arrr-bridge/prepare.sh stashi
+      - uses: nttld/setup-ndk@v1
+        id: ndk
+        with:
+          ndk-version: r26d
+      - name: Build
+        working-directory: stashi/crates
+        env:
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq protobuf-compiler
+          cargo +stable install cargo-ndk --version 3.5.4 --locked
+          rustup target add aarch64-linux-android x86_64-linux-android
+          cargo ndk -t arm64-v8a -t x86_64 --platform 26 build --release -p arrr-bridge
+          mkdir -p "$RUNNER_TEMP/bin"
+          T=$( [ -d target ] && echo target || echo ../target )
+          cp "$T/aarch64-linux-android/release/arrr-bridge" "$RUNNER_TEMP/bin/arrr-bridge-arm64"
+          cp "$T/x86_64-linux-android/release/arrr-bridge" "$RUNNER_TEMP/bin/arrr-bridge-x86_64"
+          ls -la "$RUNNER_TEMP/bin"
+          sha256sum "$RUNNER_TEMP/bin/"*
+          rm -rf "$T"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arrr-bridge-android-arm64
+          path: ${{ runner.temp }}/bin/arrr-bridge-arm64
+          retention-days: 30
+      - name: Start Tor
+        run: |
+          sudo apt-get install -y -qq tor
+          sudo systemctl stop tor || true
+          tor --SocksPort 127.0.0.1:9150 --DataDirectory "$RUNNER_TEMP/tor" --RunAsDaemon 1
+          for i in $(seq 1 60); do curl -s -m 10 --socks5-hostname 127.0.0.1:9150 https://check.torproject.org/api/ip | grep -q true && { echo Tor up; break; }; sleep 5; done
+      - name: KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Real scan on an emulator, through Tor
+        timeout-minutes: 30
+        continue-on-error: true
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: default
+          force-avd-creation: true
+          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect
+          disable-animations: true
+          script: |
+            adb push "$RUNNER_TEMP/bin/arrr-bridge-x86_64" /data/local/tmp/arrr-bridge
+            adb shell chmod 755 /data/local/tmp/arrr-bridge
+            adb shell /data/local/tmp/arrr-bridge --version
+            adb reverse tcp:9150 tcp:9150
+            sleep 30
+            adb shell "mkdir -p /data/local/tmp/a && HOME=/data/local/tmp/a /data/local/tmp/arrr-bridge --selftest https://lightd1.pirate.black:443 9150 /data/local/tmp/a" | tee "$RUNNER_TEMP/out.txt"
+      - name: Verdict
+        run: |
+          cat "$RUNNER_TEMP/out.txt"
+          grep -q "selftest ok" "$RUNNER_TEMP/out.txt"
