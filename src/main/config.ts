@@ -1,8 +1,8 @@
 export type NetworkId = 'mainnet' | 'testnet';
 /** USDT is the Tron token, USDTE the Ethereum one. */
-export type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'DCR' | 'DASH' | 'ZEC';
+export type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'DCR' | 'DASH' | 'ZEC' | 'ZANO';
 
-export const DECIMALS: Record<Asset, number> = { BTC: 8, XMR: 12, ETH: 18, TRX: 6, USDT: 6, USDTE: 6, DCR: 8, DASH: 8, ZEC: 8 };
+export const DECIMALS: Record<Asset, number> = { BTC: 8, XMR: 12, ETH: 18, TRX: 6, USDT: 6, USDTE: 6, DCR: 8, DASH: 8, ZEC: 8, ZANO: 12 };
 
 export const BTC_APIS = ['https://mempool.space/api', 'https://blockstream.info/api'];
 export const BTC_EXPLORER_TX = 'https://mempool.space/tx/';
@@ -11,6 +11,8 @@ export const DCR_APIS = ['https://dcrdata.decred.org/insight/api', 'https://expl
 export const DCR_EXPLORER_TX = 'https://dcrdata.decred.org/tx/';
 export const DASH_APIS = ['https://insight.dash.org/insight-api'];
 export const DASH_EXPLORER_TX = 'https://insight.dash.org/insight/tx/';
+export const ZANO_NODE = '37.27.100.59:10500';
+export const ZANO_EXPLORER_TX = 'https://explorer.zano.org/transaction/';
 export const ZEC_SERVERS = ['https://zec.rocks:443', 'https://na.zec.rocks:443', 'https://eu.zec.rocks:443', 'https://ap.zec.rocks:443', 'https://sa.zec.rocks:443'];
 export const ZEC_EXPLORER_TX = 'https://blockchair.com/zcash/transaction/';
 export const ETH_RPCS = ['https://ethereum-rpc.publicnode.com', 'https://eth.llamarpc.com', 'https://cloudflare-eth.com', 'https://1rpc.io/eth'];

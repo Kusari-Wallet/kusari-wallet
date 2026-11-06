@@ -132,6 +132,8 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
       torStop: () => setTimeout(() => window.__torState('off', 0, '')),
       torDirect: () => {},
       // The Java side passes lines to and from the engine; this stands in for both.
+      zanoAvailable: () => false,
+      zanoInfo: () => 'test',
       zecAvailable: () => true,
       zecInfo: () => 'test',
       zecStart: () => { window.__zecCalls = []; return true; },

@@ -1,13 +1,13 @@
 declare const wallet: any;
 declare const jsQR: any;
 
-type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'DCR' | 'DASH' | 'ZEC';
+type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'DCR' | 'DASH' | 'ZEC' | 'ZANO';
 type Attrs = Record<string, any>;
 type Child = Node | string | null | undefined | false;
 
-const ALL_ASSETS: Asset[] = ['XMR', 'BTC', 'ETH', 'TRX', 'USDTE', 'USDT', 'DCR', 'DASH', 'ZEC'];
-// Zcash needs its engine, which isn't in every build or on every phone.
-let ASSETS: Asset[] = ALL_ASSETS.filter((a) => a !== 'ZEC');
+const ALL_ASSETS: Asset[] = ['XMR', 'BTC', 'ETH', 'TRX', 'USDTE', 'USDT', 'DCR', 'DASH', 'ZEC', 'ZANO'];
+// These two need their engines, which aren't in every build or on every phone.
+let ASSETS: Asset[] = ALL_ASSETS.filter((a) => a !== 'ZEC' && a !== 'ZANO');
 let zecInSession = false;
 let refreshNote = '아직 응답 없음';
 const COIN: Record<Asset, { label: string; file: string; note: string }> = {
@@ -16,6 +16,7 @@ const COIN: Record<Asset, { label: string; file: string; note: string }> = {
   USDT: { label: 'USDT (Tron)', file: 'coins/usdt.png', note: 'Tron 네트워크 전용이야. 다른 체인 주소로 보내면 안 돼.' },
   XMR: { label: 'XMR', file: 'coins/xmr.png', note: '' },
   DASH: { label: 'DASH', file: 'coins/dash.png', note: 'Dash 메인넷 전용이야. 수수료는 DASH로 나가.' },
+  ZANO: { label: 'ZANO', file: 'coins/zano.png', note: '받은 코인은 10컨펌 뒤에 쓸 수 있어. 수수료는 0.01 ZANO로 고정이야.' },
   ZEC: { label: 'ZEC', file: 'coins/zec.png', note: '쉴드된 잔액에서 나가. 수수료는 ZEC로 나가.' },
   DCR: { label: 'DCR', file: 'coins/dcr.png', note: 'Decred 메인넷 전용이야. 수수료는 DCR로 나가.' },
   ETH: { label: 'ETH', file: 'coins/eth.png', note: 'USDT(Eth)를 보낼 때 드는 수수료도 ETH로 나가.' },
@@ -210,7 +211,7 @@ function welcome(): void {
     h('button', { class: 'choice', onclick: createStep1 },
       h('strong', {}, '새 지갑 만들기'), h('span', { class: 'muted small' }, '새 시드 문구를 생성해.')),
     h('button', { class: 'choice', onclick: restoreForm },
-      h('strong', {}, '시드로 복구하기'), h('span', { class: 'muted small' }, 'BIP39 시드(BTC, ETH, TRX, USDT, DCR, DASH, ZEC)와 Monero 25단어 시드가 모두 필요해.')));
+      h('strong', {}, '시드로 복구하기'), h('span', { class: 'muted small' }, 'BIP39 시드(BTC, ETH, TRX, USDT, DCR, DASH, ZEC, ZANO)와 Monero 25단어 시드가 모두 필요해.')));
 }
 
 function passwordFields() {
@@ -253,7 +254,7 @@ function createStep2(password: string, seeds: { tronMnemonic: string; moneroSeed
   entry(
     h('h2', {}, '시드 문구 두 개를 종이에 적어'),
     h('p', { class: 'lead' }, '이 시드를 가진 사람은 네 코인을 전부 가져갈 수 있어. 사진, 클라우드, 메신저에 저장하지 마.'),
-    seedCard('BTC·ETH·Tron·DCR·DASH 시드 12단어', 'BTC, ETH, TRX, USDT, DCR, DASH, ZEC용. Sparrow, MetaMask, TronLink 등 BIP39 지갑에서 복구할 수 있어.', seeds.tronMnemonic),
+    seedCard('BTC·ETH·Tron·DCR·DASH 시드 12단어', 'BTC, ETH, TRX, USDT, DCR, DASH, ZEC, ZANO용. Sparrow, MetaMask, TronLink 등 BIP39 지갑에서 복구할 수 있어.', seeds.tronMnemonic),
     seedCard('Monero 시드 25단어', 'XMR용. Monero GUI, Cake Wallet과 호환돼.', seeds.moneroSeed),
     h('label', { class: 'check' }, ok, h('span', {}, '두 시드를 모두 적어뒀어.')),
     h('div', { class: 'btn-row' }, h('button', { class: 'ghost', onclick: welcome }, '취소'), go),
@@ -364,7 +365,8 @@ async function enterWallet(): Promise<void> {
   addresses = await wallet.addresses().catch(() => null);
   // Decided here because the first balance round can take a while on a phone, and the row shouldn't wait for it.
   zecInSession = await wallet.zecInfo().then((i: any) => Boolean(i.started)).catch(() => false);
-  ASSETS = zecInSession ? ALL_ASSETS : ALL_ASSETS.filter((a) => a !== 'ZEC');
+  const zanoInSession = await wallet.zanoInfo().then((i: any) => Boolean(i.started)).catch(() => false);
+  ASSETS = ALL_ASSETS.filter((a) => (a !== 'ZEC' || zecInSession) && (a !== 'ZANO' || zanoInSession));
   torState = (await wallet.torInfo().catch(() => null))?.enabled ? (await wallet.torInfo()).state : null;
   renderHome();
   void refresh(); // Balances fill in on the home screen; a slow node or Tor must not hold it back.
@@ -494,7 +496,7 @@ function assetRow(a: Asset): HTMLElement {
     ? (moneroBusy() ? syncLabel() : status)
     : p
       ? h('span', {}, usdFormat(p.usd), p.change !== null && h('span', { class: p.change >= 0 ? 'up' : 'down' }, `${p.change >= 0 ? '+' : ''}${p.change.toFixed(2)}%`))
-      : a === 'BTC' ? 'Bitcoin' : a === 'DCR' ? 'Decred' : a === 'DASH' ? 'Dash' : a === 'ZEC' ? 'Zcash' : a === 'ETH' ? 'Ethereum' : a === 'USDT' || a === 'USDTE' ? 'Tether' : a === 'TRX' ? 'Tron' : 'Monero';
+      : a === 'BTC' ? 'Bitcoin' : a === 'DCR' ? 'Decred' : a === 'DASH' ? 'Dash' : a === 'ZEC' ? 'Zcash' : a === 'ZANO' ? 'Zano' : a === 'ETH' ? 'Ethereum' : a === 'USDT' || a === 'USDTE' ? 'Tether' : a === 'TRX' ? 'Tron' : 'Monero';
   const usd = assetUsd(a);
   return h('button', { class: 'asset', id: `asset-${a}`, onclick: () => { selected = a; void renderAsset(); } },
     coin(a),
@@ -555,6 +557,7 @@ async function renderAsset(): Promise<void> {
       b?.stale && h('div', { class: 'warn', id: 'stale-note' }, '서버가 잠시 응답하지 않아서 최근 값을 보여줘. 코인은 그대로고, 자동으로 다시 확인해.'),
       a === 'BTC' && b?.ok && b.total !== b.spendable && h('div', { class: 'warn' }, `바로 쓸 수 있는 금액은 ${b.spendable} BTC야. 나머지는 1컨펌 뒤에 풀려.`),
       a === 'ZEC' && overview?.zec?.syncing && !overview.zec.firstScanDone && h('div', { class: 'sync-banner', id: 'zec-scan' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), 'Zcash 블록을 스캔하는 중이야. 중간에 앱을 닫으면 처음부터 다시 스캔해.'),
+      a === 'ZANO' && b?.ok && b.total !== b.spendable && h('div', { class: 'warn' }, `바로 보낼 수 있는 금액은 ${b.spendable} ZANO야. 받은 코인은 10컨펌 뒤에 쓸 수 있어.`),
       a === 'ZEC' && b?.ok && b.total !== b.spendable && h('div', { class: 'warn' }, `바로 보낼 수 있는 금액은 ${b.spendable} ZEC야. 나머지는 컨펌 대기 중이거나 쉴드 전이야.`),
       a === 'ZEC' && overview?.zec?.canShield && h('div', { class: 'panel', id: 'zec-shield-panel' },
         h('p', { class: 'small' }, `투명 잔액 ${overview.zec.transparent} ZEC가 있어. 투명 잔액은 체인에 공개되고 바로 보낼 수 없어. 스왑으로 받은 ZEC도 여기로 들어와.`), h('br'),
@@ -697,16 +700,17 @@ function renderSend(keep?: { to: string; amount: string }): void {
 /** Reads an address out of a QR code. Accepts a bare address or a wallet link such as monero:4...?tx_amount=1. */
 function parseScanned(asset: Asset, raw: string): { address: string; amount: string } | null {
   const text = raw.trim();
-  const m = text.match(/^(?:(bitcoin|btc|decred|dcr|dash|zcash|zec|ethereum|eth|tron|trx|usdt|monero|xmr)(?::\/\/|:))?([0-9A-Za-z]+)(?:@1)?(?:\?(.*))?$/i);
+  const m = text.match(/^(?:(bitcoin|btc|decred|dcr|dash|zcash|zec|zano|ethereum|eth|tron|trx|usdt|monero|xmr)(?::\/\/|:))?([0-9A-Za-z]+)(?:@1)?(?:\?(.*))?$/i);
   if (!m) return null;
   const scheme = (m[1] ?? '').toLowerCase();
-  const family = (a: Asset) => (a === 'DCR' ? ['decred', 'dcr'] : a === 'DASH' ? ['dash'] : a === 'ZEC' ? ['zcash', 'zec'] : a === 'BTC' ? ['bitcoin', 'btc'] : a === 'XMR' ? ['monero', 'xmr'] : a === 'ETH' || a === 'USDTE' ? ['ethereum', 'eth', 'usdt'] : ['tron', 'trx', 'usdt']);
+  const family = (a: Asset) => (a === 'DCR' ? ['decred', 'dcr'] : a === 'DASH' ? ['dash'] : a === 'ZEC' ? ['zcash', 'zec'] : a === 'ZANO' ? ['zano'] : a === 'BTC' ? ['bitcoin', 'btc'] : a === 'XMR' ? ['monero', 'xmr'] : a === 'ETH' || a === 'USDTE' ? ['ethereum', 'eth', 'usdt'] : ['tron', 'trx', 'usdt']);
   if (scheme && !family(asset).includes(scheme)) return null;
   // Bech32 QR codes are often in upper case to make them smaller.
   const address = asset === 'BTC' && /^BC1/.test(m[2]) ? m[2].toLowerCase() : m[2];
   const valid = asset === 'BTC' ? /^(bc1[02-9ac-hj-np-z]{11,87}|[13][1-9A-HJ-NP-Za-km-z]{25,34})$/.test(address)
     : asset === 'DCR' ? /^Ds[1-9A-HJ-NP-Za-km-z]{33}$/.test(address)
     : asset === 'DASH' ? /^[X7][1-9A-HJ-NP-Za-km-z]{33}$/.test(address)
+    : asset === 'ZANO' ? /^(Zx|iZ|aZ|ai)[1-9A-HJ-NP-Za-km-z]{90,120}$/.test(address)
     : asset === 'ZEC' ? /^(t[13][1-9A-HJ-NP-Za-km-z]{33}|zs1[02-9ac-hj-np-z]{75}|u1[02-9ac-hj-np-z]{100,}|tex1[02-9ac-hj-np-z]{30,})$/.test(address)
     : asset === 'XMR' ? /^[48][1-9A-HJ-NP-Za-km-z]{94}([1-9A-HJ-NP-Za-km-z]{11})?$/.test(address)
       : asset === 'ETH' || asset === 'USDTE' ? /^0x[0-9a-fA-F]{40}$/.test(address)
@@ -778,7 +782,7 @@ async function openScanner(asset: Asset, onFound: (found: { address: string; amo
       if (code?.data) {
         const found = parseScanned(asset, code.data);
         if (found) { close(); onFound(found); return; }
-        status.textContent = `${asset === 'XMR' ? 'Monero' : asset === 'DCR' ? 'Decred' : asset === 'DASH' ? 'Dash' : asset === 'ZEC' ? 'Zcash' : asset === 'BTC' ? 'Bitcoin' : asset === 'ETH' || asset === 'USDTE' ? 'Ethereum' : 'Tron'} 주소 QR이 아니야. 다른 QR을 비춰줘.`;
+        status.textContent = `${asset === 'XMR' ? 'Monero' : asset === 'DCR' ? 'Decred' : asset === 'DASH' ? 'Dash' : asset === 'ZEC' ? 'Zcash' : asset === 'ZANO' ? 'Zano' : asset === 'BTC' ? 'Bitcoin' : asset === 'ETH' || asset === 'USDTE' ? 'Ethereum' : 'Tron'} 주소 QR이 아니야. 다른 QR을 비춰줘.`;
       }
     }
     timer = window.setTimeout(tick, 180);
@@ -863,7 +867,8 @@ async function renderReceive(current?: string): Promise<void> {
   const copy = h('button', { class: 'icon-btn', id: 'copy', disabled: true, 'aria-label': '주소 복사', title: '주소 복사', onclick: async () => {
     await wallet.copy(address); status.textContent = '복사했어. 60초 뒤 클립보드에서 지워져.';
   } }, icon('copy'));
-  const note = asset === 'ZEC' ? (address.startsWith('t') ? '투명 주소야. 받는 금액과 주소가 체인에 공개돼. 받은 뒤 쉴드해야 보낼 수 있어.' : '쉴드 주소야. 금액과 주소가 체인에 드러나지 않아. 받은 ZEC는 몇 컨펌 뒤에 쓸 수 있어. 업체가 이 주소를 못 받으면 투명 주소를 써.')
+  const note = asset === 'ZANO' ? 'Zano 메인넷 ZANO만 받아. 금액과 주소는 체인에 드러나지 않아. 받은 코인은 10컨펌 뒤에 쓸 수 있어.'
+    : asset === 'ZEC' ? (address.startsWith('t') ? '투명 주소야. 받는 금액과 주소가 체인에 공개돼. 받은 뒤 쉴드해야 보낼 수 있어.' : '쉴드 주소야. 금액과 주소가 체인에 드러나지 않아. 받은 ZEC는 몇 컨펌 뒤에 쓸 수 있어. 업체가 이 주소를 못 받으면 투명 주소를 써.')
     : asset === 'DASH' ? 'Dash 메인넷 DASH만 받을 수 있어. 입금이 확인되면 다음 받을 때는 새 주소가 나와.'
     : asset === 'DCR' ? 'Decred 메인넷 DCR만 받을 수 있어. 입금이 확인되면 다음 받을 때는 새 주소가 나와.'
     : asset === 'BTC' ? 'Bitcoin 탭루트(bc1p) 주소야. 다른 체인으로 보내면 받을 수 없어. 입금이 확인되면 다음 받을 때는 새 주소가 나와.'
@@ -1380,6 +1385,7 @@ async function renderSettings(): Promise<void> {
   const auto = h('input', { id: 'set-auto', type: 'number', min: '1', max: '240', value: String(s.autoLockMinutes) });
   const showPrices = h('input', { type: 'checkbox', id: 'set-prices', checked: s.showPrices });
   const zecInfo = await wallet.zecInfo();
+  const zanoInfo = await wallet.zanoInfo();
   const tor = await wallet.torInfo();
   const torBox = errorBox();
   const useTor = h('input', { type: 'checkbox', id: 'set-tor', checked: tor.enabled });
@@ -1483,6 +1489,9 @@ async function renderSettings(): Promise<void> {
         h('div', { class: 'row' }, saveBtn, saved),
         h('p', { class: 'hint' }, '노드, API 키, Tor를 바꾸면 지갑이 잠겨. 다시 열면 적용돼.')),
       bioSection,
+      h('div', { class: 'section', id: 'zano-info' }, h('h3', {}, 'Zano 엔진'),
+        h('p', { class: 'small', id: 'zano-info-state' }, zanoInfo.available ? (zanoInfo.started ? `실행됨: ${zanoInfo.phase}` : '찾았지만 실행 안 됨') : '못 찾음'),
+        zanoInfo.error && h('p', { class: 'small' }, zanoInfo.error)),
       h('div', { class: 'section', id: 'zec-info' }, h('h3', {}, 'Zcash 엔진'),
         h('p', { class: 'small', id: 'zec-info-state' }, zecInfo.available ? (zecInfo.started ? `실행됨: ${zecInfo.phase}` : '찾았지만 실행 안 됨') : '못 찾음'),
         zecInfo.error && h('p', { class: 'small' }, zecInfo.error),

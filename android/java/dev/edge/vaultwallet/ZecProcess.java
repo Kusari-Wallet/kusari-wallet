@@ -9,7 +9,7 @@ import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 
-/** Runs the Zcash engine from the APK. Lines go in and out as they are; nothing here is logged or kept. */
+/** Runs a coin engine from the APK. Lines go in and out as they are; nothing here is logged or kept. */
 final class ZecProcess {
     interface Listener { void onLine(String line); void onExit(); }
 
@@ -35,7 +35,7 @@ final class ZecProcess {
             ProcessBuilder pb = new ProcessBuilder(Collections.singletonList(exe.getAbsolutePath()));
             pb.directory(dir);
             pb.environment().put("HOME", dir.getAbsolutePath());
-            // Installed as libraries so that Android unpacks them; the engine checks their hash on load.
+            // Installed as libraries so that Android unpacks them; the Zcash engine checks their hash on load.
             pb.environment().put("ZEC_SAPLING_SPEND", new File(exe.getParentFile(), "libzecspend.so").getAbsolutePath());
             pb.environment().put("ZEC_SAPLING_OUTPUT", new File(exe.getParentFile(), "libzecoutput.so").getAbsolutePath());
             final Process p = pb.start();

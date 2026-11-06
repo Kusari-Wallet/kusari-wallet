@@ -45,6 +45,7 @@ public class MainActivity extends Activity {
     private BiometricVault biometric;
     private TorProcess tor;
     private ZecProcess zec;
+    private ZecProcess zano;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -52,6 +53,10 @@ public class MainActivity extends Activity {
         // Keeps seed words out of screenshots and the recent-apps preview.
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
         biometric = new BiometricVault(this);
+        zano = new ZecProcess(new File(getApplicationInfo().nativeLibraryDir, "libzanobridge.so"), new File(getFilesDir(), "zano"), new ZecProcess.Listener() {
+            @Override public void onLine(String line) { toPage("window.__zanoLine&&window.__zanoLine(" + JSONObject.quote(line) + ")"); }
+            @Override public void onExit() { toPage("window.__zanoExit&&window.__zanoExit()"); }
+        });
         zec = new ZecProcess(new File(getApplicationInfo().nativeLibraryDir, "libzecbridge.so"), new File(getFilesDir(), "zec"), new ZecProcess.Listener() {
             @Override public void onLine(String line) { toPage("window.__zecLine&&window.__zecLine(" + JSONObject.quote(line) + ")"); }
             @Override public void onExit() { toPage("window.__zecExit&&window.__zecExit()"); }
@@ -127,6 +132,7 @@ public class MainActivity extends Activity {
     @Override protected void onDestroy() {
         tor.stop();
         zec.stop();
+        zano.stop();
         super.onDestroy();
     }
 
@@ -211,6 +217,12 @@ public class MainActivity extends Activity {
             });
         }
 
+        @JavascriptInterface public boolean zanoAvailable() { return zano.available(); }
+        @JavascriptInterface public boolean zanoStart() { return zano.start(); }
+        @JavascriptInterface public boolean zanoWrite(String line) { return zano.write(line); }
+        @JavascriptInterface public void zanoStop() { zano.stop(); }
+        @JavascriptInterface public String zanoDir() { return new File(getFilesDir(), "zano").getAbsolutePath(); }
+        @JavascriptInterface public String zanoInfo() { return zecInfo(); }
         @JavascriptInterface public String zecInfo() {
             File dir = new File(getApplicationInfo().nativeLibraryDir);
             String[] names = dir.list();

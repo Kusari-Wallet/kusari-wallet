@@ -130,6 +130,7 @@ const bioCall = (fn: (id: number) => void) => new Promise<string>((resolve, reje
   privacySecondQuote: call((id: string, a: string) => service.privacySecondQuote(id, a)),
   privacySecond: call((id: string, a: string, b: any) => service.privacySecond(id, a, b)),
   privacyList: call(() => service.privacyList()),
+  zanoInfo: call(() => service.zanoInfo()),
   zecInfo: call(() => service.zecInfo()),
   zecShield: call((pw: string) => service.zecShield(pw)),
   zecRescan: call((d: string, pw: string) => service.zecRescan(d, pw)),
