@@ -12,6 +12,8 @@ export interface InsightDraft { to: string; amount: bigint; fee: bigint; change:
 export interface InsightHistoryItem<S extends string> { asset: S; hash: string; direction: 'in' | 'out' | 'self'; amount: string; counterparty: string; timestamp: number; status: 'confirmed' | 'pending'; dust: boolean }
 export interface InsightCoin<S extends string> {
   symbol: S; dust: bigint; feePerByte: bigint; base: bigint; input: bigint; output: bigint;
+  /** For servers that charge per address: how far past the last used address to look, and how long to reuse a scan. */
+  gapReceive?: number; gapChange?: number; cacheMs?: number;
   sign: (draft: InsightDraft, mnemonic: string) => { hex: string; id: string };
 }
 
@@ -34,7 +36,7 @@ export abstract class InsightWallet<S extends string> {
   }
 
   /** One request covers every address, so a scan is cheap. */
-  protected async lookup(addresses: string[]): Promise<{ utxoRows: any[]; txs: any[] }> {
+  protected async lookup(addresses: string[], _round: number): Promise<{ utxoRows: any[]; txs: any[] }> {
     const list = addresses.join(',');
     const [u, t] = await Promise.all([this.get(`/addrs/${list}/utxo`), this.get(`/addrs/${list}/txs?from=0&to=50&noAsm=1`)]);
     return { utxoRows: Array.isArray(u) ? u : [], txs: Array.isArray(t?.items) ? t.items : [] };
@@ -54,9 +56,9 @@ export abstract class InsightWallet<S extends string> {
     let txs: any[] = [];
     for (let round = 0; round < 10; round++) {
       mine.clear();
-      for (let i = 0; i < nextReceive + GAP_RECEIVE; i++) mine.set(this.addressAt(0, i), [0, i]);
-      for (let i = 0; i < nextChange + GAP_CHANGE; i++) mine.set(this.addressAt(1, i), [1, i]);
-      ({ utxoRows, txs } = await this.lookup([...mine.keys()]));
+      for (let i = 0; i < nextReceive + (this.cfg.gapReceive ?? GAP_RECEIVE); i++) mine.set(this.addressAt(0, i), [0, i]);
+      for (let i = 0; i < nextChange + (this.cfg.gapChange ?? GAP_CHANGE); i++) mine.set(this.addressAt(1, i), [1, i]);
+      ({ utxoRows, txs } = await this.lookup([...mine.keys()], round));
       let r = nextReceive;
       let c = nextChange;
       const seen = (a: unknown) => {
@@ -91,10 +93,13 @@ export abstract class InsightWallet<S extends string> {
   }
 
   refresh(force = false): Promise<void> {
-    if (!force && this.state && Date.now() - this.state.at < CACHE_MS) return Promise.resolve();
+    if (!force && this.state && Date.now() - this.state.at < (this.cfg.cacheMs ?? CACHE_MS)) return Promise.resolve();
     if (!this.inFlight) this.inFlight = this.scan().finally(() => { this.inFlight = null; });
     return this.inFlight;
   }
+
+  /** The next read asks the server again, for after a send. */
+  protected forget(): void { this.state = null; }
 
   async getBalance(): Promise<{ total: bigint; spendable: bigint }> {
     await this.refresh();

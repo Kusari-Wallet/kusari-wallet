@@ -1,5 +1,5 @@
 import type { Agent } from 'node:http';
-import { getJson, requestText } from './request';
+import { getJson, requestJson } from './request';
 import { InsightDraft, InsightWallet } from './insight';
 
 const { HDKey } = require('@scure/bip32');
@@ -14,7 +14,16 @@ const DUST = 1_000_000n; // 0.01 DOGE
 const SIZE_BASE = 10n;
 const SIZE_INPUT = 148n;
 const SIZE_OUTPUT = 34n;
-const PARALLEL = 5;
+// BlockCypher's free tier allows 3 requests a second and 100 an hour, and each address is one.
+const GAP_RECEIVE = 5;
+const GAP_CHANGE = 2;
+const CACHE_MS = 10 * 60_000;
+const PACE_MS = 350;
+const HISTORY_ROWS = 50;
+const UNSPENT_ROWS = 2_000;
+const REUSE_AFTER_FAILURE_MS = 2 * 60_000;
+const VERIFY_TRIES = 3;
+const VERIFY_DELAY_MS = 5_000;
 
 export type DogeDraft = InsightDraft;
 
@@ -29,15 +38,29 @@ export function isDogeAddress(address: string): boolean {
 
 export const typicalDogeFee = (): bigint => (SIZE_BASE + SIZE_INPUT + SIZE_OUTPUT * 2n) * FEE_SATS_PER_BYTE;
 
+export interface DogeOptions { pushUrls?: string[]; paceMs?: number; verifyDelayMs?: number }
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const UNEXPECTED = 'The DOGE server gave an unexpected answer.';
+
 /**
  * Asks about each address on its own instead of handing over the account's xpub, which would tie all of them
  * together in one request. Answers are shaped like an Insight server's, which the shared wallet logic reads.
  */
 export class DogeClient extends InsightWallet<'DOGE'> {
   private readonly account: any;
-  constructor(xpub: string, apis: string[], agent?: Agent, timeoutMs = 30_000) {
-    super({ symbol: 'DOGE', dust: DUST, feePerByte: FEE_SATS_PER_BYTE, base: SIZE_BASE, input: SIZE_INPUT, output: SIZE_OUTPUT, sign: signDogeDraft }, apis, agent, timeoutMs);
+  private readonly pushUrls: string[];
+  private readonly paceMs: number;
+  private readonly verifyDelayMs: number;
+  private answers = new Map<string, { at: number; info: any; unspent: any }>();
+  private scanFinished = true;
+  private lastAsked = 0;
+
+  constructor(xpub: string, apis: string[], agent?: Agent, timeoutMs = 30_000, opts: DogeOptions = {}) {
+    super({ symbol: 'DOGE', dust: DUST, feePerByte: FEE_SATS_PER_BYTE, base: SIZE_BASE, input: SIZE_INPUT, output: SIZE_OUTPUT, sign: signDogeDraft, gapReceive: GAP_RECEIVE, gapChange: GAP_CHANGE, cacheMs: CACHE_MS }, apis, agent, timeoutMs);
     this.account = HDKey.fromExtendedKey(xpub);
+    this.pushUrls = opts.pushUrls ?? apis.map((a) => `${a}/txs/push`);
+    this.paceMs = opts.paceMs ?? PACE_MS;
+    this.verifyDelayMs = opts.verifyDelayMs ?? VERIFY_DELAY_MS;
   }
 
   addressAt(chain: number, index: number): string {
@@ -45,6 +68,9 @@ export class DogeClient extends InsightWallet<'DOGE'> {
   }
 
   protected async get(path: string): Promise<any> {
+    const hold = this.lastAsked + this.paceMs - Date.now();
+    if (hold > 0) await wait(hold);
+    this.lastAsked = Date.now();
     let last: unknown;
     for (const base of this.apis) {
       try { return await getJson(base + path, { agent: this.agent, timeoutMs: this.timeoutMs, headers: { Accept: 'application/json', 'User-Agent': 'KusariWallet' } }); } catch (e) { last = e; }
@@ -52,35 +78,94 @@ export class DogeClient extends InsightWallet<'DOGE'> {
     throw last instanceof Error ? last : new Error('Could not reach the DOGE server.');
   }
 
-  protected async lookup(addresses: string[]): Promise<{ utxoRows: any[]; txs: any[] }> {
-    const used: string[] = [];
-    for (let at = 0; at < addresses.length; at += PARALLEL) {
-      const part = addresses.slice(at, at + PARALLEL);
-      const infos = await Promise.all(part.map((a) => this.get(`/api/v2/address/${a}?details=basic`)));
-      infos.forEach((info, i) => { if (Number(info?.txs ?? 0) > 0 || Number(info?.unconfirmedTxs ?? 0) > 0) used.push(part[i]); });
-    }
-    const utxoRows: any[] = [];
-    const seen = new Map<string, any>();
-    for (const a of used) {
-      const [rows, details] = await Promise.all([this.get(`/api/v2/utxo/${a}`), this.get(`/api/v2/address/${a}?details=txs&pageSize=50`)]);
-      for (const r of Array.isArray(rows) ? rows : []) utxoRows.push({ address: a, txid: r.txid, vout: r.vout, satoshis: r.value, confirmations: r.confirmations });
-      for (const t of Array.isArray(details?.transactions) ? details.transactions : []) {
-        seen.set(t.txid, {
-          txid: t.txid, confirmations: t.confirmations, time: t.blockTime,
-          vin: (t.vin ?? []).map((v: any) => ({ addr: v.addresses?.[0], value: Number(v.value ?? 0) / 1e8 })),
-          vout: (t.vout ?? []).map((v: any) => ({ value: Number(v.value ?? 0) / 1e8, scriptPubKey: { addresses: v.addresses ?? [] } })),
-        });
-      }
-    }
-    return { utxoRows, txs: [...seen.values()] };
+  /** A full history page answers most addresses; only one with more history needs a second request for its coins. */
+  private async ask(address: string): Promise<{ info: any; unspent: any }> {
+    const known = this.answers.get(address);
+    if (known) return known;
+    const info = await this.get(`/addrs/${address}?limit=${HISTORY_ROWS}`);
+    if (info?.address !== address) throw new Error(UNEXPECTED);
+    const unspent = info.hasMore && Number(info.final_balance ?? 0) > 0 ? await this.get(`/addrs/${address}?unspentOnly=true&limit=${UNSPENT_ROWS}`) : info;
+    if (unspent?.address !== address) throw new Error(UNEXPECTED);
+    const answer = { at: Date.now(), info, unspent };
+    this.answers.set(address, answer);
+    return answer;
   }
 
-  protected async broadcast(base: string, hex: string, id: string): Promise<void> {
-    const text = await requestText(`${base}/api/v2/sendtx/`, { method: 'POST', body: hex, agent: this.agent, timeoutMs: this.timeoutMs });
-    let answer: any = null;
-    try { answer = JSON.parse(text); } catch { /* checked below */ }
-    if (answer?.error) throw new Error(String(answer.error?.message ?? answer.error).slice(0, 200));
-    if (answer?.result !== id) throw new Error(`The server returned a different transaction ID. Check ${id} on an explorer.`);
+  /** The server's unspent rows, cross-checked against its balance so a partial list can't pass as the whole. */
+  private coinsOf(address: string, source: any): any[] {
+    const rows = [...(source.txrefs ?? []), ...(source.unconfirmed_txrefs ?? [])].filter((r: any) => r.tx_output_n >= 0 && !r.spent && !r.double_spend);
+    const seen = new Set<string>();
+    const coins: any[] = [];
+    for (const r of rows) {
+      if (!Number.isSafeInteger(r.value)) throw new Error(UNEXPECTED);
+      const key = `${r.tx_hash}:${r.tx_output_n}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      coins.push({ address, txid: r.tx_hash, vout: r.tx_output_n, satoshis: r.value, confirmations: r.confirmations ?? 0 });
+    }
+    // While something is unconfirmed the two can differ for a moment. The network still refuses a coin already spent.
+    const settled = !source.unconfirmed_n_tx && !source.unconfirmed_txrefs?.length;
+    if (settled && coins.reduce((s, c) => s + BigInt(c.satoshis), 0n) !== BigInt(source.final_balance ?? -1)) throw new Error('The DOGE server gave an incomplete list of coins.');
+    return coins;
+  }
+
+  protected async lookup(addresses: string[], round: number): Promise<{ utxoRows: any[]; txs: any[] }> {
+    // Later rounds only add addresses, and a retry after a failure keeps what it already paid for.
+    if (round === 0) {
+      if (this.scanFinished) this.answers.clear();
+      else for (const [a, known] of this.answers) if (Date.now() - known.at > REUSE_AFTER_FAILURE_MS) this.answers.delete(a);
+    }
+    this.scanFinished = false;
+    const utxoRows: any[] = [];
+    const txs = new Map<string, any>();
+    for (const a of addresses) {
+      const { info, unspent } = await this.ask(a);
+      utxoRows.push(...this.coinsOf(a, unspent));
+      for (const r of [...(info.txrefs ?? []), ...(info.unconfirmed_txrefs ?? [])]) {
+        if (r.double_spend || !Number.isSafeInteger(r.value)) continue;
+        const when = Date.parse(r.confirmed ?? r.received ?? '');
+        const tx = txs.get(r.tx_hash) ?? { txid: r.tx_hash, confirmations: r.confirmations ?? 0, time: Number.isNaN(when) ? undefined : when / 1000, vin: [], vout: [] };
+        if (r.tx_input_n >= 0) tx.vin.push({ addr: a, value: r.value / 1e8 });
+        if (r.tx_output_n >= 0) tx.vout.push({ value: r.value / 1e8, scriptPubKey: { addresses: [a] } });
+        txs.set(r.tx_hash, tx);
+      }
+    }
+    this.scanFinished = true;
+    return { utxoRows, txs: [...txs.values()] };
+  }
+
+  private async push(url: string, hex: string, id: string): Promise<void> {
+    // Blockchair's documented form is a GET with the transaction in the query.
+    const res = url.endsWith('/push/transaction')
+      ? await requestJson(`${url}?data=${hex}`, { agent: this.agent, timeoutMs: this.timeoutMs })
+      : await requestJson(url, { method: 'POST', body: { tx: hex }, agent: this.agent, timeoutMs: this.timeoutMs });
+    const b = res.body;
+    const refusal = b?.error?.message ?? b?.error ?? b?.errors?.[0]?.error ?? b?.context?.error;
+    if (res.status >= 300 || refusal || b?.success === 0) throw new Error(String(refusal ?? `Server error (${res.status})`).slice(0, 200));
+    const hash = b?.tx?.hash ?? b?.tx_hash ?? b?.hash ?? b?.data?.transaction_hash;
+    if (hash && hash !== id) throw new Error(`The server returned a different transaction ID. Check ${id} on an explorer.`);
+  }
+
+  private async visible(id: string): Promise<boolean> {
+    for (let i = 0; i < VERIFY_TRIES; i++) {
+      await wait(this.verifyDelayMs);
+      try { if ((await this.get(`/txs/${id}?limit=1`))?.hash === id) return true; } catch { /* not there yet */ }
+    }
+    return false;
+  }
+
+  /** A server's OK isn't enough here: one that took the transaction may never pass it on, so the reading server has to see it. */
+  async send(draft: InsightDraft, mnemonic: string): Promise<string> {
+    const { hex, id } = signDogeDraft(draft, mnemonic);
+    let accepted = false;
+    let last: unknown;
+    for (const url of this.pushUrls) {
+      try { await this.push(url, hex, id); accepted = true; } catch (e) { last = e; continue; }
+      if (await this.visible(id)) { this.forget(); return id; }
+    }
+    this.forget();
+    if (accepted) throw new Error(`The transaction was submitted but doesn't show on the network yet. Don't send again until you've checked ${id} on an explorer.`);
+    throw new Error(`Send rejected: ${(last as Error)?.message ?? ''}`);
   }
 }
 

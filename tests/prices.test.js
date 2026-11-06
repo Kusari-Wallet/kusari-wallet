@@ -55,6 +55,23 @@ test('falls through when the first source is limited, then remembers', async (tt
   assert.deepEqual(hits, { a: 1, b: 1 }, 'cached');
 });
 
+test('coins a source does not list come from the next one, without replacing what it had', async (tt) => {
+  const server = http.createServer((q, r) => {
+    r.setHeader('content-type', 'application/json');
+    if (q.url === '/a') { r.statusCode = 429; return r.end('{}'); }
+    if (q.url === '/b') return r.end(JSON.stringify(KR));
+    r.end(JSON.stringify({ RAW: { ...CC.RAW, XMR: u(999, 1), SOL: u(150, 2), DOGE: u(0.08, 3) } }));
+  });
+  await new Promise((res) => server.listen(0, '127.0.0.1', res));
+  tt.after(() => { server.close(); server.closeAllConnections(); });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const s = await make(tt, [coingecko(`${base}/a`), kraken(`${base}/b`), cryptocompare(`${base}/c`)]);
+  const p = await s.prices();
+  assert.equal(p.SOL.usd, 150);
+  assert.equal(p.DOGE.usd, 0.08);
+  assert.equal(p.XMR.usd, 150, 'the earlier source wins');
+});
+
 test('when everything fails: no made-up price, and it stops asking for a while', async (tt) => {
   let count = 0;
   const server = http.createServer((q, r) => { count++; r.statusCode = 429; r.end('{}'); });

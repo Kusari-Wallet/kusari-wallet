@@ -9,7 +9,10 @@ export const BTC_EXPLORER_TX = 'https://mempool.space/tx/';
 
 export const SOL_RPCS = ['https://api.mainnet-beta.solana.com', 'https://api.mainnet.solana.com', 'https://solana-rpc.publicnode.com'];
 export const SOL_EXPLORER_TX = 'https://solscan.io/tx/';
-export const DOGE_APIS = ['https://doge1.trezor.io'];
+export const DOGE_APIS = ['https://api.blockcypher.com/v1/doge/main'];
+// BlockCypher only takes POST with a token, which an app can't keep secret, so it reads and these two send.
+// Sending the same transaction twice is harmless. BlockCypher then confirms it from outside.
+export const DOGE_PUSH_URLS = ['https://dogechain.info/api/v1/pushtx', 'https://api.blockchair.com/dogecoin/push/transaction'];
 export const DOGE_EXPLORER_TX = 'https://dogechain.info/tx/';
 export const FIRO_APIS = ['https://insight.firo.org/insight-api-zcoin', 'https://explorer.firo.org/insight-api-zcoin'];
 export const FIRO_EXPLORER_TX = 'https://explorer.firo.org/tx/';

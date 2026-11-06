@@ -70,7 +70,7 @@ They are separate because a single combined seed couldn't restore XMR in other w
 - Public Monero nodes can see your IP. You can set your own node in Settings. The default node uses HTTP, so traffic isn't encrypted. Keys are never sent.
 - DASH uses plain addresses at `m/44'/5'/0'`. There is no CoinJoin. Lookups and sends use insight.dash.org.
 - SOL uses `m/44'/501'/0'/0'`, the path Phantom uses, with public Solana RPC servers. Solana tokens aren't shown.
-- DOGE uses `m/44'/3'/0'` with a public Trezor Blockbook server, asked about one address at a time so it never gets the account's xpub.
+- DOGE uses `m/44'/3'/0'` with BlockCypher's public API, asked about one address at a time so it never gets the account's xpub. Sends go to Dogechain or Blockchair, and BlockCypher then has to show the transaction before it counts as sent. BlockCypher's free tier allows 100 requests an hour, so DOGE balances refresh every 10 minutes and look 5 addresses past the last used one.
 - FIRO uses plain addresses at `m/44'/136'/0'`. Spark, Firo's private mode, isn't supported, so addresses and amounts are public.
 - ZEC uses shielded addresses by default. Swap services pay a transparent address, so those coins need shielding after they arrive.
 - ETH balances and sends use public nodes (publicnode, llamarpc, Cloudflare, 1rpc), and history uses Blockscout. These servers can see your IP and addresses.

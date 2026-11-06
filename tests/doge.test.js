@@ -19,38 +19,80 @@ test('addresses: standard BIP44 result, other coins refused', () => {
   assert.equal(isDogeAddress('HAgk14JpMQLgt6rVgv7cBQFJWFto5Dqxi472uT3DKpqk'), false, 'Solana');
 });
 
-function blockbook(mine, { answer } = {}) {
+const ID = (c) => c.repeat(32);
+const fast = { paceMs: 0, verifyDelayMs: 1 };
+const idOf = (hex) => btc.Transaction.fromRaw(Buffer.from(hex, 'hex'), { allowLegacyWitnessUtxo: true }).id;
+
+// Fields as BlockCypher really answered for these addresses.
+function funded(mine) {
+  return {
+    address: mine, balance: 500000000, unconfirmed_balance: 200000000, final_balance: 700000000, n_tx: 3, unconfirmed_n_tx: 1, final_n_tx: 3,
+    txrefs: [
+      { tx_hash: ID('ab'), block_height: 100, tx_input_n: -1, tx_output_n: 1, value: 500000000, ref_balance: 500000000, spent: false, confirmations: 6, confirmed: '2026-10-28T18:40:09Z', double_spend: false },
+      { tx_hash: ID('ee'), block_height: 90, tx_input_n: 0, tx_output_n: -1, value: 300000000, ref_balance: 0, confirmations: 20, confirmed: '2026-10-20T18:40:09Z', double_spend: false },
+      { tx_hash: ID('ef'), block_height: 80, tx_input_n: -1, tx_output_n: 0, value: 300000000, ref_balance: 300000000, spent: true, spent_by: ID('ee'), confirmations: 30, confirmed: '2026-10-10T18:40:09Z', double_spend: false },
+    ],
+    unconfirmed_txrefs: [{ address: mine, tx_hash: ID('cd'), tx_input_n: -1, tx_output_n: 0, value: 200000000, spent: false, confirmations: 0, received: '2026-11-01T00:00:00Z', double_spend: false }],
+  };
+}
+const empty = (a) => ({ address: a, balance: 0, unconfirmed_balance: 0, final_balance: 0, n_tx: 0, unconfirmed_n_tx: 0, final_n_tx: 0 });
+
+function server(answers = {}, { push, seen } = {}) {
   const log = [];
   const posted = [];
-  const server = http.createServer((q, r) => {
+  const known = new Set();
+  const srv = http.createServer((q, r) => {
     let b = '';
     q.on('data', (d) => { b += d; });
     q.on('end', () => {
       log.push(q.url);
       r.setHeader('content-type', 'application/json');
-      if (q.url.startsWith('/api/v2/sendtx')) { posted.push(b); return r.end(JSON.stringify(answer ? answer(b) : { result: btc.Transaction.fromRaw(Buffer.from(b, 'hex'), { allowLegacyWitnessUtxo: true }).id })); }
-      if (q.url.startsWith(`/api/v2/utxo/${mine}`)) return r.end(JSON.stringify([{ txid: 'ab'.repeat(32), vout: 1, value: '500000000', confirmations: 6 }, { txid: 'cd'.repeat(32), vout: 0, value: '200000000', confirmations: 0 }]));
-      if (q.url.startsWith(`/api/v2/address/${mine}?details=txs`)) return r.end(JSON.stringify({ transactions: [{ txid: 'ab'.repeat(32), confirmations: 6, blockTime: 1700000000, vin: [{ addresses: [OTHER], value: '600000000' }], vout: [{ addresses: [mine], value: '500000000' }] }] }));
-      if (q.url.startsWith(`/api/v2/address/${mine}?details=basic`)) return r.end(JSON.stringify({ txs: 2 }));
-      if (q.url.includes('details=basic')) return r.end(JSON.stringify({ txs: 0 }));
-      r.statusCode = 404; r.end('{}');
+      if (q.url.startsWith('/chair/push/transaction')) {
+        const tx = new URL(q.url, 'http://x').searchParams.get('data');
+        posted.push(tx);
+        known.add(idOf(tx));
+        const a = push ? push(tx) : { status: 200, body: { data: { transaction_hash: idOf(tx) }, context: { code: 200 } } };
+        r.statusCode = a.status;
+        return r.end(JSON.stringify(a.body));
+      }
+      if (q.url.startsWith('/txs/push')) {
+        const { tx } = JSON.parse(b);
+        posted.push(tx);
+        known.add(idOf(tx));
+        const a = push ? push(tx) : { status: 201, body: { tx: { hash: idOf(tx) } } };
+        r.statusCode = a.status;
+        return r.end(JSON.stringify(a.body));
+      }
+      if (q.url.startsWith('/txs/')) {
+        const id = q.url.slice(5, 69);
+        if (seen === false || !known.has(id)) { r.statusCode = 404; return r.end('{}'); }
+        return r.end(JSON.stringify({ hash: id }));
+      }
+      const addr = q.url.match(/^\/addrs\/(\w+)/)?.[1];
+      const a = answers[addr];
+      if (typeof a === 'function') { const out = a(q.url); r.statusCode = out.status ?? 200; return r.end(JSON.stringify(out.body)); }
+      r.end(JSON.stringify(a ?? empty(addr)));
     });
   });
-  return new Promise((res) => server.listen(0, '127.0.0.1', () => res({ server, log, posted, url: `http://127.0.0.1:${server.address().port}` })));
+  return new Promise((res) => srv.listen(0, '127.0.0.1', () => res({ srv, log, posted, known, url: `http://127.0.0.1:${srv.address().port}` })));
 }
+const close = (t, m) => t.after(() => { m.srv.close(); m.srv.closeAllConnections(); });
 
-test('balance, history and sending through Blockbook, one address at a time', async (t) => {
+test('balance, history and sending, one address at a time', async (t) => {
   const mine = new DogeClient(xpub, []).addressAt(0, 1);
-  const m = await blockbook(mine);
-  t.after(() => { m.server.close(); m.server.closeAllConnections(); });
-  const c = new DogeClient(xpub, [m.url]);
-  assert.deepEqual(await c.getBalance(), { total: 700000000n, spendable: 500000000n });
+  const m = await server({ [mine]: funded(mine) });
+  close(t, m);
+  const c = new DogeClient(xpub, [m.url], undefined, 5000, fast);
+  assert.deepEqual(await c.getBalance(), { total: 700000000n, spendable: 500000000n }, 'spent and unconfirmed coins are told apart');
   assert.equal(c.receiveAddress, new DogeClient(xpub, []).addressAt(0, 2));
   assert.ok(m.log.every((u) => !/xpub|dgub/.test(u)), 'the account key is never sent');
-  const [h] = await c.getHistory();
-  assert.deepEqual([h.asset, h.direction, h.amount, h.status], ['DOGE', 'in', '5', 'confirmed']);
+  const history = await c.getHistory();
+  assert.deepEqual(history.map((h) => [h.hash, h.direction, h.amount, h.status]), [
+    [ID('cd'), 'in', '2', 'pending'], [ID('ab'), 'in', '5', 'confirmed'], [ID('ee'), 'out', '3', 'confirmed'], [ID('ef'), 'in', '3', 'confirmed'],
+  ]);
   const draft = await c.draft(OTHER, 100000000n);
   assert.equal(draft.fee, typicalDogeFee());
+  assert.equal(draft.inputs.length, 1, 'an unconfirmed coin is not spent');
   assert.equal(draft.change, 500000000n - 100000000n - draft.fee);
   const id = await c.send(draft, PHRASE);
   const tx = btc.Transaction.fromRaw(Buffer.from(m.posted[0], 'hex'), { allowLegacyWitnessUtxo: true });
@@ -61,16 +103,111 @@ test('balance, history and sending through Blockbook, one address at a time', as
   await assert.rejects(c.draft(OTHER, 1000n), /minimum/);
 });
 
-test('a refused or different broadcast is reported', async (t) => {
+test('stays inside the free request limit', async (t) => {
+  const m = await server();
+  close(t, m);
+  const c = new DogeClient(xpub, [m.url], undefined, 5000, fast);
+  await c.getBalance();
+  assert.equal(m.log.length, 7, 'an unused wallet costs 7 requests');
+  await c.getBalance();
+  await c.getHistory();
+  assert.equal(m.log.length, 7, 'reads reuse the scan');
+  await c.refresh(true);
+  assert.equal(m.log.length, 14);
+
+  const used = new DogeClient(xpub, []).addressAt(0, 2);
+  const n = await server({ [used]: funded(used) });
+  close(t, n);
+  const d = new DogeClient(xpub, [n.url], undefined, 5000, fast);
+  await d.getBalance();
+  assert.equal(new Set(n.log).size, n.log.length, 'finding a used address does not ask again about the others');
+  assert.equal(n.log.length, 10, '3 addresses further');
+});
+
+test('requests are spaced out', async (t) => {
+  const m = await server();
+  close(t, m);
+  const at = Date.now();
+  await new DogeClient(xpub, [m.url], undefined, 5000, { paceMs: 30, verifyDelayMs: 1 }).getBalance();
+  assert.ok(Date.now() - at >= 6 * 30 - 5);
+});
+
+test('a retry after a rate limit asks only for what is missing', async (t) => {
+  const third = new DogeClient(xpub, []).addressAt(0, 3);
+  let limited = true;
+  const m = await server({ [third]: () => (limited ? { status: 429, body: { error: 'Limits reached.' } } : { body: empty(third) }) });
+  close(t, m);
+  const c = new DogeClient(xpub, [m.url], undefined, 5000, fast);
+  await assert.rejects(c.getBalance(), /429/);
+  assert.equal(m.log.length, 4, 'stops at the first refusal');
+  limited = false;
+  await c.getBalance();
+  assert.equal(m.log.length, 4 + 4, 'the three answered addresses are not asked again');
+});
+
+test('an address with long history gets its coins from a second request', async (t) => {
   const mine = new DogeClient(xpub, []).addressAt(0, 0);
-  const m = await blockbook(mine, { answer: () => ({ error: { message: 'dust' } }) });
-  t.after(() => { m.server.close(); m.server.closeAllConnections(); });
-  const c = new DogeClient(xpub, [m.url]);
-  await assert.rejects(c.send(await c.draft(OTHER, 100000000n), PHRASE), /dust/);
-  const n = await blockbook(mine, { answer: () => ({ result: 'ff'.repeat(32) }) });
-  t.after(() => { n.server.close(); n.server.closeAllConnections(); });
-  const d = new DogeClient(xpub, [n.url]);
-  await assert.rejects(d.send(await d.draft(OTHER, 100000000n), PHRASE), /different transaction/);
+  const page = { ...empty(mine), balance: 500000000, final_balance: 500000000, n_tx: 80, final_n_tx: 80, hasMore: true, txrefs: funded(mine).txrefs.slice(1) };
+  const all = { ...page, hasMore: false, txrefs: [funded(mine).txrefs[0]] };
+  const m = await server({ [mine]: (u) => ({ body: u.includes('unspentOnly=true') ? all : page }) });
+  close(t, m);
+  const c = new DogeClient(xpub, [m.url], undefined, 5000, fast);
+  assert.deepEqual(await c.getBalance(), { total: 500000000n, spendable: 500000000n });
+});
+
+test('coins that do not add up to the balance are refused', async (t) => {
+  const mine = new DogeClient(xpub, []).addressAt(0, 0);
+  const { unconfirmed_txrefs, ...settled } = funded(mine);
+  const m = await server({ [mine]: { ...settled, unconfirmed_n_tx: 0, final_balance: 900000000 } });
+  close(t, m);
+  await assert.rejects(new DogeClient(xpub, [m.url], undefined, 5000, fast).getBalance(), /incomplete/);
+  const other = await server({ [mine]: { ...settled, address: OTHER } });
+  close(t, other);
+  await assert.rejects(new DogeClient(xpub, [other.url], undefined, 5000, fast).getBalance(), /unexpected/);
+});
+
+async function wallet(t, opts = {}) {
+  const mine = new DogeClient(xpub, []).addressAt(0, 0);
+  const m = await server({ [mine]: funded(mine) }, opts);
+  close(t, m);
+  return m;
+}
+
+test('a refused or different broadcast is reported', async (t) => {
+  const m = await wallet(t, { push: () => ({ status: 400, body: { error: 'dust' } }) });
+  const c = new DogeClient(xpub, [m.url], undefined, 5000, fast);
+  await assert.rejects(c.send(await c.draft(OTHER, 100000000n), PHRASE), /rejected: dust/);
+  const n = await wallet(t, { push: () => ({ status: 200, body: { success: 0, error: 'bad' } }) });
+  const d = new DogeClient(xpub, [n.url], undefined, 5000, fast);
+  await assert.rejects(d.send(await d.draft(OTHER, 100000000n), PHRASE), /rejected: bad/);
+  const o = await wallet(t, { push: () => ({ status: 201, body: { tx: { hash: 'ff'.repeat(32) } } }) });
+  const e = new DogeClient(xpub, [o.url], undefined, 5000, fast);
+  await assert.rejects(e.send(await e.draft(OTHER, 100000000n), PHRASE), /different transaction/);
+});
+
+test('an accepted send has to show up, or the wallet says so', async (t) => {
+  const m = await wallet(t, { seen: false });
+  const c = new DogeClient(xpub, [m.url], undefined, 5000, fast);
+  const draft = await c.draft(OTHER, 100000000n);
+  await assert.rejects(c.send(draft, PHRASE), /doesn't show on the network yet\. Don't send again/);
+});
+
+test('Blockchair: asked with a GET, its answers understood', async (t) => {
+  const m = await wallet(t);
+  const c = new DogeClient(xpub, [m.url], undefined, 5000, { ...fast, pushUrls: [`${m.url}/chair/push/transaction`] });
+  assert.equal(await c.send(await c.draft(OTHER, 100000000n), PHRASE), idOf(m.posted[0]));
+  const n = await wallet(t, { push: () => ({ status: 400, body: { data: null, context: { code: 400, error: 'Invalid transaction' } } }) });
+  const d = new DogeClient(xpub, [n.url], undefined, 5000, { ...fast, pushUrls: [`${n.url}/chair/push/transaction`] });
+  await assert.rejects(d.send(await d.draft(OTHER, 100000000n), PHRASE), /Invalid transaction/);
+});
+
+test('the second sending server is used when the first fails or stays unseen', async (t) => {
+  const m = await wallet(t);
+  const dead = await wallet(t, { push: () => ({ status: 500, body: {} }) });
+  const c = new DogeClient(xpub, [m.url], undefined, 5000, { ...fast, pushUrls: [`${dead.url}/txs/push`, `${m.url}/txs/push`] });
+  assert.equal(await c.send(await c.draft(OTHER, 100000000n), PHRASE), idOf(m.posted[0]));
+  assert.equal(dead.posted.length, 1);
+  assert.equal(m.posted.length, 1);
 });
 
 test('signing refuses wrong sums, addresses not mine, a bad recipient', () => {

@@ -4,7 +4,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import QRCode from 'qrcode';
 import { formatAmount, parseAmount } from './amount';
-import { Asset, BTC_APIS, BTC_EXPLORER_TX, DECIMALS, FIRO_APIS, FIRO_EXPLORER_TX, SOL_RPCS, SOL_EXPLORER_TX, DOGE_APIS, DOGE_EXPLORER_TX, DASH_APIS, DASH_EXPLORER_TX, DEFAULT_SETTINGS, ARRR_EXPLORER_TX, ARRR_SERVERS, ZANO_EXPLORER_TX, ZANO_NODE, ZEC_EXPLORER_TX, ZEC_SERVERS, ETH_EXPLORER_TX, ETH_RPCS, ETH_SCOUT, ETH_USDT, NETWORKS, NetworkId, Settings, estimateMainnetHeight } from './config';
+import { Asset, BTC_APIS, BTC_EXPLORER_TX, DECIMALS, FIRO_APIS, FIRO_EXPLORER_TX, SOL_RPCS, SOL_EXPLORER_TX, DOGE_APIS, DOGE_PUSH_URLS, DOGE_EXPLORER_TX, DASH_APIS, DASH_EXPLORER_TX, DEFAULT_SETTINGS, ARRR_EXPLORER_TX, ARRR_SERVERS, ZANO_EXPLORER_TX, ZANO_NODE, ZEC_EXPLORER_TX, ZEC_SERVERS, ETH_EXPLORER_TX, ETH_RPCS, ETH_SCOUT, ETH_USDT, NETWORKS, NetworkId, Settings, estimateMainnetHeight } from './config';
 import { MIN_PASSWORD, Secrets, Vault } from './vault';
 import { TronClient, TronTransfer, deriveTronAccount, generateTronMnemonic, isTronAddress } from './tron';
 import { socksAgent, getJson, requestJson, newTorRoute } from './request';
@@ -331,7 +331,7 @@ export class WalletService extends EventEmitter {
     this.btc.onHints = (hints) => { void fs.mkdir(this.dir, { recursive: true }).then(() => fs.writeFile(scanFile, JSON.stringify(hints), { mode: 0o600 })).catch(() => undefined); };
     if (!this.torNotReady) void this.btc.refresh().catch(() => undefined);
     this.firo = new FiroClient(firoAccountXpub(secrets.tronMnemonic), this.dev.firoApi ? [this.dev.firoApi] : FIRO_APIS, this.torRoute('firo'), slow ? 60_000 : 20_000);
-    this.doge = new DogeClient(dogeAccountXpub(secrets.tronMnemonic), this.dev.dogeApi ? [this.dev.dogeApi] : DOGE_APIS, this.torRoute('doge'), slow ? 60_000 : 20_000);
+    this.doge = new DogeClient(dogeAccountXpub(secrets.tronMnemonic), this.dev.dogeApi ? [this.dev.dogeApi] : DOGE_APIS, this.torRoute('doge'), slow ? 60_000 : 20_000, this.dev.dogeApi ? {} : { pushUrls: DOGE_PUSH_URLS });
     this.sol = new SolClient(solAddress(secrets.tronMnemonic), this.dev.solRpc ? [this.dev.solRpc] : SOL_RPCS, this.torRoute('sol'), slow ? 60_000 : 20_000);
     this.dash = new DashClient(dashAccountXpub(secrets.tronMnemonic), this.dev.dashApi ? [this.dev.dashApi] : DASH_APIS, this.torRoute('dash'), slow ? 60_000 : 20_000);
     this.eth = new EthClient(this.dev.ethRpc ? [this.dev.ethRpc] : ETH_RPCS, this.dev.ethScout ?? ETH_SCOUT, ETH_USDT, deriveEthAccount(secrets.tronMnemonic).address, this.torRoute('eth'), slow ? 60_000 : 15_000);
@@ -900,14 +900,17 @@ export class WalletService extends EventEmitter {
 
   private async fetchPrices(): Promise<PriceMap | null> {
     const sources = this.dev.priceSources ?? (this.dev.priceUrl ? [coingecko(this.dev.priceUrl)] : PRICE_SOURCES);
+    // Not every source lists every coin (Kraken here has only five), so the next ones fill in what's still missing.
+    let value = null as PriceMap | null;
     for (const source of sources) {
+      if (value && Object.keys(DECIMALS).every((a) => value![a as Asset])) break;
       try {
-        const json = await getJson(source.url, { agent: this.priceAgent, timeoutMs: this.settings.torEnabled ? 45_000 : 10_000 });
-        const value = source.parse(json);
+        const json = await getJson(source.url, { agent: this.priceAgent, timeoutMs: this.settings.torEnabled ? (value ? 20_000 : 45_000) : 10_000 });
+        value = { ...source.parse(json), ...(value as PriceMap | null ?? {}) };
         this.priceCache = { at: Date.now(), value };
-        return value;
       } catch { /* next source */ }
     }
+    if (value) return value;
     this.priceRetryAt = Date.now() + 60_000;
     return this.priceCache?.value ?? null;
   }
