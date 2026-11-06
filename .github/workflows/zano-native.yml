@@ -4,45 +4,51 @@ on:
   workflow_dispatch:
     inputs:
       only:
-        description: linux, android or all
+        description: windows, android or all
         default: all
 permissions:
   contents: read
 env:
   ZANO_LIB_COMMIT: 08b38232c5
 jobs:
-  linux:
+  windows:
     if: ${{ inputs.only != 'android' }}
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - name: Get the Zano library
+        env:
+          GIT_LFS_SKIP_SMUDGE: 1
         run: |
           git lfs install
-          GIT_LFS_SKIP_SMUDGE=1 git clone https://github.com/hyle-team/zano_native_lib zlib
-          GIT_LFS_SKIP_SMUDGE=1 git -C zlib checkout "$ZANO_LIB_COMMIT"
-          git -C zlib lfs pull --include "_install_linux/**"
+          git clone https://github.com/hyle-team/zano_native_lib zlib
+          git -C zlib checkout $env:ZANO_LIB_COMMIT
+          git -C zlib lfs pull --include "_install_windows/zano/x86_64/**,_install_windows/boost/x86_64/**,_install_windows/openssl/x86_64/**"
       - name: Build
         run: |
-          cmake -S native/zano-bridge -B out -DCMAKE_BUILD_TYPE=Release "-DZANO_NATIVE_LIB_PATH=$PWD/zlib"
-          cmake --build out -j4
-          ls -la out/zano-bridge
-          ./out/zano-bridge --version
-      - name: Which public nodes answer
+          cmake -S native/zano-bridge -B out -A x64 "-DZANO_NATIVE_LIB_PATH=$($PWD.Path)/zlib"
+          cmake --build out --config Release -j 4
+      - name: Bring along the Visual C++ runtime
         run: |
-          for n in 37.27.100.59:10500 195.201.107.230:33340 node.zano.org:11211 api.zano.org:443 ; do
-            for scheme in http https; do
-              printf '%s://%s ' "$scheme" "$n"
-              curl -s -m 15 -o /dev/null -w '%{http_code} %{time_total}\n' -X POST -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":0,"method":"getinfo","params":{"flags":0}}' "$scheme://$n/json_rpc" || echo failed
-            done
-          done
+          mkdir pack
+          copy out/Release/zano-bridge.exe pack/
+          foreach ($d in 'vcruntime140.dll','vcruntime140_1.dll','msvcp140.dll','msvcp140_1.dll','msvcp140_2.dll','concrt140.dll') { copy "$env:WINDIR/System32/$d" pack/ }
+          dir pack
+          Get-FileHash pack/* -Algorithm SHA256 | Format-Table Hash,Path -AutoSize | Out-String -Width 200
       - name: Real sync
         run: |
-          mkdir -p "$RUNNER_TEMP/z"
-          timeout 1000 ./out/zano-bridge --selftest 37.27.100.59:10500 "$RUNNER_TEMP/z"
+          pack/zano-bridge.exe --version
+          mkdir z
+          pack/zano-bridge.exe --selftest 37.27.100.59:10500 - "$($PWD.Path)/z" | Tee-Object -FilePath out.txt
+          if (-not (Select-String -Path out.txt -Pattern "selftest ok")) { exit 1 }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zano-bridge-windows-x64
+          path: pack
+          retention-days: 30
   android:
-    if: ${{ inputs.only != 'linux' }}
+    if: ${{ inputs.only != 'windows' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -78,6 +84,12 @@ jobs:
           name: zano-bridge-android-arm64
           path: ${{ runner.temp }}/bin/zano-bridge-arm64-v8a
           retention-days: 30
+      - name: Start Tor
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq tor
+          sudo systemctl stop tor || true
+          tor --SocksPort 127.0.0.1:9150 --DataDirectory "$RUNNER_TEMP/tor" --RunAsDaemon 1
+          for i in $(seq 1 60); do curl -s -m 10 --socks5-hostname 127.0.0.1:9150 https://check.torproject.org/api/ip | grep -q true && { echo Tor up; break; }; sleep 5; done
       - name: KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm.rules
@@ -98,8 +110,9 @@ jobs:
             adb push "$RUNNER_TEMP/bin/zano-bridge-x86_64" /data/local/tmp/zano-bridge
             adb shell chmod 755 /data/local/tmp/zano-bridge
             adb shell /data/local/tmp/zano-bridge --version
+            adb reverse tcp:9150 tcp:9150
             sleep 30
-            adb shell "mkdir -p /data/local/tmp/z && HOME=/data/local/tmp/z /data/local/tmp/zano-bridge --selftest 37.27.100.59:10500 /data/local/tmp/z" | tee "$RUNNER_TEMP/out.txt"
+            adb shell "mkdir -p /data/local/tmp/z && HOME=/data/local/tmp/z /data/local/tmp/zano-bridge --selftest 37.27.100.59:10500 9150 /data/local/tmp/z" | tee "$RUNNER_TEMP/out.txt"
       - name: Verdict
         run: |
           cat "$RUNNER_TEMP/out.txt"

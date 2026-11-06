@@ -9,6 +9,7 @@
 #include <string>
 #include <thread>
 #include "plain_wallet_api.h"
+#include "relay.h"
 
 namespace {
 
@@ -41,8 +42,20 @@ std::string field(const std::string& json, const std::string& name) {
 }
 
 // A throwaway key, so nothing here can ever hold funds or leave a trace of a real wallet.
-int selftest(const std::string& node, const std::string& dir) {
-  std::cout << "init: " << plain_wallet::init(node, dir, 0).substr(0, 120) << std::endl;
+// "host:port", through Tor when a SOCKS port is given. Returns what to hand to the library, empty on failure.
+std::string nodeAddress(const std::string& node, const std::string& socks) {
+  if (socks.empty()) return node;
+  const auto colon = node.rfind(':');
+  if (colon == std::string::npos) return "";
+  const uint16_t local = relay::start(static_cast<uint16_t>(std::stoi(socks)), node.substr(0, colon),
+                                      static_cast<uint16_t>(std::stoi(node.substr(colon + 1))));
+  return local ? "127.0.0.1:" + std::to_string(local) : "";
+}
+
+int selftest(const std::string& node, const std::string& socks, const std::string& dir) {
+  const std::string address_ = nodeAddress(node, socks);
+  if (address_.empty()) { std::cout << "relay failed" << std::endl; return 1; }
+  std::cout << "init: " << plain_wallet::init(address_, dir, 0).substr(0, 120) << std::endl;
   const std::string secret = randomHex(32);
   const std::string pass = randomHex(16);
   const auto restore = [&](const std::string& path) {
@@ -61,11 +74,12 @@ int selftest(const std::string& node, const std::string& dir) {
   const auto started = std::chrono::steady_clock::now();
   for (;;) {
     const std::string status = plain_wallet::sync_call("get_wallet_status", std::stoull(id), "");
-    const std::string state = field(status, "wallet_state");
-    const std::string progress = field(status, "progress");
     const auto seconds = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - started).count();
-    if (seconds % 15 == 0) std::cout << "t=" << seconds << " " << status.substr(0, 160) << std::endl;
-    if (state == "2") { std::cout << "synced after " << seconds << "s" << std::endl; break; }
+    if (seconds % 15 == 0) std::cout << "t=" << seconds << " wallet " << field(status, "current_wallet_height") << " node " << field(status, "current_daemon_height") << " " << field(status, "progress") << "%" << std::endl;
+    if (field(status, "is_in_long_refresh") == "false" && field(status, "is_daemon_connected") == "true" && field(status, "progress") == "100") {
+      std::cout << "synced after " << seconds << "s" << std::endl;
+      break;
+    }
     if (seconds > 900) { std::cout << "sync timed out: " << plain_wallet::get_connectivity_status() << std::endl; return 1; }
     std::this_thread::sleep_for(std::chrono::seconds(1));
   }
@@ -89,21 +103,47 @@ int main(int argc, char** argv) {
     std::cout << plain_wallet::get_version() << std::endl;
     return 0;
   }
-  if (first == "--selftest" && argc > 3) {
-    const int code = selftest(argv[2], argv[3]);
+  if (first == "--selftest" && argc > 4) {
+    const int code = selftest(argv[2], std::string(argv[3]) == "-" ? "" : argv[3], argv[4]);
     std::cout.flush();
     // The library's threads have no clean way down here, and the result is already out.
     std::_Exit(code);
   }
+  // In: request id, method, instance, params, separated by tabs. Out: request id, tab, the answer on one line.
   std::string line;
   while (std::getline(std::cin, line)) {
-    std::string::size_type a = line.find('\t');
-    std::string::size_type b = a == std::string::npos ? a : line.find('\t', a + 1);
-    if (b == std::string::npos) { std::cout << "{\"error\":\"bad request\"}" << std::endl; continue; }
-    const std::string method = line.substr(0, a);
-    const std::string id = line.substr(a + 1, b - a - 1);
-    const std::string params = line.substr(b + 1);
-    std::cout << plain_wallet::sync_call(method, std::stoull(id), params) << std::endl;
+    if (!line.empty() && line.back() == '\r') line.pop_back();
+    const auto a = line.find('\t');
+    const auto b = a == std::string::npos ? a : line.find('\t', a + 1);
+    const auto c = b == std::string::npos ? b : line.find('\t', b + 1);
+    if (c == std::string::npos) continue;
+    const std::string request = line.substr(0, a);
+    const std::string method = line.substr(a + 1, b - a - 1);
+    const std::string instance = line.substr(b + 1, c - b - 1);
+    const std::string params = line.substr(c + 1);
+    std::string answer;
+    try {
+      if (method == "init") {
+        // node, Tor port (or nothing), folder, split by a character no path or address holds.
+        const auto x = params.find('\x1f');
+        const auto y = x == std::string::npos ? x : params.find('\x1f', x + 1);
+        if (y == std::string::npos) answer = "{\"error\":\"bad init\"}";
+        else {
+          const std::string address = nodeAddress(params.substr(0, x), params.substr(x + 1, y - x - 1));
+          answer = address.empty() ? "{\"error\":\"relay failed\"}" : plain_wallet::init(address, params.substr(y + 1), 0);
+        }
+      } else if (method == "address_info") {
+        answer = plain_wallet::get_address_info(params);
+      } else if (method == "delete") {
+        answer = plain_wallet::delete_wallet(params);
+      } else {
+        answer = plain_wallet::sync_call(method, std::stoull(instance), params);
+      }
+    } catch (const std::exception&) {
+      answer = std::string("{\"error\":\"") + "engine exception\"}";
+    }
+    for (char& ch : answer) if (ch == '\n' || ch == '\r') ch = ' ';
+    std::cout << request << '\t' << answer << std::endl;
   }
   return 0;
 }
