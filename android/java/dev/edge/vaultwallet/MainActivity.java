@@ -46,6 +46,7 @@ public class MainActivity extends Activity {
     private TorProcess tor;
     private ZecProcess zec;
     private ZecProcess zano;
+    private ZecProcess arrr;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -53,6 +54,10 @@ public class MainActivity extends Activity {
         // Keeps seed words out of screenshots and the recent-apps preview.
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
         biometric = new BiometricVault(this);
+        arrr = new ZecProcess(new File(getApplicationInfo().nativeLibraryDir, "libarrrbridge.so"), new File(getFilesDir(), "arrr"), new ZecProcess.Listener() {
+            @Override public void onLine(String line) { toPage("window.__arrrLine&&window.__arrrLine(" + JSONObject.quote(line) + ")"); }
+            @Override public void onExit() { toPage("window.__arrrExit&&window.__arrrExit()"); }
+        });
         zano = new ZecProcess(new File(getApplicationInfo().nativeLibraryDir, "libzanobridge.so"), new File(getFilesDir(), "zano"), new ZecProcess.Listener() {
             @Override public void onLine(String line) { toPage("window.__zanoLine&&window.__zanoLine(" + JSONObject.quote(line) + ")"); }
             @Override public void onExit() { toPage("window.__zanoExit&&window.__zanoExit()"); }
@@ -133,6 +138,7 @@ public class MainActivity extends Activity {
         tor.stop();
         zec.stop();
         zano.stop();
+        arrr.stop();
         super.onDestroy();
     }
 
@@ -217,6 +223,12 @@ public class MainActivity extends Activity {
             });
         }
 
+        @JavascriptInterface public boolean arrrAvailable() { return arrr.available(); }
+        @JavascriptInterface public boolean arrrStart() { return arrr.start(); }
+        @JavascriptInterface public boolean arrrWrite(String line) { return arrr.write(line); }
+        @JavascriptInterface public void arrrStop() { arrr.stop(); }
+        @JavascriptInterface public String arrrDir() { return new File(getFilesDir(), "arrr").getAbsolutePath(); }
+        @JavascriptInterface public String arrrInfo() { return zecInfo(); }
         @JavascriptInterface public boolean zanoAvailable() { return zano.available(); }
         @JavascriptInterface public boolean zanoStart() { return zano.start(); }
         @JavascriptInterface public boolean zanoWrite(String line) { return zano.write(line); }

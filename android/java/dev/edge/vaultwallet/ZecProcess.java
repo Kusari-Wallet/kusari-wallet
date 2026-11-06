@@ -38,6 +38,8 @@ final class ZecProcess {
             // Installed as libraries so that Android unpacks them; the Zcash engine checks their hash on load.
             pb.environment().put("ZEC_SAPLING_SPEND", new File(exe.getParentFile(), "libzecspend.so").getAbsolutePath());
             pb.environment().put("ZEC_SAPLING_OUTPUT", new File(exe.getParentFile(), "libzecoutput.so").getAbsolutePath());
+            pb.environment().put("ARRR_SAPLING_SPEND", new File(exe.getParentFile(), "libzecspend.so").getAbsolutePath());
+            pb.environment().put("ARRR_SAPLING_OUTPUT", new File(exe.getParentFile(), "libzecoutput.so").getAbsolutePath());
             final Process p = pb.start();
             process = p;
             in = new BufferedWriter(new OutputStreamWriter(p.getOutputStream(), StandardCharsets.UTF_8));

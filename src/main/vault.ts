@@ -11,6 +11,8 @@ export interface Secrets {
   restoreHeights: { mainnet: number; testnet: number };
   /** Where Zcash scanning starts on a restored wallet, if a date was given. */
   zecBirthday?: number;
+  /** The date a restored wallet started from, for Pirate Chain, whose height needs asking the server. */
+  restoreDate?: string;
 }
 
 interface VaultFile {
