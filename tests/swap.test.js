@@ -408,3 +408,28 @@ test('wallet: a swap keeps its private code for status checks and keeps it from 
   assert.equal(record.hashOut, 'cc');
   assert.deepEqual(Object.keys(s.swapClients()).sort(), ['etzswap', 'exolix']);
 });
+
+test('wallet: a provider that never answers doesn\'t hold back the ones that did', async (t) => {
+  const fs = require('node:fs'); const os = require('node:os'); const path = require('node:path');
+  const { WalletService } = require('../dist/main/service');
+  const server = http.createServer((q, r) => {
+    if (q.url.startsWith('/ex')) return; // never answers
+    r.setHeader('content-type', 'application/json');
+    r.end(JSON.stringify({ data: { amountFrom: 1, amountTo: 150, minAmountFrom: 0.1, maxAmountFrom: 9, rate: 150 }, errors: {} }));
+  });
+  await new Promise((res) => server.listen(0, '127.0.0.1', res));
+  closing(t, server);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qd-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const s = new WalletService(dir, undefined, { swapBase: `${base}/ex`, etzSwapBase: base, quoteDeadlineMs: 300, priceSources: [] });
+  Object.assign(s, { tron: {}, monero: {}, eth: {}, dash: {}, firo: {}, btc: { feeRate: () => new Promise(() => {}) } });
+  const started = Date.now();
+  const list = await s.swapQuote('BTC', 'XMR', '1');
+  assert.ok(Date.now() - started < 2000, 'answers by the deadline');
+  const byId = Object.fromEntries(list.map((q) => [q.providerId, q]));
+  assert.equal(byId.etzswap.receive, '150');
+  assert.equal(byId.exolix.provider, 'Exolix');
+  assert.match(byId.exolix.problem, /Too slow/);
+  assert.equal(list[0].providerId, 'etzswap', 'the one with a quote comes first');
+});

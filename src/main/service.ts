@@ -28,6 +28,15 @@ import { MoneroClient, MoneroDraft, MoneroOptions, generateMoneroSeed, validateM
 const BALANCE_TTL_MS = 40_000;
 const BALANCE_BACKOFF_MS = 30_000;
 const QUICK_REFUSAL_MS = 15_000;
+const QUOTE_DEADLINE_MS = 20_000;
+const QUOTE_DEADLINE_TOR_MS = 40_000;
+const QUOTE_EXTRAS_MS = 8_000;
+const SWAP_NAMES: Record<SwapProviderId, string> = { exolix: 'Exolix', simpleswap: 'SimpleSwap', ghostswap: 'GhostSwap', etzswap: 'ETZ Swap', ccecash: 'CCECash' };
+
+function within<T, F>(ms: number, work: Promise<T>, late: F): Promise<T | F> {
+  let timer: ReturnType<typeof setTimeout>;
+  return Promise.race([work, new Promise<F>((resolve) => { timer = setTimeout(() => resolve(late), ms); })]).finally(() => clearTimeout(timer));
+}
 /** Which Tor route each balance lookup uses. */
 const LOOKUP_ROUTE: Record<string, string> = { BTC: 'btc', ETH: 'eth', USDTE: 'eth', TRX: 'tron', USDT: 'tron', DASH: 'dash', FIRO: 'firo' };
 
@@ -104,7 +113,7 @@ export class WalletService extends EventEmitter {
   settings: Settings = { ...DEFAULT_SETTINGS };
 
   constructor(private readonly baseDir: string, private readonly kdf?: { N: number; r: number; p: number }, private readonly dev: {
-    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; dashApi?: string; firoApi?: string; zecBin?: string; zecServers?: string[]; zanoBin?: string; zanoNode?: string; arrrBin?: string; arrrServers?: string[]; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; etzSwapBase?: string; cceCashBase?: string; btcApi?: string;
+    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; dashApi?: string; firoApi?: string; zecBin?: string; zecServers?: string[]; zanoBin?: string; zanoNode?: string; arrrBin?: string; arrrServers?: string[]; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; etzSwapBase?: string; cceCashBase?: string; quoteDeadlineMs?: number; btcApi?: string;
     /** Android: every outside address goes through the app's local forwarder. */
     route?: (url: string) => string;
     moneroStore?: (net: NetworkId, walletId: string) => MoneroOptions['store'];
@@ -652,13 +661,18 @@ export class WalletService extends EventEmitter {
     if (from === to) throw new Error('Choose a different coin.');
     const amount = formatAmount(parseAmount(amountInput, DECIMALS[from]), DECIMALS[from]);
     const clients = Object.entries(this.swapClients()) as [SwapProviderId, SwapProvider][];
+    // The slowest provider mustn't hold up the others, so each gets a deadline and the screen shows whoever answered.
+    const deadline = this.dev.quoteDeadlineMs ?? (this.settings.torEnabled ? QUOTE_DEADLINE_TOR_MS : QUOTE_DEADLINE_MS);
+    const failed = (id: SwapProviderId, problem: string) => ({ from, to, amount, receive: '0', rate: '0', min: null, max: null, approximate: true, providerId: id, provider: SWAP_NAMES[id], problem });
     const results = await Promise.all(clients.map(async ([id, client]) => {
-      try { return await client.quote(from, to, amount); } catch (e) {
-        return { from, to, amount, receive: '0', rate: '0', min: null, max: null, approximate: true, providerId: id, provider: id, problem: `Connection failed: ${(e as Error).message}` };
+      try { return await within(deadline, client.quote(from, to, amount), failed(id, 'Too slow to answer right now.')); } catch (e) {
+        return failed(id, `Connection failed: ${(e as Error).message}`);
       }
     }));
     const sorted = results.sort((a, b) => Number(!a.problem && b.problem ? -1 : !b.problem && a.problem ? 1 : Number(b.receive) - Number(a.receive)));
-    const [price, network] = await Promise.all([this.prices(), this.feeEstimate(from)]);
+    // Prices and the fee only add detail, so they don't get to delay the quotes either.
+    const extras = Math.min(deadline, QUOTE_EXTRAS_MS);
+    const [price, network] = await Promise.all([within(extras, this.prices(), null).catch(() => null), within(extras, this.feeEstimate(from), null).catch(() => null)]);
     return sorted.map((q) => ({ ...q, network, cost: q.problem ? null : swapCost(amount, q.receive, price?.[from]?.usd, price?.[to]?.usd) }));
   }
 

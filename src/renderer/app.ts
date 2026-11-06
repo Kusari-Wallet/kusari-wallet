@@ -411,11 +411,11 @@ function assetUsd(a: Asset): number | null {
 function totalUsd(): { value: string; note: string } {
   if (hideBalance) return { value: '••••', note: '' };
   if (!overview) return { value: '…', note: '' };
-  if (!prices) return { value: '$—', note: 'Could not load prices. The amounts below are correct.' };
+  if (!prices) return { value: '$0', note: 'Could not load prices. The amounts below are correct.' };
   const failed = ASSETS.filter((a) => !overview.balances[a].ok && !overview.balances[a].pending);
   const pending = ASSETS.filter((a) => overview.balances[a].pending);
-  if (pending.length && !failed.length) return { value: '$—', note: overview.tor && overview.tor.phase !== 'ready' ? 'Tor is connecting. Balances load once it connects.' : `Loading ${pending.map(coinName).join(', ')} balances.` };
-  if (failed.length) return { value: '$—', note: `${failed.map(coinName).join(', ')} lookup failed. Retrying automatically.` };
+  if (pending.length && !failed.length) return { value: '$0', note: overview.tor && overview.tor.phase !== 'ready' ? 'Tor is connecting. Balances load once it connects.' : `Loading ${pending.map(coinName).join(', ')} balances.` };
+  if (failed.length) return { value: '$0', note: `${failed.map(coinName).join(', ')} lookup failed. Retrying automatically.` };
   const sum = ASSETS.reduce((s, a) => s + (assetUsd(a) ?? 0), 0);
   const notes: string[] = [];
   if (!overview.monero.synced) notes.push('XMR hasn\'t synced yet, so this may be lower than actual.');
