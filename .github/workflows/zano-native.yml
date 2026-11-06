@@ -1,0 +1,106 @@
+# Run by hand. Links Zano's own prebuilt libraries at a fixed commit, then runs a real sync with a throwaway key.
+name: Zano native engine
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: linux, android or all
+        default: all
+permissions:
+  contents: read
+env:
+  ZANO_LIB_COMMIT: 08b38232c5
+jobs:
+  linux:
+    if: ${{ inputs.only != 'android' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get the Zano library
+        run: |
+          git lfs install
+          git clone https://github.com/hyle-team/zano_native_lib zlib
+          git -C zlib checkout "$ZANO_LIB_COMMIT"
+          git -C zlib lfs pull --include "_install_linux/**"
+      - name: Build
+        run: |
+          cmake -S native/zano-bridge -B out -DCMAKE_BUILD_TYPE=Release "-DZANO_NATIVE_LIB_PATH=$PWD/zlib"
+          cmake --build out -j4
+          ls -la out/zano-bridge
+          ./out/zano-bridge --version
+      - name: Which public nodes answer
+        run: |
+          for n in 37.27.100.59:10500 195.201.107.230:33340 node.zano.org:11211 api.zano.org:443 ; do
+            for scheme in http https; do
+              printf '%s://%s ' "$scheme" "$n"
+              curl -s -m 15 -o /dev/null -w '%{http_code} %{time_total}\n' -X POST -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":0,"method":"getinfo","params":{"flags":0}}' "$scheme://$n/json_rpc" || echo failed
+            done
+          done
+      - name: Real sync
+        run: |
+          mkdir -p "$RUNNER_TEMP/z"
+          timeout 1000 ./out/zano-bridge --selftest 37.27.100.59:10500 "$RUNNER_TEMP/z"
+  android:
+    if: ${{ inputs.only != 'linux' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get the Zano library
+        run: |
+          git lfs install
+          git clone https://github.com/hyle-team/zano_native_lib zlib
+          git -C zlib checkout "$ZANO_LIB_COMMIT"
+          git -C zlib lfs pull --include "_install_android/arm64-v8a/**,_install_android/x86_64/**,_install_android/include/**,_libs_android/boost/arm64-v8a/**,_libs_android/boost/x86_64/**,_libs_android/openssl/arm64-v8a/**,_libs_android/openssl/x86_64/**,_libs_android/libbacktrace/arm64-v8a/**,_libs_android/libbacktrace/x86_64/**"
+      - uses: nttld/setup-ndk@v1
+        id: ndk
+        with:
+          ndk-version: r26c
+      - name: Build
+        env:
+          NDK: ${{ steps.ndk.outputs.ndk-path }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin"
+          for abi in arm64-v8a x86_64; do
+            cmake -S native/zano-bridge -B "out-$abi" -DCMAKE_BUILD_TYPE=Release \
+              "-DCMAKE_TOOLCHAIN_FILE=$NDK/build/cmake/android.toolchain.cmake" \
+              -DANDROID_ABI=$abi -DANDROID_PLATFORM=android-26 -DANDROID_STL=c++_static \
+              "-DCMAKE_EXE_LINKER_FLAGS=-s" "-DZANO_NATIVE_LIB_PATH=$PWD/zlib"
+            cmake --build "out-$abi" -j4
+            cp "out-$abi/zano-bridge" "$RUNNER_TEMP/bin/zano-bridge-$abi"
+          done
+          ls -la "$RUNNER_TEMP/bin"
+          sha256sum "$RUNNER_TEMP/bin/"*
+          rm -rf zlib out-*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zano-bridge-android-arm64
+          path: ${{ runner.temp }}/bin/zano-bridge-arm64-v8a
+          retention-days: 30
+      - name: KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Real sync on an emulator
+        timeout-minutes: 30
+        continue-on-error: true
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: default
+          force-avd-creation: true
+          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect
+          disable-animations: true
+          script: |
+            adb push "$RUNNER_TEMP/bin/zano-bridge-x86_64" /data/local/tmp/zano-bridge
+            adb shell chmod 755 /data/local/tmp/zano-bridge
+            adb shell /data/local/tmp/zano-bridge --version
+            sleep 30
+            adb shell "mkdir -p /data/local/tmp/z && HOME=/data/local/tmp/z /data/local/tmp/zano-bridge --selftest 37.27.100.59:10500 /data/local/tmp/z" | tee "$RUNNER_TEMP/out.txt"
+      - name: Verdict
+        run: |
+          cat "$RUNNER_TEMP/out.txt"
+          grep -q "selftest ok" "$RUNNER_TEMP/out.txt"
