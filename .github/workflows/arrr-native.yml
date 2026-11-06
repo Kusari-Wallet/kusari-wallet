@@ -42,7 +42,8 @@ jobs:
         shell: bash
         working-directory: stashi/crates
         run: |
-          B=$(ls target/release/arrr-bridge.exe ../target/release/arrr-bridge.exe 2>/dev/null | head -1)
+          B=target/release/arrr-bridge.exe
+          [ -f "$B" ] || B=../target/release/arrr-bridge.exe
           ls -la "$B"
           sha256sum "$B"
           "$B" --version
@@ -84,7 +85,9 @@ jobs:
           cp "$T/x86_64-linux-android/release/arrr-bridge" "$RUNNER_TEMP/bin/arrr-bridge-x86_64"
           ls -la "$RUNNER_TEMP/bin"
           sha256sum "$RUNNER_TEMP/bin/"*
-          rm -rf "$T"
+          cd "$GITHUB_WORKSPACE"
+          rm -rf stashi ~/.cargo/registry ~/.cargo/git
+          df -h / | tail -1
       - uses: actions/upload-artifact@v4
         with:
           name: arrr-bridge-android-arm64
