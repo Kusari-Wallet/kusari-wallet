@@ -17,6 +17,8 @@ function mockNode() {
       const json = body ? JSON.parse(body) : {};
       const send = (o) => { res.setHeader('content-type', 'application/json'); res.end(JSON.stringify(o)); };
       const url = req.url.split('?')[0];
+      if (url.startsWith('/dash-firo/addrs/') && url.endsWith('/utxo')) return send([]);
+      if (url.startsWith('/dash-firo/addrs/') && url.includes('/txs')) return send({ totalItems: 0, items: [] });
       if (url.startsWith('/dash/addrs/') && url.endsWith('/utxo')) return send(state.dashUtxos ?? []);
       if (url.startsWith('/dash/addrs/') && url.endsWith('/txs')) return send({ totalItems: 0, items: [] });
       if (url === '/dash/tx/send') { (state.dashRaw = state.dashRaw ?? []).push(json.rawtx); return send({}); }

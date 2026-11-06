@@ -1,4 +1,4 @@
-# Run by hand. Which Firo explorers answer, in what shape, directly and through Tor.
+# Run by hand. What the Firo explorer answers for a real address and a real transaction.
 name: Firo probe
 on:
   workflow_dispatch:
@@ -7,32 +7,18 @@ permissions:
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
-      - name: Start Tor
-        run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq tor
-          sudo systemctl stop tor || true
-          tor --SocksPort 127.0.0.1:9150 --DataDirectory "$RUNNER_TEMP/tor" --RunAsDaemon 1
-          for i in $(seq 1 40); do curl -s -m 10 --socks5-hostname 127.0.0.1:9150 https://check.torproject.org/api/ip | grep -q true && { echo Tor up; break; }; sleep 5; done
       - name: Probe
         run: |
-          A=aEF2yE3wLnPwu6sYW8cLGtDYLf4RGw9jRa
-          for base in https://insight.firo.org/insight-api-zcoin https://insight.firo.org/api https://explorer.firo.org/insight-api-zcoin https://explorer.firo.org/api https://insight.zcoin.io/insight-api-zcoin https://explorer.zcoin.io/insight-api-zcoin; do
-            for p in "/status?q=getInfo" "/addrs/$A/utxo" "/addrs/$A/txs?from=0&to=1&noAsm=1"; do
-              printf '%s%s => ' "$base" "$p"
-              curl -s -m 20 -w ' [%{http_code}]' "$base$p" | cut -c1-260; echo
-            done
-          done
-          echo --- Tor
-          for base in https://insight.firo.org/insight-api-zcoin https://explorer.firo.org/insight-api-zcoin; do
-            printf '%s => ' "$base"; curl -s -m 40 --socks5-hostname 127.0.0.1:9150 -w ' [%{http_code}]' "$base/status?q=getInfo" | cut -c1-200; echo
-          done
-          curl -s -m 20 -o /dev/null -w 'POST tx/send shape: %{http_code}\n' -X POST -H 'content-type: application/json' -d '{"rawtx":"00"}' https://insight.firo.org/insight-api-zcoin/tx/send
-          echo --- electrumx
-          for h in electrumx01.firo.org electrumx02.firo.org electrumx03.firo.org electrumx.firo.org; do
-            for port in 50002 ; do
-              printf '%s:%s => ' "$h" "$port"
-              printf '{"id":0,"method":"server.version","params":["k","1.4"]}\n' | timeout 15 openssl s_client -quiet -connect "$h:$port" 2>/dev/null | head -c 160; echo
-            done
-          done
+          B=https://insight.firo.org/insight-api-zcoin
+          H=$(curl -s -m 20 "$B/blocks?limit=1" | python3 -c "import json,sys;print(json.load(sys.stdin)['blocks'][0]['hash'])")
+          T=$(curl -s -m 20 "$B/block/$H" | python3 -c "import json,sys;print(json.load(sys.stdin)['tx'][0])")
+          curl -s -m 20 "$B/tx/$T" | cut -c1-900; echo
+          A=$(curl -s -m 20 "$B/tx/$T" | python3 -c "import json,sys;print([a for v in json.load(sys.stdin)['vout'] for a in v.get('scriptPubKey',{}).get('addresses',[])][0])")
+          echo "address $A"
+          curl -s -m 30 "$B/addrs/$A/utxo" | cut -c1-500; echo
+          curl -s -m 30 "$B/addrs/$A/txs?from=0&to=1&noAsm=1" | cut -c1-900; echo
+          printf 'fresh: '; curl -s -m 30 "$B/addrs/a1bW3sVVUsLqgKuTMXtSaAHGvpxKwugxPH/utxo" | cut -c1-200; echo
+          printf 'send: '; curl -s -m 20 -w ' [%{http_code}]' -X POST -H 'content-type: application/json' -d '{"rawtx":"00"}' "$B/tx/send" | cut -c1-200; echo
+          printf 'explorer page: '; curl -s -m 20 -o /dev/null -w '%{http_code} ' "https://explorer.firo.org/tx/$T"; curl -s -m 20 -o /dev/null -w '%{http_code}\n' "https://explorer.firo.org/insight/tx/$T"

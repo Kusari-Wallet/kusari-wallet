@@ -1,14 +1,16 @@
 export type NetworkId = 'mainnet' | 'testnet';
 /** USDT is the Tron token, USDTE the Ethereum one. */
-export type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'DCR' | 'DASH' | 'ZEC' | 'ZANO' | 'ARRR';
+export type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'DCR' | 'DASH' | 'FIRO' | 'ZEC' | 'ZANO' | 'ARRR';
 
-export const DECIMALS: Record<Asset, number> = { BTC: 8, XMR: 12, ETH: 18, TRX: 6, USDT: 6, USDTE: 6, DCR: 8, DASH: 8, ZEC: 8, ZANO: 12, ARRR: 8 };
+export const DECIMALS: Record<Asset, number> = { BTC: 8, XMR: 12, ETH: 18, TRX: 6, USDT: 6, USDTE: 6, DCR: 8, DASH: 8, FIRO: 8, ZEC: 8, ZANO: 12, ARRR: 8 };
 
 export const BTC_APIS = ['https://mempool.space/api', 'https://blockstream.info/api'];
 export const BTC_EXPLORER_TX = 'https://mempool.space/tx/';
 
 export const DCR_APIS = ['https://dcrdata.decred.org/insight/api', 'https://explorer.dcrdata.org/insight/api'];
 export const DCR_EXPLORER_TX = 'https://dcrdata.decred.org/tx/';
+export const FIRO_APIS = ['https://insight.firo.org/insight-api-zcoin', 'https://explorer.firo.org/insight-api-zcoin'];
+export const FIRO_EXPLORER_TX = 'https://explorer.firo.org/tx/';
 export const DASH_APIS = ['https://insight.dash.org/insight-api'];
 export const DASH_EXPLORER_TX = 'https://insight.dash.org/insight/tx/';
 export const ARRR_SERVERS = ['https://pirate.mathnodes.com:443', 'https://lightwalletd1.cryptoforge.cc:443', 'https://arrr.qortal.link:443', 'https://lightwalletd2.cryptoforge.cc:443', 'https://arrr2.qortal.link:443'];

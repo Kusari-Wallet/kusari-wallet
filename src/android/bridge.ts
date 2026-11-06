@@ -38,6 +38,7 @@ const service = new WalletService('/data', undefined, {
   btcApi: __TEST__ ? testConfig.btcApi : undefined,
   dcrApi: __TEST__ ? testConfig.dcrApi : undefined,
   dashApi: __TEST__ ? testConfig.dashApi : undefined,
+  firoApi: __TEST__ ? testConfig.dashApi && `${testConfig.dashApi}-firo` : undefined,
   zecServers: __TEST__ ? testConfig.zecServers : undefined,
   ethRpc: __TEST__ ? testConfig.ethRpc : undefined,
   tornadoPools: __TEST__ ? testConfig.tornadoPools : undefined,
