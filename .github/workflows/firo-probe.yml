@@ -11,14 +11,19 @@ jobs:
     steps:
       - name: Probe
         run: |
-          B=https://insight.firo.org/insight-api-zcoin
-          H=$(curl -s -m 20 "$B/blocks?limit=1" | python3 -c "import json,sys;print(json.load(sys.stdin)['blocks'][0]['hash'])")
-          T=$(curl -s -m 20 "$B/block/$H" | python3 -c "import json,sys;print(json.load(sys.stdin)['tx'][0])")
-          curl -s -m 20 "$B/tx/$T" | cut -c1-900; echo
-          A=$(curl -s -m 20 "$B/tx/$T" | python3 -c "import json,sys;print([a for v in json.load(sys.stdin)['vout'] for a in v.get('scriptPubKey',{}).get('addresses',[])][0])")
-          echo "address $A"
-          curl -s -m 30 "$B/addrs/$A/utxo" | cut -c1-500; echo
-          curl -s -m 30 "$B/addrs/$A/txs?from=0&to=1&noAsm=1" | cut -c1-900; echo
-          printf 'fresh: '; curl -s -m 30 "$B/addrs/a1bW3sVVUsLqgKuTMXtSaAHGvpxKwugxPH/utxo" | cut -c1-200; echo
-          printf 'send: '; curl -s -m 20 -w ' [%{http_code}]' -X POST -H 'content-type: application/json' -d '{"rawtx":"00"}' "$B/tx/send" | cut -c1-200; echo
-          printf 'explorer page: '; curl -s -m 20 -o /dev/null -w '%{http_code} ' "https://explorer.firo.org/tx/$T"; curl -s -m 20 -o /dev/null -w '%{http_code}\n' "https://explorer.firo.org/insight/tx/$T"
+          set +e
+          for B in https://insight.firo.org/insight-api-zcoin https://explorer.firo.org/insight-api-zcoin; do
+            echo "=== $B"
+            H=$(curl -s -m 20 "$B/status?q=getLastBlockHash" | python3 -c "import json,sys;print(json.load(sys.stdin)['lastblockhash'])")
+            echo "hash $H"
+            BLOCK=$(curl -s -m 20 "$B/block/$H"); echo "block: ${BLOCK:0:300}"
+            T=$(echo "$BLOCK" | python3 -c "import json,sys;print(json.load(sys.stdin)['tx'][0])")
+            TX=$(curl -s -m 20 "$B/tx/$T"); echo "tx: ${TX:0:900}"
+            A=$(echo "$TX" | python3 -c "import json,sys;print([a for v in json.load(sys.stdin)['vout'] for a in v.get('scriptPubKey',{}).get('addresses',[])][0])")
+            echo "address $A"
+            U=$(curl -s -m 30 "$B/addrs/$A/utxo"); echo "utxo: ${U:0:500}"
+            X=$(curl -s -m 30 "$B/addrs/$A/txs?from=0&to=1&noAsm=1"); echo "txs: ${X:0:700}"
+            F=$(curl -s -m 30 "$B/addrs/a1bW3sVVUsLqgKuTMXtSaAHGvpxKwugxPH/utxo"); echo "fresh: ${F:0:200}"
+            S=$(curl -s -m 20 -w ' [%{http_code}]' -X POST -H 'content-type: application/json' -d '{"rawtx":"00"}' "$B/tx/send"); echo "send: ${S:0:200}"
+            curl -s -m 20 -o /dev/null -w 'tx page %{http_code}\n' "https://explorer.firo.org/tx/$T"
+          done

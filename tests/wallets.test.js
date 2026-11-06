@@ -12,7 +12,7 @@ async function make(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mw-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const s = new WalletService(dir, { N: 2 ** 10, r: 8, p: 1 });
-  s.startSession = async (secrets) => { s.tron = {}; s.btc = {}; s.eth = {}; s.dcr = {}; s.dash = {}; s.monero = { close: async () => {} }; s.seen = secrets.tronMnemonic; };
+  s.startSession = async (secrets) => { s.tron = {}; s.btc = {}; s.eth = {}; s.dcr = {}; s.dash = {}; s.firo = {}; s.monero = { close: async () => {} }; s.seen = secrets.tronMnemonic; };
   await s.init();
   return { s, dir };
 }

@@ -57,6 +57,7 @@ async function setup(t) {
   s.eth = { address: ETH_ME, draft: async (asset, to, amount) => ({ asset, to, amount, expectedFee: 1n }), send: async (d) => { sent.push(d); return '0x' + 'cd'.repeat(32); } };
   s.dcr = { receiveAddress: 'Ds', refresh: async () => {} };
   s.dash = { receiveAddress: 'X', refresh: async () => {} };
+  s.firo = { receiveAddress: 'a', refresh: async () => {} };
   s.monero = {
     getPrimaryAddress: async () => XMR_ME,
     isValidAddress: async (a) => /^[48][A-Za-z]{94}$/.test(a),

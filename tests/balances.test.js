@@ -19,6 +19,7 @@ async function make(t) {
   s.eth = { address: '0x', getEthBalance: async () => 1n, getUsdtBalance: async () => 1n };
   s.dcr = { receiveAddress: 'Ds', getBalance: async () => ({ total: 1n, spendable: 1n }) };
   s.dash = { receiveAddress: 'X', getBalance: async () => ({ total: 1n, spendable: 1n }) };
+  s.firo = { receiveAddress: 'a', getBalance: async () => ({ total: 1n, spendable: 1n }) };
   return { s, v };
 }
 

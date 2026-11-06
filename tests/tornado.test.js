@@ -67,7 +67,7 @@ test('deposit, proof, withdraw through a relayer and directly, on the real contr
   const s = new WalletService(dir, undefined, { tornadoPools: { 0.1: chain.address }, tornadoLocalRelayer: true });
   const me = deriveEthAccount(PHRASE);
   const eth = new EthClient([chain.url], chain.url, USDT, me.address);
-  s.tron = {}; s.monero = {}; s.btc = {}; s.dcr = {}; s.dash = {}; s.eth = eth;
+  s.tron = {}; s.monero = {}; s.btc = {}; s.dcr = {}; s.dash = {}; s.firo = {}; s.eth = eth;
   s.vault.open = async (pw) => { if (pw !== 'pw') throw new Error('비밀번호가 틀렸어.'); return { tronMnemonic: PHRASE }; };
 
   assert.equal(await s.tornadoCheck(), true);
