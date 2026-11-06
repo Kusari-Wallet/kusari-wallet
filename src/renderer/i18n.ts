@@ -15,13 +15,6 @@
     let saved: string | null = null;
     try { saved = localStorage.getItem(KEY); } catch { /* not available here */ }
     if (saved && LANGUAGES.some(([code]) => code === saved)) return saved;
-    const wanted = (navigator.languages ?? [navigator.language]).map((l) => l.toLowerCase());
-    for (const w of wanted) {
-      if (w.startsWith('en')) return 'en';
-      if (w.startsWith('zh')) return /tw|hk|mo|hant/.test(w) ? 'en' : 'zh-CN';
-      const found = LANGUAGES.find(([code]) => code === w.split('-')[0]);
-      if (found) return found[0];
-    }
     return 'en';
   }
 

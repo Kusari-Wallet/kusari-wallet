@@ -92,7 +92,7 @@ Tor only hides your IP. Tron history stays public, and exchanges keep their own 
 
 ## Languages
 
-The app is in English, Korean, Japanese, Simplified Chinese, Vietnamese, Portuguese, Turkish, Ukrainian and Russian. English is the source, and anything without a translation stays English. The translations in `locales/` are the only files in this repository in other languages. `scripts/i18n-extract.js` lists the text to translate. They haven't had a native speaker's review, so warnings and seed instructions need one before a public release.
+The app is in English, Korean, Japanese, Simplified Chinese, Vietnamese, Portuguese, Turkish, Ukrainian and Russian. English is the default and the source, and anything without a translation stays English. Change the language in Settings. The translations in `locales/` are the only files in this repository in other languages. `scripts/i18n-extract.js` lists the text to translate. They haven't had a native speaker's review, so warnings and seed instructions need one before a public release.
 
 ## Swaps
 
