@@ -47,7 +47,7 @@ jobs:
           ls -la "$B"
           sha256sum "$B"
           "$B" --version
-          "$B" --selftest https://lightd1.pirate.black:443,https://lightwalletd1.cryptoforge.cc:443,https://lightwalletd2.cryptoforge.cc:443,https://pirate.mathnodes.com:443,https://arrr.qortal.link:443,https://arrr2.qortal.link:443,https://arrr3.qortal.link:443 - "$RUNNER_TEMP/a"
+          "$B" --selftest https://pirate.mathnodes.com:443,https://lightwalletd1.cryptoforge.cc:443,https://lightwalletd2.cryptoforge.cc:443,https://pirate.mathnodes.com:443,https://arrr.qortal.link:443,https://arrr2.qortal.link:443,https://arrr3.qortal.link:443 - "$RUNNER_TEMP/a"
           mkdir -p "$RUNNER_TEMP/up"
           cp "$B" "$RUNNER_TEMP/up/arrr-bridge.exe"
       - uses: actions/upload-artifact@v4
@@ -122,7 +122,7 @@ jobs:
             adb shell /data/local/tmp/arrr-bridge --version
             adb reverse tcp:9150 tcp:9150
             sleep 30
-            adb shell "mkdir -p /data/local/tmp/a && HOME=/data/local/tmp/a /data/local/tmp/arrr-bridge --selftest https://lightd1.pirate.black:443,https://lightwalletd1.cryptoforge.cc:443,https://lightwalletd2.cryptoforge.cc:443,https://pirate.mathnodes.com:443,https://arrr.qortal.link:443,https://arrr2.qortal.link:443,https://arrr3.qortal.link:443 9150 /data/local/tmp/a" | tee "$RUNNER_TEMP/out.txt"
+            adb shell "mkdir -p /data/local/tmp/a && HOME=/data/local/tmp/a /data/local/tmp/arrr-bridge --selftest https://pirate.mathnodes.com:443,https://lightwalletd1.cryptoforge.cc:443,https://lightwalletd2.cryptoforge.cc:443,https://pirate.mathnodes.com:443,https://arrr.qortal.link:443,https://arrr2.qortal.link:443,https://arrr3.qortal.link:443 9150 /data/local/tmp/a" | tee "$RUNNER_TEMP/out.txt"
       - name: Verdict
         run: |
           cat "$RUNNER_TEMP/out.txt"

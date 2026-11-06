@@ -9,6 +9,6 @@ path = "src/main.rs"
 
 [dependencies]
 pirate-core = { path = "../pirate-core", default-features = false }
-pirate-wallet-service = { path = "../pirate-wallet-service", default-features = false }
+pirate-wallet-service = { path = "../pirate-wallet-service", default-features = false, features = ["stashi-transports"] }
 serde_json = { workspace = true }
 tokio = { workspace = true }

@@ -161,7 +161,8 @@ async fn selftest(server: &str, socks: Option<u64>, dir: &str) -> R<()> {
         tokio::time::sleep(std::time::Duration::from_secs(5)).await;
         let s = call("status", &json!({ "wallet": id })).await?;
         println!("t={} {s}", started.elapsed().as_secs());
-        if s["running"] == json!(false) && s["local"].as_u64().unwrap_or(0) >= height.saturating_sub(5) {
+        // It keeps following the chain, so "running" stays true.
+        if s["local"].as_u64().unwrap_or(0) >= height {
             break;
         }
         if started.elapsed().as_secs() > 900 {
