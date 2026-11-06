@@ -744,6 +744,48 @@ const PASSWORD = 'correct horse battery';
   assert.equal(connectionsToNode.length, before, 'nothing reaches the node once Tor is gone');
   console.log('ok Tor lost: balances fail, no direct connection');
 
+  // Language
+  await page.click('#open-settings');
+  await page.locator('#set-language').waitFor();
+  assert.deepEqual(await page.locator('#set-language option').evaluateAll((o) => o.map((e) => e.value)), ['en', 'ko', 'ja', 'zh-CN', 'vi', 'pt', 'tr', 'uk', 'ru']);
+  assert.equal(await page.locator('#set-language').inputValue(), 'en');
+  await page.selectOption('#set-language', 'ko');
+  await page.locator('#open-settings', { hasText: '설정' }).waitFor({ timeout: 5000 });
+  assert.equal(await page.locator('#set-language option[value="ru"]').innerText(), 'Русский', 'language names stay in their own language');
+  assert.equal(await page.evaluate(() => document.documentElement.lang), 'ko');
+  await shot('settings-ko');
+  // Filled-in text, and a reason inside a longer message.
+  const said = await page.evaluate(() => {
+    const el = document.createElement('p');
+    el.id = 'language-probe';
+    document.body.append(el);
+    el.textContent = 'Not enough ETH for the fee. Up to 0.25 ETH is needed, and there is 0.1 ETH.';
+    return new Promise((r) => setTimeout(() => {
+      const first = el.textContent;
+      el.textContent = 'The provider\'s answer differs from the request, so this was stopped: the send amount differs. No coins have left your wallet.';
+      setTimeout(() => {
+        const second = el.textContent;
+        el.textContent = 'DBus3bamQjgJULBJtYXpEzDWQRwF5iwxgC';
+        setTimeout(() => { const third = el.textContent; el.remove(); r([first, second, third]); }, 50);
+      }, 50);
+    }, 50));
+  });
+  assert.equal(said[0], '수수료로 낼 ETH가 부족합니다. 최대 0.25 ETH가 필요하고 0.1 ETH가 있습니다.');
+  assert.equal(said[1], '업체의 응답이 요청과 달라 중단했습니다: 보내는 금액이 다름. 지갑에서 코인이 나가지 않았습니다.');
+  assert.equal(said[2], 'DBus3bamQjgJULBJtYXpEzDWQRwF5iwxgC', 'addresses are left alone');
+  for (const code of ['ru', 'uk', 'ja', 'zh-CN', 'vi', 'pt', 'tr']) {
+    await page.selectOption('#set-language', code);
+    await page.waitForTimeout(100);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await shot(`settings-${code}`);
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    assert.ok(overflow <= 0, `${code} doesn't push the page sideways`);
+  }
+  await page.selectOption('#set-language', 'en');
+  await page.locator('#open-settings', { hasText: 'Settings' }).waitFor({ timeout: 5000 });
+  await page.click('#nav-home');
+  console.log('ok language: switches live, fills gaps, leaves addresses, comes back to English');
+
   const raw = fs.readFileSync(path.join(data, 'vault.json'), 'utf8');
   assert.ok(!raw.includes('abandon'), 'seed is not stored in plaintext');
   console.log('page errors:', JSON.stringify(errors).slice(0,800)); assert.deepEqual(errors, [], 'no page errors');

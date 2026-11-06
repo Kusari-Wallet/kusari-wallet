@@ -90,6 +90,10 @@ Turn it on in Settings. When on, wallet connections go through Tor and host name
 
 Tor only hides your IP. Tron history stays public, and exchanges keep their own records.
 
+## Languages
+
+The app is in English, Korean, Japanese, Simplified Chinese, Vietnamese, Portuguese, Turkish, Ukrainian and Russian. English is the source, and anything without a translation stays English. The translations in `locales/` are the only files in this repository in other languages. `scripts/i18n-extract.js` lists the text to translate. They haven't had a native speaker's review, so warnings and seed instructions need one before a public release.
+
 ## Swaps
 
 Coins can be swapped with each other, and entering a receiving address sends the result to another wallet. ETZ Swap and CCECash join when their keys are present at build time (`.swap-keys.json` or `ETZSWAP_KEY`, `ETZSWAP_SECRET`, `CCECASH_KEY`, `CCECASH_SECRET`, `CCECASH_REF_CODE`). Those keys can read the account's orders, addresses included, so never distribute a build that holds them. The default provider is Exolix. SimpleSwap uses a partner key that is put in at build time from the `SIMPLESWAP_KEY` environment variable or `.swap-keys.json`, and is not in the source. It can be extracted from the app, so don't treat it as secret. The app adds no fee of its own. Provider support differs per coin.

@@ -37,7 +37,7 @@ const aliasPlugin = {
     inject: [path.join(android, 'shim-globals.js')],
   });
   const r = path.join(root, 'dist/renderer');
-  for (const f of ['app.js', 'jsQR.js', 'style.css', 'logo.png', 'PretendardVariable.woff2']) fs.copyFileSync(path.join(r, f), path.join(out, f));
+  for (const f of ['locales.js', 'i18n.js', 'app.js', 'jsQR.js', 'style.css', 'logo.png', 'PretendardVariable.woff2']) fs.copyFileSync(path.join(r, f), path.join(out, f));
   fs.cpSync(path.join(r, 'coins'), path.join(out, 'coins'), { recursive: true });
   fs.copyFileSync(path.join(android, 'index.html'), path.join(out, 'index.html'));
   fs.copyFileSync(path.join(root, 'node_modules/monero-ts/dist/monero.worker.js'), path.join(out, 'monero.worker.js'));
