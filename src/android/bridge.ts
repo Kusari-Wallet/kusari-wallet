@@ -37,6 +37,8 @@ const service = new WalletService('/data', undefined, {
   ghostSwapBase: __TEST__ ? testConfig.ghostSwapBase : undefined,
   btcApi: __TEST__ ? testConfig.btcApi : undefined,
   dashApi: __TEST__ ? testConfig.dashApi : undefined,
+  solRpc: __TEST__ ? testConfig.solRpc : undefined,
+  dogeApi: __TEST__ ? testConfig.dogeApi : undefined,
   firoApi: __TEST__ ? testConfig.dashApi && `${testConfig.dashApi}-firo` : undefined,
   zecServers: __TEST__ ? testConfig.zecServers : undefined,
   ethRpc: __TEST__ ? testConfig.ethRpc : undefined,

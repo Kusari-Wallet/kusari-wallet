@@ -19,13 +19,13 @@ export abstract class InsightWallet<S extends string> {
   private state: { at: number; utxos: InsightUtxo[]; total: bigint; spendable: bigint; txs: any[]; nextReceive: number; nextChange: number; mine: Map<string, [number, number]> } | null = null;
   private inFlight: Promise<void> | null = null;
 
-  constructor(private readonly cfg: InsightCoin<S>, private readonly apis: string[], private readonly agent?: Agent, private readonly timeoutMs = 30_000) {}
+  constructor(private readonly cfg: InsightCoin<S>, protected readonly apis: string[], protected readonly agent?: Agent, protected readonly timeoutMs = 30_000) {}
 
   abstract addressAt(chain: number, index: number): string;
   private size(inputs: number, outputs: number): bigint { return this.cfg.base + this.cfg.input * BigInt(inputs) + this.cfg.output * BigInt(outputs); }
   get receiveAddress(): string { return this.addressAt(0, this.state?.nextReceive ?? 0); }
 
-  private async get(path: string): Promise<any> {
+  protected async get(path: string): Promise<any> {
     let last: unknown;
     for (const base of this.apis) {
       try { return await getJson(base + path, { agent: this.agent, timeoutMs: this.timeoutMs }); } catch (e) { last = e; }
@@ -34,6 +34,18 @@ export abstract class InsightWallet<S extends string> {
   }
 
   /** One request covers every address, so a scan is cheap. */
+  protected async lookup(addresses: string[]): Promise<{ utxoRows: any[]; txs: any[] }> {
+    const list = addresses.join(',');
+    const [u, t] = await Promise.all([this.get(`/addrs/${list}/utxo`), this.get(`/addrs/${list}/txs?from=0&to=50&noAsm=1`)]);
+    return { utxoRows: Array.isArray(u) ? u : [], txs: Array.isArray(t?.items) ? t.items : [] };
+  }
+
+  protected async broadcast(base: string, hex: string, id: string): Promise<void> {
+    const res = await requestJson(`${base}/tx/send`, { method: 'POST', body: { rawtx: hex }, agent: this.agent, timeoutMs: this.timeoutMs });
+    if (res.status >= 400) throw new Error(String(res.body?.message ?? res.body?.error ?? res.status).slice(0, 200));
+    if (res.body?.txid && res.body.txid !== id) throw new Error(`The server returned a different transaction ID. Check ${id} on an explorer.`);
+  }
+
   private async scan(): Promise<void> {
     const mine = new Map<string, [number, number]>();
     let nextReceive = 0;
@@ -44,10 +56,7 @@ export abstract class InsightWallet<S extends string> {
       mine.clear();
       for (let i = 0; i < nextReceive + GAP_RECEIVE; i++) mine.set(this.addressAt(0, i), [0, i]);
       for (let i = 0; i < nextChange + GAP_CHANGE; i++) mine.set(this.addressAt(1, i), [1, i]);
-      const list = [...mine.keys()].join(',');
-      const [u, t] = await Promise.all([this.get(`/addrs/${list}/utxo`), this.get(`/addrs/${list}/txs?from=0&to=50&noAsm=1`)]);
-      utxoRows = Array.isArray(u) ? u : [];
-      txs = Array.isArray(t?.items) ? t.items : [];
+      ({ utxoRows, txs } = await this.lookup([...mine.keys()]));
       let r = nextReceive;
       let c = nextChange;
       const seen = (a: unknown) => {
@@ -123,9 +132,7 @@ export abstract class InsightWallet<S extends string> {
     let last: unknown;
     for (const base of this.apis) {
       try {
-        const res = await requestJson(`${base}/tx/send`, { method: 'POST', body: { rawtx: hex }, agent: this.agent, timeoutMs: this.timeoutMs });
-        if (res.status >= 400) throw new Error(String(res.body?.message ?? res.body?.error ?? res.status).slice(0, 200));
-        if (res.body?.txid && res.body.txid !== id) throw new Error(`The server returned a different transaction ID. Check ${id} on an explorer.`);
+        await this.broadcast(base, hex, id);
         this.state = null;
         return id;
       } catch (e) { last = e; }

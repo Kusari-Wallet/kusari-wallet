@@ -17,6 +17,8 @@ const COIN: Record<Asset, { coin: string; network: RegExp; fallback: string }> =
   USDTE: { coin: 'USDT', network: /^(eth|ethereum|erc-?20)$/i, fallback: 'ETH' },
   DASH: { coin: 'DASH', network: /^dash$/i, fallback: 'DASH' },
   FIRO: { coin: 'FIRO', network: /^firo$/i, fallback: 'FIRO' },
+  SOL: { coin: 'SOL', network: /^(sol|solana)$/i, fallback: 'SOL' },
+  DOGE: { coin: 'DOGE', network: /^(doge|dogecoin)$/i, fallback: 'DOGE' },
   ZEC: { coin: 'ZEC', network: /^(zec|zcash)$/i, fallback: 'ZEC' },
   ZANO: { coin: 'ZANO', network: /^zano$/i, fallback: 'ZANO' },
   ARRR: { coin: 'ARRR', network: /^(arrr|pirate)/i, fallback: 'ARRR' },
@@ -157,6 +159,8 @@ const SIMPLE_COIN: Record<Asset, { ticker: string; network: string }> = {
   USDTE: { ticker: 'usdt', network: 'eth' },
   DASH: { ticker: 'dash', network: 'dash' },
   FIRO: { ticker: 'firo', network: 'firo' },
+  SOL: { ticker: 'sol', network: 'sol' },
+  DOGE: { ticker: 'doge', network: 'doge' },
   ZEC: { ticker: 'zec', network: 'zec' },
   ZANO: { ticker: 'zano', network: 'zano' },
   ARRR: { ticker: 'arrr', network: 'arrr' },
@@ -221,7 +225,7 @@ export class SimpleSwapClient implements SwapProvider {
 // ---- GhostSwap ----
 
 export const GHOSTSWAP_BASE = 'https://partners-api.ghostswap.io';
-const GHOST_TICKER: Record<Exclude<Asset, 'USDTE'>, string> = { BTC: 'btc', XMR: 'xmr', ETH: 'eth', TRX: 'trx', USDT: 'usdtrx', DASH: 'dash', FIRO: 'firo', ZEC: 'zec', ZANO: 'zano', ARRR: 'arrr' };
+const GHOST_TICKER: Record<Exclude<Asset, 'USDTE'>, string> = { BTC: 'btc', XMR: 'xmr', ETH: 'eth', TRX: 'trx', USDT: 'usdtrx', DASH: 'dash', FIRO: 'firo', SOL: 'sol', DOGE: 'doge', ZEC: 'zec', ZANO: 'zano', ARRR: 'arrr' };
 
 export class GhostSwapClient implements SwapProvider {
   constructor(private readonly base: string, private readonly bearer: string, private readonly agent?: Agent, private readonly timeoutMs = 30_000) {}
@@ -308,6 +312,8 @@ const ETZ_COIN: Partial<Record<Asset, { coin: string; network: string }>> = {
   USDT: { coin: 'USDT', network: 'TRX' },
   USDTE: { coin: 'USDT', network: 'ETH' },
   DASH: { coin: 'DASH', network: 'DASH' },
+  SOL: { coin: 'SOL', network: 'SOL' },
+  DOGE: { coin: 'DOGE', network: 'DOGE' },
   ZEC: { coin: 'ZEC', network: 'ZEC' },
   ZANO: { coin: 'ZANO', network: 'ZANO' },
 };
@@ -395,6 +401,8 @@ const CCE_COIN: Partial<Record<Asset, { abbr: string; chain: string }>> = {
   USDT: { abbr: 'USDT', chain: 'TRON' },
   USDTE: { abbr: 'USDT', chain: 'Ethereum' },
   DASH: { abbr: 'DASH', chain: 'Dash' },
+  SOL: { abbr: 'SOL', chain: 'Solana' },
+  DOGE: { abbr: 'DOGE', chain: 'Dogecoin' },
   ZEC: { abbr: 'ZEC', chain: 'Zcash' },
 };
 /** Their order states, as the words the rest of the wallet uses. */

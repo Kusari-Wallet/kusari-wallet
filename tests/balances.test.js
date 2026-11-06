@@ -19,6 +19,7 @@ async function make(t) {
   s.eth = { address: '0x', getEthBalance: async () => 1n, getUsdtBalance: async () => 1n };
   s.dash = { receiveAddress: 'X', getBalance: async () => ({ total: 1n, spendable: 1n }) };
   s.firo = { receiveAddress: 'a', getBalance: async () => ({ total: 1n, spendable: 1n }) };
+  s.doge = { receiveAddress: 'D', refresh: async () => {}, getBalance: async () => ({ total: 1n, spendable: 1n }) }; s.sol = { receiveAddress: 'S', getBalance: async () => ({ total: 1n, spendable: 1n }) };
   return { s, v };
 }
 
@@ -168,4 +169,21 @@ test('one failed lookup that many callers waited on is one log line', async (t) 
   const { s } = await make(t);
   for (let i = 0; i < 5; i++) s.noteFailure('DASH', Date.now(), new Error('Timed out'));
   assert.equal(s.connectionLog().match(/DASH after/g).length, 1);
+});
+
+test('each coin gets its own balance', async (t) => {
+  const { s } = await make(t);
+  const coins = { btc: 'BTC', dash: 'DASH', firo: 'FIRO', doge: 'DOGE', sol: 'SOL' };
+  const expected = {};
+  Object.entries(coins).forEach(([key, symbol], i) => {
+    s[key].getBalance = async () => ({ total: BigInt(i + 1) * 100000000n, spendable: BigInt(i + 1) * 100000000n });
+    expected[symbol] = i + 1;
+  });
+  s.eth.getEthBalance = async () => 11n * 10n ** 18n;
+  s.eth.getUsdtBalance = async () => 12_000_000n;
+  s.tron.getTrxBalance = async () => 13_000_000n;
+  s.tron.getUsdtBalance = async () => 14_000_000n;
+  s.monero.getBalance = async () => ({ total: 15n * 10n ** 12n, unlocked: 15n * 10n ** 12n });
+  const { balances } = await s.overview();
+  for (const [symbol, n] of Object.entries({ ...expected, ETH: 11, USDTE: 12, TRX: 13, USDT: 14, XMR: 15 })) assert.equal(balances[symbol].total, String(symbol === 'SOL' ? n / 10 : n), symbol);
 });
