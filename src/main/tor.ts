@@ -74,7 +74,18 @@ export async function verifyDetached(data: Buffer, armoredSignature: string, key
   await signatures[0].verified;
 }
 
+/** Tor's own messages, safe to paste somewhere: no IP addresses. */
+export function scrubLog(line: string): string {
+  return line
+    .replace(/\b\d{1,3}(?:\.\d{1,3}){3}\b/g, '[ip]')
+    .replace(/\[?\b[0-9a-f]{1,4}(?::[0-9a-f]{0,4}){2,}\b\]?/gi, '[ip]')
+    .replace(/\b[a-z2-7]{16,56}\.onion\b/gi, '[onion]');
+}
+
+const LOG_LINES = 200;
+
 export class TorManager extends EventEmitter {
+  private log: string[] = [];
   private proc: ChildProcess | null = null;
   private stopping = false;
   private port = 0;
@@ -193,6 +204,8 @@ export class TorManager extends EventEmitter {
 
   useDirect(): void {}
 
+  recentLog(): string[] { return [...this.log]; }
+
   start(): void {
     if (this.opts.socksOverride) { this.patch({ phase: 'ready', percent: 100, error: null }); void this.check(); return; }
     if (this.proc) return;
@@ -218,6 +231,7 @@ export class TorManager extends EventEmitter {
       const lines = text.split('\n');
       tail = lines.pop() ?? '';
       for (const line of lines) {
+        if (line.trim()) { this.log.push(scrubLog(line.trim()).slice(0, 300)); this.log.splice(0, Math.max(0, this.log.length - LOG_LINES)); }
         const m = line.match(/Bootstrapped (\d+)%/);
         if (!m) continue;
         const percent = Number(m[1]);
@@ -246,6 +260,8 @@ export class TorManager extends EventEmitter {
       this.patch({ verified: res.IsTor === true, exitIp: typeof res.IP === 'string' ? res.IP : null });
     } catch { /* Tor itself still works; only this optional check failed */ }
   }
+
+  clearLog(): void { this.log = []; }
 
   async stop(): Promise<void> {
     this.stopping = true;

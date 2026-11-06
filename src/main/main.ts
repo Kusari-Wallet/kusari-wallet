@@ -146,6 +146,7 @@ app.whenReady().then(async () => {
   handle('wallet:swapList', () => service.swapList());
   handle('wallet:torInfo', () => service.torInfo());
   handle('wallet:installTor', () => service.installTor());
+  handle('wallet:connectionLog', () => service.connectionLog());
   handle('wallet:activity', () => undefined);
   handle('wallet:prices', () => service.prices());
   handle('wallet:paste', async () => (await clipboard.readText()).trim().slice(0, 200));

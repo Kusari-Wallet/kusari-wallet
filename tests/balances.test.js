@@ -109,3 +109,18 @@ test('a refused local Tor port reads as a Tor problem, not a raw error', async (
   assert.match(o.balances.TRX.error, /Not connected to Tor/);
   void v;
 });
+
+test('the connection log has what went wrong, no addresses or links, and locking clears it', async (t) => {
+  const { s, v } = await make(t);
+  v.fail = true;
+  s.tron.getTrxBalance = async () => { throw new Error('Timed out https://api.example.org/v1/accounts/TQn9Y2khEsLJW1ChVWFMSMeRDow5KcbLSE for TQn9Y2khEsLJW1ChVWFMSMeRDow5KcbLSE'); };
+  const failed = await s.overview();
+  assert.equal(failed.balances.TRX.ok, false);
+  const log = s.connectionLog();
+  assert.match(log, /TRX after \d+\.\ds: Timed out/);
+  assert.doesNotMatch(log, /example\.org|TQn9Y2/);
+  await s.overview();
+  assert.notEqual((await s.overview()).balances.TRX.error, 'Retrying shortly.', 'the real reason stays visible while waiting to retry');
+  await s.lock();
+  assert.match(s.connectionLog(), /Failed lookups:\nnone/);
+});

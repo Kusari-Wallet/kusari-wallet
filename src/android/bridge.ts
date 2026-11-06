@@ -156,6 +156,7 @@ const bioCall = (fn: (id: number) => void) => new Promise<string>((resolve, reje
   swapList: call(() => service.swapList()),
   torInfo: call(() => service.torInfo()),
   installTor: call(() => service.installTor()),
+  connectionLog: call(() => service.connectionLog()),
   copy: call((text: string) => {
     native.copy(text);
     if (clipTimer) clearTimeout(clipTimer);

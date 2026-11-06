@@ -85,6 +85,8 @@ export class WalletService extends EventEmitter {
   private pendingSwaps = new Map<string, { id: string; from: Asset; to: Asset; amount: string; receive: string; rate: string; providerId: SwapProviderId; provider: string; approximate: boolean; withdrawalAddress: string; privacy?: { leg: 'first'; via: string; destination: string } | { leg: 'second'; id: string } }>();
   readonly tor: TorManager;
   private priceAgent: ReturnType<typeof socksAgent> | undefined;
+  private readonly lookupFailures: string[] = [];
+  private readonly lastLookupError = new Map<string, string>();
   private closing: Promise<void> = Promise.resolve();
   private draftSeeds: { tronMnemonic: string; moneroSeed: string } | null = null;
   private priceCache: { at: number; value: PriceMap } | null = null;
@@ -392,6 +394,8 @@ export class WalletService extends EventEmitter {
     this.pendingSwaps.clear();
     this.balanceMemo.clear();
     this.balanceRetryAt.clear();
+    this.lookupFailures.length = 0;
+    this.lastLookupError.clear();
     this.tron = null;
     this.btc = null;
     this.eth = null;
@@ -411,6 +415,7 @@ export class WalletService extends EventEmitter {
     this.closing = this.closing.then(() => monero?.close()).catch(() => undefined);
     await this.closing;
     await this.tor.stop();
+    this.tor.clearLog();
   }
 
   private session() {
@@ -435,6 +440,25 @@ export class WalletService extends EventEmitter {
    * blank a balance: it retries once, backs off, and meanwhile shows the last value marked as not the latest.
    * Sending never relies on this; it reads fresh balances.
    */
+  /** What went wrong lately, kept in memory only. No addresses, amounts or links, so it can be shared to get help. */
+  connectionLog(): string {
+    const tor = this.tor.recentLog();
+    return [
+      `Kusari Wallet connection log, ${new Date().toISOString()}`,
+      `Tor: ${this.settings.torEnabled ? `on, ${this.tor.state.phase} ${this.tor.state.percent}%` : 'off'}`,
+      '', 'Failed lookups:',
+      ...(this.lookupFailures.length ? this.lookupFailures : ['none']),
+      ...(tor.length ? ['', 'Tor messages:', ...tor] : []),
+    ].join('\n');
+  }
+
+  private noteFailure(key: string, startedAt: number, e: Error): void {
+    const message = e.message.replace(/https?:\/\/\S+/g, '[link]').replace(/\b[1-9A-HJ-NP-Za-km-z]{25,}\b/g, '[address]').slice(0, 160);
+    this.lastLookupError.set(key, message);
+    this.lookupFailures.push(`${new Date().toISOString()} ${key} after ${((Date.now() - startedAt) / 1000).toFixed(1)}s: ${message}`);
+    this.lookupFailures.splice(0, Math.max(0, this.lookupFailures.length - 100));
+  }
+
   private async readBalance(key: string, fn: () => Promise<[bigint, bigint]>, decimals: number, ttl: number): Promise<BalanceView> {
     const view = (m: { total: bigint; spendable: bigint }, stale = false): BalanceView => ({ ok: true, total: formatAmount(m.total, decimals), spendable: formatAmount(m.spendable, decimals), ...(stale ? { stale: true } : {}) });
     const memo = this.balanceMemo.get(key);
@@ -443,13 +467,16 @@ export class WalletService extends EventEmitter {
     let failure: Error | undefined;
     if (Date.now() >= (this.balanceRetryAt.get(key) ?? 0)) {
       for (let attempt = 0; attempt < 2; attempt++) {
+        const startedAt = Date.now();
         try {
           const [total, spendable] = await fn();
+          this.lastLookupError.delete(key);
           this.balanceMemo.set(key, { at: Date.now(), total, spendable, decimals });
           this.balanceRetryAt.delete(key);
           return view({ total, spendable });
         } catch (e) {
           failure = e as Error;
+          this.noteFailure(key, startedAt, failure);
           if (attempt === 0) await new Promise((r) => setTimeout(r, this.dev.tronHost ? 50 : 1500));
         }
       }
@@ -458,7 +485,7 @@ export class WalletService extends EventEmitter {
     // With Tor down, an old number would hide that the connection is gone.
     const torDown = this.settings.torEnabled && this.tor.state.phase !== 'ready';
     if (memo && !torDown && Date.now() - memo.at < BALANCE_STALE_MS) return view(memo, true);
-    return { ok: false, total: '', spendable: '', error: failure ? this.friendlyError(failure) : 'Retrying shortly.' };
+    return { ok: false, total: '', spendable: '', error: failure ? this.friendlyError(failure) : this.lastLookupError.get(key) ?? 'Retrying shortly.' };
   }
 
   async overview() {

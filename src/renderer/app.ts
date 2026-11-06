@@ -1420,6 +1420,10 @@ async function renderSettings(): Promise<void> {
     toast('Downloaded the latest Tor. It applies when you reopen the wallet.');
     if (tor.enabled) await wallet.lock();
   }) }, 'Update Tor');
+  const copyLog = h('button', { class: 'ghost', id: 'copy-connection-log', onclick: async () => {
+    await wallet.copy(await wallet.connectionLog());
+    toast('Copied. It has no addresses, amounts or IP addresses.');
+  } }, 'Copy connection log');
   const saved = h('span', { class: 'small muted', role: 'status' });
   const saveBtn = h('button', { id: 'save-settings', onclick: () => busy(saveBtn, 'Saving…', netBox, async () => {
     if (useTor.checked && !tor.installed) {
@@ -1496,7 +1500,7 @@ async function renderSettings(): Promise<void> {
           h('label', { class: 'check' }, useTor, h('span', {}, 'Connect through Tor',
             h('div', { class: 'hint' }, 'Sends node, TronGrid and price connections through Tor to hide your IP. It doesn\'t hide public Tron history, and lookups and sync get slower.'),
             h('div', { class: 'hint' }, tor.updatable === false ? 'If Tor drops, connections stop rather than falling back to the plain internet.' : 'If Tor drops, connections stop rather than falling back to the plain internet. Only the first install uses the plain internet, to download the files.'))),
-          updateTor),
+          updateTor, copyLog),
         h('div', { class: 'row' }, saveBtn, saved),
         h('p', { class: 'hint' }, 'Changing the node, API key or Tor locks the wallet. It applies when reopened.')),
       bioSection,

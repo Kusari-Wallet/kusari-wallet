@@ -9,7 +9,7 @@ const { execFileSync } = require('node:child_process');
 const openpgp = require('openpgp');
 const tar = require('tar');
 const { TronClient } = require('../dist/main/tron');
-const { TorManager, TOR_SIGNING_FINGERPRINT } = require('../dist/main/tor');
+const { TorManager, TOR_SIGNING_FINGERPRINT, scrubLog } = require('../dist/main/tor');
 const { socksAgent, getJson } = require('../dist/main/request');
 const { NETWORKS } = require('../dist/main/config');
 const { mockNode, me, RECIPIENT } = require('./mock-tron');
@@ -151,6 +151,12 @@ test('every request gets its own Tor connection, so a stalled one is never reuse
     await new Promise((r) => setTimeout(r, 30));
   }
   assert.equal(socks.log.length, 3);
+});
+
+test('Tor messages lose IP and onion addresses', () => {
+  const line = scrubLog('Tried 1.2.3.4:443 and [2001:db8::1]:443 via duskgytldkxiuqc6.onion, 100% done');
+  assert.doesNotMatch(line, /1\.2\.3\.4|2001:db8|duskgytldkxiuqc6/);
+  assert.match(line, /100% done/);
 });
 
 test('real tor process starts, reports progress, listens, and stops', { skip: !torBin }, async () => {

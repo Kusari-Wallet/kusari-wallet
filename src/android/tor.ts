@@ -16,6 +16,8 @@ export class TorManager extends EventEmitter {
   }
 
   private patch(update: any) { this.state = { ...this.state, ...update }; this.emit('state', this.state); }
+  recentLog(): string[] { return []; }
+  clearLog(): void {}
   isInstalled() { return Boolean(native().torAvailable()); }
   async loadInstalledVersion() {}
   async install(): Promise<string> { throw new Error('Tor is not available on this device.'); }
