@@ -18,7 +18,7 @@ const SAPLING_HEIGHT = 419_200;
 const ZEC_RETRY_MS = 5_000;
 const ACCOUNT_LIMIT_MS = 150_000;
 const FRESH_SCAN_LIMIT_MS = 300_000;
-const STUCK = new Error('Zcash 서버가 응답하지 않아. 다른 서버로 다시 시도해.');
+const STUCK = new Error('A Zcash server isn\'t answering. Trying another one.');
 
 export type ZecDraft = { to: string; value: bigint; fee: bigint };
 
@@ -75,7 +75,7 @@ export class ZecClient {
   private addresses: { unified: string; transparent: string } | null = null;
   lastError: string | null = null;
   /** What it's doing right now, in words, for Settings. */
-  phase = '시작 전';
+  phase = 'Not started';
 
   /** The seed is only kept until the account exists, which takes the network once. */
   constructor(private readonly o: ZecOptions, seed: string, birthday?: number) {
@@ -98,7 +98,7 @@ export class ZecClient {
   }
 
   private call(method: string, params: Record<string, unknown> = {}) {
-    if (!this.engine) throw new Error('Zcash 엔진이 시작되지 않았어.');
+    if (!this.engine) throw new Error('The Zcash engine has not started.');
     return this.engine.call(method, params);
   }
 
@@ -158,7 +158,7 @@ export class ZecClient {
 
   private async tick(): Promise<void> {
     if (this.stopped) return;
-    if (!this.o.canConnect()) { this.phase = 'Tor 연결 대기'; this.schedule(3000); return; }
+    if (!this.o.canConnect()) { this.phase = 'Waiting for Tor'; this.schedule(3000); return; }
     await this.syncNow();
     this.schedule(this.lastError ? ZEC_RETRY_MS : ZEC_SYNC_MS);
   }
@@ -172,7 +172,7 @@ export class ZecClient {
       try {
         let fresh = false;
         if (this.account === null) {
-          this.phase = `계정 만드는 중 (서버 ${this.serverIndex % this.o.servers.length + 1})`;
+          this.phase = `Creating account (server ${this.serverIndex % this.o.servers.length + 1})`;
           this.account = await this.limited(this.o.accountLimitMs ?? ACCOUNT_LIMIT_MS, this.call('account', { seed: this.seed, index: ZEC_INDEX, ...(this.birthday ? { birthday: this.birthday } : {}) }));
           fresh = !this.birthday;
           this.seed = null;
@@ -180,23 +180,23 @@ export class ZecClient {
           await this.save();
           this.o.onChange();
         }
-        this.phase = `블록 스캔 중 (서버 ${this.serverIndex % this.o.servers.length + 1})`;
+        this.phase = `Scanning blocks (server ${this.serverIndex % this.o.servers.length + 1})`;
         // A new account starts near the tip, so a long wait means a stuck connection, not a long scan.
         await (fresh ? this.limited(FRESH_SCAN_LIMIT_MS, this.call('sync')) : this.call('sync'));
         await this.loadSummary();
         await this.save();
         this.firstScanDone = true;
         this.lastError = null;
-        this.phase = '최신';
+        this.phase = 'Up to date';
       } catch (e) {
         const message = (e as Error).message;
-        this.lastError = /Grpc|transport|dns error|Unavailable/i.test(message) ? 'Zcash 서버에 연결하지 못했어. 다른 서버로 다시 시도해.' : message.slice(0, 160);
+        this.lastError = /Grpc|transport|dns error|Unavailable/i.test(message) ? 'Could not reach a Zcash server. Trying another one.' : message.slice(0, 160);
         this.serverIndex++;
-        this.phase = '오류, 곧 다시 시도';
+        this.phase = 'Error, retrying soon';
         if (this.engine && !this.stopped) {
           // If the engine itself died, what's on disk is the last good scan. Nothing is lost but the rescan.
           const stuck = e === STUCK;
-          const died = stuck || message.includes('엔진이 종료');
+          const died = stuck || message.includes('engine stopped');
           if (stuck) this.engine.close();
           if (died) this.engine = this.o.engine();
           const db = died
@@ -230,16 +230,16 @@ export class ZecClient {
   balance(): [bigint, bigint] | null { return this.view ? [this.view.total, this.view.spendable] : null; }
 
   async draft(to: string, amount: bigint | 'max'): Promise<ZecDraft> {
-    if (this.isScanning) throw new Error('Zcash 스캔이 끝나야 보낼 수 있어.');
-    if (this.account === null) throw new Error('Zcash 지갑을 준비하는 중이야. 조금 뒤에 다시 해봐.');
+    if (this.isScanning) throw new Error('Zcash must finish scanning before it can send.');
+    if (this.account === null) throw new Error('The Zcash wallet is getting ready. Try again shortly.');
     return this.run(async () => {
-      if (!(await this.call('validate', { address: to }))) throw new Error('Zcash 메인넷 주소가 아니야.');
+      if (!(await this.call('validate', { address: to }))) throw new Error('Not a Zcash mainnet address.');
       try {
         const q = await this.call('quote', { account: this.account, to, ...(amount === 'max' ? {} : { value: Number(amount) }) });
         return { to, value: BigInt(q.value), fee: BigInt(q.fee) };
       } catch (e) {
         const left = this.view?.transparent ?? 0n;
-        throw new Error(left > 0n ? '쉴드된 잔액이 부족해. 투명 잔액은 먼저 쉴드해야 보낼 수 있어.' : `쉴드된 잔액이 부족하거나 아직 쓸 수 없어. (${(e as Error).message.slice(0, 120)})`);
+        throw new Error(left > 0n ? 'Not enough shielded balance. Transparent balance must be shielded before it can be sent.' : `Not enough shielded balance, or it can't be used yet. (${(e as Error).message.slice(0, 120)})`);
       }
     });
   }

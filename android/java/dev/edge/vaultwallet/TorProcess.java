@@ -45,7 +45,7 @@ final class TorProcess {
     synchronized void start() {
         wanted = true;
         if (process != null) return;
-        if (!exe.exists()) { listener.onState("error", 0, "이 기기에서는 Tor를 쓸 수 없어."); return; }
+        if (!exe.exists()) { listener.onState("error", 0, "Tor is not available on this device."); return; }
         try {
             prepare();
             if (!dataDir.exists() && !dataDir.mkdirs()) throw new IOException("data dir");
@@ -70,7 +70,7 @@ final class TorProcess {
             reader.setDaemon(true);
             reader.start();
         } catch (IOException e) {
-            listener.onState("error", 0, "Tor를 실행하지 못했어. " + e.getMessage());
+            listener.onState("error", 0, "Could not start Tor. " + e.getMessage());
         }
     }
 
@@ -93,7 +93,7 @@ final class TorProcess {
         }
         if (!restart) return;
         // Nothing listens on the port now, so wallet traffic fails rather than leaving unprotected.
-        listener.onState("error", 0, "Tor가 종료됐어. 다시 시작하는 중이야. " + lastLine);
+        listener.onState("error", 0, "Tor stopped. Restarting it. " + lastLine);
         try { Thread.sleep(5000); } catch (InterruptedException e) { return; }
         synchronized (this) { if (wanted) start(); }
     }

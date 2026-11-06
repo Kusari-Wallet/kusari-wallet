@@ -39,23 +39,23 @@ export class DashClient extends InsightWallet<'DASH'> {
 
 /** Plain P2PKH with Bitcoin's legacy signature hash, which Dash shares. */
 export function signDashDraft(draft: InsightDraft, mnemonic: string): { hex: string; id: string } {
-  if (!isDashAddress(draft.to)) throw new Error('받는 주소가 DASH 주소가 아니야.');
+  if (!isDashAddress(draft.to)) throw new Error('The receiving address is not a DASH address.');
   const totalIn = draft.inputs.reduce((s, u) => s + u.value, 0n);
-  if (totalIn - draft.amount - draft.change !== draft.fee) throw new Error('금액 계산이 맞지 않아서 서명을 중단했어.');
+  if (totalIn - draft.amount - draft.change !== draft.fee) throw new Error('The amounts do not add up, so signing was stopped.');
   const account = HDKey.fromMasterSeed(mnemonicToSeedSync(mnemonic)).derive(DASH_PATH);
   const tx = new btc.Transaction({ allowLegacyWitnessUtxo: true, version: 2 });
   const keys: Uint8Array[] = [];
   for (const u of draft.inputs) {
     const child = account.deriveChild(u.chain).deriveChild(u.index);
     const pay = btc.p2pkh(child.publicKey, DASH_NET);
-    if (pay.address !== u.address) throw new Error('입력 주소가 내 키와 맞지 않아서 서명을 중단했어.');
+    if (pay.address !== u.address) throw new Error('An input address does not match this wallet\'s keys, so signing was stopped.');
     tx.addInput({ txid: u.txid, index: u.vout, witnessUtxo: { script: pay.script, amount: u.value } });
     keys.push(child.privateKey);
   }
   tx.addOutputAddress(draft.to, draft.amount, DASH_NET);
   if (draft.change > 0n) {
     const change = account.deriveChild(1).deriveChild(draft.changeIndex);
-    if (btc.p2pkh(change.publicKey, DASH_NET).address !== draft.changeAddress) throw new Error('잔돈 주소가 내 키와 맞지 않아서 서명을 중단했어.');
+    if (btc.p2pkh(change.publicKey, DASH_NET).address !== draft.changeAddress) throw new Error('The change address does not match this wallet\'s keys, so signing was stopped.');
     tx.addOutputAddress(draft.changeAddress, draft.change, DASH_NET);
   }
   keys.forEach((k, i) => tx.signIdx(k, i));

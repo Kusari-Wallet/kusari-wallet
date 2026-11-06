@@ -156,7 +156,7 @@ async function rpcEngine(name, port, seed, dir, procs) {
     assert.equal(seen.total, amount, 'privacy swap sees what reached this subaddress');
     assert.equal(seen.unlocked, amount, 'twelve blocks mined, so it counts as unlocked');
     assert.equal((await b.receivedBy(await b.getPrimaryAddress(), 20000)).total, 0n, 'other addresses are not counted');
-    await assert.rejects(b.receivedBy(await a.getPrimaryAddress(), 20000), /이 지갑의 주소/);
+    await assert.rejects(b.receivedBy(await a.getPrimaryAddress(), 20000), /not from this wallet/);
     console.log('ok received amount read per subaddress');
     const hist = await b.getHistory();
     assert.equal(hist.length, 1);

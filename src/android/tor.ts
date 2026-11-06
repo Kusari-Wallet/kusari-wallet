@@ -18,12 +18,12 @@ export class TorManager extends EventEmitter {
   private patch(update: any) { this.state = { ...this.state, ...update }; this.emit('state', this.state); }
   isInstalled() { return Boolean(native().torAvailable()); }
   async loadInstalledVersion() {}
-  async install(): Promise<string> { throw new Error('이 기기에서는 Tor를 쓸 수 없어.'); }
+  async install(): Promise<string> { throw new Error('Tor is not available on this device.'); }
 
   /** After this, the forwarder has no way out except Tor. */
   async allocate(): Promise<string> {
     const port = native().torPrepare();
-    if (!port) throw new Error('Tor를 준비하지 못했어.');
+    if (!port) throw new Error('Could not prepare Tor.');
     return `socks5h://127.0.0.1:${port}`;
   }
   start() { native().torStart(); }

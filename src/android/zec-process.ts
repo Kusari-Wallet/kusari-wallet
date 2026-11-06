@@ -16,7 +16,7 @@ let next = 1;
   if ('error' in answer) w.reject(new Error(String(answer.error))); else w.resolve(answer.result);
 };
 (window as any).__zecExit = () => {
-  const e = new Error('Zcash 엔진이 종료됐어.');
+  const e = new Error('Zcash engine stopped.');
   for (const w of waiting.values()) w.reject(e);
   waiting.clear();
 };
@@ -26,7 +26,7 @@ export const zecEngineAvailable = (): boolean => Boolean(native().zecAvailable()
 export const zecEngineInfo = (): string => String(native().zecInfo());
 
 export function startZecEngine(): ZecEngine {
-  if (!native().zecStart()) throw new Error('이 기기에서는 Zcash를 쓸 수 없어.');
+  if (!native().zecStart()) throw new Error('Zcash is not available on this device.');
   return {
     call(method, params = {}) {
       const id = next++;
@@ -34,7 +34,7 @@ export function startZecEngine(): ZecEngine {
         waiting.set(id, { resolve, reject });
         if (!native().zecWrite(JSON.stringify({ id, m: method, p: params }))) {
           waiting.delete(id);
-          reject(new Error('Zcash 엔진이 종료됐어.'));
+          reject(new Error('Zcash engine stopped.'));
         }
       });
     },

@@ -45,7 +45,7 @@ export function noteText(pool: string, secrets: { nullifier: string; secret: str
 
 export async function tornadoEngineCheck(): Promise<void> {
   const [r] = await runTornado('commit', { notes: [{ nullifier: '01'.repeat(31), secret: '02'.repeat(31) }] });
-  if (!/^0x[0-9a-f]{64}$/.test(r.commitment)) throw new Error('증명 엔진이 이상해.');
+  if (!/^0x[0-9a-f]{64}$/.test(r.commitment)) throw new Error('The proof engine isn\'t working properly.');
 }
 
 export class TornadoStore {
@@ -64,9 +64,9 @@ export class TornadoStore {
     let cache: { block: number; leaves: string[] } = { block: -1, leaves: [] };
     try { cache = JSON.parse(await fs.readFile(file, 'utf8') as unknown as string); } catch { /* first time */ }
     if (cache.block < 0 && opts.seed) {
-      opts.progress('입금 목록 받는 중…');
+      opts.progress('Downloading the deposit list…');
       const rows: any[] = await getJson(`${SEED_BASE}${pool}.json`, { agent: opts.agent, timeoutMs: 180_000 });
-      rows.forEach((r, i) => { if (r.leafIndex !== i || !/^0x[0-9a-f]{64}$/i.test(r.commitment)) throw new Error('입금 목록 파일이 이상해.'); });
+      rows.forEach((r, i) => { if (r.leafIndex !== i || !/^0x[0-9a-f]{64}$/i.test(r.commitment)) throw new Error('The deposit list file isn\'t valid.'); });
       cache = { block: rows[rows.length - 1].blockNumber, leaves: rows.map((r) => r.commitment) };
     }
     const latest = await eth.blockNumber();
@@ -85,13 +85,13 @@ export class TornadoStore {
       for (const log of logs) {
         const index = Number(BigInt(`0x${String(log.data).slice(2, 66)}`));
         if (index < cache.leaves.length) continue; // overlap at a range edge
-        if (index !== cache.leaves.length || !/^0x[0-9a-f]{64}$/i.test(log.topics?.[1])) throw new Error('이더리움 노드의 입금 기록이 끊겨 있어. 나중에 다시 해봐.');
+        if (index !== cache.leaves.length || !/^0x[0-9a-f]{64}$/i.test(log.topics?.[1])) throw new Error('The Ethereum node\'s deposit records have a gap. Try again later.');
         cache.leaves.push(log.topics[1]);
       }
       cache.block = to;
       from = to + 1;
       if (span < 50_000 && logs.length < 2000) span = Math.min(span * 2, 50_000);
-      opts.progress(`입금 기록 읽는 중… ${Math.round((to / latest) * 100)}% (${cache.leaves.length}건)`);
+      opts.progress(`Reading deposit records… ${Math.round((to / latest) * 100)}% (${cache.leaves.length})`);
       await fs.mkdir(this.cacheDir, { recursive: true });
       await fs.writeFile(file, JSON.stringify(cache), { mode: 0o600 });
     }
@@ -105,15 +105,15 @@ export function checkRelayerUrl(input: string, allowLocal: boolean): string {
   const url = input.trim().replace(/\/+$/, '');
   if (/^https:\/\/[^/\s]+$/i.test(url) || /^http:\/\/[a-z2-7]{56}\.onion$/i.test(url)) return url;
   if (allowLocal && /^http:\/\/127\.0\.0\.1:\d+$/.test(url)) return url;
-  throw new Error('릴레이어 주소는 https:// 또는 .onion 주소여야 해.');
+  throw new Error('A relayer address must be https:// or .onion.');
 }
 
 export async function relayerStatus(url: string, agent?: Agent): Promise<RelayerInfo> {
   const s = await getJson(`${url}/status`, { agent, timeoutMs: 60_000 });
-  if (s?.netId !== 1 && s?.netId !== '*') throw new Error('이더리움 메인넷 릴레이어가 아니야.');
-  if (typeof s.rewardAccount !== 'string' || !isAddress(s.rewardAccount)) throw new Error('릴레이어 응답이 이상해.');
+  if (s?.netId !== 1 && s?.netId !== '*') throw new Error('This is not an Ethereum mainnet relayer.');
+  if (typeof s.rewardAccount !== 'string' || !isAddress(s.rewardAccount)) throw new Error('The relayer gave an unexpected answer.');
   const feePercent = Number(s.tornadoServiceFee);
-  if (!Number.isFinite(feePercent) || feePercent < 0) throw new Error('릴레이어 응답이 이상해.');
+  if (!Number.isFinite(feePercent) || feePercent < 0) throw new Error('The relayer gave an unexpected answer.');
   return { url, rewardAccount: s.rewardAccount, feePercent };
 }
 
@@ -121,21 +121,21 @@ export async function relayerStatus(url: string, agent?: Agent): Promise<Relayer
 export function relayerFee(pool: string, feePercent: number, gasPrice: bigint): bigint {
   const total = denomination(pool);
   const fee = gasPrice * WITHDRAW_GAS + (total * BigInt(Math.round(feePercent * 1000))) / 100_000n;
-  if (fee * 100n > total * MAX_RELAYER_FEE_PERCENT) throw new Error(`수수료가 금액의 ${MAX_RELAYER_FEE_PERCENT}%를 넘어서 중단했어. 가스비가 낮을 때 다시 해봐.`);
+  if (fee * 100n > total * MAX_RELAYER_FEE_PERCENT) throw new Error(`The fee is over ${MAX_RELAYER_FEE_PERCENT}% of the amount, so this was stopped. Try again when gas is low.`);
   return fee;
 }
 
 export async function relayerSubmit(info: RelayerInfo, contract: string, proof: string, args: string[], agent?: Agent, pollMs = 5000): Promise<string> {
   const post = await requestJson(`${info.url}/v1/tornadoWithdraw`, { method: 'POST', body: { contract, proof, args }, agent, timeoutMs: 120_000 });
-  if (post.status >= 400 || typeof post.body?.id !== 'string' || !/^[\w-]{1,80}$/.test(post.body.id)) throw new Error(`릴레이어가 거절했어: ${String(post.body?.error ?? post.status).slice(0, 200)}`);
+  if (post.status >= 400 || typeof post.body?.id !== 'string' || !/^[\w-]{1,80}$/.test(post.body.id)) throw new Error(`The relayer refused: ${String(post.body?.error ?? post.status).slice(0, 200)}`);
   const deadline = Date.now() + 15 * 60_000;
   while (Date.now() < deadline) {
     await new Promise((r) => setTimeout(r, pollMs));
     const job = await getJson(`${info.url}/v1/jobs/${post.body.id}`, { agent, timeoutMs: 60_000 }).catch(() => null);
     if (job?.status === 'CONFIRMED' && typeof job.txHash === 'string') return job.txHash;
-    if (job?.status === 'FAILED') throw new Error(`릴레이어 전송 실패: ${String(job.failedReason ?? '').slice(0, 200)}`);
+    if (job?.status === 'FAILED') throw new Error(`The relayer's send failed: ${String(job.failedReason ?? '').slice(0, 200)}`);
   }
-  throw new Error('릴레이어 응답이 늦어. 잠시 뒤 상태를 확인해. 출금됐는지는 앱이 다시 확인할 수 있어.');
+  throw new Error('The relayer is slow to answer. Check the status shortly. The app can check again whether it was withdrawn.');
 }
 
 export { DEPOSIT_GAS, WITHDRAW_GAS };

@@ -17,11 +17,11 @@ function findEngine(override?: string): string | null {
 
 export const zecEngineAvailable = (override?: string): boolean => findEngine(override) !== null;
 
-export const zecEngineInfo = (override?: string): string => findEngine(override) ?? '엔진 파일 없음';
+export const zecEngineInfo = (override?: string): string => findEngine(override) ?? 'Engine file not found';
 
 export function startZecEngine(override?: string): ZecEngine {
   const file = findEngine(override);
-  if (!file) throw new Error('이 빌드에는 Zcash 엔진이 없어.');
+  if (!file) throw new Error('This build has no Zcash engine.');
   const dir = path.dirname(file);
   const child = spawn(file, [], {
     stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true,
@@ -37,7 +37,7 @@ export function startZecEngine(override?: string): ZecEngine {
     waiting.clear();
   };
   child.on('error', (e) => die(e));
-  child.on('exit', () => die(new Error('Zcash 엔진이 종료됐어.')));
+  child.on('exit', () => die(new Error('Zcash engine stopped.')));
   child.stdin.on('error', () => undefined);
   child.stdout.setEncoding('utf8');
   child.stdout.on('data', (chunk: string) => {

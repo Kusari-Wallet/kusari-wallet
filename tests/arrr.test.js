@@ -46,8 +46,8 @@ test('first start, balance, send, reopen without the seed', { timeout: 30000 }, 
   assert.equal(c.seed, null, 'the seed is dropped once the wallet exists');
   assert.equal(c.receive, 'zs1' + 'q'.repeat(75));
   assert.deepEqual(c.balance(), [300000000n, 200000000n]);
-  await assert.rejects(c.draft('zs1x', 900000000n), /Pirate Chain 주소가 아니|부족/);
-  await assert.rejects(c.draft(OTHER, 900000000n), /부족/);
+  await assert.rejects(c.draft('zs1x', 900000000n), /Not a Pirate Chain address|enough/);
+  await assert.rejects(c.draft(OTHER, 900000000n), /enough/);
   const d = await c.draft(OTHER, 50000000n);
   assert.deepEqual([d.value, d.fee], [50000000n, 10000n]);
   assert.equal(await c.send(d), 'ab'.repeat(32));
@@ -96,7 +96,7 @@ test('Tor: the port goes in, and nothing leaves before Tor is up', { timeout: 30
   await c.start();
   await sleep(300);
   assert.equal(fs.existsSync(log), false);
-  assert.equal(c.phase, 'Tor 연결 대기');
+  assert.equal(c.phase, 'Waiting for Tor');
   up = true;
   await until(() => c.balance());
   assert.equal(lines(log).find((l) => l.m === 'open').socks, 9150);

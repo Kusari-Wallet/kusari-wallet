@@ -19,11 +19,11 @@ function findEngine(override?: string): string | null {
 
 export const arrrEngineAvailable = (override?: string): boolean => findEngine(override) !== null;
 
-export const arrrEngineInfo = (override?: string): string => findEngine(override) ?? '엔진 파일 없음';
+export const arrrEngineInfo = (override?: string): string => findEngine(override) ?? 'Engine file not found';
 
 export function startArrrEngine(override?: string): ArrrEngine {
   const file = findEngine(override);
-  if (!file) throw new Error('이 빌드에는 Pirate Chain 엔진이 없어.');
+  if (!file) throw new Error('This build has no Pirate Chain engine.');
   const dir = path.dirname(file);
   const child = spawn(file, [], {
     stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true,
@@ -39,7 +39,7 @@ export function startArrrEngine(override?: string): ArrrEngine {
     waiting.clear();
   };
   child.on('error', (e) => die(e));
-  child.on('exit', () => die(new Error('Pirate Chain 엔진이 종료됐어.')));
+  child.on('exit', () => die(new Error('Pirate Chain engine stopped.')));
   child.stdin.on('error', () => undefined);
   child.stdout.setEncoding('utf8');
   child.stdout.on('data', (chunk: string) => {

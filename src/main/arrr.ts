@@ -39,7 +39,7 @@ export class ArrrClient {
   private scanning = true;
   percent = 0;
   lastError: string | null = null;
-  phase = '시작 전';
+  phase = 'Not started';
 
   /** The seed is only kept until the wallet exists. */
   constructor(private readonly o: ArrrOptions, private seed: string | null, private readonly restoreDate?: string) {}
@@ -55,7 +55,7 @@ export class ArrrClient {
   }
 
   private call(method: string, params: Record<string, unknown> = {}) {
-    if (!this.engine) throw new Error('Pirate Chain 엔진이 시작되지 않았어.');
+    if (!this.engine) throw new Error('The Pirate Chain engine has not started.');
     return this.engine.call(method, params);
   }
 
@@ -72,7 +72,7 @@ export class ArrrClient {
 
   private async tick(): Promise<void> {
     if (this.stopped) return;
-    if (!this.o.canConnect()) { this.phase = 'Tor 연결 대기'; this.schedule(3000); return; }
+    if (!this.o.canConnect()) { this.phase = 'Waiting for Tor'; this.schedule(3000); return; }
     await this.run(() => this.poll());
     this.schedule(this.lastError ? RETRY_MS : POLL_MS);
   }
@@ -87,13 +87,13 @@ export class ArrrClient {
     const name = sha256(toUtf8Bytes(`kusari/arrr/name/v1\0${this.o.secret}`)).slice(2, 18);
     const pass = sha256(toUtf8Bytes(`kusari/arrr/file/v1\0${this.o.secret}`)).slice(2);
     const dir = path.join(this.engine!.dir(this.o.dir), name);
-    this.phase = '지갑 여는 중';
+    this.phase = 'Opening wallet';
     const opened = await this.call('open', { dir, pass, ...(this.o.socks ? { socks: this.o.socks } : {}) });
     this.wallet = opened.wallet;
     if (!this.wallet) {
-      this.phase = `지갑 만드는 중 (서버 ${this.serverIndex % this.o.servers.length + 1})`;
+      this.phase = `Creating wallet (server ${this.serverIndex % this.o.servers.length + 1})`;
       const tip = await this.call('tip', { server: this.server });
-      if (!tip.ok || !tip.height) throw new Error(`서버 응답 없음: ${String(tip.error ?? '').slice(0, 80)}`);
+      if (!tip.ok || !tip.height) throw new Error(`No answer from the server: ${String(tip.error ?? '').slice(0, 80)}`);
       this.wallet = await this.call('restore', { seed: this.seed, birthday: this.birthdayFrom(tip.height, this.restoreDate) });
       this.seed = null;
     }
@@ -116,15 +116,15 @@ export class ArrrClient {
       const behind = Number(s.target) - Number(s.local);
       this.scanning = Number(s.target) === 0 || behind > 5;
       this.percent = Math.floor(Number(s.percent) || 0);
-      this.phase = this.scanning ? `스캔 중 ${this.percent}% (서버 ${this.serverIndex % this.o.servers.length + 1})` : '최신';
+      this.phase = this.scanning ? `Scanning ${this.percent}% (server ${this.serverIndex % this.o.servers.length + 1})` : 'Up to date';
       this.lastError = null;
       if (changed) this.o.onChange();
     } catch (e) {
       const message = (e as Error).message;
-      this.lastError = /transport|connect|dns|Unavailable|timed out|서버 응답/i.test(message) ? 'Pirate Chain 서버에 연결하지 못했어. 다른 서버로 다시 시도해.' : message.slice(0, 160);
-      this.phase = '오류, 곧 다시 시도';
+      this.lastError = /transport|connect|dns|Unavailable|timed out|No answer from the server/i.test(message) ? 'Could not reach a Pirate Chain server. Trying another one.' : message.slice(0, 160);
+      this.phase = 'Error, retrying soon';
       this.serverIndex++;
-      if (message.includes('엔진이 종료') && !this.stopped) {
+      if (message.includes('engine stopped') && !this.stopped) {
         this.wallet = null;
         this.engine = this.o.engine();
       } else if (this.wallet && this.engine) {
@@ -137,15 +137,15 @@ export class ArrrClient {
   balance(): [bigint, bigint] | null { return this.view ? [this.view.total, this.view.spendable] : null; }
 
   async draft(to: string, amount: bigint | 'max'): Promise<ArrrDraft> {
-    if (!this.wallet) throw new Error('Pirate Chain 지갑을 준비하는 중이야. 조금 뒤에 다시 해봐.');
-    if (this.scanning) throw new Error('Pirate Chain 스캔이 끝나야 보낼 수 있어.');
+    if (!this.wallet) throw new Error('The Pirate Chain wallet is getting ready. Try again shortly.');
+    if (this.scanning) throw new Error('Pirate Chain must finish scanning before it can send.');
     return this.run(async () => {
-      if (!(await this.call('validate', { address: to }))) throw new Error('Pirate Chain 주소가 아니야.');
+      if (!(await this.call('validate', { address: to }))) throw new Error('Not a Pirate Chain address.');
       try {
         const q = await this.call('quote', { wallet: this.wallet, to, ...(amount === 'max' ? {} : { value: Number(amount) }) });
         return { to, value: BigInt(q.value), fee: BigInt(q.fee) };
       } catch (e) {
-        throw new Error(`보낼 수 있는 잔액이 부족하거나 아직 쓸 수 없어. (${(e as Error).message.slice(0, 120)})`);
+        throw new Error(`Not enough spendable balance, or it can't be used yet. (${(e as Error).message.slice(0, 120)})`);
       }
     });
   }
@@ -157,9 +157,9 @@ export class ArrrClient {
   /** Starts over from a date, for a wallet restored from its seed. */
   rescan(date: string): Promise<void> {
     return this.run(async () => {
-      if (!this.wallet) throw new Error('Pirate Chain 지갑을 준비하는 중이야. 조금 뒤에 다시 해봐.');
+      if (!this.wallet) throw new Error('The Pirate Chain wallet is getting ready. Try again shortly.');
       const tip = await this.call('tip', { server: this.server });
-      if (!tip.ok || !tip.height) throw new Error('서버에 연결하지 못했어. 잠시 뒤에 다시 해봐.');
+      if (!tip.ok || !tip.height) throw new Error('Could not reach the server. Try again shortly.');
       await this.call('rescan', { wallet: this.wallet, from: this.birthdayFrom(tip.height, date) });
       this.scanning = true;
     });

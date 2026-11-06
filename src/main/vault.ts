@@ -45,7 +45,7 @@ export class Vault {
   }
 
   async save(password: string, secrets: Secrets): Promise<void> {
-    if (password.length < MIN_PASSWORD) throw new Error(`비밀번호는 ${MIN_PASSWORD}자 이상이어야 해.`);
+    if (password.length < MIN_PASSWORD) throw new Error(`The password must be at least ${MIN_PASSWORD} characters.`);
     const salt = randomBytes(16);
     const iv = randomBytes(12);
     const header = { v: 1 as const, kdf: { name: 'scrypt' as const, ...this.kdf, salt: salt.toString('base64') } };
@@ -69,7 +69,7 @@ export class Vault {
 
   async open(password: string): Promise<Secrets> {
     const file = JSON.parse(await fs.readFile(this.filePath, 'utf8')) as VaultFile;
-    if (file.v !== 1 || file.kdf.name !== 'scrypt') throw new Error('지원하지 않는 지갑 파일이야.');
+    if (file.v !== 1 || file.kdf.name !== 'scrypt') throw new Error('This wallet file is not supported.');
     const key = await deriveKey(password, Buffer.from(file.kdf.salt, 'base64'), file.kdf);
     try {
       const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(file.iv, 'base64'));
@@ -78,7 +78,7 @@ export class Vault {
       const pt = Buffer.concat([decipher.update(Buffer.from(file.ct, 'base64')), decipher.final()]);
       return JSON.parse(pt.toString('utf8')) as Secrets;
     } catch {
-      throw new Error('비밀번호가 틀렸어.');
+      throw new Error('Wrong password.');
     } finally {
       key.fill(0);
     }

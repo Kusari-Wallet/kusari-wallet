@@ -43,18 +43,18 @@ export class DcrClient extends InsightWallet<'DCR'> {
 export function signDcrDraft(draft: DcrDraft, mnemonic: string): { hex: string; id: string } {
   const account = master(mnemonic).derivePath(DCR_PATH);
   const totalIn = draft.inputs.reduce((s, u) => s + u.value, 0n);
-  if (totalIn - draft.amount - draft.change !== draft.fee) throw new Error('금액 계산이 맞지 않아서 서명을 중단했어.');
-  if (!isDcrAddress(draft.to)) throw new Error('받는 주소가 DCR 주소가 아니야.');
+  if (totalIn - draft.amount - draft.change !== draft.fee) throw new Error('The amounts do not add up, so signing was stopped.');
+  if (!isDcrAddress(draft.to)) throw new Error('The receiving address is not a DCR address.');
   const tx = new dcr.Transaction();
   const signers = draft.inputs.map((u, idx) => {
     const key = account.derive(u.chain).derive(u.index);
-    if (key.address() !== u.address) throw new Error('입력 주소가 내 키와 맞지 않아서 서명을 중단했어.');
+    if (key.address() !== u.address) throw new Error('An input address does not match this wallet\'s keys, so signing was stopped.');
     tx.addInput(dcr.outPointFromTxid(u.txid, u.vout), { valueIn: u.value });
     return { idx, subScript: dcr.addressToScript(u.address, dcr.mainnet), privateKey: key.privateKeyBytes() };
   });
   tx.addOutput(draft.amount, dcr.addressToScript(draft.to, dcr.mainnet));
   if (draft.change > 0n) {
-    if (account.derive(1).derive(draft.changeIndex).address() !== draft.changeAddress) throw new Error('잔돈 주소가 내 키와 맞지 않아서 서명을 중단했어.');
+    if (account.derive(1).derive(draft.changeIndex).address() !== draft.changeAddress) throw new Error('The change address does not match this wallet\'s keys, so signing was stopped.');
     tx.addOutput(draft.change, dcr.addressToScript(draft.changeAddress, dcr.mainnet));
   }
   dcr.signP2PKHInputs(tx, signers);

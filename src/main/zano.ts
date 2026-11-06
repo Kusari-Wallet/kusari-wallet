@@ -62,7 +62,7 @@ export class ZanoClient {
   private addressText = '';
   private busy: Promise<unknown> = Promise.resolve();
   lastError: string | null = null;
-  phase = '시작 전';
+  phase = 'Not started';
 
   constructor(private readonly o: ZanoOptions, private readonly keys: ReturnType<typeof zanoKeys>) {}
 
@@ -76,7 +76,7 @@ export class ZanoClient {
   }
 
   private async invoke(method: string, params: unknown = {}, raw?: string): Promise<any> {
-    if (this.id === null || !this.engine) throw new Error('Zano 지갑이 아직 열리지 않았어.');
+    if (this.id === null || !this.engine) throw new Error('The Zano wallet isn\'t open yet.');
     const body = raw ?? JSON.stringify({ jsonrpc: '2.0', id: 0, method, params });
     const answer = parse(await this.engine.call('invoke', this.id, body));
     const problem = failure(answer);
@@ -87,14 +87,14 @@ export class ZanoClient {
   private async open(): Promise<void> {
     if (!this.engine) return;
     const { pass, file, secret } = this.keys;
-    this.phase = '지갑 여는 중';
+    this.phase = 'Opening wallet';
     await this.engine.call('init', 0, `${this.o.node}\x1f${this.o.socks ?? ''}\x1f${this.engine.dir}`);
     let answer = parse(await this.engine.call('open', 0, JSON.stringify({ path: file, pass })));
     if (failure(answer) || !answer.result) {
       answer = parse(await this.engine.call('restore_from_derivations', 0, JSON.stringify({ pass, path: file, secret_derivation: secret, is_auditable: false, creation_timestamp: ZANO_EPOCH_SECONDS })));
     }
     const problem = failure(answer);
-    if (problem || !answer.result) throw new Error(problem ?? '지갑을 열지 못했어.');
+    if (problem || !answer.result) throw new Error(problem ?? 'Could not open the wallet.');
     this.id = Number(answer.result.wallet_id);
     this.keys.secret = ''; // The file holds it from here on.
     this.addressText = String(answer.result.wi?.address ?? answer.result.address ?? '');
@@ -115,7 +115,7 @@ export class ZanoClient {
 
   private async tick(): Promise<void> {
     if (this.stopped) return;
-    if (!this.o.canConnect()) { this.phase = 'Tor 연결 대기'; this.schedule(3000); return; }
+    if (!this.o.canConnect()) { this.phase = 'Waiting for Tor'; this.schedule(3000); return; }
     await this.run(() => this.poll());
     this.schedule(POLL_MS);
   }
@@ -126,7 +126,7 @@ export class ZanoClient {
       const status = parse(await this.engine!.call('get_wallet_status', this.id!, ''));
       const was = this.synced;
       this.synced = status.is_in_long_refresh === false && status.is_daemon_connected === true && Number(status.progress) >= 100;
-      this.phase = this.synced ? '최신' : status.is_daemon_connected ? `스캔 중 ${Number(status.progress) || 0}%` : '노드 연결 중';
+      this.phase = this.synced ? 'Up to date' : status.is_daemon_connected ? `Scanning ${Number(status.progress) || 0}%` : 'Connecting to the node';
       if (!status.is_in_long_refresh) {
         const b = await this.invoke('getbalance');
         const total = BigInt(b.balance);
@@ -142,8 +142,8 @@ export class ZanoClient {
     } catch (e) {
       const message = (e as Error).message;
       this.lastError = message.slice(0, 160);
-      this.phase = '오류, 곧 다시 시도';
-      if (message.includes('엔진이 종료') && !this.stopped) {
+      this.phase = 'Error, retrying soon';
+      if (message.includes('engine stopped') && !this.stopped) {
         this.id = null;
         this.engine = this.o.engine();
       }
@@ -154,15 +154,15 @@ export class ZanoClient {
   balance(): [bigint, bigint] | null { return this.view ? [this.view.total, this.view.spendable] : null; }
 
   async draft(to: string, amount: bigint | 'max'): Promise<ZanoDraft> {
-    if (!this.synced) throw new Error('Zano 스캔이 끝나야 보낼 수 있어.');
+    if (!this.synced) throw new Error('Zano must finish scanning before it can send.');
     return this.run(async () => {
       const info = parse(await this.engine!.call('address_info', 0, to));
-      if (!info.valid) throw new Error('Zano 주소가 아니야.');
-      if (info.wrap) throw new Error('이 주소는 Zano로 직접 받을 수 있는 주소가 아니야.');
+      if (!info.valid) throw new Error('Not a Zano address.');
+      if (info.wrap) throw new Error('This address can\'t receive Zano directly.');
       const spendable = this.view?.spendable ?? 0n;
       const value = amount === 'max' ? spendable - ZANO_FEE : amount;
-      if (value <= 0n) throw new Error('보낼 수 있는 잔액이 부족해.');
-      if (value + ZANO_FEE > spendable) throw new Error(`바로 쓸 수 있는 잔액이 부족해. 수수료 포함 ${formatAmount(value + ZANO_FEE, ZANO_DECIMALS)} ZANO가 필요해. 받은 코인은 10컨펌 뒤에 쓸 수 있어.`);
+      if (value <= 0n) throw new Error('Not enough spendable balance.');
+      if (value + ZANO_FEE > spendable) throw new Error(`Not enough spendable balance. ${formatAmount(value + ZANO_FEE, ZANO_DECIMALS)} ZANO is needed including the fee. Received coins can be used after 10 confirmations.`);
       return { to, value, fee: ZANO_FEE };
     });
   }
@@ -172,7 +172,7 @@ export class ZanoClient {
       // Built by hand so the amounts stay exact.
       const body = `{"jsonrpc":"2.0","id":0,"method":"transfer","params":{"destinations":[{"address":${JSON.stringify(draft.to)},"amount":${draft.value}}],"fee":${draft.fee},"mixin":${ZANO_MIXIN},"payment_id":"","comment":"","service_entries_permanent":true,"service_entries":[]}}`;
       const result = await this.invoke('transfer', undefined, body);
-      if (!result?.tx_hash) throw new Error('거래를 만들지 못했어.');
+      if (!result?.tx_hash) throw new Error('Could not create the transaction.');
       await this.invoke('store').catch(() => undefined);
       return String(result.tx_hash);
     });

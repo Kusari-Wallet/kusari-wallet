@@ -97,23 +97,23 @@ test('USDT send goes to the contract with no ETH value', async (t) => {
 
 test('refuses: not enough funds, no fee money, USDT contract as recipient', async (t) => {
   const m = await node(); closing(t, m.server);
-  await assert.rejects(m.client.draft('ETH', TO, 10n ** 18n), /잔액이 부족/);
-  await assert.rejects(m.client.draft('USDTE', TO, 6_000_000n), /USDT 잔액이 부족/);
-  await assert.rejects(m.client.draft('ETH', USDT, 1n), /컨트랙트/);
+  await assert.rejects(m.client.draft('ETH', TO, 10n ** 18n), /enough/);
+  await assert.rejects(m.client.draft('USDTE', TO, 6_000_000n), /Not enough USDT/);
+  await assert.rejects(m.client.draft('ETH', USDT, 1n), /contract/);
   m.v.eth = 1000n;
-  await assert.rejects(m.client.draft('USDTE', TO, 1n), /수수료용 ETH가 부족/);
+  await assert.rejects(m.client.draft('USDTE', TO, 1n), /Not enough ETH for the fee/);
   m.v.eth = 0n;
-  await assert.rejects(m.client.draft('USDTE', TO, 1n), /수수료용 ETH가 없어/);
-  await assert.rejects(m.client.draft('ETH', TO, 'max'), /보낼 ETH가 없어/);
+  await assert.rejects(m.client.draft('USDTE', TO, 1n), /No ETH for the fee/);
+  await assert.rejects(m.client.draft('ETH', TO, 'max'), /No ETH left to send/);
 });
 
 test('refuses broken node answers: wrong chain, absurd fee, absurd gas', async (t) => {
   const wrong = await node({ chain: '0x38' }); closing(t, wrong.server);
-  await assert.rejects(wrong.client.getEthBalance(), /메인넷/);
+  await assert.rejects(wrong.client.getEthBalance(), /mainnet/);
   const fee = await node({ base: 900n * 1_000_000_000n }); closing(t, fee.server);
-  await assert.rejects(fee.client.draft('ETH', TO, 1n), /비정상/);
+  await assert.rejects(fee.client.draft('ETH', TO, 1n), /abnormal/);
   const gas = await node({ gas: 5_000_000n }); closing(t, gas.server);
-  await assert.rejects(gas.client.draft('USDTE', TO, 1n), /비정상/);
+  await assert.rejects(gas.client.draft('USDTE', TO, 1n), /abnormal/);
   const tip = await node({ tip: 900n * 1_000_000_000n }); closing(t, tip.server);
   assert.equal((await tip.client.draft('ETH', TO, 1n)).tip, 5_000_000_000n, 'tip is capped');
 });
@@ -129,7 +129,7 @@ test('wallet key that is not this wallet cannot sign', async (t) => {
   const m = await node(); closing(t, m.server);
   const d = await m.client.draft('ETH', TO, 1n);
   const other = deriveEthAccount('legal winner thank year wave sausage worth useful legal winner thank yellow').wallet;
-  await assert.rejects(m.client.send(d, other), /일치하지/);
+  await assert.rejects(m.client.send(d, other), /does not match/);
   assert.equal(m.log.raw.length, 0);
 });
 

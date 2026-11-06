@@ -119,9 +119,9 @@ test('installer accepts a correctly signed bundle', async (t) => {
 });
 
 for (const [name, mutate, pattern] of [
-  ['a tampered bundle', { tamper: true }, /서명 확인에 실패/],
-  ['a signature from another key', { fingerprint: 'aa'.repeat(20) }, /공식 키가 아니야/],
-  ['a strange version string', { version: '1.0/../../evil' }, /버전 정보/],
+  ['a tampered bundle', { tamper: true }, /signature check failed/],
+  ['a signature from another key', { fingerprint: 'aa'.repeat(20) }, /not the official key/],
+  ['a strange version string', { version: '1.0/../../evil' }, /version information/],
 ]) {
   test(`installer rejects ${name} and unpacks nothing`, async (t) => {
     const fx = await installerFixture(mutate);

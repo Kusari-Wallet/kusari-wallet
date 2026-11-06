@@ -26,42 +26,42 @@ test('a wallet from before this feature stays as the first wallet, in the same f
   await again.init();
   assert.equal((await again.status()).hasWallet, true);
   const list = await again.walletsList();
-  assert.deepEqual(list.list, [{ id: 'main', name: '내 지갑' }]);
+  assert.deepEqual(list.list, [{ id: 'main', name: 'My wallet' }]);
   assert.equal((await again.vault.open(PW1)).tronMnemonic, 'old');
 });
 
 test('rename: saved, limits checked, unknown wallet refused', async (t) => {
   const { s, dir } = await make(t);
-  await s.walletRename('main', '  저축용 ');
-  assert.equal((await s.walletsList()).list[0].name, '저축용');
-  await assert.rejects(s.walletRename('main', '   '), /1자에서 20자/);
-  await assert.rejects(s.walletRename('main', 'ㄱ'.repeat(21)), /1자에서 20자/);
-  await assert.rejects(s.walletRename('nope', '이름'), /없는 지갑/);
+  await s.walletRename('main', '  Savings ');
+  assert.equal((await s.walletsList()).list[0].name, 'Savings');
+  await assert.rejects(s.walletRename('main', '   '), /1 to 20 characters/);
+  await assert.rejects(s.walletRename('main', 'k'.repeat(21)), /1 to 20 characters/);
+  await assert.rejects(s.walletRename('nope', 'Name'), /No such wallet/);
   const again = new WalletService(dir);
   await again.init();
-  assert.equal((await again.walletsList()).list[0].name, '저축용');
+  assert.equal((await again.walletsList()).list[0].name, 'Savings');
 });
 
 test('adding: separate seed, password and records; giving up leaves nothing', async (t) => {
   const { s, dir } = await make(t);
   await makeOldWallet(s, PW1, 'one');
-  await s.walletBeginAdd('둘째');
+  await s.walletBeginAdd('Second');
   assert.equal((await s.status()).hasWallet, false, 'opens the new wallet flow');
   assert.equal((await s.walletsList()).list.length, 1, 'not listed until it exists');
   await s.walletCancelAdd();
   assert.equal((await s.status()).hasWallet, true);
   assert.equal((await s.vault.open(PW1)).tronMnemonic, 'one');
 
-  await s.walletBeginAdd('둘째');
-  await assert.rejects(s.finishCreate(PW2), /먼저 시드/);
+  await s.walletBeginAdd('Second');
+  await assert.rejects(s.finishCreate(PW2), /Create the seeds first/);
   s.draftSeeds = { tronMnemonic: 'two', moneroSeed: 'two' };
   await s.finishCreate(PW2);
   const list = await s.walletsList();
   assert.equal(list.list.length, 2);
-  assert.equal(list.list[1].name, '둘째');
+  assert.equal(list.list[1].name, 'Second');
   assert.equal(list.active, list.list[1].id);
   assert.equal(s.seen, 'two');
-  await assert.rejects(s.vault.open(PW1), /틀렸어/);
+  await assert.rejects(s.vault.open(PW1), /Wrong password/);
 
   // Swap records stay with their wallet
   await s.swapSave([{ id: 'x' }]);
@@ -77,7 +77,7 @@ test('adding: separate seed, password and records; giving up leaves nothing', as
   await again.init();
   assert.equal((await again.vault.open(PW2)).tronMnemonic, 'two');
   assert.equal(again.activeWallet, list.list[1].id);
-  await assert.rejects(s.walletSwitch('nope'), /없는 지갑/);
+  await assert.rejects(s.walletSwitch('nope'), /No such wallet/);
 });
 
 test('settings are shared, a Tornado list of leaves too, notes are not', async (t) => {
@@ -85,7 +85,7 @@ test('settings are shared, a Tornado list of leaves too, notes are not', async (
   await makeOldWallet(s, PW1, 'one');
   await s.updateSettings({ autoLockMinutes: 7 });
   await s.tornadoStore.write({ next: 3, notes: [] });
-  await s.walletBeginAdd('둘째');
+  await s.walletBeginAdd('Second');
   s.draftSeeds = { tronMnemonic: 'two', moneroSeed: 'two' };
   await s.finishCreate(PW2);
   assert.equal(s.settings.autoLockMinutes, 7);
@@ -97,12 +97,12 @@ test('deleting: wrong password does nothing; only that wallet goes; last one ret
   await makeOldWallet(s, PW1, 'one');
   await s.updateSettings({ autoLockMinutes: 7 });
   await s.swapSave([{ id: 'x' }]);
-  await s.walletBeginAdd('둘째');
+  await s.walletBeginAdd('Second');
   s.draftSeeds = { tronMnemonic: 'two', moneroSeed: 'two' };
   await s.finishCreate(PW2);
   const second = s.activeWallet;
 
-  await assert.rejects(s.deleteWallet(PW1), /틀렸어/);
+  await assert.rejects(s.deleteWallet(PW1), /Wrong password/);
   assert.equal(await s.deleteWallet(PW2), second);
   assert.ok(!fs.existsSync(path.join(dir, 'wallets', second)));
   assert.equal(s.activeWallet, 'main');
@@ -114,13 +114,13 @@ test('deleting: wrong password does nothing; only that wallet goes; last one ret
   assert.equal((await s.swapList()).length, 0);
   assert.equal(s.settings.autoLockMinutes, 7, 'app settings stay');
   assert.ok(fs.existsSync(path.join(dir, 'settings.json')));
-  assert.deepEqual((await s.walletsList()).list, [{ id: 'main', name: '내 지갑' }]);
+  assert.deepEqual((await s.walletsList()).list, [{ id: 'main', name: 'My wallet' }]);
 });
 
 test('removing the first wallet while another exists keeps that other one', async (t) => {
   const { s } = await make(t);
   await makeOldWallet(s, PW1, 'one');
-  await s.walletBeginAdd('둘째');
+  await s.walletBeginAdd('Second');
   s.draftSeeds = { tronMnemonic: 'two', moneroSeed: 'two' };
   await s.finishCreate(PW2);
   const second = s.activeWallet;

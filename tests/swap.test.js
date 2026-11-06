@@ -45,7 +45,7 @@ test('quote uses the provider network code and reports limits', async (t) => {
   assert.match(url, /coinFrom=USDT/);
   assert.match(url, /rateType=fixed/);
   const low = await m.client.quote('USDT', 'XMR', '1');
-  assert.match(low.problem, /최소 금액은 5/);
+  assert.match(low.problem, /minimum amount is 5/);
 });
 
 test('order is created with my addresses and returns the deposit', async (t) => {
@@ -61,14 +61,14 @@ test('order is created with my addresses and returns the deposit', async (t) => 
 });
 
 for (const [name, order, pattern] of [
-  ['another receive address', { withdrawalAddress: 'T' + 'B'.repeat(33) }, /받는 주소/],
-  ['another refund address', { refundAddress: 'T' + 'B'.repeat(33) }, /환불 주소/],
-  ['a different deposit amount', { amount: 11 }, /보낼 금액/],
-  ['less than quoted', { amountTo: 1000 }, /견적보다 적음/],
-  ['a different coin', { coinTo: { coinCode: 'BTC' } }, /받는 코인/],
-  ['a different network', { coinFrom: { coinCode: 'USDT', network: 'ETH' } }, /보내는 네트워크/],
-  ['a memo requirement', { depositExtraId: '123' }, /메모/],
-  ['no deposit address', { depositAddress: '' }, /입금 주소/],
+  ['another receive address', { withdrawalAddress: 'T' + 'B'.repeat(33) }, /receiving address/],
+  ['another refund address', { refundAddress: 'T' + 'B'.repeat(33) }, /refund address/],
+  ['a different deposit amount', { amount: 11 }, /send amount/],
+  ['less than quoted', { amountTo: 1000 }, /less than quoted/],
+  ['a different coin', { coinTo: { coinCode: 'BTC' } }, /received coin/],
+  ['a different network', { coinFrom: { coinCode: 'USDT', network: 'ETH' } }, /sending network/],
+  ['a memo requirement', { depositExtraId: '123' }, /memo/],
+  ['no deposit address', { depositAddress: '' }, /deposit address/],
 ]) {
   test(`order is refused when the provider returns ${name}`, async (t) => {
     const m = await mock({ order }); closing(t, m.server);
@@ -126,18 +126,18 @@ test('SimpleSwap: unwrapped answers work and a bad key is explained', async (t) 
   const m = await simple({}, false); closing(t, m.server);
   assert.equal((await m.client.quote('BTC', 'XMR', '1')).receive, '1500');
   const bad = new SimpleSwapClient(`http://127.0.0.1:${m.server.address().port}`, 'WRONG');
-  assert.match((await bad.quote('BTC', 'XMR', '1')).problem, /API 키/);
+  assert.match((await bad.quote('BTC', 'XMR', '1')).problem, /API key/);
 });
 
 for (const [name, override, pattern] of [
-  ['another receive address', { addressTo: 'x' }, /받는 주소/],
-  ['another refund address', { userRefundAddress: 'x' }, /환불 주소/],
-  ['a different deposit amount', { amountFrom: '11' }, /보낼 금액/],
-  ['less than quoted', { amountTo: '1000' }, /견적보다 적음/],
-  ['a different coin', { tickerTo: 'btc' }, /받는 코인/],
-  ['a different network', { networkFrom: 'eth' }, /보내는 네트워크/],
-  ['a memo requirement', { extraIdFrom: '77' }, /메모/],
-  ['no deposit address', { addressFrom: '' }, /입금 주소/],
+  ['another receive address', { addressTo: 'x' }, /receiving address/],
+  ['another refund address', { userRefundAddress: 'x' }, /refund address/],
+  ['a different deposit amount', { amountFrom: '11' }, /send amount/],
+  ['less than quoted', { amountTo: '1000' }, /less than quoted/],
+  ['a different coin', { tickerTo: 'btc' }, /received coin/],
+  ['a different network', { networkFrom: 'eth' }, /sending network/],
+  ['a memo requirement', { extraIdFrom: '77' }, /memo/],
+  ['no deposit address', { addressFrom: '' }, /deposit address/],
 ]) {
   test(`SimpleSwap: refused when it returns ${name}`, async (t) => {
     const m = await simple(override); closing(t, m.server);
@@ -184,16 +184,16 @@ test('GhostSwap: bearer, usdtrx ticker, net amount, idempotency key', async (t) 
 test('GhostSwap: a bad key is explained', async (t) => {
   const m = await ghost(); closing(t, m.server);
   const bad = new GhostSwapClient(`http://127.0.0.1:${m.server.address().port}`, 'x:y');
-  assert.match((await bad.quote('BTC', 'XMR', '1')).problem, /API 키/);
+  assert.match((await bad.quote('BTC', 'XMR', '1')).problem, /API key/);
 });
 
 for (const [name, override, pattern] of [
-  ['another receive address', { payoutAddress: 'x' }, /받는 주소/],
-  ['another refund address', { refundAddress: 'x' }, /환불 주소/],
-  ['a different deposit amount', { amountExpectedFrom: '11' }, /보낼 금액/],
-  ['less than quoted', { amountExpectedTo: '1000' }, /견적보다 적음/],
-  ['a different coin', { to: 'btc' }, /받는 코인/],
-  ['no deposit address', { payinAddress: '' }, /입금 주소/],
+  ['another receive address', { payoutAddress: 'x' }, /receiving address/],
+  ['another refund address', { refundAddress: 'x' }, /refund address/],
+  ['a different deposit amount', { amountExpectedFrom: '11' }, /send amount/],
+  ['less than quoted', { amountExpectedTo: '1000' }, /less than quoted/],
+  ['a different coin', { to: 'btc' }, /received coin/],
+  ['no deposit address', { payinAddress: '' }, /deposit address/],
 ]) {
   test(`GhostSwap: refused when it returns ${name}`, async (t) => {
     const m = await ghost(override); closing(t, m.server);
@@ -215,7 +215,7 @@ test('SimpleSwap: USDT(Eth) uses the eth network and accepts a lowercased addres
 
 test('swap: another Ethereum address is still refused, whatever its case', async (t) => {
   const m = await simple({ addressTo: '0x70997970c51812dc3a010c7d01b50e0d17dc79c8' }); closing(t, m.server);
-  await assert.rejects(m.client.create('XMR', 'USDTE', '1', '1500', ME_ETH, ME_XMR), /받는 주소/);
+  await assert.rejects(m.client.create('XMR', 'USDTE', '1', '1500', ME_ETH, ME_XMR), /receiving address/);
 });
 
 test('GhostSwap: USDT(Eth) ticker comes from their list', async (t) => {

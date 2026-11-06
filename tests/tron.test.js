@@ -96,19 +96,19 @@ test('signing is refused if anything differs from what was approved', async (t) 
   const other = independentAddress('letter advice cage absurd amount doctor acoustic avoid letter advice cage above').address;
 
   const trx = await client.build({ asset: 'TRX', to: RECIPIENT, amount: 5n });
-  assert.throws(() => client.assertMatches(trx, { asset: 'TRX', to: other, amount: 5n }), /달라/);
-  assert.throws(() => client.assertMatches(trx, { asset: 'TRX', to: RECIPIENT, amount: 6n }), /달라/);
+  assert.throws(() => client.assertMatches(trx, { asset: 'TRX', to: other, amount: 5n }), /differ|match/);
+  assert.throws(() => client.assertMatches(trx, { asset: 'TRX', to: RECIPIENT, amount: 6n }), /differ|match/);
   client.assertMatches(trx, { asset: 'TRX', to: RECIPIENT, amount: 5n });
 
   const mutated = JSON.parse(JSON.stringify(trx));
   mutated.raw_data.contract[0].parameter.value.to_address = TronWeb.address.toHex(other).toLowerCase();
-  assert.throws(() => client.assertMatches(mutated, { asset: 'TRX', to: RECIPIENT, amount: 5n }), /무결성|달라/);
+  assert.throws(() => client.assertMatches(mutated, { asset: 'TRX', to: RECIPIENT, amount: 5n }), /integrity|match/);
 
   const usdt = await client.build({ asset: 'USDT', to: RECIPIENT, amount: 7n, feeLimit: 1000n });
   client.assertMatches(usdt, { asset: 'USDT', to: RECIPIENT, amount: 7n, feeLimit: 1000n });
-  assert.throws(() => client.assertMatches(usdt, { asset: 'USDT', to: other, amount: 7n, feeLimit: 1000n }), /달라/);
-  assert.throws(() => client.assertMatches(usdt, { asset: 'USDT', to: RECIPIENT, amount: 8n, feeLimit: 1000n }), /달라/);
-  assert.throws(() => client.assertMatches(usdt, { asset: 'USDT', to: RECIPIENT, amount: 7n, feeLimit: 2000n }), /달라/);
+  assert.throws(() => client.assertMatches(usdt, { asset: 'USDT', to: other, amount: 7n, feeLimit: 1000n }), /differ|match/);
+  assert.throws(() => client.assertMatches(usdt, { asset: 'USDT', to: RECIPIENT, amount: 8n, feeLimit: 1000n }), /differ|match/);
+  assert.throws(() => client.assertMatches(usdt, { asset: 'USDT', to: RECIPIENT, amount: 7n, feeLimit: 2000n }), /differ|match/);
 });
 
 test('balances, fee edge cases, absurd energy refused', async (t) => {
@@ -122,7 +122,7 @@ test('balances, fee edge cases, absurd energy refused', async (t) => {
   assert.equal(fresh.feeSun, 1_100_000n);
   assert.ok(fresh.recipientIsNew);
   state.energyUsed = 5_000_000;
-  await assert.rejects(client.estimateFee({ asset: 'USDT', to: RECIPIENT, amount: 1n }), /비정상/);
+  await assert.rejects(client.estimateFee({ asset: 'USDT', to: RECIPIENT, amount: 1n }), /abnormal/);
 });
 
 test('history drops fake tokens and zero transfers, flags dust, labels direction', async (t) => {

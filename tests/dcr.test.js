@@ -65,10 +65,10 @@ test('selection: fee, change, dust to fee, max, shortage', async (t) => {
   const max = await m.client.draft(OTHER, 'max');
   assert.equal(max.amount + max.fee, 1300000n);
   assert.equal(max.change, 0n);
-  await assert.rejects(m.client.draft(OTHER, 5000000n), /부족/);
-  await assert.rejects(m.client.draft(OTHER, 100n), /최소/);
+  await assert.rejects(m.client.draft(OTHER, 5000000n), /enough/);
+  await assert.rejects(m.client.draft(OTHER, 100n), /minimum/);
   m.v.utxos = [];
-  await assert.rejects(m.client.draft(OTHER, 500000n), /없어/);
+  await assert.rejects(m.client.draft(OTHER, 500000n), /No |Nothing/);
   assert.equal(typicalDcrFee(), estimateDcrSize(1, 2) * 20n);
 });
 
@@ -112,10 +112,10 @@ test('signing refuses wrong sums, an input or change that is not mine, and a bad
   const c = new DcrClient(account, []);
   const good = { to: OTHER, amount: 1000n, fee: 200n, change: 800n, changeAddress: c.addressAt(1, 0), changeIndex: 0, inputs: [{ txid: 'ab'.repeat(32), vout: 0, value: 2000n, address: c.addressAt(0, 0), chain: 0, index: 0 }] };
   assert.ok(signDcrDraft(good, PHRASE).hex);
-  assert.throws(() => signDcrDraft({ ...good, fee: 100n }, PHRASE), /금액 계산/);
-  assert.throws(() => signDcrDraft({ ...good, inputs: [{ ...good.inputs[0], address: c.addressAt(0, 9) }] }, PHRASE), /입력 주소/);
-  assert.throws(() => signDcrDraft({ ...good, changeAddress: c.addressAt(0, 9) }, PHRASE), /잔돈 주소/);
-  assert.throws(() => signDcrDraft({ ...good, to: 'TsZ5wmd7yJ8sVGNAtzQ8YEyPmEMXvyVpFqN' }, PHRASE), /DCR 주소/);
+  assert.throws(() => signDcrDraft({ ...good, fee: 100n }, PHRASE), /do not add up/);
+  assert.throws(() => signDcrDraft({ ...good, inputs: [{ ...good.inputs[0], address: c.addressAt(0, 9) }] }, PHRASE), /input address/);
+  assert.throws(() => signDcrDraft({ ...good, changeAddress: c.addressAt(0, 9) }, PHRASE), /change address/);
+  assert.throws(() => signDcrDraft({ ...good, to: 'TsZ5wmd7yJ8sVGNAtzQ8YEyPmEMXvyVpFqN' }, PHRASE), /DCR address/);
 });
 
 test('send: broadcast, server disagreement and rejection are reported; history reads directions', async (t) => {
@@ -135,10 +135,10 @@ test('send: broadcast, server disagreement and rejection are reported; history r
   assert.equal(m.v.posted.length, 1);
   assert.equal(id.length, 64);
   m.v.txid = 'ff'.repeat(32);
-  await assert.rejects(m.client.send(await m.client.draft(OTHER, 200000n), PHRASE), /다른 거래 ID/);
+  await assert.rejects(m.client.send(await m.client.draft(OTHER, 200000n), PHRASE), /different transaction ID/);
   m.v.txid = undefined;
   m.v.reject = true;
-  await assert.rejects(m.client.send(await m.client.draft(OTHER, 200000n), PHRASE), /전송 거부/);
+  await assert.rejects(m.client.send(await m.client.draft(OTHER, 200000n), PHRASE), /Send rejected/);
 });
 
 test('a server error stays an error', async (t) => {

@@ -162,9 +162,9 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
   await page.goto(origin + '/index.html');
   await page.locator('#splash img').waitFor({ timeout: 900 }).catch(() => {});
   await shot('splash');
-  await page.getByText('지갑 시작하기').waitFor({ timeout: 15000 });
+  await page.getByText('Get started').waitFor({ timeout: 15000 });
   await page.evaluate((n) => window.wallet.updateSettings({ customMoneroNode: n }), holeUp);
-  await page.getByText('시드로 복구하기').click();
+  await page.getByText('Restore from seeds').click();
   await page.fill('#tron-seed', MNEMONIC);
   await page.fill('#xmr-seed', seed);
   await page.fill('#pw', PASSWORD);
@@ -186,14 +186,14 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
     window.wallet.overview = async () => ({ ...(await real()), monero: { connected: true, synced: false, percent: 0.425, height: 1, targetHeight: 2, node: 'n', error: null } });
   });
   await page.click('#refresh');
-  await page.locator('#sync-status', { hasText: '거래 동기화중... 42.5%' }).waitFor({ timeout: 8000 });
+  await page.locator('#sync-status', { hasText: 'Syncing transactions... 42.5%' }).waitFor({ timeout: 8000 });
   assert.equal(await page.locator('#sync-status .spinner').count(), 1);
   await shot('syncing');
   await page.click('#asset-XMR');
-  await page.locator('.sync-banner', { hasText: '거래 동기화중' }).waitFor({ timeout: 5000 });
+  await page.locator('.sync-banner', { hasText: 'Syncing transactions' }).waitFor({ timeout: 5000 });
   await shot('syncing-detail');
   await page.click('#back');
-  console.log('ok spinner and 거래 동기화중 text shown while syncing');
+  console.log('ok spinner and syncing text shown while syncing');
 
   // real node through the real forwarder
   await page.evaluate((n) => { delete window.wallet.overview; return window.wallet.updateSettings({ customMoneroNode: n }); }, nodeUp);
@@ -202,13 +202,13 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
   await page.locator('#unlock').waitFor({ timeout: 30000 });
   await page.fill('#pw', 'wrong password!');
   await page.click('#unlock');
-  await page.getByText('비밀번호가 틀렸어').waitFor({ timeout: 30000 });
+  await page.getByText('Wrong password').waitFor({ timeout: 30000 });
   await page.fill('#pw', PASSWORD);
   await page.click('#unlock');
   await page.locator('#asset-TRX .amt', { hasText: '50' }).waitFor({ timeout: 60000 });
-  for (let i = 0; i < 60; i++) { if (!(await page.locator('#asset-XMR .sub').first().innerText()).match(/연결|동기화/)) break; await sleep(1000); }
+  for (let i = 0; i < 60; i++) { if (!(await page.locator('#asset-XMR .sub').first().innerText()).match(/[Cc]onnect|[Ss]ync/)) break; await sleep(1000); }
   const xmrStatus = await page.locator('#asset-XMR .sub').first().innerText();
-  assert.doesNotMatch(xmrStatus, /연결 안 됨|동기화/, `XMR state: ${xmrStatus}`);
+  assert.doesNotMatch(xmrStatus, /not connected|[Ss]ync/, `XMR state: ${xmrStatus}`);
   await shot('home');
   console.log('ok WASM wallet in a worker connected and synced to monerod through the Java forwarder');
 
@@ -232,7 +232,7 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
   await page.click('#pick-TRX');
   await page.evaluate(() => localStorage.setItem('camDenied', '1'));
   await page.click('#scan');
-  await page.getByText('카메라 권한이 없어').waitFor({ timeout: 8000 });
+  await page.getByText('No camera permission').waitFor({ timeout: 8000 });
   await shot('scan-denied');
   await page.click('#scan-close');
   await page.evaluate(() => localStorage.removeItem('camDenied'));
@@ -272,7 +272,7 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
   // Tornado in the WebView: worker, proof, checked by the real contracts on a local chain
   await page.click('#go-swap');
   await page.click('#go-tornado');
-  await page.locator('#tornado-engine', { hasText: '준비됨' }).waitFor({ timeout: 90000 });
+  await page.locator('#tornado-engine', { hasText: 'Ready' }).waitFor({ timeout: 90000 });
   const { startChain } = require('./tornado-chain');
   const chain = await startChain('test test test test test test test test test test test junk');
   try {
@@ -291,7 +291,7 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
   // A second wallet: its Monero data and vault don't touch the first one's
   const before = await page.evaluate(() => window.wallet.addresses());
   const second = await page.evaluate(async () => {
-    await window.wallet.walletBeginAdd('둘째');
+    await window.wallet.walletBeginAdd('Second');
     const seeds = await window.wallet.generateSeeds();
     await window.wallet.restore('second wallet password', seeds.tronMnemonic, seeds.moneroSeed, '');
     const a = await window.wallet.addresses();
@@ -316,7 +316,7 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
   assert.equal(await page.locator('#tor-update').isVisible(), false, 'no separate Tor download on Android');
   await page.fill('#bio-pw', 'wrong password!');
   await page.click('#bio-on');
-  await page.getByText('비밀번호가 틀렸어').waitFor({ timeout: 30000 });
+  await page.getByText('Wrong password').waitFor({ timeout: 30000 });
   await page.fill('#bio-pw', PASSWORD);
   await page.click('#bio-on');
   await page.locator('#bio-off').waitFor({ timeout: 30000 });
@@ -357,7 +357,7 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
   await page.locator('#unlock').waitFor({ timeout: 40000 });
   await page.fill('#pw', PASSWORD);
   await page.click('#unlock');
-  await page.locator('#tor-chip', { hasText: 'Tor 연결됨' }).waitFor({ timeout: 30000 });
+  await page.locator('#tor-chip', { hasText: 'Tor connected' }).waitFor({ timeout: 30000 });
   await page.locator('#asset-TRX .amt', { hasText: '50' }).waitFor({ timeout: 60000 });
   await page.waitForTimeout(800);
   await shot('tor-home');
@@ -377,7 +377,7 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
   tron.on('connection', () => { conns++; });
   await socks.close();
   await page.click('#refresh');
-  await page.locator('#asset-TRX', { hasText: /조회 실패|최근 값/ }).waitFor({ timeout: 100000 });
+  await page.locator('#asset-TRX', { hasText: /Lookup failed|recent value/ }).waitFor({ timeout: 100000 });
   assert.equal(conns, 0, 'nothing reaches the node once Tor is gone');
   console.log('ok Tor mode: all traffic through SOCKS, onion nodes, browser not opened, stops when Tor is gone');
 

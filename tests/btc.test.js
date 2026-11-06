@@ -44,9 +44,9 @@ test('coin selection: fee, change, dust, max, shortage', () => {
   assert.equal(c.inputs.length, 2);
   assert.equal(c.amount + c.fee, 300000n);
   assert.equal(c.change, 0n);
-  assert.throws(() => selectCoins([utxo(1000n)], 5000n, 10n), /부족/);
-  assert.throws(() => selectCoins([], 5000n, 10n), /없어/);
-  assert.throws(() => selectCoins([utxo(100000n)], 100n, 1n), /최소/);
+  assert.throws(() => selectCoins([utxo(1000n)], 5000n, 10n), /enough/);
+  assert.throws(() => selectCoins([], 5000n, 10n), /No |Nothing/);
+  assert.throws(() => selectCoins([utxo(100000n)], 100n, 1n), /minimum/);
 });
 
 function esplora() {
@@ -99,16 +99,16 @@ test('an absurd fee rate from the server is refused', async (t) => {
   const { server, state, client } = await esplora();
   t.after(() => { server.close(); server.closeAllConnections(); });
   state.fee = 5000;
-  await assert.rejects(client.draft('bc1qnjg0jd8228aq7egyzacy8cys3knf9xvrerkf9g', 1000n), /비정상/);
+  await assert.rejects(client.draft('bc1qnjg0jd8228aq7egyzacy8cys3knf9xvrerkf9g', 1000n), /abnormal/);
 });
 
 test('signing refuses an input or change that is not mine', () => {
   const c = new BtcClient(xpub, []);
   const good = { to: c.addressAt(0, 5), amount: 1000n, fee: 200n, change: 800n, changeAddress: c.addressAt(1, 0), changePath: [1, 0], inputs: [{ txid: 'ab'.repeat(32), vout: 0, value: 2000n, address: c.addressAt(0, 0), chain: 0, index: 0, confirmed: true }] };
   assert.ok(signBtcDraft(good, MNEMONIC).hex);
-  assert.throws(() => signBtcDraft({ ...good, inputs: [{ ...good.inputs[0], address: c.addressAt(0, 9) }] }, MNEMONIC), /입력 주소/);
-  assert.throws(() => signBtcDraft({ ...good, changeAddress: c.addressAt(0, 9) }, MNEMONIC), /잔돈 주소/);
-  assert.throws(() => signBtcDraft({ ...good, fee: 100n }, MNEMONIC), /금액 계산/);
+  assert.throws(() => signBtcDraft({ ...good, inputs: [{ ...good.inputs[0], address: c.addressAt(0, 9) }] }, MNEMONIC), /input address/);
+  assert.throws(() => signBtcDraft({ ...good, changeAddress: c.addressAt(0, 9) }, MNEMONIC), /change address/);
+  assert.throws(() => signBtcDraft({ ...good, fee: 100n }, MNEMONIC), /do not add up/);
 });
 
 test('fee size is taproot size', () => {
@@ -170,9 +170,9 @@ test('rate limit: switches server, then waits; a known balance survives it', asy
   assert.equal(a.hits.length, 1, 'the limited server is left alone after one answer');
   assert.ok(b.hits.length > 10);
   b.fail.status = 429;
-  await assert.rejects(client.refresh(true), /제한 중/);
+  await assert.rejects(client.refresh(true), /limiting requests/);
   const after = a.hits.length + b.hits.length;
-  await assert.rejects(client.refresh(true), /제한 중/);
+  await assert.rejects(client.refresh(true), /limiting requests/);
   assert.equal(a.hits.length + b.hits.length, after, 'no requests at all while both are cooling down');
   assert.deepEqual(await client.getBalance(100), { total: 0n, spendable: 0n }, 'last known balance stays');
 });

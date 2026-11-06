@@ -9,20 +9,20 @@ const ALL_ASSETS: Asset[] = ['XMR', 'BTC', 'ETH', 'TRX', 'USDTE', 'USDT', 'DCR',
 // These need their engines, which aren't in every build or on every phone.
 let ASSETS: Asset[] = ALL_ASSETS.filter((a) => a !== 'ZEC' && a !== 'ZANO' && a !== 'ARRR');
 let zecInSession = false;
-let refreshNote = '아직 응답 없음';
+let refreshNote = 'no answer yet';
 const COIN: Record<Asset, { label: string; file: string; note: string }> = {
-  BTC: { label: 'BTC', file: 'coins/btc.png', note: '수수료는 네트워크 상황에 따라 달라지고, 확인 화면에서 볼 수 있어.' },
-  TRX: { label: 'TRX', file: 'coins/trx.png', note: 'USDT를 보낼 때 드는 수수료도 TRX로 나가.' },
-  USDT: { label: 'USDT (Tron)', file: 'coins/usdt.png', note: 'Tron 네트워크 전용이야. 다른 체인 주소로 보내면 안 돼.' },
+  BTC: { label: 'BTC', file: 'coins/btc.png', note: 'The fee depends on the network and is shown on the review screen.' },
+  TRX: { label: 'TRX', file: 'coins/trx.png', note: 'The fee for sending USDT is also paid in TRX.' },
+  USDT: { label: 'USDT (Tron)', file: 'coins/usdt.png', note: 'Tron network only. Don\'t send to addresses on other chains.' },
   XMR: { label: 'XMR', file: 'coins/xmr.png', note: '' },
-  FIRO: { label: 'FIRO', file: 'coins/firo.png', note: '투명 거래만 지원해. 주소와 금액이 체인에 공개돼.' },
-  DASH: { label: 'DASH', file: 'coins/dash.png', note: 'Dash 메인넷 전용이야. 수수료는 DASH로 나가.' },
-  ARRR: { label: 'ARRR', file: 'coins/arrr.png', note: 'Pirate Chain은 전부 쉴드 거래야. 수수료는 ARRR로 나가.' },
-  ZANO: { label: 'ZANO', file: 'coins/zano.png', note: '받은 코인은 10컨펌 뒤에 쓸 수 있어. 수수료는 0.01 ZANO로 고정이야.' },
-  ZEC: { label: 'ZEC', file: 'coins/zec.png', note: '쉴드된 잔액에서 나가. 수수료는 ZEC로 나가.' },
-  DCR: { label: 'DCR', file: 'coins/dcr.png', note: 'Decred 메인넷 전용이야. 수수료는 DCR로 나가.' },
-  ETH: { label: 'ETH', file: 'coins/eth.png', note: 'USDT(Eth)를 보낼 때 드는 수수료도 ETH로 나가.' },
-  USDTE: { label: 'USDT (Eth)', file: 'coins/usdt.png', note: 'Ethereum 네트워크 전용이야. 수수료용 ETH가 필요하고, 다른 체인 주소로 보내면 안 돼.' },
+  FIRO: { label: 'FIRO', file: 'coins/firo.png', note: 'Transparent transactions only. Addresses and amounts are public on the chain.' },
+  DASH: { label: 'DASH', file: 'coins/dash.png', note: 'Dash mainnet only. The fee is paid in DASH.' },
+  ARRR: { label: 'ARRR', file: 'coins/arrr.png', note: 'Every Pirate Chain transaction is shielded. The fee is paid in ARRR.' },
+  ZANO: { label: 'ZANO', file: 'coins/zano.png', note: 'Received coins can be used after 10 confirmations. The fee is a fixed 0.01 ZANO.' },
+  ZEC: { label: 'ZEC', file: 'coins/zec.png', note: 'Sent from your shielded balance. The fee is paid in ZEC.' },
+  DCR: { label: 'DCR', file: 'coins/dcr.png', note: 'Decred mainnet only. The fee is paid in DCR.' },
+  ETH: { label: 'ETH', file: 'coins/eth.png', note: 'The fee for sending USDT (Eth) is also paid in ETH.' },
+  USDTE: { label: 'USDT (Eth)', file: 'coins/usdt.png', note: 'Ethereum network only. ETH is needed for the fee. Don\'t send to addresses on other chains.' },
 };
 const coinName = (a: Asset): string => COIN[a]?.label ?? a;
 
@@ -88,26 +88,26 @@ function coin(asset: Asset): HTMLElement {
 }
 
 function usdFee(usd: number): string {
-  return usd > 0 && usd < 0.01 ? '$0.01 미만' : usdFormat(Math.max(usd, 0));
+  return usd > 0 && usd < 0.01 ? '$0.01 or less' : usdFormat(Math.max(usd, 0));
 }
 
 /** Fees read in dollars. Without a price, the coin amount is all there is to show. */
 function feeText(f: any): string {
-  return typeof f.usd === 'number' ? `약 ${usdFee(f.usd)}` : `약 ${f.fee} ${f.asset}`;
+  return typeof f.usd === 'number' ? `about ${usdFee(f.usd)}` : `about ${f.fee} ${f.asset}`;
 }
 
 /** On a review screen the exact coin amount stays beside the dollars. */
 function reviewFee(fee: string, asset: string): string {
   const price = prices?.[asset]?.usd;
-  return typeof price === 'number' ? `약 ${usdFee(Number(fee) * price)} (${fee} ${asset})` : `${fee} ${asset}`;
+  return typeof price === 'number' ? `about ${usdFee(Number(fee) * price)} (${fee} ${asset})` : `${fee} ${asset}`;
 }
 
 /** Filled in after the screen is up, so a slow server never holds it back. */
 function feeLine(asset: Asset, id: string, write: (f: any) => string): HTMLElement {
-  const el = h('p', { class: 'small muted fee-line', id }, '예상 수수료 확인 중…');
+  const el = h('p', { class: 'small muted fee-line', id }, 'Checking the estimated fee…');
   wallet.feeEstimate(asset).then((f: any) => {
-    el.textContent = f ? write(f) : '예상 수수료를 지금은 확인하지 못했어. 전송 전 확인 화면에서 볼 수 있어.';
-  }, () => { el.textContent = '예상 수수료를 지금은 확인하지 못했어.'; });
+    el.textContent = f ? write(f) : 'The estimated fee isn\'t available right now. You can see it on the review screen before sending.';
+  }, () => { el.textContent = 'The estimated fee isn\'t available right now.'; });
   return el;
 }
 
@@ -123,15 +123,15 @@ function netReceive(q: any, ...networks: any[]): { text: string; complete: boole
 function netLine(q: any, ...networks: any[]): string {
   const net = netReceive(q, ...networks);
   if (!net) return '';
-  return net.complete ? `수수료 다 빼고 약 ${net.text}` : `약 ${net.text}, 네트워크 수수료 별도`;
+  return net.complete ? `After all fees about ${net.text}` : `about ${net.text}, network fee extra`;
 }
 
 function offerFee(q: any): { total: string; detail: string } {
-  if (!q.cost) return { total: '수수료 확인 불가', detail: '시세 서버에 연결되면 달러로 보여줘.' };
+  if (!q.cost) return { total: 'Fee not available', detail: 'Shown in USD once the price server connects.' };
   const provider = Math.max(q.cost.usd, 0);
   const network = typeof q.network?.usd === 'number' ? q.network.usd : null;
-  if (network === null) return { total: `수수료 약 ${usdFee(provider)}`, detail: `업체 ${usdFee(provider)} (${q.cost.percent.toFixed(2)}%), 네트워크 별도` };
-  return { total: `수수료 약 ${usdFee(provider + network)}`, detail: `업체 ${usdFee(provider)} (${Math.max(q.cost.percent, 0).toFixed(2)}%) + 네트워크 ${usdFee(network)}` };
+  if (network === null) return { total: `Fee about ${usdFee(provider)}`, detail: `Provider ${usdFee(provider)} (${q.cost.percent.toFixed(2)}%), network extra` };
+  return { total: `Fee about ${usdFee(provider + network)}`, detail: `Provider ${usdFee(provider)} (${Math.max(q.cost.percent, 0).toFixed(2)}%) + network ${usdFee(network)}` };
 }
 
 function errMsg(e: unknown): string {
@@ -164,12 +164,12 @@ function toast(message: string): void {
 
 async function openExplorer(asset: Asset, hash: string): Promise<void> {
   const res = await wallet.openExplorer(asset, hash);
-  if (res?.copied) toast('Tor 모드라 브라우저를 열지 않았어. 링크를 복사했으니 Tor Browser에 붙여넣어.');
+  if (res?.copied) toast('In Tor mode the browser isn\'t opened. The link was copied, so paste it into Tor Browser.');
 }
 
 function torLabel(s: any): { text: string; cls: string } {
-  if (s.phase === 'ready') return { text: 'Tor 연결됨', cls: 'ok' };
-  if (s.phase === 'error') return { text: 'Tor 끊김', cls: 'bad' };
+  if (s.phase === 'ready') return { text: 'Tor connected', cls: 'ok' };
+  if (s.phase === 'error') return { text: 'Tor disconnected', cls: 'bad' };
   return { text: `Tor ${s.percent}%`, cls: '' };
 }
 
@@ -183,7 +183,7 @@ function show(kind: string, ...kids: Child[]): void {
 
 function subBar(title: string, back: () => void): HTMLElement {
   return h('div', { class: 'bar' },
-    h('button', { class: 'icon-btn', id: 'back', 'aria-label': '뒤로', onclick: back }, icon('back')),
+    h('button', { class: 'icon-btn', id: 'back', 'aria-label': 'Back', onclick: back }, icon('back')),
     h('h2', {}, title), h('span', {}));
 }
 
@@ -203,17 +203,17 @@ async function withSplash(message: string, task: () => Promise<void>): Promise<v
 }
 
 function welcome(): void {
-  const addingBack = h('button', { type: 'button', class: 'ghost', id: 'wallet-add-cancel', hidden: true, onclick: async () => { await wallet.walletCancelAdd(); await boot(); } }, '지갑 추가 취소');
+  const addingBack = h('button', { type: 'button', class: 'ghost', id: 'wallet-add-cancel', hidden: true, onclick: async () => { await wallet.walletCancelAdd(); await boot(); } }, 'Cancel adding a wallet');
   void wallet.walletsList().then((r: any) => { addingBack.hidden = !r.adding; });
   entry(
     entryLogo(),
-    h('h2', {}, '지갑 시작하기'),
+    h('h2', {}, 'Get started'),
     addingBack,
-    h('p', { class: 'lead' }, '시드와 키는 이 기기에만 암호화해서 저장돼. 메인넷 전용이라 실제 코인을 다뤄.'),
+    h('p', { class: 'lead' }, 'Seeds and keys are stored encrypted on this device only. This is mainnet, with real coins.'),
     h('button', { class: 'choice', onclick: createStep1 },
-      h('strong', {}, '새 지갑 만들기'), h('span', { class: 'muted small' }, '새 시드 문구를 생성해.')),
+      h('strong', {}, 'Create a new wallet'), h('span', { class: 'muted small' }, 'Generates new seed phrases.')),
     h('button', { class: 'choice', onclick: restoreForm },
-      h('strong', {}, '시드로 복구하기'), h('span', { class: 'muted small' }, 'BIP39 시드(BTC, ETH, TRX, USDT, DCR, DASH, FIRO, ZEC, ZANO, ARRR)와 Monero 25단어 시드가 모두 필요해.')));
+      h('strong', {}, 'Restore from seeds'), h('span', { class: 'muted small' }, 'Needs both the BIP39 seed (BTC, ETH, TRX, USDT, DCR, DASH, FIRO, ZEC, ZANO, ARRR) and the 25-word Monero seed.')));
 }
 
 function passwordFields() {
@@ -222,12 +222,12 @@ function passwordFields() {
   return {
     pw, pw2,
     nodes: [
-      h('label', { class: 'field' }, h('span', {}, '비밀번호'), pw, h('div', { class: 'hint' }, '10자 이상. 잊어버리면 시드로만 복구할 수 있어.')),
-      h('label', { class: 'field' }, h('span', {}, '비밀번호 확인'), pw2),
+      h('label', { class: 'field' }, h('span', {}, 'Password'), pw, h('div', { class: 'hint' }, 'At least 10 characters. If you forget it, you can only restore from the seeds.')),
+      h('label', { class: 'field' }, h('span', {}, 'Confirm password'), pw2),
     ],
     check() {
-      if (pw.value.length < 10) throw new Error('비밀번호는 10자 이상이어야 해.');
-      if (pw.value !== pw2.value) throw new Error('비밀번호 두 개가 달라.');
+      if (pw.value.length < 10) throw new Error('The password must be at least 10 characters.');
+      if (pw.value !== pw2.value) throw new Error('The two passwords do not match.');
       return pw.value as string;
     },
   };
@@ -236,12 +236,12 @@ function passwordFields() {
 function createStep1(): void {
   const f = passwordFields();
   const box = errorBox();
-  const next = h('button', { class: 'primary', id: 'next', onclick: () => busy(next, '생성 중…', box, async () => {
+  const next = h('button', { class: 'primary', id: 'next', onclick: () => busy(next, 'Generating…', box, async () => {
     const password = f.check();
     createStep2(password, await wallet.generateSeeds());
-  }) }, '시드 생성');
-  entry(h('h2', {}, '비밀번호 정하기'), h('p', { class: 'lead' }, '이 PC에서 지갑을 열고 코인을 보낼 때마다 입력해.'), box.el, ...f.nodes,
-    h('div', { class: 'btn-row' }, h('button', { class: 'ghost', onclick: welcome }, '뒤로'), next));
+  }) }, 'Generate seeds');
+  entry(h('h2', {}, 'Set a password'), h('p', { class: 'lead' }, 'Entered each time you open the wallet on this device or send coins.'), box.el, ...f.nodes,
+    h('div', { class: 'btn-row' }, h('button', { class: 'ghost', onclick: welcome }, 'Back'), next));
 }
 
 function seedCard(title: string, note: string, phrase: string): HTMLElement {
@@ -251,34 +251,34 @@ function seedCard(title: string, note: string, phrase: string): HTMLElement {
 
 function createStep2(password: string, seeds: { tronMnemonic: string; moneroSeed: string }): void {
   const ok = h('input', { type: 'checkbox', id: 'saved' });
-  const go = h('button', { class: 'primary', id: 'next', disabled: true, onclick: () => createStep3(password, seeds) }, '백업 확인으로');
+  const go = h('button', { class: 'primary', id: 'next', disabled: true, onclick: () => createStep3(password, seeds) }, 'Continue to backup check');
   ok.addEventListener('change', () => { go.disabled = !ok.checked; });
   entry(
-    h('h2', {}, '시드 문구 두 개를 종이에 적어'),
-    h('p', { class: 'lead' }, '이 시드를 가진 사람은 네 코인을 전부 가져갈 수 있어. 사진, 클라우드, 메신저에 저장하지 마.'),
-    seedCard('BTC·ETH·Tron·DCR·DASH 시드 12단어', 'BTC, ETH, TRX, USDT, DCR, DASH, FIRO, ZEC, ZANO, ARRR용. Sparrow, MetaMask, TronLink 등 BIP39 지갑에서 복구할 수 있어.', seeds.tronMnemonic),
-    seedCard('Monero 시드 25단어', 'XMR용. Monero GUI, Cake Wallet과 호환돼.', seeds.moneroSeed),
-    h('label', { class: 'check' }, ok, h('span', {}, '두 시드를 모두 적어뒀어.')),
-    h('div', { class: 'btn-row' }, h('button', { class: 'ghost', onclick: welcome }, '취소'), go),
+    h('h2', {}, 'Write both seed phrases on paper'),
+    h('p', { class: 'lead' }, 'Anyone with these seeds can take all your coins. Don\'t save them in photos, cloud storage or messengers.'),
+    seedCard('BTC·ETH·Tron·DCR·DASH seed, 12 words', 'For BTC, ETH, TRX, USDT, DCR, DASH, FIRO, ZEC, ZANO, ARRR. Restores in BIP39 wallets such as Sparrow, MetaMask and TronLink.', seeds.tronMnemonic),
+    seedCard('Monero seed, 25 words', 'For XMR. Works with Monero GUI and Cake Wallet.', seeds.moneroSeed),
+    h('label', { class: 'check' }, ok, h('span', {}, 'I wrote down both seeds.')),
+    h('div', { class: 'btn-row' }, h('button', { class: 'ghost', onclick: welcome }, 'Cancel'), go),
     skipBackupButton(password, seeds, () => createStep2(password, seeds)));
 }
 
 function skipBackupButton(password: string, seeds: { tronMnemonic: string; moneroSeed: string }, back: () => void): HTMLElement {
-  return h('button', { type: 'button', class: 'ghost skip-backup', id: 'skip-backup', onclick: () => createSkip(password, back) }, '건너뛰기');
+  return h('button', { type: 'button', class: 'ghost skip-backup', id: 'skip-backup', onclick: () => createSkip(password, back) }, 'Skip');
 }
 
 function createSkip(password: string, back: () => void): void {
   const box = errorBox();
-  const go = h('button', { class: 'danger', id: 'skip-confirm', onclick: () => busy(go, '지갑 만드는 중…', box, async () => {
-    await withSplash('지갑 만드는 중…', async () => {
+  const go = h('button', { class: 'danger', id: 'skip-confirm', onclick: () => busy(go, 'Creating the wallet…', box, async () => {
+    await withSplash('Creating the wallet…', async () => {
       await wallet.finishCreate(password);
       await enterWallet();
     });
-  }) }, '건너뛰고 지갑 만들기');
-  entry(h('h2', {}, '백업 없이 만들까?'),
-    h('div', { class: 'warn', id: 'skip-warning' }, '폰이나 PC가 고장 나거나 앱을 지우면, 시드를 적어두지 않은 코인은 아무도 되찾아줄 수 없어.'),
-    h('p', { class: 'lead' }, '나중에 설정에서 비밀번호를 넣고 시드를 볼 수 있어. 코인을 넣기 전에 꼭 적어둬.'), box.el,
-    h('div', { class: 'btn-row' }, h('button', { class: 'ghost', id: 'skip-back', onclick: back }, '뒤로'), go));
+  }) }, 'Skip and create wallet');
+  entry(h('h2', {}, 'Create without a backup?'),
+    h('div', { class: 'warn', id: 'skip-warning' }, 'If your phone or PC breaks or the app is removed, nobody can recover coins without a written seed.'),
+    h('p', { class: 'lead' }, 'You can see the seeds later in Settings with your password. Write them down before adding coins.'), box.el,
+    h('div', { class: 'btn-row' }, h('button', { class: 'ghost', id: 'skip-back', onclick: back }, 'Back'), go));
 }
 
 function createStep3(password: string, seeds: { tronMnemonic: string; moneroSeed: string }): void {
@@ -288,16 +288,16 @@ function createStep3(password: string, seeds: { tronMnemonic: string; moneroSeed
     { label: 'Monero', i: pick(25), words: seeds.moneroSeed.split(' ') },
   ].map((q) => ({ ...q, input: h('input', { autocomplete: 'off', spellcheck: 'false', class: 'quiz' }) }));
   const box = errorBox();
-  const done = h('button', { class: 'primary', id: 'next', onclick: () => busy(done, '지갑 만드는 중…', box, async () => {
-    for (const q of qs) if (q.input.value.trim().toLowerCase() !== q.words[q.i]) throw new Error(`${q.label} ${q.i + 1}번째 단어가 달라.`);
-    await withSplash('지갑 만드는 중…', async () => {
+  const done = h('button', { class: 'primary', id: 'next', onclick: () => busy(done, 'Creating the wallet…', box, async () => {
+    for (const q of qs) if (q.input.value.trim().toLowerCase() !== q.words[q.i]) throw new Error(`${q.label}: word ${q.i + 1} does not match.`);
+    await withSplash('Creating the wallet…', async () => {
       await wallet.finishCreate(password);
       await enterWallet();
     });
-  }) }, '지갑 만들기');
-  entry(h('h2', {}, '백업 확인'), h('p', { class: 'lead' }, '적어둔 종이를 보고 입력해.'), box.el,
-    ...qs.map((q) => h('label', { class: 'field' }, h('span', {}, `${q.label} 시드 ${q.i + 1}번째 단어`), q.input)),
-    h('div', { class: 'btn-row' }, h('button', { class: 'ghost', onclick: () => createStep2(password, seeds) }, '시드 다시 보기'), done),
+  }) }, 'Create wallet');
+  entry(h('h2', {}, 'Check your backup'), h('p', { class: 'lead' }, 'Enter these from your written copy.'), box.el,
+    ...qs.map((q) => h('label', { class: 'field' }, h('span', {}, `${q.label} seed, word ${q.i + 1}`), q.input)),
+    h('div', { class: 'btn-row' }, h('button', { class: 'ghost', onclick: () => createStep2(password, seeds) }, 'Show seeds again'), done),
     skipBackupButton(password, seeds, () => createStep3(password, seeds)));
 }
 
@@ -305,57 +305,57 @@ function restoreForm(): void {
   const f = passwordFields();
   const tron = h('textarea', { spellcheck: 'false', autocomplete: 'off', id: 'tron-seed' });
   const xmr = h('textarea', { spellcheck: 'false', autocomplete: 'off', id: 'xmr-seed' });
-  const from = h('input', { placeholder: '2025-06-01 또는 3400000', autocomplete: 'off', id: 'from' });
+  const from = h('input', { placeholder: '2025-06-01 or 3400000', autocomplete: 'off', id: 'from' });
   const box = errorBox();
-  const go = h('button', { class: 'primary', id: 'next', onclick: () => busy(go, '복구 중…', box, async () => {
+  const go = h('button', { class: 'primary', id: 'next', onclick: () => busy(go, 'Restoring…', box, async () => {
     const pw = f.check();
-    await withSplash('지갑 복구하는 중…', async () => {
+    await withSplash('Restoring the wallet…', async () => {
       await wallet.restore(pw, tron.value, xmr.value, from.value);
       await enterWallet();
     });
-  }) }, '복구하기');
-  entry(h('h2', {}, '시드로 복구'), h('br'), box.el,
-    h('label', { class: 'field' }, h('span', {}, 'BTC·ETH·Tron 시드 (BIP39)'), tron),
-    h('label', { class: 'field' }, h('span', {}, 'Monero 시드 (25단어)'), xmr),
-    h('label', { class: 'field' }, h('span', {}, 'Monero 첫 사용 시점'), from,
-      h('div', { class: 'hint' }, '날짜 또는 블록 높이. 비워두면 처음부터 스캔해서 몇 시간 걸릴 수 있어. 날짜를 넣으면 Zcash도 그때부터 스캔해.')),
+  }) }, 'Restore');
+  entry(h('h2', {}, 'Restore from seeds'), h('br'), box.el,
+    h('label', { class: 'field' }, h('span', {}, 'BTC·ETH·Tron seed (BIP39)'), tron),
+    h('label', { class: 'field' }, h('span', {}, 'Monero seed (25 words)'), xmr),
+    h('label', { class: 'field' }, h('span', {}, 'When Monero was first used'), from,
+      h('div', { class: 'hint' }, 'A date or block height. Empty scans from the start, which can take hours. A date also sets where Zcash starts scanning.')),
     ...f.nodes,
-    h('div', { class: 'btn-row' }, h('button', { class: 'ghost', onclick: welcome }, '뒤로'), go));
+    h('div', { class: 'btn-row' }, h('button', { class: 'ghost', onclick: welcome }, 'Back'), go));
 }
 
 function unlockScreen(): void {
   const pw = h('input', { type: 'password', id: 'pw', autocomplete: 'current-password' });
   const box = errorBox();
-  const go = h('button', { class: 'primary', id: 'unlock', type: 'submit' }, '열기');
+  const go = h('button', { class: 'primary', id: 'unlock', type: 'submit' }, 'Open');
   const useBio = async () => {
     box.clear();
     try {
       const password: string = await wallet.biometric.unlock();
-      await withSplash('지갑 여는 중…', async () => { await wallet.unlock(password); await enterWallet(); });
+      await withSplash('Opening the wallet…', async () => { await wallet.unlock(password); await enterWallet(); });
     } catch (e) {
       if (errMsg(e) !== 'cancelled') box.show(e);
     }
   };
-  const bio = h('button', { type: 'button', class: 'bio-btn', id: 'bio-unlock', hidden: true, onclick: useBio }, '지문으로 열기');
+  const bio = h('button', { type: 'button', class: 'bio-btn', id: 'bio-unlock', hidden: true, onclick: useBio }, 'Open with fingerprint');
   void wallet.biometric?.enabled().then((on: boolean) => {
     if (!on) return;
     bio.hidden = false;
     void useBio();
   });
-  const lead = h('p', { class: 'lead', id: 'unlock-name' }, '비밀번호를 입력해.');
-  const others = h('button', { type: 'button', class: 'ghost', id: 'unlock-wallets', onclick: () => void renderWallets(unlockScreen) }, '다른 지갑');
-  void wallet.walletsList().then((r: any) => { lead.textContent = `${r.list.find((w: any) => w.id === r.active)?.name ?? '내 지갑'}. 비밀번호를 입력해.`; });
-  entry(entryLogo(), h('h2', {}, '지갑 열기'), lead,
+  const lead = h('p', { class: 'lead', id: 'unlock-name' }, 'Enter your password.');
+  const others = h('button', { type: 'button', class: 'ghost', id: 'unlock-wallets', onclick: () => void renderWallets(unlockScreen) }, 'Other wallets');
+  void wallet.walletsList().then((r: any) => { lead.textContent = `${r.list.find((w: any) => w.id === r.active)?.name ?? 'My wallet'}. Enter your password.`; });
+  entry(entryLogo(), h('h2', {}, 'Open wallet'), lead,
     h('form', { onsubmit: (e: Event) => {
       e.preventDefault();
-      busy(go, '여는 중…', box, async () => {
-        await withSplash('지갑 여는 중…', async () => {
+      busy(go, 'Opening…', box, async () => {
+        await withSplash('Opening the wallet…', async () => {
           await wallet.unlock(pw.value);
           pw.value = '';
           await enterWallet();
         });
       });
-    } }, box.el, h('label', { class: 'field' }, h('span', {}, '비밀번호'), pw), go, bio), others);
+    } }, box.el, h('label', { class: 'field' }, h('span', {}, 'Password'), pw), go, bio), others);
   pw.focus();
 }
 
@@ -381,12 +381,12 @@ async function refresh(): Promise<void> {
   try {
     const [next, nextPrices] = await Promise.all([wallet.overview(), wallet.prices().catch(() => null)]);
     overview = next;
-    refreshNote = `${new Date().toLocaleTimeString('ko-KR')} 응답, ZEC ${next.balances.ZEC ? (next.balances.ZEC.ok ? '잔액 있음' : next.balances.ZEC.pending ? '대기' : '실패') : '없음'}`;
+    refreshNote = `${new Date().toLocaleTimeString('en-US')} answer, ZEC ${next.balances.ZEC ? (next.balances.ZEC.ok ? 'has balance' : next.balances.ZEC.pending ? 'waiting' : 'failed') : 'none'}`;
     addresses = next.addresses;
     torState = next.tor;
     prices = nextPrices;
     onData?.();
-  } catch (e) { refreshNote = `오류: ${(e as Error).message}`; /* usually just locked meanwhile */ }
+  } catch (e) { refreshNote = `Error: ${(e as Error).message}`; /* usually just locked meanwhile */ }
 }
 
 
@@ -394,7 +394,7 @@ function balanceText(a: Asset): string {
   const b = overview?.balances?.[a];
   if (hideBalance) return '••••';
   if (!b || b.pending) return '…';
-  return b.ok ? b.total : '조회 실패';
+  return b.ok ? b.total : 'Lookup failed';
 }
 
 function usdFormat(n: number): string {
@@ -412,24 +412,24 @@ function assetUsd(a: Asset): number | null {
 function totalUsd(): { value: string; note: string } {
   if (hideBalance) return { value: '••••', note: '' };
   if (!overview) return { value: '…', note: '' };
-  if (!prices) return { value: '$—', note: '시세를 불러오지 못했어. 아래 수량은 정상이야.' };
+  if (!prices) return { value: '$—', note: 'Could not load prices. The amounts below are correct.' };
   const failed = ASSETS.filter((a) => !overview.balances[a].ok && !overview.balances[a].pending);
   const pending = ASSETS.filter((a) => overview.balances[a].pending);
-  if (pending.length && !failed.length) return { value: '$—', note: overview.tor && overview.tor.phase !== 'ready' ? 'Tor 연결 중이야. 연결되면 잔액을 불러와.' : `${pending.map(coinName).join(', ')} 잔액을 불러오는 중이야.` };
-  if (failed.length) return { value: '$—', note: `${failed.map(coinName).join(', ')} 조회에 실패했어. 자동으로 다시 시도해.` };
+  if (pending.length && !failed.length) return { value: '$—', note: overview.tor && overview.tor.phase !== 'ready' ? 'Tor is connecting. Balances load once it connects.' : `Loading ${pending.map(coinName).join(', ')} balances.` };
+  if (failed.length) return { value: '$—', note: `${failed.map(coinName).join(', ')} lookup failed. Retrying automatically.` };
   const sum = ASSETS.reduce((s, a) => s + (assetUsd(a) ?? 0), 0);
   const notes: string[] = [];
-  if (!overview.monero.synced) notes.push('XMR 동기화 전이라 실제보다 적을 수 있어.');
+  if (!overview.monero.synced) notes.push('XMR hasn\'t synced yet, so this may be lower than actual.');
   return { value: usdFormat(sum), note: notes.join(' ') };
 }
 
 function moneroStatus(): string {
   const m = overview?.monero;
   if (!m) return '';
-  if (!m.connected) return m.error ? '노드 연결 안 됨' : '노드 연결 중…';
+  if (!m.connected) return m.error ? 'Node not connected' : 'Connecting to a node…';
   if (m.synced) return '';
   const pct = m.percent > 0 ? ` ${Math.min(Math.floor(m.percent * 1000) / 10, 99.9)}%` : '';
-  return `거래 동기화중...${pct}`;
+  return `Syncing transactions...${pct}`;
 }
 
 /** True while something is actively happening, not when a connection has failed. */
@@ -447,12 +447,12 @@ function syncLabel(): HTMLElement {
 function renderHome(): void {
   const totalValue = h('div', { class: 'value', id: 'total' });
   const note = h('div', { class: 'total-note', id: 'total-note' });
-  const eye = h('button', { class: 'icon-btn', id: 'eye', 'aria-label': '잔액 가리기', onclick: () => {
+  const eye = h('button', { class: 'icon-btn', id: 'eye', 'aria-label': 'Hide balances', onclick: () => {
     hideBalance = !hideBalance;
     try { localStorage.setItem('hideBalance', hideBalance ? '1' : '0'); } catch { /* no storage */ }
     paint();
   } });
-  const spin = h('button', { class: 'icon-btn', id: 'refresh', 'aria-label': '새로고침', onclick: () => void refresh() }, icon('refresh'));
+  const spin = h('button', { class: 'icon-btn', id: 'refresh', 'aria-label': 'Refresh', onclick: () => void refresh() }, icon('refresh'));
   const torChip = h('span', { class: 'chip tor', id: 'tor-chip', hidden: true });
   const body = h('div', { class: 'scroll' });
   const tab = (id: typeof homeTab, label: string) => h('button', {
@@ -480,10 +480,10 @@ function renderHome(): void {
     h('div', { class: 'total' }, totalValue, spin, eye),
     note,
     h('div', { class: 'actions' },
-      h('button', { class: 'action', id: 'go-send', onclick: () => renderSend() }, h('span', { class: 'box' }, icon('send')), '보내기'),
-      h('button', { class: 'action', id: 'go-receive', onclick: () => void renderReceive() }, h('span', { class: 'box' }, icon('receive')), '받기'),
-      h('button', { class: 'action swap-action', id: 'go-swap', onclick: () => void renderSwap() }, h('span', { class: 'box' }, icon('swap')), '스왑')),
-    h('div', { class: 'tabs', role: 'tablist' }, tab('assets', '자산'), tab('history', '내역')),
+      h('button', { class: 'action', id: 'go-send', onclick: () => renderSend() }, h('span', { class: 'box' }, icon('send')), 'Send'),
+      h('button', { class: 'action', id: 'go-receive', onclick: () => void renderReceive() }, h('span', { class: 'box' }, icon('receive')), 'Receive'),
+      h('button', { class: 'action swap-action', id: 'go-swap', onclick: () => void renderSwap() }, h('span', { class: 'box' }, icon('swap')), 'Swap')),
+    h('div', { class: 'tabs', role: 'tablist' }, tab('assets', 'Assets'), tab('history', 'History')),
     body,
     bottomNav('home'));
   onData = paint;
@@ -505,40 +505,40 @@ function assetRow(a: Asset): HTMLElement {
     coin(a),
     h('div', {}, h('div', { class: 'name' }, COIN[a].label), h('div', { class: 'sub' }, sub)),
     h('div', { class: 'right' }, h('div', { class: 'amt' }, balanceText(a)),
-      h('div', { class: 'sub' }, hideBalance || usd === null ? '' : usdFormat(usd), overview?.balances?.[a]?.stale && !hideBalance ? ' · 최근 값' : '')));
+      h('div', { class: 'sub' }, hideBalance || usd === null ? '' : usdFormat(usd), overview?.balances?.[a]?.stale && !hideBalance ? ' · recent value' : '')));
 }
 
 function bottomNav(on: 'home' | 'settings'): HTMLElement {
   return h('nav', { class: 'nav' },
-    h('button', { class: on === 'home' ? 'on' : undefined, id: 'nav-home', onclick: () => { homeTab = 'assets'; renderHome(); } }, icon('home'), '홈'),
-    h('button', { class: on === 'settings' ? 'on' : undefined, id: 'open-settings', onclick: () => void renderSettings() }, icon('gear'), '설정'),
-    h('button', { id: 'lock', onclick: () => wallet.lock() }, icon('lock'), '잠그기'));
+    h('button', { class: on === 'home' ? 'on' : undefined, id: 'nav-home', onclick: () => { homeTab = 'assets'; renderHome(); } }, icon('home'), 'Home'),
+    h('button', { class: on === 'settings' ? 'on' : undefined, id: 'open-settings', onclick: () => void renderSettings() }, icon('gear'), 'Settings'),
+    h('button', { id: 'lock', onclick: () => wallet.lock() }, icon('lock'), 'Lock'));
 }
 
-const when = (t: number) => new Date(t).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+const when = (t: number) => new Date(t).toLocaleString('en-US', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
 function historyRow(i: any): HTMLElement {
-  const label = i.direction === 'in' ? '받음' : i.direction === 'out' ? '보냄' : '내 주소로';
-  const status = i.status === 'failed' ? ' · 실패' : i.status === 'pending' ? ' · 대기 중'
-    : i.asset === 'XMR' && i.confirmations < 10 ? ` · ${i.confirmations}/10 컨펌` : '';
+  const label = i.direction === 'in' ? 'Received' : i.direction === 'out' ? 'Sent' : 'To yourself';
+  const status = i.status === 'failed' ? ' · failed' : i.status === 'pending' ? ' · pending'
+    : i.asset === 'XMR' && i.confirmations < 10 ? ` · ${i.confirmations}/10 confirmations` : '';
   const sign = i.direction === 'in' ? '+' : i.direction === 'out' ? '-' : '';
-  return h('button', { class: `hist-row${i.dust ? ' dust' : ''}`, title: '탐색기에서 열기', onclick: () => void openExplorer(i.asset, i.hash) },
+  return h('button', { class: `hist-row${i.dust ? ' dust' : ''}`, title: 'Open in explorer', onclick: () => void openExplorer(i.asset, i.hash) },
     coin(i.asset),
     h('div', {}, h('div', {}, label + status), h('div', { class: 'small muted' }, when(i.timestamp))),
     h('div', { class: `amt${i.direction === 'in' ? ' in' : ''}` }, `${sign}${i.amount} ${coinName(i.asset)}`));
 }
 
 async function renderAllHistory(body: HTMLElement): Promise<void> {
-  setKids(body, h('p', { class: 'empty' }, '불러오는 중…'));
+  setKids(body, h('p', { class: 'empty' }, 'Loading…'));
   const results = await Promise.allSettled(ASSETS.map((a) => wallet.history(a)));
   if (!body.isConnected) return;
   const failed = ASSETS.filter((_, i) => results[i].status === 'rejected');
   const items = results.flatMap((r) => (r.status === 'fulfilled' ? r.value as any[] : [])).sort((a, b) => b.timestamp - a.timestamp).slice(0, 60);
   setKids(body,
     h('div', { class: 'list', id: 'hist' },
-      failed.length > 0 && h('div', { class: 'warn' }, failed.length === 1 && failed[0] === 'XMR' ? 'XMR 내역은 노드에 연결되면 볼 수 있어.' : `${failed.join(', ')} 내역을 불러오지 못했어.`),
-      items.length > 0 && h('p', { class: 'small muted' }, '내역의 주소는 복사하지 마. 비슷한 주소로 소액을 보내 복사를 노리는 사기가 흔해. 흐린 항목이 소액 입금이야.'),
-      items.length === 0 && failed.length === 0 && h('p', { class: 'empty', id: 'hist-empty' }, '아직 거래가 없어. 받기에서 주소를 확인해.'),
+      failed.length > 0 && h('div', { class: 'warn' }, failed.length === 1 && failed[0] === 'XMR' ? 'XMR history is available once connected to a node.' : `Could not load ${failed.join(', ')} history.`),
+      items.length > 0 && h('p', { class: 'small muted' }, 'Don\'t copy addresses from history. Scams that send tiny amounts from look-alike addresses are common. Dimmed entries are tiny deposits.'),
+      items.length === 0 && failed.length === 0 && h('p', { class: 'empty', id: 'hist-empty' }, 'No transactions yet. See Receive for your address.'),
       ...items.map(historyRow)));
 }
 
@@ -549,28 +549,28 @@ async function renderAsset(): Promise<void> {
   const balance = h('div', { class: 'detail-balance', id: 'detail-balance' });
   const usd = h('div', { class: 'detail-usd' });
   const notes = h('div', {});
-  const hist = h('div', {}, h('p', { class: 'empty' }, '불러오는 중…'));
+  const hist = h('div', {}, h('p', { class: 'empty' }, 'Loading…'));
   const paint = () => {
     const b = overview?.balances?.[a];
     balance.textContent = `${balanceText(a)} ${hideBalance ? '' : a}`;
     const v = assetUsd(a);
     usd.textContent = !hideBalance && v !== null ? usdFormat(v) : '';
     setKids(notes,
-      b && !b.ok && !b.pending && h('div', { class: 'warn' }, `조회에 실패했어. 자동으로 다시 시도해. (${b.error})`),
-      b?.stale && h('div', { class: 'warn', id: 'stale-note' }, '서버가 잠시 응답하지 않아서 최근 값을 보여줘. 코인은 그대로고, 자동으로 다시 확인해.'),
-      a === 'BTC' && b?.ok && b.total !== b.spendable && h('div', { class: 'warn' }, `바로 쓸 수 있는 금액은 ${b.spendable} BTC야. 나머지는 1컨펌 뒤에 풀려.`),
-      a === 'ZEC' && overview?.zec?.syncing && !overview.zec.firstScanDone && h('div', { class: 'sync-banner', id: 'zec-scan' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), 'Zcash 블록을 스캔하는 중이야. 중간에 앱을 닫으면 처음부터 다시 스캔해.'),
-      a === 'ARRR' && overview?.arrr?.scanning && h('div', { class: 'sync-banner', id: 'arrr-scan' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), `Pirate Chain 블록을 스캔하는 중이야. ${overview.arrr.percent}%`),
-      a === 'ARRR' && b?.ok && b.total !== b.spendable && h('div', { class: 'warn' }, `바로 보낼 수 있는 금액은 ${b.spendable} ARRR야. 나머지는 컨펌 대기 중이야.`),
-      a === 'ZANO' && b?.ok && b.total !== b.spendable && h('div', { class: 'warn' }, `바로 보낼 수 있는 금액은 ${b.spendable} ZANO야. 받은 코인은 10컨펌 뒤에 쓸 수 있어.`),
-      a === 'ZEC' && b?.ok && b.total !== b.spendable && h('div', { class: 'warn' }, `바로 보낼 수 있는 금액은 ${b.spendable} ZEC야. 나머지는 컨펌 대기 중이거나 쉴드 전이야.`),
+      b && !b.ok && !b.pending && h('div', { class: 'warn' }, `Lookup failed. Retrying automatically. (${b.error})`),
+      b?.stale && h('div', { class: 'warn', id: 'stale-note' }, 'The server isn\'t answering for now, so this is a recent value. Your coins are safe, and it will check again automatically.'),
+      a === 'BTC' && b?.ok && b.total !== b.spendable && h('div', { class: 'warn' }, `${b.spendable} BTC can be spent now. The rest unlocks after 1 confirmation.`),
+      a === 'ZEC' && overview?.zec?.syncing && !overview.zec.firstScanDone && h('div', { class: 'sync-banner', id: 'zec-scan' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), 'Scanning Zcash blocks. Closing the app before this finishes means scanning again from the start.'),
+      a === 'ARRR' && overview?.arrr?.scanning && h('div', { class: 'sync-banner', id: 'arrr-scan' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), `Scanning Pirate Chain blocks. ${overview.arrr.percent}%`),
+      a === 'ARRR' && b?.ok && b.total !== b.spendable && h('div', { class: 'warn' }, `${b.spendable} ARRR can be sent now. The rest is waiting for confirmations.`),
+      a === 'ZANO' && b?.ok && b.total !== b.spendable && h('div', { class: 'warn' }, `${b.spendable} ZANO can be sent now. Received coins can be used after 10 confirmations.`),
+      a === 'ZEC' && b?.ok && b.total !== b.spendable && h('div', { class: 'warn' }, `${b.spendable} ZEC can be sent now. The rest is waiting for confirmations or for shielding.`),
       a === 'ZEC' && overview?.zec?.canShield && h('div', { class: 'panel', id: 'zec-shield-panel' },
-        h('p', { class: 'small' }, `투명 잔액 ${overview.zec.transparent} ZEC가 있어. 투명 잔액은 체인에 공개되고 바로 보낼 수 없어. 스왑으로 받은 ZEC도 여기로 들어와.`), h('br'),
-        h('button', { class: 'primary', id: 'zec-shield', onclick: () => renderZecShield() }, '쉴드하기')),
-      a === 'XMR' && b?.ok && b.total !== b.spendable && h('div', { class: 'warn' }, `바로 쓸 수 있는 금액은 ${b.spendable} XMR이야. 나머지는 10컨펌 뒤에 풀려.`),
-      a === 'XMR' && overview && !overview.monero.connected && h('div', { class: 'warn', id: 'node-note' }, `노드에 연결되지 않아서 잔액이 최신이 아닐 수 있어. 자동으로 다시 시도해.${overview.monero.error ? ' ' + overview.monero.error : ''}`),
+        h('p', { class: 'small' }, `You have ${overview.zec.transparent} ZEC in transparent balance. It's public on the chain and can't be sent directly. ZEC received from swaps arrives here too.`), h('br'),
+        h('button', { class: 'primary', id: 'zec-shield', onclick: () => renderZecShield() }, 'Shield')),
+      a === 'XMR' && b?.ok && b.total !== b.spendable && h('div', { class: 'warn' }, `${b.spendable} XMR can be spent now. The rest unlocks after 10 confirmations.`),
+      a === 'XMR' && overview && !overview.monero.connected && h('div', { class: 'warn', id: 'node-note' }, `Not connected to a node, so the balance may be out of date. Retrying automatically.${overview.monero.error ? ' ' + overview.monero.error : ''}`),
       a === 'XMR' && moneroBusy() && h('div', { class: 'sync-banner' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), moneroStatus()),
-      a === 'XMR' && overview?.monero.connected && !overview.monero.synced && h('p', { class: 'small muted' }, '끝나기 전엔 잔액이 실제보다 적게 보일 수 있고 보낼 수 없어.'));
+      a === 'XMR' && overview?.monero.connected && !overview.monero.synced && h('p', { class: 'small muted' }, 'Until this finishes, the balance may look low and sending isn\'t available.'));
   };
   show('send',
     subBar(COIN[a].label, renderHome),
@@ -578,19 +578,19 @@ async function renderAsset(): Promise<void> {
       h('div', { class: 'picker' }, h('div', { class: 'picker-btn' }, coin(a))),
       balance, usd, notes,
       h('div', { class: 'actions' },
-        h('button', { class: 'action', id: 'detail-send', onclick: () => renderSend() }, h('span', { class: 'box' }, icon('send')), '보내기'),
-        h('button', { class: 'action', id: 'detail-receive', onclick: () => void renderReceive() }, h('span', { class: 'box' }, icon('receive')), '받기')),
-      a === 'ZEC' && h('button', { class: 'ghost', id: 'zec-rescan', onclick: () => renderZecRescan() }, '과거 내역 다시 스캔'),
-      a === 'ARRR' && h('button', { class: 'ghost', id: 'arrr-rescan', onclick: () => renderZecRescan('ARRR') }, '과거 내역 다시 스캔'),
+        h('button', { class: 'action', id: 'detail-send', onclick: () => renderSend() }, h('span', { class: 'box' }, icon('send')), 'Send'),
+        h('button', { class: 'action', id: 'detail-receive', onclick: () => void renderReceive() }, h('span', { class: 'box' }, icon('receive')), 'Receive')),
+      a === 'ZEC' && h('button', { class: 'ghost', id: 'zec-rescan', onclick: () => renderZecRescan() }, 'Rescan past history'),
+      a === 'ARRR' && h('button', { class: 'ghost', id: 'arrr-rescan', onclick: () => renderZecRescan('ARRR') }, 'Rescan past history'),
       hist));
   onData = paint;
   paint();
   try {
     const items: any[] = await wallet.history(a);
     if (!hist.isConnected) return;
-    setKids(hist, items.length ? h('div', { id: 'hist' }, ...items.map(historyRow)) : h('p', { class: 'empty', id: 'hist-empty' }, `아직 ${coinName(a)} 거래가 없어.`));
+    setKids(hist, items.length ? h('div', { id: 'hist' }, ...items.map(historyRow)) : h('p', { class: 'empty', id: 'hist-empty' }, `No ${coinName(a)} transactions yet.`));
   } catch (e) {
-    if (hist.isConnected) setKids(hist, h('p', { class: 'empty' }, `내역을 불러오지 못했어. ${errMsg(e)}`));
+    if (hist.isConnected) setKids(hist, h('p', { class: 'empty' }, `Could not load history. ${errMsg(e)}`));
   }
 }
 
@@ -599,23 +599,23 @@ async function renderAsset(): Promise<void> {
 function renderZecShield(): void {
   const pw = h('input', { type: 'password', id: 'confirm-pw', autocomplete: 'current-password' });
   const box = errorBox();
-  const go = h('button', { class: 'primary', id: 'confirm-shield', type: 'submit' }, '쉴드하기');
+  const go = h('button', { class: 'primary', id: 'confirm-shield', type: 'submit' }, 'Shield');
   const form = h('form', { onsubmit: (e: Event) => {
     e.preventDefault();
-    busy(go, '증명 만드는 중… 몇 분 걸릴 수 있어', box, async () => {
+    busy(go, 'Making the proof… This can take a few minutes', box, async () => {
       await wallet.zecShield(pw.value);
       pw.value = '';
-      toast('쉴드 거래를 보냈어. 컨펌되면 쉴드 잔액에 들어와.');
+      toast('Shielding transaction sent. It joins your shielded balance once confirmed.');
       await refresh();
       void renderAsset();
     });
   } },
   box.el,
-  h('p', { class: 'small muted' }, `투명 잔액 ${overview?.zec?.transparent ?? ''} ZEC 전부를 내 쉴드 주소로 옮겨. 네트워크 수수료가 ZEC로 조금 나가. 입금 직후엔 컨펌을 기다려야 할 수 있어.`),
+  h('p', { class: 'small muted' }, `Moves all ${overview?.zec?.transparent ?? ''} ZEC of transparent balance to your shielded address. A small network fee is paid in ZEC. Right after a deposit, you may need to wait for confirmations.`),
   h('br'),
-  h('label', { class: 'field' }, h('span', {}, '비밀번호'), pw),
+  h('label', { class: 'field' }, h('span', {}, 'Password'), pw),
   go);
-  show('send', subBar('쉴드하기', () => void renderAsset()), h('div', { class: 'scroll' }, form));
+  show('send', subBar('Shield', () => void renderAsset()), h('div', { class: 'scroll' }, form));
   pw.focus();
 }
 
@@ -623,10 +623,10 @@ function renderZecRescan(coin: 'ZEC' | 'ARRR' = 'ZEC'): void {
   const date = h('input', { id: 'zec-date', placeholder: '2025-06-01', autocomplete: 'off' });
   const pw = h('input', { type: 'password', id: 'confirm-pw', autocomplete: 'current-password' });
   const box = errorBox();
-  const go = h('button', { class: 'primary', id: 'confirm-rescan', type: 'submit' }, '다시 스캔');
+  const go = h('button', { class: 'primary', id: 'confirm-rescan', type: 'submit' }, 'Rescan');
   const form = h('form', { onsubmit: (e: Event) => {
     e.preventDefault();
-    busy(go, '준비 중…', box, async () => {
+    busy(go, 'Getting ready…', box, async () => {
       await (coin === 'ARRR' ? wallet.arrrRescan(date.value, pw.value) : wallet.zecRescan(date.value, pw.value));
       pw.value = '';
       await refresh();
@@ -634,12 +634,12 @@ function renderZecRescan(coin: 'ZEC' | 'ARRR' = 'ZEC'): void {
     });
   } },
   box.el,
-  h('p', { class: 'small muted' }, `시드로 복구한 지갑은 지금부터의 거래만 보여. 예전에 받은 ${coin}가 있으면 그 시기부터 다시 스캔해. 날짜가 멀수록 오래 걸리고, 몇 달 전이면 몇 시간까지 걸릴 수 있어. 다른 코인은 그동안에도 쓸 수 있어.`),
+  h('p', { class: 'small muted' }, `A wallet restored from a seed only shows transactions from now on. If you received ${coin} earlier, rescan from then. Earlier dates take longer, up to hours for months ago. Other coins work in the meantime.`),
   h('br'),
-  h('label', { class: 'field' }, h('span', {}, `처음 ${coin}를 받은 날짜`), date),
-  h('label', { class: 'field' }, h('span', {}, '비밀번호'), pw),
+  h('label', { class: 'field' }, h('span', {}, `Date you first received ${coin}`), date),
+  h('label', { class: 'field' }, h('span', {}, 'Password'), pw),
   go);
-  show('send', subBar('과거 내역 다시 스캔', () => void renderAsset()), h('div', { class: 'scroll' }, form));
+  show('send', subBar('Rescan past history', () => void renderAsset()), h('div', { class: 'scroll' }, form));
   date.focus();
 }
 
@@ -649,7 +649,7 @@ function picker(onPick: () => void): HTMLElement {
   const wrap = h('div', { class: 'picker' });
   const menu = h('div', { class: 'menu', hidden: true, id: 'coin-menu' },
     ...ASSETS.map((a) => h('button', { type: 'button', id: `pick-${a}`, onclick: () => { selected = a; onPick(); } }, coin(a), COIN[a].label)));
-  const btn = h('button', { type: 'button', class: 'picker-btn', id: 'coin-picker', 'aria-haspopup': 'true', 'aria-label': `코인 선택, 현재 ${selected}`, onclick: () => { menu.hidden = !menu.hidden; } },
+  const btn = h('button', { type: 'button', class: 'picker-btn', id: 'coin-picker', 'aria-haspopup': 'true', 'aria-label': `Choose a coin, currently ${selected}`, onclick: () => { menu.hidden = !menu.hidden; } },
     coin(selected), h('span', { class: 'picker-label' }, COIN[selected].label, icon('down')));
   wrap.append(btn, menu);
   return wrap;
@@ -659,11 +659,11 @@ function picker(onPick: () => void): HTMLElement {
 
 function renderSend(keep?: { to: string; amount: string }): void {
   const asset = selected;
-  const to = h('input', { id: 'to', spellcheck: 'false', autocomplete: 'off', class: 'mono', placeholder: '주소 입력, 붙여넣기, QR 스캔', value: keep?.to ?? '' });
+  const to = h('input', { id: 'to', spellcheck: 'false', autocomplete: 'off', class: 'mono', placeholder: 'Enter, paste or scan an address', value: keep?.to ?? '' });
   const amount = h('input', { id: 'amount', class: 'amount-input', inputmode: 'decimal', autocomplete: 'off', placeholder: '0.00', value: keep?.amount ?? '' });
   const usd = h('div', { class: 'usd', id: 'usd-preview' });
   const box = errorBox();
-  const next = h('button', { class: 'primary', id: 'review', type: 'submit' }, '다음');
+  const next = h('button', { class: 'primary', id: 'review', type: 'submit' }, 'Next');
   const update = () => {
     next.disabled = !to.value.trim() || !amount.value.trim();
     const p = prices?.[asset]?.usd;
@@ -675,28 +675,28 @@ function renderSend(keep?: { to: string; amount: string }): void {
   amount.addEventListener('input', update);
   const form = h('form', { onsubmit: (e: Event) => {
     e.preventDefault();
-    busy(next, asset === 'XMR' ? '거래 만드는 중…' : '수수료 계산 중…', box, async () => {
+    busy(next, asset === 'XMR' ? 'Creating the transaction…' : 'Calculating the fee…', box, async () => {
       const preview = await wallet.prepareSend(asset, to.value, amount.value);
       renderReview(preview, { to: to.value, amount: amount.value });
     });
   } },
   box.el,
-  h('div', { class: 'panel' }, h('label', { class: 'label', for: 'to' }, '받는 주소'),
-    h('div', { class: 'input-wrap' }, to, h('button', { type: 'button', class: 'icon-btn', id: 'paste', 'aria-label': '붙여넣기', title: '붙여넣기', onclick: async () => { to.value = await wallet.paste(); update(); } }, icon('paste')),
-      h('button', { type: 'button', class: 'icon-btn', id: 'scan', 'aria-label': 'QR 코드 스캔', title: 'QR 코드 스캔', onclick: () => void openScanner(asset, (found) => {
+  h('div', { class: 'panel' }, h('label', { class: 'label', for: 'to' }, 'Receiving address'),
+    h('div', { class: 'input-wrap' }, to, h('button', { type: 'button', class: 'icon-btn', id: 'paste', 'aria-label': 'Paste', title: 'Paste', onclick: async () => { to.value = await wallet.paste(); update(); } }, icon('paste')),
+      h('button', { type: 'button', class: 'icon-btn', id: 'scan', 'aria-label': 'Scan QR code', title: 'Scan QR code', onclick: () => void openScanner(asset, (found) => {
         to.value = found.address;
         if (found.amount && !amount.value.trim()) amount.value = found.amount;
         update();
       }) }, icon('scan')))),
-  h('div', { class: 'panel' }, h('label', { class: 'label', for: 'amount' }, '금액'),
+  h('div', { class: 'panel' }, h('label', { class: 'label', for: 'amount' }, 'Amount'),
     h('div', { class: 'input-wrap' }, amount, h('span', { class: 'unit' }, asset),
-      h('button', { type: 'button', class: 'max', id: 'max', onclick: () => { amount.value = 'max'; update(); } }, '최대'))),
+      h('button', { type: 'button', class: 'max', id: 'max', onclick: () => { amount.value = 'max'; update(); } }, 'Max'))),
   usd,
-  feeLine(asset, 'send-fee', (f) => `예상 수수료: ${feeText(f)}. 금액과 받는 주소에 따라 달라지고, 다음 화면에서 정확한 값을 보여줘.`),
+  feeLine(asset, 'send-fee', (f) => `Estimated fee: ${feeText(f)}. It depends on the amount and address, and the next screen shows the exact value.`),
   COIN[asset].note && h('p', { class: 'small muted' }, COIN[asset].note),
   h('br'),
   next);
-  show('send', subBar('보내기', renderHome), h('div', { class: 'scroll' }, picker(() => renderSend({ to: to.value, amount: '' })), form));
+  show('send', subBar('Send', renderHome), h('div', { class: 'scroll' }, picker(() => renderSend({ to: to.value, amount: '' })), form));
   onData = update;
   update();
 }
@@ -733,8 +733,8 @@ let closeScanner: (() => void) | null = null;
 
 async function openScanner(asset: Asset, onFound: (found: { address: string; amount: string }) => void): Promise<void> {
   closeScanner?.();
-  const video = h('video', { playsinline: 'true', muted: 'true', autoplay: 'true', 'aria-label': '카메라 화면' });
-  const status = h('p', { class: 'scan-status', id: 'scan-status', role: 'status' }, '카메라를 켜는 중…');
+  const video = h('video', { playsinline: 'true', muted: 'true', autoplay: 'true', 'aria-label': 'Camera view' });
+  const status = h('p', { class: 'scan-status', id: 'scan-status', role: 'status' }, 'Turning on the camera…');
   let stream: MediaStream | null = null;
   let timer: number | undefined;
   let closed = false;
@@ -750,9 +750,9 @@ async function openScanner(asset: Asset, onFound: (found: { address: string; amo
   };
   const onHidden = () => { if (document.hidden) close(); };
   const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
-  const el = h('div', { class: 'scanner', id: 'scanner', role: 'dialog', 'aria-label': 'QR 코드 스캔' },
+  const el = h('div', { class: 'scanner', id: 'scanner', role: 'dialog', 'aria-label': 'Scan QR code' },
     video, h('div', { class: 'scan-frame', 'aria-hidden': 'true' }), status,
-    h('button', { class: 'icon-btn scan-close', id: 'scan-close', 'aria-label': '닫기', onclick: close }, icon('close')));
+    h('button', { class: 'icon-btn scan-close', id: 'scan-close', 'aria-label': 'Close', onclick: close }, icon('close')));
   document.querySelector('.screen')?.append(el);
   closeScanner = close;
   document.addEventListener('visibilitychange', onHidden);
@@ -767,12 +767,12 @@ async function openScanner(asset: Asset, onFound: (found: { address: string; amo
     await video.play();
   } catch (e) {
     const name = (e as Error)?.name;
-    status.textContent = name === 'NotFoundError' ? '카메라를 찾지 못했어. 주소를 붙여넣어줘.'
-      : name === 'NotAllowedError' || errMsg(e) === 'camera-denied' ? '카메라 권한이 없어. 기기 설정에서 허용하거나 주소를 붙여넣어줘.'
-        : '카메라를 켜지 못했어. 주소를 붙여넣어줘.';
+    status.textContent = name === 'NotFoundError' ? 'No camera found. Paste the address instead.'
+      : name === 'NotAllowedError' || errMsg(e) === 'camera-denied' ? 'No camera permission. Allow it in device settings or paste the address.'
+        : 'Could not turn on the camera. Paste the address instead.';
     return;
   }
-  status.textContent = 'QR 코드를 네모 안에 맞춰줘.';
+  status.textContent = 'Fit the QR code inside the square.';
 
   // Frames are only read here on the device. Nothing is saved or sent.
   const canvas = document.createElement('canvas');
@@ -790,7 +790,7 @@ async function openScanner(asset: Asset, onFound: (found: { address: string; amo
       if (code?.data) {
         const found = parseScanned(asset, code.data);
         if (found) { close(); onFound(found); return; }
-        status.textContent = `${asset === 'XMR' ? 'Monero' : asset === 'DCR' ? 'Decred' : asset === 'DASH' ? 'Dash' : asset === 'FIRO' ? 'Firo' : asset === 'ZEC' ? 'Zcash' : asset === 'ZANO' ? 'Zano' : asset === 'ARRR' ? 'Pirate Chain' : asset === 'BTC' ? 'Bitcoin' : asset === 'ETH' || asset === 'USDTE' ? 'Ethereum' : 'Tron'} 주소 QR이 아니야. 다른 QR을 비춰줘.`;
+        status.textContent = `This is not a ${asset === 'XMR' ? 'Monero' : asset === 'DCR' ? 'Decred' : asset === 'DASH' ? 'Dash' : asset === 'FIRO' ? 'Firo' : asset === 'ZEC' ? 'Zcash' : asset === 'ZANO' ? 'Zano' : asset === 'ARRR' ? 'Pirate Chain' : asset === 'BTC' ? 'Bitcoin' : asset === 'ETH' || asset === 'USDTE' ? 'Ethereum' : 'Tron'} address QR. Try another one.`;
       }
     }
     timer = window.setTimeout(tick, 180);
@@ -809,55 +809,55 @@ function addressCheck(address: string): HTMLElement {
 function renderReview(p: any, keep: { to: string; amount: string }): void {
   const pw = h('input', { type: 'password', id: 'confirm-pw', autocomplete: 'current-password' });
   const box = errorBox();
-  const send = h('button', { class: 'primary', id: 'confirm-send', type: 'submit' }, `${p.amount} ${coinName(p.asset)} 전송`);
+  const send = h('button', { class: 'primary', id: 'confirm-send', type: 'submit' }, `Send ${p.amount} ${coinName(p.asset)}`);
   const back = () => { void wallet.cancelSend(p.id); renderSend(keep); };
   const price = prices?.[p.asset]?.usd;
   const form = h('form', { onsubmit: (e: Event) => {
     e.preventDefault();
-    busy(send, '전송 중…', box, async () => {
+    busy(send, 'Sending…', box, async () => {
       const res = await wallet.confirmSend(p.id, pw.value);
       pw.value = '';
       renderSent(p, res.hashes);
       void refresh();
     });
   } },
-  h('p', { class: 'small muted' }, '블록체인 전송은 되돌릴 수 없어. 주소의 앞, 가운데, 끝을 원본과 대조해.'),
+  h('p', { class: 'small muted' }, 'Blockchain sends can\'t be undone. Compare the start, middle and end of the address with the original.'),
   h('br'),
   box.el,
   ...p.warnings.map((w: string) => h('div', { class: 'warn' }, w)),
   h('div', { class: 'panel' }, h('table', { class: 'review-table' }, h('tbody', {},
-    h('tr', {}, h('th', {}, '금액'), h('td', {},
+    h('tr', {}, h('th', {}, 'Amount'), h('td', {},
       h('div', { class: 'big-amount', id: 'review-amount' }, `${p.amount} ${coinName(p.asset)}`),
       typeof price === 'number' && h('div', { class: 'small muted' }, `≈ ${usdFormat(Number(p.amount) * price)}`))),
-    h('tr', {}, h('th', {}, '받는 주소'), h('td', {}, addressCheck(p.to))),
-    h('tr', {}, h('th', {}, p.feeIsEstimate ? '예상 수수료' : '수수료'), h('td', { id: 'review-fee' }, reviewFee(p.fee, p.feeAsset)))))),
-  h('label', { class: 'field' }, h('span', {}, '비밀번호'), pw),
+    h('tr', {}, h('th', {}, 'Receiving address'), h('td', {}, addressCheck(p.to))),
+    h('tr', {}, h('th', {}, p.feeIsEstimate ? 'Estimated fee' : 'Fee'), h('td', { id: 'review-fee' }, reviewFee(p.fee, p.feeAsset)))))),
+  h('label', { class: 'field' }, h('span', {}, 'Password'), pw),
   send);
-  show('send', subBar('내용 확인', back), h('div', { class: 'scroll' }, form));
+  show('send', subBar('Review', back), h('div', { class: 'scroll' }, form));
   pw.focus();
 }
 
 function renderSent(p: any, hashes: string[]): void {
-  show('receive', subBar('전송 완료', renderHome), h('div', { class: 'scroll' },
+  show('receive', subBar('Sent', renderHome), h('div', { class: 'scroll' },
     h('div', { class: 'picker' }, h('div', { class: 'picker-btn' }, coin(p.asset))),
-    h('h2', { id: 'sent' }, `${p.amount} ${coinName(p.asset)} 전송했어`),
-    h('p', { class: 'muted' }, '네트워크에 올라갔어. 블록에 포함되면 내역에 확정으로 표시돼.'),
+    h('h2', { id: 'sent' }, `Sent ${p.amount} ${coinName(p.asset)}`),
+    h('p', { class: 'muted' }, 'It\'s on the network. History shows it as confirmed once it\'s in a block.'),
     h('br'),
     ...hashes.map((hash) => h('div', { class: 'panel' },
-      h('span', { class: 'label' }, '거래 해시'),
+      h('span', { class: 'label' }, 'Transaction hash'),
       h('div', { class: 'mono', id: 'sent-hash' }, hash),
       h('br'),
       h('div', { class: 'row' },
-        h('button', { onclick: () => wallet.copy(hash) }, '복사'),
-        h('button', { id: 'open-explorer', onclick: () => void openExplorer(p.asset, hash) }, '탐색기에서 보기')))),
-    h('button', { class: 'primary', id: 'send-again', onclick: () => renderSend() }, '새로 보내기')));
+        h('button', { onclick: () => wallet.copy(hash) }, 'Copy'),
+        h('button', { id: 'open-explorer', onclick: () => void openExplorer(p.asset, hash) }, 'View in explorer')))),
+    h('button', { class: 'primary', id: 'send-again', onclick: () => renderSend() }, 'Send another')));
 }
 
 wallet.on('tron-tx', (t: { txid: string; status: string }) => {
   if (t.status === 'failed') {
     const el = document.getElementById('sent');
-    const msg = `거래가 실패했어 (${t.txid.slice(0, 10)}…). 수수료가 부족했을 수 있어. 탐색기에서 확인해.`;
-    if (el) { el.textContent = '전송 실패'; el.parentElement?.insertBefore(h('div', { class: 'error' }, msg), el.nextSibling); }
+    const msg = `The transaction failed (${t.txid.slice(0, 10)}…). The fee may have been too low. Check on an explorer.`;
+    if (el) { el.textContent = 'Send failed'; el.parentElement?.insertBefore(h('div', { class: 'error' }, msg), el.nextSibling); }
   }
   void refresh();
 });
@@ -867,32 +867,32 @@ wallet.on('tron-tx', (t: { txid: string; status: string }) => {
 async function renderReceive(current?: string): Promise<void> {
   const asset = selected;
   const qrFrame = h('div', { class: 'qr-frame' });
-  const addressEl = h('div', { class: 'mono', id: 'my-address' }, '불러오는 중…');
+  const addressEl = h('div', { class: 'mono', id: 'my-address' }, 'Loading…');
   const status = h('span', { class: 'status', role: 'status' });
   const box = errorBox();
   const extra = h('div', {});
   let address = current ?? addresses?.[asset] ?? '';
-  const copy = h('button', { class: 'icon-btn', id: 'copy', disabled: true, 'aria-label': '주소 복사', title: '주소 복사', onclick: async () => {
-    await wallet.copy(address); status.textContent = '복사했어. 60초 뒤 클립보드에서 지워져.';
+  const copy = h('button', { class: 'icon-btn', id: 'copy', disabled: true, 'aria-label': 'Copy address', title: 'Copy address', onclick: async () => {
+    await wallet.copy(address); status.textContent = 'Copied. It clears from the clipboard in 60 seconds.';
   } }, icon('copy'));
-  const note = asset === 'ARRR' ? 'Pirate Chain 메인넷 ARRR만 받아. 금액과 주소는 체인에 드러나지 않아. 받은 코인은 컨펌 뒤에 쓸 수 있어.'
-    : asset === 'ZANO' ? 'Zano 메인넷 ZANO만 받아. 금액과 주소는 체인에 드러나지 않아. 받은 코인은 10컨펌 뒤에 쓸 수 있어.'
-    : asset === 'ZEC' ? (address.startsWith('t') ? '투명 주소야. 받는 금액과 주소가 체인에 공개돼. 받은 뒤 쉴드해야 보낼 수 있어.' : '쉴드 주소야. 금액과 주소가 체인에 드러나지 않아. 받은 ZEC는 몇 컨펌 뒤에 쓸 수 있어. 업체가 이 주소를 못 받으면 투명 주소를 써.')
-    : asset === 'FIRO' ? 'Firo 메인넷 FIRO만 받을 수 있어. 투명 주소라 금액과 주소가 체인에 공개돼. 입금이 확인되면 다음 받을 때는 새 주소가 나와.'
-    : asset === 'DASH' ? 'Dash 메인넷 DASH만 받을 수 있어. 입금이 확인되면 다음 받을 때는 새 주소가 나와.'
-    : asset === 'DCR' ? 'Decred 메인넷 DCR만 받을 수 있어. 입금이 확인되면 다음 받을 때는 새 주소가 나와.'
-    : asset === 'BTC' ? 'Bitcoin 탭루트(bc1p) 주소야. 다른 체인으로 보내면 받을 수 없어. 입금이 확인되면 다음 받을 때는 새 주소가 나와.'
-    : asset === 'ETH' ? 'USDT(Eth)와 같은 주소야. Ethereum 메인넷 ETH만 받을 수 있어. L2나 다른 체인으로 보내면 받을 수 없어.'
-    : asset === 'USDTE' ? 'Ethereum 네트워크(ERC-20) USDT만 받을 수 있어. 보내려면 이 주소에 수수료용 ETH가 있어야 해.'
-    : asset === 'USDT' ? 'Tron 네트워크(TRC-20) USDT만 받을 수 있어. 다른 체인으로 보내면 받을 수 없어.'
-    : asset === 'TRX' ? 'USDT와 같은 주소야. USDT를 보내려면 이 주소에 수수료용 TRX가 있어야 해.'
-      : '받은 XMR은 10컨펌(약 20분) 뒤에 쓸 수 있어. 받을 곳마다 새 주소를 쓰면 프라이버시에 좋아.';
-  show('receive', subBar('받기', renderHome), h('div', { class: 'scroll' },
+  const note = asset === 'ARRR' ? 'Receives ARRR on Pirate Chain mainnet only. Amounts and addresses don\'t show on the chain. Received coins can be used after confirmations.'
+    : asset === 'ZANO' ? 'Receives ZANO on Zano mainnet only. Amounts and addresses don\'t show on the chain. Received coins can be used after 10 confirmations.'
+    : asset === 'ZEC' ? (address.startsWith('t') ? 'This is a transparent address. The amount and address are public on the chain. Coins must be shielded after arrival before they can be sent.' : 'This is a shielded address. The amount and address don\'t show on the chain. Received ZEC can be used after a few confirmations. If a provider can\'t pay this address, use the transparent one.')
+    : asset === 'FIRO' ? 'Receives FIRO on Firo mainnet only. This is a transparent address, so the amount and address are public on the chain. Once a deposit is seen, a new address appears next time.'
+    : asset === 'DASH' ? 'Receives DASH on Dash mainnet only. Once a deposit is seen, a new address appears next time.'
+    : asset === 'DCR' ? 'Receives DCR on Decred mainnet only. Once a deposit is seen, a new address appears next time.'
+    : asset === 'BTC' ? 'A Bitcoin Taproot (bc1p) address. Coins sent from other chains won\'t arrive. Once a deposit is seen, a new address appears next time.'
+    : asset === 'ETH' ? 'The same address as USDT (Eth). Receives ETH on Ethereum mainnet only. Coins sent over L2s or other chains won\'t arrive.'
+    : asset === 'USDTE' ? 'Receives USDT on the Ethereum network (ERC-20) only. Sending needs ETH at this address for the fee.'
+    : asset === 'USDT' ? 'Receives USDT on the Tron network (TRC-20) only. Coins sent from other chains won\'t arrive.'
+    : asset === 'TRX' ? 'The same address as USDT. Sending USDT needs TRX at this address for the fee.'
+      : 'Received XMR can be used after 10 confirmations (about 20 minutes). A new address for each sender is better for privacy.';
+  show('receive', subBar('Receive', renderHome), h('div', { class: 'scroll' },
     picker(() => void renderReceive()),
     qrFrame,
-    feeLine(asset, 'receive-fee', (f) => `받을 때 내가 내는 수수료는 없어. 보내는 쪽이 네트워크 수수료를 내. 나중에 이 코인을 보낼 땐 ${feeText(f)} 들어.`),
+    feeLine(asset, 'receive-fee', (f) => `You pay no fee to receive. The sender pays the network fee. Sending this coin later costs ${feeText(f)}.`),
     h('div', { class: 'panel' },
-      h('span', { class: 'label' }, `${coinName(asset)} 주소`),
+      h('span', { class: 'label' }, `${coinName(asset)} address`),
       h('div', { class: 'addr-box' }, addressEl, copy),
       status),
     h('p', { class: 'small muted' }, note), h('br'),
@@ -904,10 +904,10 @@ async function renderReceive(current?: string): Promise<void> {
       addresses = await wallet.addresses();
       address = addresses?.[asset] ?? '';
     }
-    if (!address) throw new Error(asset === 'ZEC' ? 'Zcash 지갑을 준비하는 중이야. 진행 상태는 설정의 Zcash 엔진에서 볼 수 있어.' : '주소를 불러오지 못했어. 다시 열어봐.');
+    if (!address) throw new Error(asset === 'ZEC' ? 'The Zcash wallet is getting ready. See the Zcash engine section in Settings for progress.' : 'Could not load the address. Open this again.');
     const qr = await wallet.qr(address);
     if (!addressEl.isConnected) return;
-    setKids(qrFrame, h('img', { src: qr, alt: `${coinName(asset)} 받는 주소 QR 코드` }));
+    setKids(qrFrame, h('img', { src: qr, alt: `QR code of your ${coinName(asset)} receiving address` }));
     addressEl.textContent = address;
     copy.disabled = false;
   } catch (e) {
@@ -918,32 +918,32 @@ async function renderReceive(current?: string): Promise<void> {
   if (asset === 'ZEC') {
     const list = await wallet.addresses();
     const shieldedOn = address === list.ZEC;
-    setKids(extra, h('button', { class: 'ghost', id: 'zec-address-kind', onclick: () => void renderReceive(shieldedOn ? list.ZEC_T : list.ZEC) }, shieldedOn ? '투명 주소 보기' : '쉴드 주소 보기'));
+    setKids(extra, h('button', { class: 'ghost', id: 'zec-address-kind', onclick: () => void renderReceive(shieldedOn ? list.ZEC_T : list.ZEC) }, shieldedOn ? 'Show transparent address' : 'Show shielded address'));
     return;
   }
   if (asset !== 'XMR') return;
-  const add = h('button', { class: 'ghost', id: 'new-sub', onclick: () => busy(add, '만드는 중… 동기화 중엔 오래 걸릴 수 있어', box, async () => { await renderReceive(await wallet.newSubaddress()); }) }, '새 주소 만들기');
+  const add = h('button', { class: 'ghost', id: 'new-sub', onclick: () => busy(add, 'Creating… This can take a while during sync', box, async () => { await renderReceive(await wallet.newSubaddress()); }) }, 'New address');
   setKids(extra, add);
   try {
     const list: { index: number; address: string }[] = await wallet.moneroAddresses();
     if (!extra.isConnected || list.length < 2) return;
     setKids(extra, add, h('div', { class: 'sub-list' }, ...list.map((s) => h('button', { class: `mono${s.address === address ? ' on' : ''}`, onclick: () => void renderReceive(s.address) },
-      `${s.index === 0 ? '기본' : '#' + s.index}  ${s.address.slice(0, 14)}…${s.address.slice(-10)}`))));
+      `${s.index === 0 ? 'Main' : '#' + s.index}  ${s.address.slice(0, 14)}…${s.address.slice(-10)}`))));
   } catch { /* the main address is already on screen */ }
 }
 
 // ---- swap ----
 
 const SWAP_STATUS: Record<string, string> = {
-  hold: '업체 심사로 보류 중', verifying: '업체 심사 중', new: '입금 대기 중', waiting: '입금 대기 중', confirming: '입금 확인 중', finished: '완료', failed: '실패', expired: '기한 만료', halted: '업체 심사로 보류 중', 'paid partially': '일부만 입금됨',
-  wait: '입금 대기 중', confirmation: '입금 확인 중', confirmed: '입금 확인됨', exchanging: '교환 중', sending: '보내는 중',
-  success: '완료', overdue: '기한 만료', refund: '환불 중', refunded: '환불 완료', unknown: '확인 중',
+  hold: 'Held for provider review', verifying: 'Under provider review', new: 'Waiting for deposit', waiting: 'Waiting for deposit', confirming: 'Checking the deposit', finished: 'Finished', failed: 'Failed', expired: 'Expired', halted: 'Held for provider review', 'paid partially': 'Partly deposited',
+  wait: 'Waiting for deposit', confirmation: 'Checking the deposit', confirmed: 'Deposit confirmed', exchanging: 'Exchanging', sending: 'Sending',
+  success: 'Finished', overdue: 'Expired', refund: 'Refunding', refunded: 'Refunded', unknown: 'Checking',
 };
 
 function coinSelect(id: string, current: Asset, onPick: (a: Asset) => void): HTMLElement {
   const menu = h('div', { class: 'menu', hidden: true, id: `${id}-menu` }, ...ASSETS.map((a) => h('button', { type: 'button', id: `${id}-${a}`, onclick: () => onPick(a) }, coin(a), COIN[a].label)));
   return h('div', { class: 'coin-select' },
-    h('button', { type: 'button', id, class: 'coin-select-btn', 'aria-label': `코인 선택, 현재 ${coinName(current)}`, onclick: () => { menu.hidden = !menu.hidden; } }, coin(current), h('span', {}, coinName(current)), icon('down')),
+    h('button', { type: 'button', id, class: 'coin-select-btn', 'aria-label': `Choose a coin, currently ${coinName(current)}`, onclick: () => { menu.hidden = !menu.hidden; } }, coin(current), h('span', {}, coinName(current)), icon('down')),
     menu);
 }
 
@@ -960,13 +960,13 @@ async function renderSwap(from: Asset = selected, to: Asset = selected === 'XMR'
   const box = errorBox();
   let chosen: any = null;
   const offers = h('div', { class: 'swap-offers', id: 'swap-offers' });
-  const next = h('button', { class: 'primary', id: 'swap-next', disabled: true, onclick: () => busy(next, '주문 만드는 중…', box, async () => {
+  const next = h('button', { class: 'primary', id: 'swap-next', disabled: true, onclick: () => busy(next, 'Creating the order…', box, async () => {
     const again = () => void renderSwap(from, to, amount.value, privacy);
     renderSwapReview(privacy
       ? await wallet.privacyPrepare(from, to, amount.value, chosen.providerId, dest.value)
       : await wallet.swapPrepare(from, to, amount.value, chosen.providerId, dest.value), again);
-  }) }, '다음');
-  const dest = h('input', { id: 'swap-dest', spellcheck: 'false', autocomplete: 'off', placeholder: privacy ? '최종으로 받을 주소' : '비우면 내 지갑으로 받아' });
+  }) }, 'Next');
+  const dest = h('input', { id: 'swap-dest', spellcheck: 'false', autocomplete: 'off', placeholder: privacy ? 'Final receiving address' : 'Empty means your own wallet' });
   const privacyToggle = h('input', { type: 'checkbox', id: 'swap-privacy', checked: privacy, onchange: () => {
     void renderSwap(from, to, amount.value, !privacy);
   } });
@@ -974,15 +974,15 @@ async function renderSwap(from: Asset = selected, to: Asset = selected === 'XMR'
     const good = list.filter((q) => !q.problem);
     chosen = good.find((q) => q.providerId === chosen?.providerId) ?? good[0] ?? null;
     next.disabled = !chosen;
-    receive.textContent = chosen ? `약 ${chosen.receive}` : '0';
+    receive.textContent = chosen ? `about ${chosen.receive}` : '0';
     receiveNet.textContent = chosen ? netLine(chosen, chosen.network) : '';
-    info.textContent = chosen ? `1 ${coinName(from)} ≈ ${chosen.rate} ${coinName(to)}. ${chosen.provider}에서 처리해.` : (list[0]?.problem ?? '');
+    info.textContent = chosen ? `1 ${coinName(from)} ≈ ${chosen.rate} ${coinName(to)}. Handled by ${chosen.provider}.` : (list[0]?.problem ?? '');
     const network = list[0]?.network;
-    setKids(offers, h('span', { class: 'label' }, list.length > 1 ? '업체 비교' : '예상 비용'), ...list.map((q) => h('button', {
+    setKids(offers, h('span', { class: 'label' }, list.length > 1 ? 'Compare providers' : 'Estimated cost'), ...list.map((q) => h('button', {
       type: 'button', class: `swap-offer${q === chosen ? ' on' : ''}`, id: `offer-${q.providerId}`, disabled: Boolean(q.problem),
       onclick: () => { chosen = q; paintOffers(list); },
-    }, h('span', {}, q.provider), h('span', { class: 'offer-right' }, q.problem ? '견적 없음' : `약 ${q.receive} ${coinName(to)}`, !q.problem && netReceive(q, q.network) && h('span', { class: 'offer-net' }, netLine(q, q.network)), !q.problem && h('span', { class: 'offer-cost' }, offerFee(q).total), !q.problem && h('span', { class: 'small muted offer-cost' }, offerFee(q).detail)))),
-    h('p', { class: 'small muted', id: 'swap-network-fee' }, `업체 수수료는 환율에 포함돼 있어서, 시세와 받는 금액의 차이로 계산한 추정치야. 네트워크 수수료는 입금할 때 지갑에서 따로 나가.${network && typeof network.usd !== 'number' ? ` 약 ${network.fee} ${network.asset}이야.` : ''}`));
+    }, h('span', {}, q.provider), h('span', { class: 'offer-right' }, q.problem ? 'No quote' : `about ${q.receive} ${coinName(to)}`, !q.problem && netReceive(q, q.network) && h('span', { class: 'offer-net' }, netLine(q, q.network)), !q.problem && h('span', { class: 'offer-cost' }, offerFee(q).total), !q.problem && h('span', { class: 'small muted offer-cost' }, offerFee(q).detail)))),
+    h('p', { class: 'small muted', id: 'swap-network-fee' }, `The provider fee is included in the rate, so this is an estimate from the gap between the market price and the amount received. The network fee is paid separately from your wallet at deposit.${network && typeof network.usd !== 'number' ? ` About ${network.fee} ${network.asset}.` : ''}`));
   };
   let ticket = 0;
   let timer: number | undefined;
@@ -997,7 +997,7 @@ async function renderSwap(from: Asset = selected, to: Asset = selected === 'XMR'
     info.textContent = '';
     setKids(offers);
     if (!/^\d+(\.\d+)?$/.test(value) || Number(value) <= 0) return;
-    info.textContent = '견적 받는 중…';
+    info.textContent = 'Getting quotes…';
     timer = window.setTimeout(async () => {
       try {
         if (privacy) {
@@ -1005,17 +1005,17 @@ async function renderSwap(from: Asset = selected, to: Asset = selected === 'XMR'
           if (mine !== ticket) return;
           chosen = q.first && q.second && !q.problem ? q.first : null;
           next.disabled = !chosen;
-          receive.textContent = chosen ? `약 ${q.second.receive}` : '0';
+          receive.textContent = chosen ? `about ${q.second.receive}` : '0';
           receiveNet.textContent = chosen ? netLine(q.second, q.first.network, q.second.network) : '';
           info.textContent = chosen
-            ? `1단계 ${q.first.provider}: 약 ${q.first.receive} XMR, ${offerFee(q.first).total}. 2단계 ${q.second.provider}: ${offerFee(q.second).total}.${q.sameProvider ? ' 업체가 하나뿐이라 그 업체는 양쪽을 다 볼 수 있어.' : ''}`
+            ? `Step 1, ${q.first.provider}: about ${q.first.receive} XMR, ${offerFee(q.first).total}. Step 2, ${q.second.provider}: ${offerFee(q.second).total}.${q.sameProvider ? ' Only one provider is available, so it can see both sides.' : ''}`
             : (q.problem ?? '');
           return;
         }
         const list = await wallet.swapQuote(from, to, value);
         if (mine === ticket) paintOffers(list);
       } catch (e) {
-        if (mine === ticket) info.textContent = `견적을 받지 못했어. ${errMsg(e)}`;
+        if (mine === ticket) info.textContent = `Could not get quotes. ${errMsg(e)}`;
       }
     }, 600);
   };
@@ -1023,22 +1023,22 @@ async function renderSwap(from: Asset = selected, to: Asset = selected === 'XMR'
   const change = (nf: Asset, nt: Asset) => { void renderSwap(nf, nt, amount.value, privacy); };
   const paintBalance = () => {
     const b = overview?.balances?.[from];
-    balance.textContent = b?.ok ? `잔액 ${b.spendable} ${coinName(from)}` : '';
+    balance.textContent = b?.ok ? `Balance ${b.spendable} ${coinName(from)}` : '';
   };
   const list = h('div', { id: 'swap-list' });
-  show('send', subBar('스왑', renderHome), h('div', { class: 'scroll' }, box.el,
-    h('div', { class: 'panel' }, h('div', { class: 'swap-head' }, h('span', { class: 'label' }, '보내기'), balance),
+  show('send', subBar('Swap', renderHome), h('div', { class: 'scroll' }, box.el,
+    h('div', { class: 'panel' }, h('div', { class: 'swap-head' }, h('span', { class: 'label' }, 'Send'), balance),
       h('div', { class: 'swap-row' }, coinSelect('swap-from', from, (a) => change(a, a === to && !privacy ? from : to)), amount)),
-    h('div', { class: 'swap-flip' }, h('button', { type: 'button', class: 'icon-btn', id: 'swap-flip', 'aria-label': '방향 바꾸기', onclick: () => change(to, from) }, icon('swap'))),
-    h('div', { class: 'panel' }, h('span', { class: 'label' }, '받기'),
+    h('div', { class: 'swap-flip' }, h('button', { type: 'button', class: 'icon-btn', id: 'swap-flip', 'aria-label': 'Swap direction', onclick: () => change(to, from) }, icon('swap'))),
+    h('div', { class: 'panel' }, h('span', { class: 'label' }, 'Receive'),
       h('div', { class: 'swap-row' }, coinSelect('swap-to', to, (a) => change(a === from && !privacy ? to : from, a)), receive), receiveNet),
-    h('div', { class: 'panel' }, h('div', { class: 'swap-head' }, h('span', { class: 'label' }, '받을 주소'),
-      h('button', { type: 'button', class: 'icon-btn', id: 'swap-scan', 'aria-label': 'QR 코드 스캔', title: 'QR 코드 스캔', onclick: () => void openScanner(to, (f) => { dest.value = f.address; }) }, icon('scan'))), dest),
-    to === 'ZEC' && h('p', { class: 'small muted', id: 'zec-swap-note' }, '업체는 투명 주소로 보내. 받은 뒤 ZEC 화면에서 쉴드해야 프라이빗해지고 보낼 수 있어.'),
+    h('div', { class: 'panel' }, h('div', { class: 'swap-head' }, h('span', { class: 'label' }, 'Receiving address'),
+      h('button', { type: 'button', class: 'icon-btn', id: 'swap-scan', 'aria-label': 'Scan QR code', title: 'Scan QR code', onclick: () => void openScanner(to, (f) => { dest.value = f.address; }) }, icon('scan'))), dest),
+    to === 'ZEC' && h('p', { class: 'small muted', id: 'zec-swap-note' }, 'The provider pays a transparent address. Shield it on the ZEC screen after it arrives to make it private and sendable.'),
     PRIVACY_ASSETS.includes(from) && PRIVACY_ASSETS.includes(to) && h('label', { class: 'swap-privacy' }, privacyToggle,
-      h('span', {}, h('strong', {}, '프라이버시 스왑'), h('span', { class: 'small muted' }, 'XMR을 거쳐 두 번에 나눠 보내. XMR 잠금 때문에 최소 20분 넘게 걸리고, 2단계는 앱에서 다시 승인해야 해.'))),
+      h('span', {}, h('strong', {}, 'Privacy swap'), h('span', { class: 'small muted' }, 'Sends through XMR in two parts. XMR\'s lock makes it take at least 20 minutes, and step 2 needs approval in the app again.'))),
     info, h('br'), offers, next, h('br'),
-    h('button', { type: 'button', class: 'primary', id: 'go-tornado', onclick: () => void renderTornado() }, 'Tornado로 ETH 보내기'),
+    h('button', { type: 'button', class: 'primary', id: 'go-tornado', onclick: () => void renderTornado() }, 'Send ETH with Tornado'),
     h('br'), list));
   onData = paintBalance;
   paintBalance();
@@ -1057,23 +1057,23 @@ async function paintSwapList(el: HTMLElement): Promise<void> {
   if (!el.isConnected) return;
   const active = privacy.filter((p) => p.stage !== 'done' && p.stage !== 'failed');
   setKids(el,
-    active.length > 0 && h('h3', {}, '진행 중인 프라이버시 스왑'),
+    active.length > 0 && h('h3', {}, 'Privacy swaps in progress'),
     ...active.map((p) => h('button', { class: 'hist-row swap-history', id: `privacy-${p.id}`, onclick: () => renderPrivacyStatus(p) }, coin(p.from),
       h('div', {}, h('div', {}, `${coinName(p.from)} → XMR → ${coinName(p.to)}`), h('div', { class: 'small muted' }, PRIVACY_STAGE[p.stage])),
       h('div', { class: 'amt' }, `${p.amount} ${coinName(p.from)}`))),
-    records.length > 0 && h('h3', {}, '최근 스왑'), ...records.slice(0, 20).map(swapRow));
+    records.length > 0 && h('h3', {}, 'Recent swaps'), ...records.slice(0, 20).map(swapRow));
 }
 
 function renderSwapReview(p: any, backTo: () => void): void {
   const pw = h('input', { type: 'password', id: 'confirm-pw', autocomplete: 'current-password' });
   const box = errorBox();
-  const go = h('button', { class: 'primary', id: 'confirm-swap', type: 'submit' }, `${p.amount} ${coinName(p.asset)} 스왑`);
+  const go = h('button', { class: 'primary', id: 'confirm-swap', type: 'submit' }, `Swap ${p.amount} ${coinName(p.asset)}`);
   const s = p.swap;
   const back = () => { void wallet.cancelSend(p.id); backTo(); };
-  show('send', subBar('스왑 확인', back), h('div', { class: 'scroll' },
+  show('send', subBar('Review swap', back), h('div', { class: 'scroll' },
     h('form', { onsubmit: (e: Event) => {
       e.preventDefault();
-      busy(go, '전송 중…', box, async () => {
+      busy(go, 'Sending…', box, async () => {
         const res = await wallet.swapConfirm(p.id, pw.value);
         pw.value = '';
         if (res.privacy) renderPrivacyStatus(res.privacy); else renderSwapStatus(res.record);
@@ -1082,18 +1082,18 @@ function renderSwapReview(p: any, backTo: () => void): void {
     } },
     box.el,
     ...p.warnings.map((w: string) => h('div', { class: 'warn' }, w)),
-    s.external && h('div', { class: 'warn', id: 'review-external' }, '내 지갑이 아닌 주소로 받아. 주소가 틀리면 되찾을 수 없으니 한 글자씩 확인해.'),
+    s.external && h('div', { class: 'warn', id: 'review-external' }, 'This receives at an address outside your wallet. A wrong address can\'t be recovered, so check every character.'),
     h('div', { class: 'panel' }, h('table', { class: 'review-table' }, h('tbody', {},
-      h('tr', {}, h('th', {}, '보내는 금액'), h('td', {}, h('div', { class: 'big-amount', id: 'review-amount' }, `${p.amount} ${coinName(p.asset)}`))),
-      h('tr', {}, h('th', {}, '받는 금액'), h('td', {}, h('div', { class: 'big-amount', id: 'review-receive' }, `${s.approximate ? '약 ' : ''}${s.receive} ${s.to}`), h('div', { class: 'small muted' }, `1 ${s.from} ≈ ${s.rate} ${s.to}`))),
-      h('tr', {}, h('th', {}, p.feeIsEstimate ? '예상 수수료' : '네트워크 수수료'), h('td', { id: 'review-fee' }, reviewFee(p.fee, p.feeAsset))),
-      h('tr', {}, h('th', {}, '입금 주소'), h('td', {}, addressCheck(p.to))),
-      h('tr', {}, h('th', {}, s.external ? '받을 주소' : s.privacy?.leg === 'first' ? '중간 XMR 주소' : '내 받는 주소'), h('td', {}, h('div', { class: 'addr-check', id: 'review-receive-address' }, s.receiveAddress))),
-      s.privacy?.leg === 'first' && h('tr', {}, h('th', {}, '최종 받을 주소'), h('td', {}, h('div', { class: 'addr-check', id: 'review-final-address' }, s.privacy.destination))),
-      h('tr', {}, h('th', {}, '업체'), h('td', {}, `${s.provider}, 주문 ${s.id}`))))),
-    h('p', { class: 'small muted' }, `스왑은 ${s.provider} 외부 업체가 처리해. 보내는 동안은 업체가 코인을 맡고 있어서, 입금 후에는 취소할 수 없고 업체가 심사로 보류할 수도 있어.${s.approximate ? ' 변동 환율이라 받는 양은 입금 시점에 조금 달라질 수 있어.' : ''} 큰 금액은 먼저 소액으로 시험해.`),
+      h('tr', {}, h('th', {}, 'You send'), h('td', {}, h('div', { class: 'big-amount', id: 'review-amount' }, `${p.amount} ${coinName(p.asset)}`))),
+      h('tr', {}, h('th', {}, 'You receive'), h('td', {}, h('div', { class: 'big-amount', id: 'review-receive' }, `${s.approximate ? 'about ' : ''}${s.receive} ${s.to}`), h('div', { class: 'small muted' }, `1 ${s.from} ≈ ${s.rate} ${s.to}`))),
+      h('tr', {}, h('th', {}, p.feeIsEstimate ? 'Estimated fee' : 'Network fee'), h('td', { id: 'review-fee' }, reviewFee(p.fee, p.feeAsset))),
+      h('tr', {}, h('th', {}, 'Deposit address'), h('td', {}, addressCheck(p.to))),
+      h('tr', {}, h('th', {}, s.external ? 'Receiving address' : s.privacy?.leg === 'first' ? 'Intermediate XMR address' : 'Your receiving address'), h('td', {}, h('div', { class: 'addr-check', id: 'review-receive-address' }, s.receiveAddress))),
+      s.privacy?.leg === 'first' && h('tr', {}, h('th', {}, 'Final receiving address'), h('td', {}, h('div', { class: 'addr-check', id: 'review-final-address' }, s.privacy.destination))),
+      h('tr', {}, h('th', {}, 'Provider'), h('td', {}, `${s.provider}, order ${s.id}`))))),
+    h('p', { class: 'small muted' }, `The swap is handled by ${s.provider}, an outside provider. It holds the coins during the swap, so a deposit can't be cancelled, and it may hold funds for review or ask for KYC.${s.approximate ? ' The rate floats, so the amount received can change a little at deposit time.' : ''} Test large amounts with a small one first.`),
     h('br'),
-    h('label', { class: 'field' }, h('span', {}, '비밀번호'), pw),
+    h('label', { class: 'field' }, h('span', {}, 'Password'), pw),
     go)));
   pw.focus();
 }
@@ -1105,19 +1105,19 @@ function renderSwapStatus(record: any): void {
   const done = (s: string) => ['success', 'finished', 'refunded', 'overdue', 'failed', 'expired'].includes(s);
   const paint = (r: any) => {
     status.textContent = SWAP_STATUS[r.status] ?? r.status;
-    out.textContent = r.hashOut ? `받은 거래: ${r.hashOut}` : '';
+    out.textContent = r.hashOut ? `Received in: ${r.hashOut}` : '';
   };
-  show('receive', subBar('스왑 상태', () => void renderSwap()), h('div', { class: 'scroll' },
+  show('receive', subBar('Swap status', () => void renderSwap()), h('div', { class: 'scroll' },
     h('div', { class: 'swap-pair' }, coin(record.from), icon('swap'), coin(record.to)),
     status, h('br'), box.el,
     h('div', { class: 'panel' }, h('table', { class: 'review-table' }, h('tbody', {},
-      h('tr', {}, h('th', {}, '보낸 금액'), h('td', {}, `${record.amount} ${coinName(record.from)}`)),
-      h('tr', {}, h('th', {}, '받을 금액'), h('td', {}, `${record.approximate ? '약 ' : ''}${record.receive} ${coinName(record.to)}`)),
-      record.withdrawalAddress && h('tr', {}, h('th', {}, '받을 주소'), h('td', { class: 'mono small' }, record.withdrawalAddress)),
-      record.provider && h('tr', {}, h('th', {}, '업체'), h('td', {}, record.provider)),
-      h('tr', {}, h('th', {}, '주문 번호'), h('td', { class: 'mono', id: 'swap-id' }, record.id))))),
+      h('tr', {}, h('th', {}, 'Sent'), h('td', {}, `${record.amount} ${coinName(record.from)}`)),
+      h('tr', {}, h('th', {}, 'To receive'), h('td', {}, `${record.approximate ? 'about ' : ''}${record.receive} ${coinName(record.to)}`)),
+      record.withdrawalAddress && h('tr', {}, h('th', {}, 'Receiving address'), h('td', { class: 'mono small' }, record.withdrawalAddress)),
+      record.provider && h('tr', {}, h('th', {}, 'Provider'), h('td', {}, record.provider)),
+      h('tr', {}, h('th', {}, 'Order number'), h('td', { class: 'mono', id: 'swap-id' }, record.id))))),
     out,
-    h('p', { class: 'small muted' }, '문제가 생기면 업체 고객센터에 주문 번호를 알려줘. 입금 확인과 교환까지 XMR은 특히 시간이 걸릴 수 있어.')));
+    h('p', { class: 'small muted' }, 'If there\'s a problem, give this order number to the provider\'s support. Confirmation and exchange can take a while, especially for XMR.')));
   paint(record);
   const poll = async () => {
     if (!status.isConnected) return;
@@ -1135,44 +1135,44 @@ function renderSwapStatus(record: any): void {
 // ---- several wallets ----
 
 function walletButton(): HTMLElement {
-  const name = h('span', { id: 'wallet-name' }, '내 지갑');
-  void wallet.walletsList().then((r: any) => { name.textContent = r.list.find((w: any) => w.id === r.active)?.name ?? '내 지갑'; });
-  return h('button', { type: 'button', class: 'wallet-btn', id: 'wallet-switch', 'aria-label': '지갑 선택', onclick: () => void renderWallets(renderHome) }, name, icon('down'));
+  const name = h('span', { id: 'wallet-name' }, 'My wallet');
+  void wallet.walletsList().then((r: any) => { name.textContent = r.list.find((w: any) => w.id === r.active)?.name ?? 'My wallet'; });
+  return h('button', { type: 'button', class: 'wallet-btn', id: 'wallet-switch', 'aria-label': 'Choose a wallet', onclick: () => void renderWallets(renderHome) }, name, icon('down'));
 }
 
 async function renderWallets(back: () => void): Promise<void> {
   const r = await wallet.walletsList();
   const box = errorBox();
-  const newName = h('input', { id: 'wallet-new-name', autocomplete: 'off', maxlength: '20', value: `지갑 ${r.list.length + 1}` });
-  const add = h('button', { class: 'primary', id: 'wallet-add', type: 'submit' }, '지갑 추가');
+  const newName = h('input', { id: 'wallet-new-name', autocomplete: 'off', maxlength: '20', value: `Wallet ${r.list.length + 1}` });
+  const add = h('button', { class: 'primary', id: 'wallet-add', type: 'submit' }, 'Add wallet');
   const leave = async (task: () => Promise<void>) => {
     deleting = true; // Locking is expected here, so the lock screen must not jump in first.
     try { await task(); await boot(); } catch (e) { box.show(e); } finally { deleting = false; }
   };
-  show('send', subBar('지갑', back), h('div', { class: 'scroll' }, box.el,
+  show('send', subBar('Wallets', back), h('div', { class: 'scroll' }, box.el,
     h('div', { id: 'wallet-list' }, ...r.list.map((w: any) => {
       const on = w.id === r.active;
       return h('div', { class: `panel wallet-row${on ? ' on' : ''}` },
         h('button', { type: 'button', class: 'wallet-pick', id: `wallet-${w.id}`, onclick: () => { if (on) back(); else void leave(() => wallet.walletSwitch(w.id)); } },
-          h('strong', {}, w.name), h('span', { class: 'small muted' }, on ? '사용 중' : '눌러서 전환')),
-        h('button', { type: 'button', class: 'secondary', id: `rename-${w.id}`, onclick: () => renderWalletRename(w, () => void renderWallets(back)) }, '이름 변경'));
+          h('strong', {}, w.name), h('span', { class: 'small muted' }, on ? 'In use' : 'Tap to switch')),
+        h('button', { type: 'button', class: 'secondary', id: `rename-${w.id}`, onclick: () => renderWalletRename(w, () => void renderWallets(back)) }, 'Rename'));
     })),
     h('br'),
     h('form', { class: 'panel', onsubmit: (e: Event) => {
       e.preventDefault();
       void leave(() => wallet.walletBeginAdd(newName.value));
-    } }, h('label', { class: 'field' }, h('span', {}, '새 지갑 이름'), newName),
-    h('p', { class: 'small muted wallet-hint' }, '새 지갑은 시드와 비밀번호가 따로야. 전환하면 지금 지갑은 잠겨.'), add)));
+    } }, h('label', { class: 'field' }, h('span', {}, 'New wallet name'), newName),
+    h('p', { class: 'small muted wallet-hint' }, 'A new wallet has its own seeds and password. Switching locks the current wallet.'), add)));
 }
 
 function renderWalletRename(w: any, back: () => void): void {
   const name = h('input', { id: 'wallet-rename-input', autocomplete: 'off', maxlength: '20', value: w.name });
   const box = errorBox();
-  const go = h('button', { class: 'primary', id: 'wallet-rename-save', type: 'submit' }, '저장');
-  show('send', subBar('지갑 이름', back), h('div', { class: 'scroll' }, box.el, h('form', { onsubmit: (e: Event) => {
+  const go = h('button', { class: 'primary', id: 'wallet-rename-save', type: 'submit' }, 'Save');
+  show('send', subBar('Wallet name', back), h('div', { class: 'scroll' }, box.el, h('form', { onsubmit: (e: Event) => {
     e.preventDefault();
-    busy(go, '저장 중…', box, async () => { await wallet.walletRename(w.id, name.value); back(); });
-  } }, h('label', { class: 'field' }, h('span', {}, '이름'), name), go)));
+    busy(go, 'Saving…', box, async () => { await wallet.walletRename(w.id, name.value); back(); });
+  } }, h('label', { class: 'field' }, h('span', {}, 'Name'), name), go)));
   name.focus();
 }
 
@@ -1180,65 +1180,65 @@ function renderWalletRename(w: any, back: () => void): void {
 
 let onTornadoProgress: ((m: string) => void) | null = null;
 wallet.on('tornado-progress', (m: string) => onTornadoProgress?.(m));
-const NOTE_STATUS: Record<string, string> = { sending: '전송 중', deposited: '입금됨', withdrawing: '출금 중', withdrawn: '출금 완료' };
+const NOTE_STATUS: Record<string, string> = { sending: 'Sending', deposited: 'Deposited', withdrawing: 'Withdrawing', withdrawn: 'Withdrawn' };
 
 async function renderTornado(message = ''): Promise<void> {
   const info = await wallet.tornadoInfo();
   const box = errorBox();
-  const engine = h('p', { class: 'small muted', id: 'tornado-engine' }, '증명 엔진 확인 중…');
+  const engine = h('p', { class: 'small muted', id: 'tornado-engine' }, 'Checking the proof engine…');
   const recoverPw = h('input', { type: 'password', id: 'tornado-recover-pw', autocomplete: 'current-password' });
   const recoverStatus = h('p', { class: 'small muted', id: 'tornado-recover-status', role: 'status' });
-  const recover = h('button', { type: 'submit', id: 'tornado-recover' }, '시드로 입금 찾기');
+  const recover = h('button', { type: 'submit', id: 'tornado-recover' }, 'Find deposits from seed');
   show('send', subBar('Tornado', () => void renderSwap('ETH', 'XMR')), h('div', { class: 'scroll' }, box.el,
     message && h('div', { class: 'note-ok', id: 'tornado-message' }, message),
-    h('div', { class: 'warn' }, '넣는 주소와 빼는 주소는 체인에 공개돼. 넣고 바로 빼면 시간으로 연결될 수 있으니 오래 두고 빼. 출금은 릴레이어를 써야 입금 주소와 안 이어져.'),
-    h('div', { class: 'panel' }, h('span', { class: 'label' }, 'ETH 넣기 (고정 금액)'),
-      h('div', { class: 'pool-row' }, ...info.pools.map((pool: string, i: number) => h('button', { type: 'button', id: `pool-${i}`, onclick: () => busy(document.getElementById(`pool-${i}`) as HTMLButtonElement, '확인 중…', box, async () => {
+    h('div', { class: 'warn' }, 'Deposit and withdrawal addresses are public on the chain. Withdrawing right after depositing can be linked by timing, so wait a long time. Withdrawing needs a relayer to stay unlinked from the deposit address.'),
+    h('div', { class: 'panel' }, h('span', { class: 'label' }, 'Deposit ETH (fixed amounts)'),
+      h('div', { class: 'pool-row' }, ...info.pools.map((pool: string, i: number) => h('button', { type: 'button', id: `pool-${i}`, onclick: () => busy(document.getElementById(`pool-${i}`) as HTMLButtonElement, 'Checking…', box, async () => {
         renderTornadoDeposit(await wallet.tornadoDepositPrepare(pool));
       }) }, `${pool} ETH`)))),
-    h('h3', {}, '내 입금'),
+    h('h3', {}, 'Your deposits'),
     info.notes.length
       ? h('div', { id: 'tornado-notes' }, ...info.notes.map((n: any) => h('div', { class: 'panel note-row' },
         h('div', {}, h('strong', {}, `${n.pool} ETH`), h('div', { class: 'small muted' }, `${NOTE_STATUS[n.status] ?? n.status} · ${when(n.createdAt)}`)),
         h('div', { class: 'note-actions' },
-          n.status === 'deposited' && h('button', { type: 'button', class: 'secondary', id: `withdraw-${n.index}`, onclick: () => renderTornadoWithdraw(n, info.relayer) }, '출금'),
-          h('button', { type: 'button', class: 'secondary', id: `backup-${n.index}`, onclick: () => renderTornadoBackup(n) }, '백업')))))
-      : h('p', { class: 'empty', id: 'tornado-empty' }, '아직 입금이 없어.'),
+          n.status === 'deposited' && h('button', { type: 'button', class: 'secondary', id: `withdraw-${n.index}`, onclick: () => renderTornadoWithdraw(n, info.relayer) }, 'Withdraw'),
+          h('button', { type: 'button', class: 'secondary', id: `backup-${n.index}`, onclick: () => renderTornadoBackup(n) }, 'Backup')))))
+      : h('p', { class: 'empty', id: 'tornado-empty' }, 'No deposits yet.'),
     engine,
     h('form', { class: 'panel', onsubmit: (e: Event) => {
       e.preventDefault();
       onTornadoProgress = (m) => { recoverStatus.textContent = m; };
-      busy(recover, '찾는 중…', box, async () => {
+      busy(recover, 'Searching…', box, async () => {
         const r = await wallet.tornadoRecover(recoverPw.value);
-        await renderTornado(`입금 ${r.found}건을 찾았어.`);
+        await renderTornado(`Found ${r.found} deposits.`);
       });
-    } }, h('span', { class: 'label' }, '다시 설치했거나 시드로 복구했다면'), h('label', { class: 'field' }, h('span', {}, '비밀번호'), recoverPw), recoverStatus, recover)));
-  wallet.tornadoCheck().then(() => { engine.textContent = '증명 엔진 준비됨. 증명은 이 기기에서 만들어져.'; }, (e: unknown) => {
-    engine.textContent = `증명 엔진을 시작하지 못했어: ${errMsg(e)}`;
+    } }, h('span', { class: 'label' }, 'If you reinstalled or restored from a seed'), h('label', { class: 'field' }, h('span', {}, 'Password'), recoverPw), recoverStatus, recover)));
+  wallet.tornadoCheck().then(() => { engine.textContent = 'The proof engine is ready. Proofs are made on this device.'; }, (e: unknown) => {
+    engine.textContent = `Could not start the proof engine: ${errMsg(e)}`;
   });
 }
 
 function renderTornadoDeposit(p: any): void {
   const pw = h('input', { type: 'password', id: 'confirm-pw', autocomplete: 'current-password' });
   const box = errorBox();
-  const go = h('button', { class: 'primary', id: 'confirm-deposit', type: 'submit' }, `${p.pool} ETH 넣기`);
-  show('send', subBar('Tornado 입금', () => { void wallet.cancelSend(p.id); void renderTornado(); }), h('div', { class: 'scroll' },
+  const go = h('button', { class: 'primary', id: 'confirm-deposit', type: 'submit' }, `Deposit ${p.pool} ETH`);
+  show('send', subBar('Tornado deposit', () => { void wallet.cancelSend(p.id); void renderTornado(); }), h('div', { class: 'scroll' },
     h('form', { onsubmit: (e: Event) => {
       e.preventDefault();
-      busy(go, '전송 중…', box, async () => {
+      busy(go, 'Sending…', box, async () => {
         await wallet.tornadoDepositConfirm(p.id, p.pool, pw.value);
         pw.value = '';
         void refresh();
-        await renderTornado(`${p.pool} ETH를 넣었어. 컨펌 뒤에 출금할 수 있어.`);
+        await renderTornado(`Deposited ${p.pool} ETH. It can be withdrawn after confirmation.`);
       });
     } }, box.el,
     h('div', { class: 'panel' }, h('table', { class: 'review-table' }, h('tbody', {},
-      h('tr', {}, h('th', {}, '금액'), h('td', { id: 'review-amount' }, `${p.amount} ETH`)),
-      h('tr', {}, h('th', {}, '예상 수수료'), h('td', { id: 'review-fee' }, reviewFee(p.fee, 'ETH'))),
-      h('tr', {}, h('th', {}, '풀 주소'), h('td', {}, h('div', { class: 'addr-check', id: 'review-pool' }, p.to)))))),
-    h('p', { class: 'small muted' }, '입금 비밀은 시드에서 만들어져. 시드를 잃으면 이 금액도 잃어. 다른 도구에서 쓰려면 백업에서 노트를 복사해.'),
+      h('tr', {}, h('th', {}, 'Amount'), h('td', { id: 'review-amount' }, `${p.amount} ETH`)),
+      h('tr', {}, h('th', {}, 'Estimated fee'), h('td', { id: 'review-fee' }, reviewFee(p.fee, 'ETH'))),
+      h('tr', {}, h('th', {}, 'Pool address'), h('td', {}, h('div', { class: 'addr-check', id: 'review-pool' }, p.to)))))),
+    h('p', { class: 'small muted' }, 'The deposit secret comes from your seed. Lose the seed and this amount is lost too. To use it in another tool, copy the note from Backup.'),
     h('br'),
-    h('label', { class: 'field' }, h('span', {}, '비밀번호'), pw), go)));
+    h('label', { class: 'field' }, h('span', {}, 'Password'), pw), go)));
   pw.focus();
 }
 
@@ -1246,32 +1246,32 @@ function renderTornadoBackup(n: any): void {
   const pw = h('input', { type: 'password', id: 'backup-pw', autocomplete: 'current-password' });
   const box = errorBox();
   const output = h('div', { class: 'mono small', id: 'backup-note' });
-  const go = h('button', { class: 'primary', id: 'backup-show', type: 'submit' }, '노트 보기');
-  show('send', subBar('노트 백업', () => void renderTornado()), h('div', { class: 'scroll' },
-    h('div', { class: 'warn' }, '노트를 가진 사람은 이 금액을 뺄 수 있어. 시드처럼 보관해.'), box.el,
+  const go = h('button', { class: 'primary', id: 'backup-show', type: 'submit' }, 'Show note');
+  show('send', subBar('Note backup', () => void renderTornado()), h('div', { class: 'scroll' },
+    h('div', { class: 'warn' }, 'Anyone with this note can withdraw this amount. Keep it like a seed.'), box.el,
     h('form', { onsubmit: (e: Event) => {
       e.preventDefault();
-      busy(go, '확인 중…', box, async () => {
+      busy(go, 'Checking…', box, async () => {
         output.textContent = await wallet.tornadoExport(n.id, pw.value);
         pw.value = '';
       });
-    } }, h('label', { class: 'field' }, h('span', {}, '비밀번호'), pw), go), h('br'), output));
+    } }, h('label', { class: 'field' }, h('span', {}, 'Password'), pw), go), h('br'), output));
 }
 
 function renderTornadoWithdraw(n: any, savedRelayer: string): void {
-  const to = h('input', { id: 'tornado-to', spellcheck: 'false', autocomplete: 'off', placeholder: '입금과 상관없는 새 주소' });
-  const relayer = h('input', { id: 'tornado-relayer', spellcheck: 'false', autocomplete: 'off', value: savedRelayer, placeholder: 'https://… 또는 .onion' });
+  const to = h('input', { id: 'tornado-to', spellcheck: 'false', autocomplete: 'off', placeholder: 'A new address unrelated to the deposit' });
+  const relayer = h('input', { id: 'tornado-relayer', spellcheck: 'false', autocomplete: 'off', value: savedRelayer, placeholder: 'https://… or .onion' });
   const box = errorBox();
-  const go = h('button', { class: 'primary', id: 'tornado-next', type: 'submit' }, '다음');
-  show('send', subBar(`${n.pool} ETH 출금`, () => void renderTornado()), h('div', { class: 'scroll' }, box.el,
+  const go = h('button', { class: 'primary', id: 'tornado-next', type: 'submit' }, 'Next');
+  show('send', subBar(`Withdraw ${n.pool} ETH`, () => void renderTornado()), h('div', { class: 'scroll' }, box.el,
     h('form', { onsubmit: (e: Event) => {
       e.preventDefault();
-      busy(go, '확인 중…', box, async () => {
+      busy(go, 'Checking…', box, async () => {
         renderTornadoWithdrawReview(n, await wallet.tornadoWithdrawQuote(n.id, to.value, relayer.value), to.value, relayer.value, savedRelayer);
       });
     } },
-    h('label', { class: 'field' }, h('span', {}, '받을 ETH 주소'), to),
-    h('label', { class: 'field' }, h('span', {}, '릴레이어 주소'), relayer, h('div', { class: 'hint' }, '릴레이어가 대신 거래를 보내고 수수료를 금액에서 떼어가. 비우면 이 지갑이 직접 보내는데, 그러면 입금 주소와 이어져.')),
+    h('label', { class: 'field' }, h('span', {}, 'Receiving ETH address'), to),
+    h('label', { class: 'field' }, h('span', {}, 'Relayer address'), relayer, h('div', { class: 'hint' }, 'A relayer sends the transaction for you and takes its fee from the amount. Empty means this wallet sends it, which links it to the deposit address.')),
     go)));
 }
 
@@ -1279,32 +1279,32 @@ function renderTornadoWithdrawReview(n: any, q: any, to: string, relayerUrl: str
   const pw = h('input', { type: 'password', id: 'confirm-pw', autocomplete: 'current-password' });
   const box = errorBox();
   const progress = h('p', { class: 'small muted', id: 'tornado-progress', role: 'status' });
-  const go = h('button', { class: 'primary', id: 'confirm-withdraw', type: 'submit' }, '증명 만들고 출금');
-  show('send', subBar('출금 확인', () => renderTornadoWithdraw(n, savedRelayer)), h('div', { class: 'scroll' },
-    q.mode === 'self' && h('div', { class: 'warn', id: 'tornado-self-warn' }, '릴레이어 없이 이 지갑이 직접 보내. 체인에서 입금 주소와 받는 주소가 이어져서 프라이버시 효과가 거의 없어.'),
+  const go = h('button', { class: 'primary', id: 'confirm-withdraw', type: 'submit' }, 'Make proof and withdraw');
+  show('send', subBar('Review withdrawal', () => renderTornadoWithdraw(n, savedRelayer)), h('div', { class: 'scroll' },
+    q.mode === 'self' && h('div', { class: 'warn', id: 'tornado-self-warn' }, 'This wallet sends directly, with no relayer. The chain links the deposit and receiving addresses, so there is almost no privacy benefit.'),
     box.el,
     h('form', { onsubmit: (e: Event) => {
       e.preventDefault();
       onTornadoProgress = (m) => { progress.textContent = m; };
-      busy(go, '진행 중…', box, async () => {
+      busy(go, 'In progress…', box, async () => {
         if (relayerUrl.trim() && relayerUrl.trim() !== savedRelayer) void wallet.updateSettings({ tornadoRelayer: relayerUrl }).catch(() => undefined);
         await wallet.tornadoWithdraw(n.id, to, relayerUrl, pw.value);
         pw.value = '';
         void refresh();
-        await renderTornado(`${q.receive} ETH 출금을 보냈어.`);
+        await renderTornado(`Sent the withdrawal of ${q.receive} ETH.`);
       });
     } },
     h('div', { class: 'panel' }, h('table', { class: 'review-table' }, h('tbody', {},
-      h('tr', {}, h('th', {}, '받는 금액'), h('td', { id: 'review-receive' }, `${q.receive} ETH`)),
-      h('tr', {}, h('th', {}, q.mode === 'self' ? '가스비 (지갑에서)' : '릴레이어 수수료'), h('td', { id: 'review-fee' }, reviewFee(q.fee, 'ETH'))),
-      h('tr', {}, h('th', {}, '받을 주소'), h('td', {}, h('div', { class: 'addr-check', id: 'review-to' }, q.recipient)))))),
-    h('p', { class: 'small muted' }, '입금 기록 전체를 읽고 증명을 만들어서 몇 분, 휴대폰은 더 오래 걸릴 수 있어. 끝날 때까지 앱을 닫지 마. 중간에 끊겨도 코인은 풀에 그대로 있어.'),
-    h('br'), h('label', { class: 'field' }, h('span', {}, '비밀번호'), pw), progress, go)));
+      h('tr', {}, h('th', {}, 'You receive'), h('td', { id: 'review-receive' }, `${q.receive} ETH`)),
+      h('tr', {}, h('th', {}, q.mode === 'self' ? 'Gas (from this wallet)' : 'Relayer fee'), h('td', { id: 'review-fee' }, reviewFee(q.fee, 'ETH'))),
+      h('tr', {}, h('th', {}, 'Receiving address'), h('td', {}, h('div', { class: 'addr-check', id: 'review-to' }, q.recipient)))))),
+    h('p', { class: 'small muted' }, 'This reads all deposit records and makes a proof, which takes minutes, longer on a phone. Don\'t close the app until it finishes. If it stops midway, the coins stay in the pool.'),
+    h('br'), h('label', { class: 'field' }, h('span', {}, 'Password'), pw), progress, go)));
   pw.focus();
 }
 
 const PRIVACY_STAGE: Record<string, string> = {
-  first: '1단계: XMR 도착과 잠금 해제 기다리는 중', ready: '2단계 승인을 기다리는 중', second: '2단계: 최종 주소로 보내는 중', done: '완료', failed: '중단됨',
+  first: 'Step 1: waiting for XMR to arrive and unlock', ready: 'Waiting for step 2 approval', second: 'Step 2: sending to the final address', done: 'Finished', failed: 'Stopped',
 };
 
 function renderPrivacyStatus(initial: any): void {
@@ -1323,13 +1323,13 @@ function renderPrivacyStatus(initial: any): void {
     }
     drawnReady = false;
     setKids(body, p.note && h('div', { class: 'warn', id: 'privacy-note' }, p.note), h('div', { class: 'panel' }, h('table', { class: 'review-table' }, h('tbody', {},
-      row('보낸 금액', `${p.amount} ${coinName(p.from)}`),
-      row('예상 XMR', `약 ${p.expectedXmr} XMR`),
-      row('도착한 XMR', `${p.received} XMR (사용 가능 ${p.unlocked})`),
-      row('최종 받을 주소', p.destination),
-      row('1단계 주문', p.firstId),
-      p.secondId ? row('2단계 주문', p.secondId) : false))),
-      p.stage === 'first' && h('p', { class: 'small muted' }, 'XMR은 이 지갑에 들어와. 앱을 닫아도 괜찮고, 다시 열면 여기서 이어서 진행돼. 10컨펌이 지나야 다음 단계로 넘어가.'));
+      row('Sent', `${p.amount} ${coinName(p.from)}`),
+      row('Expected XMR', `about ${p.expectedXmr} XMR`),
+      row('XMR received', `${p.received} XMR (${p.unlocked} available)`),
+      row('Final receiving address', p.destination),
+      row('Step 1 order', p.firstId),
+      p.secondId ? row('Step 2 order', p.secondId) : false))),
+      p.stage === 'first' && h('p', { class: 'small muted' }, 'The XMR arrives in this wallet. You can close the app, and it continues here when reopened. The next step opens after 10 confirmations.'));
   };
   const paintSecond = (p: any) => {
     const available = Math.max(0, Number(p.unlocked) - 0.001);
@@ -1337,22 +1337,22 @@ function renderPrivacyStatus(initial: any): void {
     const quote = h('div', { class: 'small muted', id: 'pv-quote' });
     const offers = h('div', { class: 'swap-offers', id: 'pv-offers' });
     let chosen: any = null;
-    const go = h('button', { class: 'primary', id: 'pv-next', disabled: true, onclick: () => busy(go, '주문 만드는 중…', box, async () => {
+    const go = h('button', { class: 'primary', id: 'pv-next', disabled: true, onclick: () => busy(go, 'Creating the order…', box, async () => {
       renderSwapReview(await wallet.privacySecond(p.id, amount.value, chosen.providerId), () => renderPrivacyStatus(p));
-    }) }, '2단계 진행');
+    }) }, 'Continue to step 2');
     const paintOffers = (list: any[]) => {
       const good = list.filter((q) => !q.problem);
       chosen = good.find((q) => q.providerId === chosen?.providerId) ?? good[0] ?? null;
       go.disabled = !chosen;
-      quote.textContent = chosen ? `약 ${chosen.receive} ${coinName(p.to)}. ${chosen.provider}에서 처리해.` : (list[0]?.problem ?? '');
+      quote.textContent = chosen ? `about ${chosen.receive} ${coinName(p.to)}. Handled by ${chosen.provider}.` : (list[0]?.problem ?? '');
       setKids(offers, ...list.map((q) => h('button', { type: 'button', class: `swap-offer${q === chosen ? ' on' : ''}`, id: `pv-offer-${q.providerId}`, disabled: Boolean(q.problem), onclick: () => { chosen = q; paintOffers(list); } },
-        h('span', {}, q.provider + (q.providerId === p.firstProviderId ? ' (1단계와 같음)' : '')), h('span', { class: 'offer-right' }, q.problem ? '견적 없음' : `약 ${q.receive}`, !q.problem && h('span', { class: 'offer-cost' }, offerFee(q).total), !q.problem && h('span', { class: 'small muted offer-cost' }, offerFee(q).detail)))));
+        h('span', {}, q.provider + (q.providerId === p.firstProviderId ? ' (same as step 1)' : '')), h('span', { class: 'offer-right' }, q.problem ? 'No quote' : `about ${q.receive}`, !q.problem && h('span', { class: 'offer-cost' }, offerFee(q).total), !q.problem && h('span', { class: 'small muted offer-cost' }, offerFee(q).detail)))));
     };
     let ticket = 0;
     const requote = async () => {
       const mine = ++ticket;
       go.disabled = true;
-      quote.textContent = '견적 받는 중…';
+      quote.textContent = 'Getting quotes…';
       try {
         const list = await wallet.privacySecondQuote(p.id, amount.value);
         if (mine === ticket) paintOffers(list);
@@ -1361,14 +1361,14 @@ function renderPrivacyStatus(initial: any): void {
     let timer: number | undefined;
     amount.addEventListener('input', () => { window.clearTimeout(timer); timer = window.setTimeout(() => void requote(), 600); });
     setKids(body,
-      h('div', { class: 'panel' }, h('span', { class: 'label' }, `보낼 XMR (최대 ${p.unlocked})`), h('div', { class: 'swap-row' }, amount)),
+      h('div', { class: 'panel' }, h('span', { class: 'label' }, `XMR to send (up to ${p.unlocked})`), h('div', { class: 'swap-row' }, amount)),
       quote, h('br'), offers,
-      h('div', { class: 'panel' }, h('span', { class: 'label' }, '최종 받을 주소'), h('div', { class: 'addr-check', id: 'pv-dest' }, p.destination)),
-      h('p', { class: 'small muted' }, '바로 보내지 말고 시간을 두면 좋아. 들어온 금액과 다르게 보내면 연결하기 더 어려워져. 남은 XMR은 지갑에 그대로 있어.'),
+      h('div', { class: 'panel' }, h('span', { class: 'label' }, 'Final receiving address'), h('div', { class: 'addr-check', id: 'pv-dest' }, p.destination)),
+      h('p', { class: 'small muted' }, 'It helps to wait rather than send right away. Sending a different amount than came in is harder to link. Any remaining XMR stays in your wallet.'),
       go);
     void requote();
   };
-  show('receive', subBar('프라이버시 스왑', () => void renderSwap()), h('div', { class: 'scroll' },
+  show('receive', subBar('Privacy swap', () => void renderSwap()), h('div', { class: 'scroll' },
     h('div', { class: 'swap-pair' }, coin(initial.from), icon('swap'), coin('XMR'), icon('swap'), coin(initial.to)),
     status, h('br'), box.el, body));
   paint(initial);
@@ -1403,50 +1403,50 @@ async function renderSettings(): Promise<void> {
   const torProgress = h('div', { class: 'tor-status', id: 'tor-status' });
   const paintTor = (info: { enabled: boolean; installed: boolean; state: any }) => {
     const st = info.state;
-    let text = info.installed ? `준비됨${st.installedVersion ? ` (번들 ${st.installedVersion})` : ''}. 꺼져 있어.` : '아직 설치 안 됨. 켜면 공식 파일을 받아 서명을 확인한 뒤 설치해.';
-    if (info.enabled && st.phase === 'starting') text = `연결 중 ${st.percent}%`;
-    if (info.enabled && st.phase === 'error') text = st.error ?? '연결 실패';
+    let text = info.installed ? `Ready${st.installedVersion ? ` (bundled ${st.installedVersion})` : ''}. It's off.` : 'Not installed yet. Turning it on downloads the official files and checks their signature before installing.';
+    if (info.enabled && st.phase === 'starting') text = `Connecting ${st.percent}%`;
+    if (info.enabled && st.phase === 'error') text = st.error ?? 'Connection failed';
     if (info.enabled && st.phase === 'ready') {
-      text = st.verified === true ? `Tor 연결 확인됨. 외부에 보이는 IP: ${st.exitIp}`
-        : st.verified === false ? '경고: 확인 서비스가 Tor 연결이 아니라고 응답했어.' : '연결됨. Tor 확인 서비스 응답을 기다리는 중이야.';
+      text = st.verified === true ? `Tor connection verified. Visible IP: ${st.exitIp}`
+        : st.verified === false ? 'Warning: the check service says this isn\'t a Tor connection.' : 'Connected. Waiting for the Tor check service to answer.';
     }
     torProgress.textContent = text;
   };
   paintTor(tor);
   onTorInstallMessage = (m) => { torProgress.textContent = m; };
   onTorState = (st) => paintTor({ enabled: tor.enabled, installed: tor.installed, state: st });
-  const updateTor = h('button', { class: 'ghost', id: 'tor-update', hidden: !tor.installed || tor.updatable === false, onclick: () => busy(updateTor, '받는 중…', torBox, async () => {
+  const updateTor = h('button', { class: 'ghost', id: 'tor-update', hidden: !tor.installed || tor.updatable === false, onclick: () => busy(updateTor, 'Downloading…', torBox, async () => {
     await wallet.installTor();
-    toast('Tor를 최신 버전으로 받았어. 지갑을 다시 열면 적용돼.');
+    toast('Downloaded the latest Tor. It applies when you reopen the wallet.');
     if (tor.enabled) await wallet.lock();
-  }) }, 'Tor 업데이트');
+  }) }, 'Update Tor');
   const saved = h('span', { class: 'small muted', role: 'status' });
-  const saveBtn = h('button', { id: 'save-settings', onclick: () => busy(saveBtn, '저장 중…', netBox, async () => {
+  const saveBtn = h('button', { id: 'save-settings', onclick: () => busy(saveBtn, 'Saving…', netBox, async () => {
     if (useTor.checked && !tor.installed) {
       await wallet.installTor();
       tor.installed = true;
     }
     const relocked = await wallet.updateSettings({ customMoneroNode: node.value, tronApiKey: key.value, autoLockMinutes: Number(auto.value), showPrices: showPrices.checked, torEnabled: useTor.checked });
-    if (!relocked) { saved.textContent = '저장했어.'; void refresh(); }
-  }) }, '저장');
+    if (!relocked) { saved.textContent = 'Saved.'; void refresh(); }
+  }) }, 'Save');
 
   const curPw = h('input', { type: 'password', autocomplete: 'current-password' });
   const newPw = h('input', { type: 'password', autocomplete: 'new-password' });
   const chgDone = h('span', { class: 'small muted', role: 'status' });
-  const chg = h('button', { onclick: () => busy(chg, '변경 중…', pwBox, async () => {
+  const chg = h('button', { onclick: () => busy(chg, 'Changing…', pwBox, async () => {
     await wallet.changePassword(curPw.value, newPw.value);
     await wallet.biometric?.disable();
-    curPw.value = ''; newPw.value = ''; chgDone.textContent = '비밀번호를 바꿨어.';
-  }) }, '비밀번호 변경');
+    curPw.value = ''; newPw.value = ''; chgDone.textContent = 'Password changed.';
+  }) }, 'Change password');
 
   const seedPw = h('input', { type: 'password', autocomplete: 'current-password', id: 'seed-pw' });
   const seedOut = h('div', {});
-  const rev = h('button', { id: 'reveal', onclick: () => busy(rev, '여는 중…', seedBox, async () => {
+  const rev = h('button', { id: 'reveal', onclick: () => busy(rev, 'Opening…', seedBox, async () => {
     const seeds = await wallet.revealSeeds(seedPw.value);
     seedPw.value = '';
-    setKids(seedOut, h('br'), seedCard('BTC·ETH·Tron 시드', '', seeds.tronMnemonic), seedCard('Monero 시드', '', seeds.moneroSeed),
-      h('button', { class: 'ghost', onclick: () => setKids(seedOut) }, '가리기'));
-  }) }, '시드 보기');
+    setKids(seedOut, h('br'), seedCard('BTC·ETH·Tron seed', '', seeds.tronMnemonic), seedCard('Monero seed', '', seeds.moneroSeed),
+      h('button', { class: 'ghost', onclick: () => setKids(seedOut) }, 'Hide'));
+  }) }, 'Show seeds');
 
   let bioSection: Child = null;
   if (wallet.biometric && await wallet.biometric.available()) {
@@ -1455,25 +1455,25 @@ async function renderSettings(): Promise<void> {
     const bioArea = h('div', {});
     const paintBio = async () => {
       if (await wallet.biometric.enabled()) {
-        const off = h('button', { class: 'ghost', id: 'bio-off', onclick: async () => { await wallet.biometric.disable(); await paintBio(); } }, '지문 로그인 끄기');
-        setKids(bioArea, h('p', { class: 'small muted' }, '지문 로그인이 켜져 있어. 비밀번호로도 열 수 있어.'), h('br'), off);
+        const off = h('button', { class: 'ghost', id: 'bio-off', onclick: async () => { await wallet.biometric.disable(); await paintBio(); } }, 'Turn off fingerprint login');
+        setKids(bioArea, h('p', { class: 'small muted' }, 'Fingerprint login is on. You can also open with your password.'), h('br'), off);
       } else {
-        const on = h('button', { id: 'bio-on', onclick: () => busy(on, '지문을 인식해줘…', bioBox, async () => {
+        const on = h('button', { id: 'bio-on', onclick: () => busy(on, 'Touch the fingerprint sensor…', bioBox, async () => {
           await wallet.revealSeeds(bioPw.value); // confirms the password before it is protected
           await wallet.biometric.enable(bioPw.value);
           bioPw.value = '';
           await paintBio();
-        }) }, '지문 로그인 켜기');
-        setKids(bioArea, h('label', { class: 'field' }, h('span', {}, '비밀번호'), bioPw), on);
+        }) }, 'Turn on fingerprint login');
+        setKids(bioArea, h('label', { class: 'field' }, h('span', {}, 'Password'), bioPw), on);
       }
     };
     await paintBio();
-    bioSection = h('div', { class: 'section' }, h('h3', {}, '지문 로그인'), bioBox.el, bioArea,
-      h('p', { class: 'hint' }, '지갑을 열 때 쓸 수 있어. 코인을 보낼 때는 지금처럼 비밀번호를 입력해야 해. 휴대폰에 지문을 새로 등록하면 보안을 위해 다시 켜야 해.'));
+    bioSection = h('div', { class: 'section' }, h('h3', {}, 'Fingerprint login'), bioBox.el, bioArea,
+      h('p', { class: 'hint' }, 'For opening the wallet. Sending coins still needs your password. Enrolling a new fingerprint on the phone turns this off for security.'));
   }
 
   const delPw = h('input', { type: 'password', autocomplete: 'current-password', id: 'del-pw' });
-  const del = h('button', { class: 'danger', id: 'delete', onclick: () => busy(del, '삭제 중…', delBox, async () => {
+  const del = h('button', { class: 'danger', id: 'delete', onclick: () => busy(del, 'Deleting…', delBox, async () => {
     deleting = true;
     try {
       await wallet.deleteWallet(delPw.value);
@@ -1481,45 +1481,45 @@ async function renderSettings(): Promise<void> {
     } finally {
       deleting = false;
     }
-  }) }, '이 PC에서 지갑 삭제');
+  }) }, 'Delete wallet from this device');
 
   show('send',
-    h('div', { class: 'bar' }, h('span', {}), h('h2', {}, '설정'), h('span', {})),
+    h('div', { class: 'bar' }, h('span', {}), h('h2', {}, 'Settings'), h('span', {})),
     h('div', { class: 'scroll' },
-      h('div', { class: 'section' }, h('h3', {}, '연결'), netBox.el,
-        h('label', { class: 'field' }, h('span', {}, 'Monero 노드 직접 지정'), node, h('div', { class: 'hint' }, '내 노드가 있으면 입력해. 비워두면 공개 노드를 자동으로 골라. 공개 노드는 네 IP를 볼 수 있어.')),
-        h('label', { class: 'field' }, h('span', {}, 'TronGrid API 키'), key, h('div', { class: 'hint' }, '없어도 동작해. 조회가 자주 막히면 무료 키를 넣어.')),
-        h('label', { class: 'field' }, h('span', {}, '자동 잠금 (분)'), auto),
-        h('label', { class: 'check' }, showPrices, h('span', {}, '달러 시세 표시', h('div', { class: 'hint' }, 'CoinGecko에서 시세를 받아오고, 막히면 Kraken과 CryptoCompare를 써. 주소나 잔액은 보내지 않지만 네 IP는 보일 수 있어.'))),
+      h('div', { class: 'section' }, h('h3', {}, 'Connections'), netBox.el,
+        h('label', { class: 'field' }, h('span', {}, 'Custom Monero node'), node, h('div', { class: 'hint' }, 'Enter your own node if you have one. Empty chooses a public node automatically. Public nodes can see your IP.')),
+        h('label', { class: 'field' }, h('span', {}, 'TronGrid API key'), key, h('div', { class: 'hint' }, 'Works without one. Add a free key if lookups are often limited.')),
+        h('label', { class: 'field' }, h('span', {}, 'Auto-lock (minutes)'), auto),
+        h('label', { class: 'check' }, showPrices, h('span', {}, 'Show USD prices', h('div', { class: 'hint' }, 'Prices come from CoinGecko, then Kraken and CryptoCompare if blocked. Addresses and balances aren\'t sent, but your IP can be seen.'))),
         h('div', { class: 'tor-block' },
           h('h3', {}, 'Tor'), torBox.el, torProgress,
-          h('label', { class: 'check' }, useTor, h('span', {}, 'Tor로 연결하기',
-            h('div', { class: 'hint' }, 'XMR 노드, TronGrid, 시세 연결을 모두 Tor로 보내서 네 IP를 숨겨. 공개된 Tron 거래 내역은 숨겨주지 않고, 조회와 동기화가 느려져.'),
-            h('div', { class: 'hint' }, tor.updatable === false ? 'Tor가 끊기면 일반 인터넷으로 넘어가지 않고 연결이 멈춰.' : 'Tor가 끊기면 일반 인터넷으로 넘어가지 않고 연결이 멈춰. 처음 설치할 때 파일을 받는 동안만 일반 인터넷을 써.'))),
+          h('label', { class: 'check' }, useTor, h('span', {}, 'Connect through Tor',
+            h('div', { class: 'hint' }, 'Sends node, TronGrid and price connections through Tor to hide your IP. It doesn\'t hide public Tron history, and lookups and sync get slower.'),
+            h('div', { class: 'hint' }, tor.updatable === false ? 'If Tor drops, connections stop rather than falling back to the plain internet.' : 'If Tor drops, connections stop rather than falling back to the plain internet. Only the first install uses the plain internet, to download the files.'))),
           updateTor),
         h('div', { class: 'row' }, saveBtn, saved),
-        h('p', { class: 'hint' }, '노드, API 키, Tor를 바꾸면 지갑이 잠겨. 다시 열면 적용돼.')),
+        h('p', { class: 'hint' }, 'Changing the node, API key or Tor locks the wallet. It applies when reopened.')),
       bioSection,
-      h('div', { class: 'section', id: 'arrr-info' }, h('h3', {}, 'Pirate Chain 엔진'),
-        h('p', { class: 'small', id: 'arrr-info-state' }, arrrInfo.available ? (arrrInfo.started ? `실행됨: ${arrrInfo.phase}` : '찾았지만 실행 안 됨') : '못 찾음'),
+      h('div', { class: 'section', id: 'arrr-info' }, h('h3', {}, 'Pirate Chain engine'),
+        h('p', { class: 'small', id: 'arrr-info-state' }, arrrInfo.available ? (arrrInfo.started ? `Running: ${arrrInfo.phase}` : 'Found but not running') : 'Not found'),
         arrrInfo.error && h('p', { class: 'small' }, arrrInfo.error)),
-      h('div', { class: 'section', id: 'zano-info' }, h('h3', {}, 'Zano 엔진'),
-        h('p', { class: 'small', id: 'zano-info-state' }, zanoInfo.available ? (zanoInfo.started ? `실행됨: ${zanoInfo.phase}` : '찾았지만 실행 안 됨') : '못 찾음'),
+      h('div', { class: 'section', id: 'zano-info' }, h('h3', {}, 'Zano engine'),
+        h('p', { class: 'small', id: 'zano-info-state' }, zanoInfo.available ? (zanoInfo.started ? `Running: ${zanoInfo.phase}` : 'Found but not running') : 'Not found'),
         zanoInfo.error && h('p', { class: 'small' }, zanoInfo.error)),
-      h('div', { class: 'section', id: 'zec-info' }, h('h3', {}, 'Zcash 엔진'),
-        h('p', { class: 'small', id: 'zec-info-state' }, zecInfo.available ? (zecInfo.started ? `실행됨: ${zecInfo.phase}` : '찾았지만 실행 안 됨') : '못 찾음'),
+      h('div', { class: 'section', id: 'zec-info' }, h('h3', {}, 'Zcash engine'),
+        h('p', { class: 'small', id: 'zec-info-state' }, zecInfo.available ? (zecInfo.started ? `Running: ${zecInfo.phase}` : 'Found but not running') : 'Not found'),
         zecInfo.error && h('p', { class: 'small' }, zecInfo.error),
-        h('p', { class: 'small', id: 'zec-info-list' }, `목록: ${ASSETS.includes('ZEC') ? 'ZEC 포함' : 'ZEC 없음'} / 잔액 조회: ${refreshNote}`),
+        h('p', { class: 'small', id: 'zec-info-list' }, `List: ${ASSETS.includes('ZEC') ? 'includes ZEC' : 'no ZEC'} / balance check: ${refreshNote}`),
         h('p', { class: 'muted small mono' }, zecInfo.detail)),
-      h('div', { class: 'section' }, h('h3', {}, '시드 백업'), seedBox.el,
-        h('label', { class: 'field' }, h('span', {}, '비밀번호'), seedPw), rev, seedOut),
-      h('div', { class: 'section' }, h('h3', {}, '비밀번호 변경'), pwBox.el,
-        h('label', { class: 'field' }, h('span', {}, '현재 비밀번호'), curPw),
-        h('label', { class: 'field' }, h('span', {}, '새 비밀번호 (10자 이상)'), newPw),
+      h('div', { class: 'section' }, h('h3', {}, 'Seed backup'), seedBox.el,
+        h('label', { class: 'field' }, h('span', {}, 'Password'), seedPw), rev, seedOut),
+      h('div', { class: 'section' }, h('h3', {}, 'Change password'), pwBox.el,
+        h('label', { class: 'field' }, h('span', {}, 'Current password'), curPw),
+        h('label', { class: 'field' }, h('span', {}, 'New password (at least 10 characters)'), newPw),
         h('div', { class: 'row' }, chg, chgDone)),
-      h('div', { class: 'section' }, h('h3', {}, '지갑 삭제'), delBox.el,
-        h('p', { class: 'muted small' }, '코인은 블록체인에 그대로 남지만, 시드 없이는 다시는 꺼낼 수 없어. 시드를 확인한 뒤에 삭제해.'), h('br'),
-        h('label', { class: 'field' }, h('span', {}, '비밀번호'), delPw), del)),
+      h('div', { class: 'section' }, h('h3', {}, 'Delete wallet'), delBox.el,
+        h('p', { class: 'muted small' }, 'Coins stay on the blockchain, but can never be reached without the seeds. Check your seeds before deleting.'), h('br'),
+        h('label', { class: 'field' }, h('span', {}, 'Password'), delPw), del)),
     bottomNav('settings'));
 }
 

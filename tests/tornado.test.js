@@ -26,9 +26,9 @@ test('note helpers: stable, standard form, pool amounts, relayer limits', () => 
   assert.equal(denomination('0.1'), 10n ** 17n);
   assert.equal(denomination('100'), 100n * 10n ** 18n);
   assert.equal(relayerFee('0.1', 0.5, 1_000_000_000n), 500_000n * 1_000_000_000n + 5n * 10n ** 14n);
-  assert.throws(() => relayerFee('0.1', 0.5, 100n * 1_000_000_000n), /5%를 넘어/);
+  assert.throws(() => relayerFee('0.1', 0.5, 100n * 1_000_000_000n), /over 5%/);
   assert.equal(checkRelayerUrl('https://relay.example.org/', false), 'https://relay.example.org');
-  for (const bad of ['http://relay.example.org', 'ftp://x', 'https://a.b/path', 'http://127.0.0.1:80']) assert.throws(() => checkRelayerUrl(bad, false), /릴레이어/);
+  for (const bad of ['http://relay.example.org', 'ftp://x', 'https://a.b/path', 'http://127.0.0.1:80']) assert.throws(() => checkRelayerUrl(bad, false), /[Rr]elayer/);
 });
 
 test('deposit, proof, withdraw through a relayer and directly, on the real contracts', { timeout: 280_000 }, async (t) => {
@@ -68,25 +68,25 @@ test('deposit, proof, withdraw through a relayer and directly, on the real contr
   const me = deriveEthAccount(PHRASE);
   const eth = new EthClient([chain.url], chain.url, USDT, me.address);
   s.tron = {}; s.monero = {}; s.btc = {}; s.dcr = {}; s.dash = {}; s.firo = {}; s.eth = eth;
-  s.vault.open = async (pw) => { if (pw !== 'pw') throw new Error('비밀번호가 틀렸어.'); return { tronMnemonic: PHRASE }; };
+  s.vault.open = async (pw) => { if (pw !== 'pw') throw new Error('Wrong password.'); return { tronMnemonic: PHRASE }; };
 
   assert.equal(await s.tornadoCheck(), true);
 
   // Deposit: the note exists before the money moves
   const prep = await s.tornadoDepositPrepare('0.1');
   assert.equal(prep.amount, '0.1');
-  await assert.rejects(s.tornadoDepositConfirm(prep.id, '0.1', 'wrong'), /비밀번호/);
+  await assert.rejects(s.tornadoDepositConfirm(prep.id, '0.1', 'wrong'), /[Pp]assword/);
   const n1 = await s.tornadoDepositConfirm(prep.id, '0.1', 'pw');
   assert.equal(n1.status, 'deposited');
   assert.equal(n1.index, 0);
   assert.equal(await chain.provider.getBalance(chain.address), 10n ** 17n);
   const n2 = await s.tornadoDepositConfirm((await s.tornadoDepositPrepare('0.1')).id, '0.1', 'pw');
   assert.equal(n2.index, 1);
-  await assert.rejects(s.tornadoDepositPrepare('7'), /없는 풀/);
+  await assert.rejects(s.tornadoDepositPrepare('7'), /No such pool/);
 
   // Withdraw checks
-  await assert.rejects(s.tornadoWithdrawQuote(n1.id, me.address.toLowerCase(), ''), /입금한 주소/);
-  await assert.rejects(s.tornadoWithdrawQuote(n1.id, 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t', ''), /Ethereum 주소/);
+  await assert.rejects(s.tornadoWithdrawQuote(n1.id, me.address.toLowerCase(), ''), /deposit address/);
+  await assert.rejects(s.tornadoWithdrawQuote(n1.id, 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t', ''), /Ethereum address/);
 
   // Through the relayer: nothing comes from my address
   const quote = await s.tornadoWithdrawQuote(n1.id, OUT, relayUrl);
@@ -101,10 +101,10 @@ test('deposit, proof, withdraw through a relayer and directly, on the real contr
   const tx = await chain.provider.getTransaction(done.withdrawTx);
   assert.equal(tx.from, relayerAddress);
   assert.equal(await chain.provider.getBalance(OUT), 10n ** 17n - ethers.parseEther(quote.fee), 'exactly the quoted amount');
-  assert.ok(stages.some((m) => /머클/.test(m)) && stages.some((m) => /증명/.test(m)));
+  assert.ok(stages.some((m) => /Merkle/.test(m)) && stages.some((m) => /proof/.test(m)));
 
   // Spent notes are refused without burning time on a proof
-  await assert.rejects(s.tornadoWithdraw(n1.id, OUT, relayUrl, 'pw'), /이미 출금/);
+  await assert.rejects(s.tornadoWithdraw(n1.id, OUT, relayUrl, 'pw'), /already withdrawn/);
 
   // Directly, the fallback: works, full amount
   const self = await s.tornadoWithdrawQuote(n2.id, OUT2, '');

@@ -8,7 +8,7 @@ function runWorker(op: string, payload: unknown): Promise<any> {
       if (m.error) finish(reject, new Error(m.error));
       else finish(resolve, m.result);
     };
-    worker.onerror = (e) => finish(reject, new Error(e.message || '증명 엔진 오류'));
+    worker.onerror = (e) => finish(reject, new Error(e.message || 'Proof engine error'));
     worker.postMessage({ op, payload });
   });
 }
@@ -29,7 +29,7 @@ function runFrame(op: string, payload: unknown, onProgress: (stage: string) => v
       else finish(resolve, m.result);
     };
     window.addEventListener('message', listen);
-    frame.onerror = () => finish(reject, new Error('증명 엔진을 시작하지 못했어.'));
+    frame.onerror = () => finish(reject, new Error('Could not start the proof engine.'));
     document.body.append(frame);
   });
 }

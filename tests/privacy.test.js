@@ -72,8 +72,8 @@ async function setup(t) {
 
 test('swap to an outside address: checked for the target coin, sent in the order', async (t) => {
   const { s, orders } = await setup(t);
-  await assert.rejects(s.swapPrepare('ETH', 'BTC', '1', 'exolix', ETH_OUT), /BTC 주소가 아니야/);
-  await assert.rejects(s.swapPrepare('BTC', 'USDTE', '1', 'exolix', '0xdAC17F958D2ee523a2206206994597C13D831ec7'), /컨트랙트/);
+  await assert.rejects(s.swapPrepare('ETH', 'BTC', '1', 'exolix', ETH_OUT), /not a BTC address/);
+  await assert.rejects(s.swapPrepare('BTC', 'USDTE', '1', 'exolix', '0xdAC17F958D2ee523a2206206994597C13D831ec7'), /contract/);
   assert.equal(orders.length, 0, 'no order for a bad address');
   const p = await s.swapPrepare('ETH', 'BTC', '1', 'exolix', BTC_OUT);
   assert.equal(p.swap.external, true);
@@ -95,8 +95,8 @@ test('privacy: pairs limited, destination required, same Ethereum address refuse
   const { s, orders } = await setup(t);
   await assert.rejects(s.privacyQuote('TRX', 'BTC', '1'), /BTC, ETH/);
   await assert.rejects(s.privacyPrepare('ETH', 'XMR', '1', 'exolix', XMR_ME), /BTC, ETH/);
-  await assert.rejects(s.privacyPrepare('ETH', 'BTC', '1', 'exolix', ' '), /꼭 필요/);
-  await assert.rejects(s.privacyPrepare('ETH', 'ETH', '1', 'exolix', ETH_ME.toLowerCase()), /프라이버시 효과가 없어/);
+  await assert.rejects(s.privacyPrepare('ETH', 'BTC', '1', 'exolix', ' '), /requires/);
+  await assert.rejects(s.privacyPrepare('ETH', 'ETH', '1', 'exolix', ETH_ME.toLowerCase()), /no privacy benefit/);
   assert.equal(orders.length, 0);
 });
 
@@ -122,7 +122,7 @@ test('privacy: full path, two orders, nothing moves in step two without approval
   assert.equal(p.to, 'ETH');
   assert.equal(sent.length, 1);
 
-  await assert.rejects(s.privacySecond(p.id, '1', 'simpleswap'), /잠금이 풀린 뒤/);
+  await assert.rejects(s.privacySecond(p.id, '1', 'simpleswap'), /unlocks/);
   v.received = { total: 2_000_000_000_000n, unlocked: 0n };
   let now = await s.privacyRefresh(p.id);
   assert.equal(now.stage, 'first', 'arrived but locked');
@@ -132,7 +132,7 @@ test('privacy: full path, two orders, nothing moves in step two without approval
   assert.equal(now.stage, 'ready');
   assert.equal(sent.length, 1, 'arrival alone sends nothing');
 
-  await assert.rejects(s.privacySecond(p.id, '2.5', 'simpleswap'), /2 XMR까지만/);
+  await assert.rejects(s.privacySecond(p.id, '2.5', 'simpleswap'), /up to 2 XMR/);
   const offers = await s.privacySecondQuote(p.id, '1.5');
   assert.equal(offers[0].providerId, 'simpleswap', 'other service offered first');
   const b = await s.privacySecond(p.id, '1.5', 'simpleswap');
@@ -156,8 +156,8 @@ test('privacy: a refunded step stops the flow and says why', async (t) => {
   v.status[p.firstId] = 'refunded';
   const now = await s.privacyRefresh(p.id);
   assert.equal(now.stage, 'failed');
-  assert.match(now.note, /환불/);
-  await assert.rejects(s.privacySecond(p.id, '1', 'simpleswap'), /잠금이 풀린 뒤/);
+  assert.match(now.note, /refund/);
+  await assert.rejects(s.privacySecond(p.id, '1', 'simpleswap'), /unlocks/);
 });
 
 test('privacy: a tampered order in step one stops before any signing', async (t) => {
@@ -166,10 +166,10 @@ test('privacy: a tampered order in step one stops before any signing', async (t)
   s.swapClients = function () {
     const c = realCreate.call(this);
     const q = c.exolix.create.bind(c.exolix);
-    c.exolix.create = async (...args) => { const o = await q(...args); throw new Error(`업체 응답이 요청과 달라서 중단했어: ${o.id}`); };
+    c.exolix.create = async (...args) => { const o = await q(...args); throw new Error(`The provider's answer differs from the request, so this was stopped: ${o.id}`); };
     return c;
   };
-  await assert.rejects(s.privacyPrepare('ETH', 'BTC', '1', 'exolix', BTC_OUT), /중단/);
+  await assert.rejects(s.privacyPrepare('ETH', 'BTC', '1', 'exolix', BTC_OUT), /stopped/);
   assert.equal(sent.length, 0);
   assert.equal((await s.privacyList()).length, 0);
 });

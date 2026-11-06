@@ -36,7 +36,7 @@ function netEnum(type: NetType) {
 }
 
 function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
-  return Promise.race([p, new Promise<T>((_, rej) => setTimeout(() => rej(new Error('시간 초과')), ms))]);
+  return Promise.race([p, new Promise<T>((_, rej) => setTimeout(() => rej(new Error('Timed out')), ms))]);
 }
 
 /** Point monero-ts at the unpacked worker when running from a packaged app. */
@@ -49,7 +49,7 @@ export function configureMoneroWorker(): void {
 
 export async function generateMoneroSeed(type: NetType): Promise<string> {
   const keys = await withTimeout<any>(moneroTs.createWalletKeys({ networkType: netEnum(type), language: 'English' }), ENGINE_TIMEOUT_MS)
-    .catch(() => { throw new Error('Monero 모듈을 시작하지 못했어.'); });
+    .catch(() => { throw new Error('Could not start the Monero module.'); });
   const seed = await keys.getSeed();
   await keys.close();
   return seed;
@@ -57,12 +57,12 @@ export async function generateMoneroSeed(type: NetType): Promise<string> {
 
 export async function validateMoneroSeed(seed: string): Promise<string> {
   const normalized = seed.trim().toLowerCase().split(/\s+/).join(' ');
-  if (normalized.split(' ').length !== 25) throw new Error('Monero 시드는 25단어야.');
+  if (normalized.split(' ').length !== 25) throw new Error('A Monero seed has 25 words.');
   try {
     const keys = await withTimeout<any>(moneroTs.createWalletKeys({ networkType: moneroTs.MoneroNetworkType.MAINNET, seed: normalized }), ENGINE_TIMEOUT_MS);
     await keys.close();
   } catch {
-    throw new Error('Monero 시드 문구가 올바르지 않아.');
+    throw new Error('The Monero seed phrase is not valid.');
   }
   return normalized;
 }
@@ -164,17 +164,17 @@ export class MoneroClient extends EventEmitter {
   private get nodeTimeout() { return this.viaTor ? 60_000 : 10_000; }
 
   private async pickNode(): Promise<string> {
-    let lastError = '노드 없음';
+    let lastError = 'No node';
     for (const uri of this.opts.nodes) {
       try {
         const daemon = await moneroTs.connectToDaemonRpc({ uri, proxyUri: this.proxyFor(uri), proxyToWorker: false } as any);
         if (this.opts.allowFakechain) { await withTimeout(daemon.getHeight(), this.nodeTimeout); return uri; }
         const info: any = await withTimeout(daemon.getInfo(), this.nodeTimeout);
-        if (info.getNetworkType() !== netEnum(this.opts.type)) { lastError = '노드의 네트워크가 달라.'; continue; }
-        if (info.getIsBusySyncing?.()) { lastError = '노드가 아직 동기화 중이야.'; continue; }
+        if (info.getNetworkType() !== netEnum(this.opts.type)) { lastError = 'The node is on a different network.'; continue; }
+        if (info.getIsBusySyncing?.()) { lastError = 'The node is still syncing.'; continue; }
         return uri;
       } catch (e) {
-        lastError = this.viaTor ? 'Tor로 노드에 연결하지 못했어.' : '공개 노드 응답 없음.';
+        lastError = this.viaTor ? 'Could not reach a node through Tor.' : 'No public node answered.';
         void e;
       }
     }
@@ -215,7 +215,7 @@ export class MoneroClient extends EventEmitter {
       if (++this.healthMisses < 2) return;
     }
     this.healthMisses = 0;
-    this.patch({ connected: false, node: null, synced: false, error: this.viaTor ? 'Tor 연결이 끊겼어.' : '노드 연결이 끊겼어.' });
+    this.patch({ connected: false, node: null, synced: false, error: this.viaTor ? 'The Tor connection dropped.' : 'The node connection dropped.' });
     await withTimeout<void>(this.wallet.stopSyncing(), 15_000).catch(() => undefined);
     void this.connect();
   }
@@ -262,7 +262,7 @@ export class MoneroClient extends EventEmitter {
     const read = async () => {
       const subs: any[] = await this.wallet.getSubaddresses(0);
       const sub = subs.find((s) => s.getAddress() === address);
-      if (!sub) throw new Error('이 지갑의 주소가 아니야.');
+      if (!sub) throw new Error('This address is not from this wallet.');
       const transfers: any[] = await this.wallet.getIncomingTransfers({ accountIndex: 0, subaddressIndex: sub.getIndex() });
       let total = 0n;
       let unlocked = 0n;
@@ -274,7 +274,7 @@ export class MoneroClient extends EventEmitter {
       return { total, unlocked };
     };
     try { return await withTimeout(read(), waitMs); } catch (e) {
-      if (/이 지갑의 주소/.test((e as Error).message)) throw e;
+      if (/not from this wallet/.test((e as Error).message)) throw e;
       return null;
     }
   }
@@ -285,7 +285,7 @@ export class MoneroClient extends EventEmitter {
 
   async draft(to: string, amount: bigint | 'max'): Promise<MoneroDraft> {
     const synced = await withTimeout(this.refreshSynced(), this.viaTor ? 40_000 : 8_000).catch(() => false);
-    if (!synced) throw new Error('Monero 동기화가 끝나야 보낼 수 있어.');
+    if (!synced) throw new Error('Monero must finish syncing before it can send.');
     const txs: any[] = amount === 'max'
       ? await this.wallet.sweepUnlocked({ accountIndex: 0, address: to, relay: false })
       : [await this.wallet.createTx({ accountIndex: 0, address: to, amount, relay: false })];
@@ -305,7 +305,7 @@ export class MoneroClient extends EventEmitter {
   }
 
   async getHistory(): Promise<MoneroHistoryItem[]> {
-    if (!this.state.connected) throw new Error('노드에 연결되면 볼 수 있어.');
+    if (!this.state.connected) throw new Error('Available once connected to a node.');
     const txs: any[] = await this.wallet.getTxs();
     const items = txs.map((tx): MoneroHistoryItem => {
       const incoming = BigInt(tx.getIncomingAmount() ?? 0);

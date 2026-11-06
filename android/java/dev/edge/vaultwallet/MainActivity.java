@@ -238,8 +238,8 @@ public class MainActivity extends Activity {
         @JavascriptInterface public String zecInfo() {
             File dir = new File(getApplicationInfo().nativeLibraryDir);
             String[] names = dir.list();
-            return "기기 " + java.util.Arrays.toString(android.os.Build.SUPPORTED_ABIS) + " / 앱 " + dir.getName()
-                + " / " + (names == null ? "목록 없음" : java.util.Arrays.toString(names));
+            return "Device " + java.util.Arrays.toString(android.os.Build.SUPPORTED_ABIS) + " / app " + dir.getName()
+                + " / " + (names == null ? "no list" : java.util.Arrays.toString(names));
         }
         @JavascriptInterface public boolean zecAvailable() { return zec.available(); }
         @JavascriptInterface public boolean zecStart() { return zec.start(); }

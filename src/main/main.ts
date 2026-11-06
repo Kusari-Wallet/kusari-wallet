@@ -53,7 +53,7 @@ function createWindow(): void {
 function handle(channel: string, fn: (...args: any[]) => unknown): void {
   ipcMain.handle(channel, async (event, ...args) => {
     const url = event.senderFrame?.url ?? '';
-    if (!url.startsWith('file://') || !url.endsWith('/renderer/index.html')) throw new Error('허용되지 않은 호출이야.');
+    if (!url.startsWith('file://') || !url.endsWith('/renderer/index.html')) throw new Error('This call is not allowed.');
     if (channel !== 'wallet:status') bumpAutoLock();
     return fn(...args);
   });

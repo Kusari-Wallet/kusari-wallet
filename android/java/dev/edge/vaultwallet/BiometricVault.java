@@ -85,7 +85,7 @@ final class BiometricVault {
             disable(wallet);
             final Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
             cipher.init(Cipher.ENCRYPT_MODE, createKey(wallet));
-            prompt("지문 로그인 켜기", cipher, new Callback() {
+            prompt("Turn on fingerprint login", cipher, new Callback() {
                 @Override public void done(boolean ok, String value) {
                     if (!ok) { disable(wallet); cb.done(false, value); return; }
                     try {
@@ -97,13 +97,13 @@ final class BiometricVault {
                         cb.done(true, "");
                     } catch (Exception e) {
                         disable(wallet);
-                        cb.done(false, "지문 로그인을 켜지 못했어.");
+                        cb.done(false, "Could not turn on fingerprint login.");
                     }
                 }
             });
         } catch (Exception e) {
             disable(wallet);
-            cb.done(false, "지문 로그인을 켜지 못했어.");
+            cb.done(false, "Could not turn on fingerprint login.");
         }
     }
 
@@ -115,28 +115,28 @@ final class BiometricVault {
             if (key == null || ct.length == 0) throw new KeyPermanentlyInvalidatedException();
             final Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
             cipher.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(128, iv));
-            prompt("Kusari Wallet 열기", cipher, new Callback() {
+            prompt("Open Kusari Wallet", cipher, new Callback() {
                 @Override public void done(boolean ok, String value) {
                     if (!ok) { cb.done(false, value); return; }
                     try {
                         cb.done(true, new String(cipher.doFinal(ct), StandardCharsets.UTF_8));
                     } catch (Exception e) {
-                        cb.done(false, "지문 로그인에 실패했어. 비밀번호로 열어.");
+                        cb.done(false, "Fingerprint login failed. Open with your password.");
                     }
                 }
             });
         } catch (KeyPermanentlyInvalidatedException e) {
             disable(wallet);
-            cb.done(false, "휴대폰 지문 정보가 바뀌어서 지문 로그인을 껐어. 비밀번호로 연 뒤 다시 켜줘.");
+            cb.done(false, "The fingerprints on this phone changed, so fingerprint login was turned off. Open with your password, then turn it on again.");
         } catch (Exception e) {
-            cb.done(false, "지문 로그인에 실패했어. 비밀번호로 열어.");
+            cb.done(false, "Fingerprint login failed. Open with your password.");
         }
     }
 
     private void prompt(String title, Cipher cipher, final Callback cb) {
         BiometricPrompt prompt = new BiometricPrompt.Builder(activity)
                 .setTitle(title)
-                .setNegativeButton("비밀번호 사용", activity.getMainExecutor(), new DialogInterface.OnClickListener() {
+                .setNegativeButton("Use password", activity.getMainExecutor(), new DialogInterface.OnClickListener() {
                     @Override public void onClick(DialogInterface dialog, int which) { cb.done(false, "cancelled"); }
                 })
                 .build();

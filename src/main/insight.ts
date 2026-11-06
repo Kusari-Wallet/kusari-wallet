@@ -30,7 +30,7 @@ export abstract class InsightWallet<S extends string> {
     for (const base of this.apis) {
       try { return await getJson(base + path, { agent: this.agent, timeoutMs: this.timeoutMs }); } catch (e) { last = e; }
     }
-    throw last instanceof Error ? last : new Error(`${this.cfg.symbol} 서버에 연결하지 못했어.`);
+    throw last instanceof Error ? last : new Error(`Could not reach the ${this.cfg.symbol} server.`);
   }
 
   /** One request covers every address, so a scan is cheap. */
@@ -70,9 +70,9 @@ export abstract class InsightWallet<S extends string> {
     let spendable = 0n;
     for (const row of utxoRows) {
       const p = mine.get(row.address);
-      if (!p || !/^[0-9a-f]{64}$/.test(row.txid) || !Number.isInteger(row.vout)) throw new Error(`${this.cfg.symbol} 서버 응답이 이상해.`);
+      if (!p || !/^[0-9a-f]{64}$/.test(row.txid) || !Number.isInteger(row.vout)) throw new Error(`The ${this.cfg.symbol} server gave an unexpected answer.`);
       const value = BigInt(row.satoshis ?? row.atoms ?? 0);
-      if (value <= 0n) throw new Error(`${this.cfg.symbol} 서버 응답이 이상해.`);
+      if (value <= 0n) throw new Error(`The ${this.cfg.symbol} server gave an unexpected answer.`);
       total += value;
       if ((row.confirmations ?? 0) < 1) continue;
       spendable += value;
@@ -96,15 +96,15 @@ export abstract class InsightWallet<S extends string> {
     await this.refresh(true);
     const state = this.state!;
     const coins = [...state.utxos].sort((a, b) => (b.value > a.value ? 1 : -1));
-    if (!coins.length) throw new Error(`보낼 수 있는 ${this.cfg.symbol}가 없어. 입금은 1컨펌 뒤에 쓸 수 있어.`);
+    if (!coins.length) throw new Error(`No ${this.cfg.symbol} available to send. Deposits can be used after 1 confirmation.`);
     const base = { to, changeAddress: this.addressAt(1, state.nextChange), changeIndex: state.nextChange };
     if (amount === 'max') {
       const sum = coins.reduce((s, u) => s + u.value, 0n);
       const fee = this.size(coins.length, 1) * this.cfg.feePerByte;
-      if (sum - fee < this.cfg.dust) throw new Error(`수수료를 빼면 보낼 ${this.cfg.symbol}가 없어.`);
+      if (sum - fee < this.cfg.dust) throw new Error(`No ${this.cfg.symbol} left to send after the fee.`);
       return { ...base, amount: sum - fee, fee, change: 0n, inputs: coins };
     }
-    if (amount < this.cfg.dust) throw new Error(`최소 ${formatAmount(this.cfg.dust, 8)} ${this.cfg.symbol}부터 보낼 수 있어.`);
+    if (amount < this.cfg.dust) throw new Error(`The minimum to send is ${formatAmount(this.cfg.dust, 8)} ${this.cfg.symbol}.`);
     const inputs: InsightUtxo[] = [];
     let sum = 0n;
     for (const u of coins) {
@@ -115,7 +115,7 @@ export abstract class InsightWallet<S extends string> {
       const noChange = this.size(inputs.length, 1) * this.cfg.feePerByte;
       if (sum >= amount + noChange) return { ...base, amount, fee: sum - amount, change: 0n, inputs };
     }
-    throw new Error(`수수료까지 합치면 ${this.cfg.symbol} 잔액이 부족해.`);
+    throw new Error(`Not enough ${this.cfg.symbol} to cover the amount and fee.`);
   }
 
   async send(draft: InsightDraft, mnemonic: string): Promise<string> {
@@ -125,12 +125,12 @@ export abstract class InsightWallet<S extends string> {
       try {
         const res = await requestJson(`${base}/tx/send`, { method: 'POST', body: { rawtx: hex }, agent: this.agent, timeoutMs: this.timeoutMs });
         if (res.status >= 400) throw new Error(String(res.body?.message ?? res.body?.error ?? res.status).slice(0, 200));
-        if (res.body?.txid && res.body.txid !== id) throw new Error(`서버가 다른 거래 ID를 돌려줬어. 탐색기에서 ${id}를 확인해.`);
+        if (res.body?.txid && res.body.txid !== id) throw new Error(`The server returned a different transaction ID. Check ${id} on an explorer.`);
         this.state = null;
         return id;
       } catch (e) { last = e; }
     }
-    throw new Error(`전송 거부됨: ${(last as Error)?.message ?? ''}`);
+    throw new Error(`Send rejected: ${(last as Error)?.message ?? ''}`);
   }
 
   async getHistory(): Promise<InsightHistoryItem<S>[]> {

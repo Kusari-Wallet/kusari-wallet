@@ -64,8 +64,8 @@ test('restore, balance past 2^53, exact send, reopen', { timeout: 30000 }, async
   assert.equal(lines().find((l) => l.m === 'init').socks, '');
   assert.equal(c.keys.secret, '', 'the key is dropped once the file holds it');
 
-  await assert.rejects(c.draft('bad', 1n), /Zano 주소가 아니/);
-  await assert.rejects(c.draft(OTHER, 20000000000000000n), /잔액이 부족/);
+  await assert.rejects(c.draft('bad', 1n), /Not a Zano address/);
+  await assert.rejects(c.draft(OTHER, 20000000000000000n), /enough/);
   const max = await c.draft(OTHER, 'max');
   assert.equal(max.value, 15000000000000000n - 10000000000n);
   const d = await c.draft(OTHER, 9007199254740993n);
@@ -97,7 +97,7 @@ test('Tor: every start carries the port, and nothing goes out before Tor is up',
   await c.start();
   await sleep(300);
   assert.equal(fs.existsSync(log), false, 'silent until Tor is ready');
-  assert.equal(c.phase, 'Tor 연결 대기');
+  assert.equal(c.phase, 'Waiting for Tor');
   up = true;
   await until(() => c.balance());
   assert.equal(fs.readFileSync(log, 'utf8').split('\n').map((l) => l && JSON.parse(l)).find((l) => l.m === 'init').socks, '9150');

@@ -51,8 +51,8 @@ test('balance and sending through the shared Insight logic', async (t) => {
   assert.equal(tx.id, id);
   assert.equal(tx.getOutput(0).amount, 500000n);
   assert.equal(btc.Address(DASH_NET).encode(btc.OutScript.decode(tx.getOutput(0).script)), OTHER);
-  await assert.rejects(client.draft(OTHER, 5000000n), /부족/);
-  await assert.rejects(client.draft(OTHER, 100n), /최소/);
+  await assert.rejects(client.draft(OTHER, 5000000n), /enough/);
+  await assert.rejects(client.draft(OTHER, 100n), /minimum/);
   assert.equal(typicalDashFee(), 452n);
 });
 
@@ -60,10 +60,10 @@ test('signing refuses wrong sums, addresses not mine, a bad recipient', () => {
   const c = new DashClient(xpub, []);
   const good = { to: OTHER, amount: 100000n, fee: 500n, change: 99500n, changeAddress: c.addressAt(1, 0), changeIndex: 0, inputs: [{ txid: 'ab'.repeat(32), vout: 0, value: 200000n, address: c.addressAt(0, 0), chain: 0, index: 0 }] };
   assert.ok(signDashDraft(good, PHRASE).hex);
-  assert.throws(() => signDashDraft({ ...good, fee: 100n }, PHRASE), /금액 계산/);
-  assert.throws(() => signDashDraft({ ...good, inputs: [{ ...good.inputs[0], address: c.addressAt(0, 9) }] }, PHRASE), /입력 주소/);
-  assert.throws(() => signDashDraft({ ...good, changeAddress: c.addressAt(0, 9) }, PHRASE), /잔돈 주소/);
-  assert.throws(() => signDashDraft({ ...good, to: '1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2' }, PHRASE), /DASH 주소/);
+  assert.throws(() => signDashDraft({ ...good, fee: 100n }, PHRASE), /do not add up/);
+  assert.throws(() => signDashDraft({ ...good, inputs: [{ ...good.inputs[0], address: c.addressAt(0, 9) }] }, PHRASE), /input address/);
+  assert.throws(() => signDashDraft({ ...good, changeAddress: c.addressAt(0, 9) }, PHRASE), /change address/);
+  assert.throws(() => signDashDraft({ ...good, to: '1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2' }, PHRASE), /DASH address/);
 });
 
 // Dash's legacy P2PKH script rules are Bitcoin's, so Bitcoin Core's consensus code can judge them.

@@ -90,8 +90,8 @@ test('while Tor is still starting: no requests, balances wait, sends and quotes 
   assert.equal(o.balances.XMR.ok, true, 'XMR is read from the wallet itself');
   assert.equal(v.calls, 0);
   assert.equal(btcAsked, 0);
-  await assert.rejects(s.prepareSend('TRX', 'T', '1'), /Tor 연결 중/);
-  await assert.rejects(s.swapQuote('TRX', 'XMR', '1'), /Tor 연결 중/);
+  await assert.rejects(s.prepareSend('TRX', 'T', '1'), /Tor is connecting/);
+  await assert.rejects(s.swapQuote('TRX', 'XMR', '1'), /Tor is connecting/);
   s.tor.state = { ...s.tor.state, phase: 'ready' };
   const ready = await s.overview();
   assert.equal(ready.balances.TRX.total, '5');
@@ -105,7 +105,7 @@ test('a refused local Tor port reads as a Tor problem, not a raw error', async (
   s.btc.getBalance = async () => { throw new Error('connect ECONNREFUSED 127.0.0.1:57065'); };
   s.tron.getTrxBalance = async () => { throw new Error('connect ECONNREFUSED 127.0.0.1:57065'); };
   const o = await s.overview();
-  assert.match(o.balances.BTC.error, /Tor에 연결되지 않았어/);
-  assert.match(o.balances.TRX.error, /Tor에 연결되지 않았어/);
+  assert.match(o.balances.BTC.error, /Not connected to Tor/);
+  assert.match(o.balances.TRX.error, /Not connected to Tor/);
   void v;
 });

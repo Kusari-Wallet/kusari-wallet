@@ -15,7 +15,7 @@ export interface TronAccount { address: string; privateKey: string }
 export function generateTronMnemonic(): string {
   const account = TronWeb.createRandom(undefined, TRON_PATH);
   const phrase = account.mnemonic?.phrase;
-  if (!phrase) throw new Error('Tron 시드 생성에 실패했어.');
+  if (!phrase) throw new Error('Could not create the Tron seed.');
   return phrase;
 }
 
@@ -25,9 +25,9 @@ export function deriveTronAccount(mnemonic: string): TronAccount {
   try {
     account = TronWeb.fromMnemonic(normalized, TRON_PATH);
   } catch {
-    throw new Error('Tron 시드 문구가 올바르지 않아.');
+    throw new Error('The Tron seed phrase is not valid.');
   }
-  if (account instanceof Error) throw new Error('Tron 시드 문구가 올바르지 않아.');
+  if (account instanceof Error) throw new Error('The Tron seed phrase is not valid.');
   return { address: account.address, privateKey: account.privateKey.replace(/^0x/, '') };
 }
 
@@ -86,7 +86,7 @@ export class TronClient {
     const res = await this.tw.transactionBuilder.triggerConstantContract(
       this.net.usdt, 'balanceOf(address)', {}, [{ type: 'address', value: this.address }], this.address);
     const hex = res.constant_result?.[0];
-    if (!res.result?.result || !hex) throw new Error('USDT 잔액을 읽지 못했어.');
+    if (!res.result?.result || !hex) throw new Error('Could not read the USDT balance.');
     return BigInt('0x' + hex);
   }
 
@@ -144,14 +144,14 @@ export class TronClient {
     const sim = await this.tw.transactionBuilder.triggerConstantContract(
       this.net.usdt, 'transfer(address,uint256)', {},
       [{ type: 'address', value: transfer.to }, { type: 'uint256', value: transfer.amount.toString() }], this.address);
-    if (!sim.result?.result || sim.energy_used === undefined) throw new Error('USDT 전송 시뮬레이션에 실패했어.');
+    if (!sim.result?.result || sim.energy_used === undefined) throw new Error('The USDT send simulation failed.');
     // A first-time USDT recipient costs roughly double; the simulation already includes that.
     const energyNeeded = BigInt(sim.energy_used);
     const burn = positive(energyNeeded - stakedEnergy) * energyPrice;
     const bwFee = freeBw >= USDT_TX_BYTES || stakedBw >= USDT_TX_BYTES ? 0n : USDT_TX_BYTES * bandwidthPrice;
     const feeLimitSun = (energyNeeded * energyPrice * 3n) / 2n;
     if (feeLimitSun > FEE_LIMIT_CAP_SUN) {
-      throw new Error(`예상 수수료가 비정상적으로 높아서 중단했어 (${formatAmount(feeLimitSun, 6)} TRX 한도).`);
+      throw new Error(`The estimated fee is abnormally high, so this was stopped (limit ${formatAmount(feeLimitSun, 6)} TRX).`);
     }
     return { feeSun: burn + bwFee, feeLimitSun, energyNeeded, recipientIsNew: !recipientExists };
   }
@@ -162,17 +162,17 @@ export class TronClient {
     this.assertMatches(tx, transfer);
     const signed = await this.tw.trx.sign(tx, privateKey);
     const res = await this.tw.trx.sendRawTransaction(signed);
-    if (!res.result) throw new Error(`전송 거부됨: ${txError(res as { code?: string; message?: string })}`);
+    if (!res.result) throw new Error(`Send rejected: ${txError(res as { code?: string; message?: string })}`);
     return tx.txID;
   }
 
   /** Exposed for tests: builds the unsigned transaction. */
   async build(transfer: TronTransfer) {
     if (transfer.asset === 'TRX') {
-      if (transfer.amount > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error('금액이 너무 커.');
+      if (transfer.amount > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error('The amount is too large.');
       return this.tw.transactionBuilder.sendTrx(transfer.to, Number(transfer.amount), this.address);
     }
-    if (!transfer.feeLimit) throw new Error('수수료 한도가 없어.');
+    if (!transfer.feeLimit) throw new Error('No fee limit set.');
     const built = await this.tw.transactionBuilder.triggerSmartContract(
       this.net.usdt, 'transfer(address,uint256)',
       { feeLimit: Number(transfer.feeLimit), callValue: 0, txLocal: true },
@@ -182,12 +182,12 @@ export class TronClient {
 
   /** Exposed for tests: rejects a transaction that differs from the approved transfer. */
   assertMatches(tx: any, transfer: TronTransfer): void {
-    if (!tronUtils.transaction.txCheck(tx)) throw new Error('거래 데이터 무결성 검사에 실패해서 서명을 중단했어.');
+    if (!tronUtils.transaction.txCheck(tx)) throw new Error('The transaction data integrity check failed, so signing was stopped.');
     const contracts = tx.raw_data.contract;
-    if (contracts.length !== 1) throw new Error('거래 형식이 이상해서 서명을 중단했어.');
+    if (contracts.length !== 1) throw new Error('The transaction format isn\'t valid, so signing was stopped.');
     const value = contracts[0].parameter.value;
     const toHex = (a: string) => TronWeb.address.toHex(a).toLowerCase();
-    const fail = () => { throw new Error('거래 내용이 승인한 내용과 달라서 서명을 중단했어.'); };
+    const fail = () => { throw new Error('The transaction does not match what you approved, so signing was stopped.'); };
     if (String(value.owner_address).toLowerCase() !== toHex(this.address)) fail();
     if (transfer.asset === 'TRX') {
       if (contracts[0].type !== 'TransferContract') fail();

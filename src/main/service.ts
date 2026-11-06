@@ -140,7 +140,7 @@ export class WalletService extends EventEmitter {
       const r = JSON.parse(await fs.readFile(this.registryPath, 'utf8') as unknown as string);
       if (Array.isArray(r.list) && r.list.length && r.list.some((w: any) => w.id === r.active)) return r;
     } catch { /* first run: the wallet made before this feature, if any, is the first one */ }
-    return { active: 'main', list: [{ id: 'main', name: '내 지갑' }] };
+    return { active: 'main', list: [{ id: 'main', name: 'My wallet' }] };
   }
 
   private async walletRegistrySave(r: { active: string; list: { id: string; name: string }[] }): Promise<void> {
@@ -150,7 +150,7 @@ export class WalletService extends EventEmitter {
 
   private static walletName(input: string): string {
     const name = String(input).trim();
-    if (!name || [...name].length > 20) throw new Error('지갑 이름은 1자에서 20자까지 돼.');
+    if (!name || [...name].length > 20) throw new Error('Wallet names can be 1 to 20 characters.');
     return name;
   }
 
@@ -163,14 +163,14 @@ export class WalletService extends EventEmitter {
     const name = WalletService.walletName(input);
     const r = await this.walletRegistry();
     const w = r.list.find((x) => x.id === id);
-    if (!w) throw new Error('없는 지갑이야.');
+    if (!w) throw new Error('No such wallet.');
     w.name = name;
     await this.walletRegistrySave(r);
   }
 
   async walletSwitch(id: string): Promise<void> {
     const r = await this.walletRegistry();
-    if (!r.list.some((w) => w.id === id)) throw new Error('없는 지갑이야.');
+    if (!r.list.some((w) => w.id === id)) throw new Error('No such wallet.');
     await this.lock();
     r.active = id;
     await this.walletRegistrySave(r);
@@ -225,8 +225,8 @@ export class WalletService extends EventEmitter {
 
   /** Commits the generated seeds once the user has confirmed the backup. */
   async finishCreate(password: string): Promise<void> {
-    if (!this.draftSeeds) throw new Error('먼저 시드를 생성해.');
-    if (await this.vault.exists()) throw new Error('이미 지갑이 있어.');
+    if (!this.draftSeeds) throw new Error('Create the seeds first.');
+    if (await this.vault.exists()) throw new Error('A wallet already exists.');
     // Nothing can have been sent to a brand new seed before today, so start near the tip.
     const heights = { mainnet: Math.max(0, estimateMainnetHeight(new Date()) - 5040), testnet: -1 };
     const secrets = this.newSecrets(this.draftSeeds.tronMnemonic, this.draftSeeds.moneroSeed, heights);
@@ -238,8 +238,8 @@ export class WalletService extends EventEmitter {
 
   /** restoreFrom: a block height, a YYYY-MM-DD date, or empty for a full scan. */
   async restore(password: string, tronMnemonic: string, moneroSeed: string, restoreFrom: string): Promise<void> {
-    if (await this.vault.exists()) throw new Error('이미 지갑이 있어.');
-    if (password.length < MIN_PASSWORD) throw new Error(`비밀번호는 ${MIN_PASSWORD}자 이상이어야 해.`);
+    if (await this.vault.exists()) throw new Error('A wallet already exists.');
+    if (password.length < MIN_PASSWORD) throw new Error(`The password must be at least ${MIN_PASSWORD} characters.`);
     deriveTronAccount(tronMnemonic); // throws on a bad phrase
     const seed = await validateMoneroSeed(moneroSeed);
     let height = 0;
@@ -247,9 +247,9 @@ export class WalletService extends EventEmitter {
     if (/^\d+$/.test(from)) height = Number(from);
     else if (/^\d{4}-\d{2}-\d{2}$/.test(from)) {
       const date = new Date(from + 'T00:00:00Z');
-      if (Number.isNaN(date.getTime())) throw new Error('날짜 형식이 올바르지 않아.');
+      if (Number.isNaN(date.getTime())) throw new Error('The date format is not valid.');
       height = Math.max(0, estimateMainnetHeight(date) - 21_600); // 30 days of margin
-    } else if (from) throw new Error('복구 시점은 블록 높이나 YYYY-MM-DD로 입력해.');
+    } else if (from) throw new Error('Enter the restore point as a block height or YYYY-MM-DD.');
     const heights = { mainnet: height, testnet: /^\d+$/.test(from) ? height : 0 };
     const secrets = this.newSecrets(tronMnemonic.trim().toLowerCase().split(/\s+/).join(' '), seed, heights);
     // A Monero block height says nothing about Zcash, so only a date carries over.
@@ -414,7 +414,7 @@ export class WalletService extends EventEmitter {
   }
 
   private session() {
-    if (!this.tron || !this.monero || !this.btc || !this.eth || !this.dcr || !this.dash || !this.firo) throw new Error('지갑이 잠겨 있어.');
+    if (!this.tron || !this.monero || !this.btc || !this.eth || !this.dcr || !this.dash || !this.firo) throw new Error('The wallet is locked.');
     return { tron: this.tron, monero: this.monero, btc: this.btc, eth: this.eth, dcr: this.dcr, dash: this.dash, firo: this.firo };
   }
 
@@ -424,7 +424,7 @@ export class WalletService extends EventEmitter {
   private get torNotReady(): boolean { return this.settings.torEnabled && this.tor.state.phase !== 'ready'; }
 
   private friendlyError(e: Error): string {
-    return this.settings.torEnabled && /ECONNREFUSED 127\.0\.0\.1|socks/i.test(e.message) ? 'Tor에 연결되지 않았어. 연결되면 자동으로 다시 조회해.' : e.message;
+    return this.settings.torEnabled && /ECONNREFUSED 127\.0\.0\.1|socks/i.test(e.message) ? 'Not connected to Tor. Balances load once it connects.' : e.message;
   }
 
   private balanceMemo = new Map<string, { at: number; total: bigint; spendable: bigint; decimals: number }>();
@@ -458,7 +458,7 @@ export class WalletService extends EventEmitter {
     // With Tor down, an old number would hide that the connection is gone.
     const torDown = this.settings.torEnabled && this.tor.state.phase !== 'ready';
     if (memo && !torDown && Date.now() - memo.at < BALANCE_STALE_MS) return view(memo, true);
-    return { ok: false, total: '', spendable: '', error: failure ? this.friendlyError(failure) : '잠시 뒤 다시 시도할게.' };
+    return { ok: false, total: '', spendable: '', error: failure ? this.friendlyError(failure) : 'Retrying shortly.' };
   }
 
   async overview() {
@@ -472,7 +472,7 @@ export class WalletService extends EventEmitter {
       } catch (e) {
         const message = (e as Error).message;
         // Being rate limited with nothing known yet is "still loading": it clears up by itself.
-        return /제한 중/.test(message) ? { ok: false, pending: true, total: '', spendable: '' } : { ok: false, total: '', spendable: '', error: this.friendlyError(e as Error) };
+        return /limiting requests/.test(message) ? { ok: false, pending: true, total: '', spendable: '' } : { ok: false, total: '', spendable: '', error: this.friendlyError(e as Error) };
       }
     };
     const { eth, dcr, dash, firo } = this.session();
@@ -573,13 +573,13 @@ export class WalletService extends EventEmitter {
 
   async swapQuote(from: Asset, to: Asset, amountInput: string) {
     this.session();
-    if (this.torNotReady) throw new Error('Tor 연결 중이야. 연결되면 다시 해봐.');
-    if (from === to) throw new Error('다른 코인을 골라줘.');
+    if (this.torNotReady) throw new Error('Tor is connecting. Try again once it connects.');
+    if (from === to) throw new Error('Choose a different coin.');
     const amount = formatAmount(parseAmount(amountInput, DECIMALS[from]), DECIMALS[from]);
     const clients = Object.entries(this.swapClients()) as [SwapProviderId, SwapProvider][];
     const results = await Promise.all(clients.map(async ([id, client]) => {
       try { return await client.quote(from, to, amount); } catch (e) {
-        return { from, to, amount, receive: '0', rate: '0', min: null, max: null, approximate: true, providerId: id, provider: id, problem: `연결 실패: ${(e as Error).message}` };
+        return { from, to, amount, receive: '0', rate: '0', min: null, max: null, approximate: true, providerId: id, provider: id, problem: `Connection failed: ${(e as Error).message}` };
       }
     }));
     const sorted = results.sort((a, b) => Number(!a.problem && b.problem ? -1 : !b.problem && a.problem ? 1 : Number(b.receive) - Number(a.receive)));
@@ -602,24 +602,24 @@ export class WalletService extends EventEmitter {
       : asset === 'XMR' ? await monero.isValidAddress(address)
         : asset === 'ETH' || asset === 'USDTE' ? isEthAddress(address)
           : isTronAddress(address);
-    if (!valid) throw new Error(`받을 주소가 ${asset === 'USDTE' ? 'USDT (Eth)' : asset === 'USDT' ? 'USDT (Tron)' : asset} 주소가 아니야.`);
-    if ((asset === 'ETH' || asset === 'USDTE') && address.toLowerCase() === ETH_USDT.toLowerCase()) throw new Error('USDT 컨트랙트 주소로는 받을 수 없어. 코인을 잃어버려.');
+    if (!valid) throw new Error(`The receiving address is not a ${asset === 'USDTE' ? 'USDT (Eth)' : asset === 'USDT' ? 'USDT (Tron)' : asset} address.`);
+    if ((asset === 'ETH' || asset === 'USDTE') && address.toLowerCase() === ETH_USDT.toLowerCase()) throw new Error('You cannot receive at the USDT contract address. The coins would be lost.');
     return address;
   }
 
   private async myAddress(asset: Asset): Promise<string> {
     const { tron, monero, btc, eth, dcr, dash } = this.session();
     if (asset === 'ARRR') {
-      if (!this.arrr?.receive) throw new Error('Pirate Chain 지갑을 준비하는 중이야. 조금 뒤에 다시 해봐.');
+      if (!this.arrr?.receive) throw new Error('The Pirate Chain wallet is getting ready. Try again shortly.');
       return this.arrr.receive;
     }
     if (asset === 'ZANO') {
-      if (!this.zano?.receive) throw new Error('Zano 지갑을 준비하는 중이야. 조금 뒤에 다시 해봐.');
+      if (!this.zano?.receive) throw new Error('The Zano wallet is getting ready. Try again shortly.');
       return this.zano.receive;
     }
     if (asset === 'ZEC') {
       // Swap services pay transparent addresses. The coins get shielded on arrival.
-      if (!this.zec?.transparentAddress) throw new Error('Zcash 지갑을 준비하는 중이야. 조금 뒤에 다시 해봐.');
+      if (!this.zec?.transparentAddress) throw new Error('The Zcash wallet is getting ready. Try again shortly.');
       return this.zec.transparentAddress;
     }
     await (asset === 'FIRO' ? this.firo!.refresh().catch(() => undefined) : asset === 'DASH' ? dash.refresh().catch(() => undefined) : asset === 'BTC' ? btc.refresh().catch(() => undefined) : asset === 'DCR' ? dcr.refresh().catch(() => undefined) : undefined);
@@ -628,12 +628,12 @@ export class WalletService extends EventEmitter {
 
   private async openOrder(from: Asset, to: Asset, amount: string, providerId: SwapProviderId, withdrawal: string, refund: string, external: boolean, privacy?: { leg: 'first'; via: string; destination: string } | { leg: 'second'; id: string }) {
     const client = this.swapClients()[providerId];
-    if (!client) throw new Error('이 업체는 지금 쓸 수 없어.');
+    if (!client) throw new Error('This provider is not available right now.');
     const quote = await client.quote(from, to, amount);
     if (quote.problem) throw new Error(quote.problem);
     const order = await client.create(from, to, amount, quote.receive, withdrawal, refund);
     const preview = await this.prepareSend(from, order.depositAddress, amount);
-    if (preview.amount !== amount) throw new Error('보낼 금액이 달라서 중단했어.');
+    if (preview.amount !== amount) throw new Error('The send amount differs, so this was stopped.');
     const swap = { id: order.id, from, to, amount, receive: order.receive, rate: order.rate, providerId, provider: order.provider, approximate: order.approximate, receiveAddress: withdrawal, withdrawalAddress: withdrawal, external, privacy };
     this.pendingSwaps.set(preview.id, swap);
     return { ...preview, swap };
@@ -642,7 +642,7 @@ export class WalletService extends EventEmitter {
   /** Gets a fresh rate, opens the order, checks it, and prepares the deposit like any other send. Nothing is signed yet. */
   async swapPrepare(from: Asset, to: Asset, amountInput: string, providerId: SwapProviderId = 'exolix', destination = '') {
     this.session();
-    if (from === to) throw new Error('다른 코인을 골라줘.');
+    if (from === to) throw new Error('Choose a different coin.');
     const amount = formatAmount(parseAmount(amountInput, DECIMALS[from]), DECIMALS[from]);
     const external = destination.trim() !== '';
     const withdrawal = external ? await this.checkDestination(to, destination) : await this.myAddress(to);
@@ -663,17 +663,17 @@ export class WalletService extends EventEmitter {
   }
 
   private assertPrivacyPair(from: Asset, to: Asset): void {
-    if (!PRIVACY_ASSETS.includes(from) || !PRIVACY_ASSETS.includes(to)) throw new Error('프라이버시 스왑은 BTC, ETH, USDT (Eth)만 돼.');
+    if (!PRIVACY_ASSETS.includes(from) || !PRIVACY_ASSETS.includes(to)) throw new Error('Privacy swaps only work with BTC, ETH and USDT (Eth).');
   }
 
   async privacyQuote(from: Asset, to: Asset, amountInput: string) {
     this.assertPrivacyPair(from, to);
     const firsts = await this.swapQuote(from, 'XMR', amountInput);
     const good = firsts.filter((q) => !q.problem);
-    if (!good.length) return { first: null, second: null, sameProvider: false, problem: firsts[0]?.problem ?? '지금은 견적을 받을 수 없어.' };
+    if (!good.length) return { first: null, second: null, sameProvider: false, problem: firsts[0]?.problem ?? 'No quote available right now.' };
     const xmr = formatAmount(parseAmount(Number(good[0].receive).toFixed(12), 12), 12);
     const seconds = (await this.swapQuote('XMR', to, xmr)).filter((q) => !q.problem);
-    if (!seconds.length) return { first: good[0], second: null, sameProvider: false, problem: '2단계 견적을 받을 수 없어. 금액을 바꿔봐.' };
+    if (!seconds.length) return { first: good[0], second: null, sameProvider: false, problem: 'No quote available for step 2. Try a different amount.' };
     // A different service on each side, so neither one sees both ends.
     let first = good[0];
     let second = seconds.find((q) => q.providerId !== first.providerId);
@@ -686,11 +686,11 @@ export class WalletService extends EventEmitter {
 
   async privacyPrepare(from: Asset, to: Asset, amountInput: string, providerId: SwapProviderId, destinationInput: string) {
     this.assertPrivacyPair(from, to);
-    if (!destinationInput.trim()) throw new Error('프라이버시 스왑은 최종으로 받을 주소가 꼭 필요해.');
+    if (!destinationInput.trim()) throw new Error('A privacy swap requires a final receiving address.');
     const destination = await this.checkDestination(to, destinationInput);
     const { eth, monero } = this.session();
     if ((from === 'ETH' || from === 'USDTE') && destination.toLowerCase() === eth.address.toLowerCase()) {
-      throw new Error('보내는 주소와 받는 주소가 같으면 프라이버시 효과가 없어. 새 주소를 넣어줘.');
+      throw new Error('Using the same sending and receiving address gives no privacy benefit. Enter a new address.');
     }
     const amount = formatAmount(parseAmount(amountInput, DECIMALS[from]), DECIMALS[from]);
     const via = await monero.createSubaddress();
@@ -702,12 +702,12 @@ export class WalletService extends EventEmitter {
     const { monero } = this.session();
     const list = await this.privacyList();
     const p = list.find((x) => x.id === id);
-    if (!p) throw new Error('프라이버시 스왑 기록이 없어.');
+    if (!p) throw new Error('No such privacy swap.');
     if (p.stage === 'first') {
       const record = await this.swapRefresh(p.firstId).catch(() => null);
       if (record && SWAP_DEAD.includes(record.status)) {
         p.stage = 'failed';
-        p.note = `1단계가 ${record.status} 상태로 끝났어. 환불은 보낸 코인 주소로 돌아와.`;
+        p.note = `Step 1 ended as ${record.status}. Any refund returns to the address that sent the coins.`;
       }
     }
     if (p.stage === 'first' || p.stage === 'ready') {
@@ -722,7 +722,7 @@ export class WalletService extends EventEmitter {
       if (record && SWAP_DONE.includes(record.status)) p.stage = 'done';
       else if (record && SWAP_DEAD.includes(record.status)) {
         p.stage = 'failed';
-        p.note = `2단계가 ${record.status} 상태로 끝났어. 환불되면 XMR 잔액으로 돌아오니까 일반 스왑으로 다시 진행해.`;
+        p.note = `Step 2 ended as ${record.status}. A refund returns to your XMR balance, so continue with a normal swap.`;
       }
     }
     await this.privacySave(list);
@@ -731,7 +731,7 @@ export class WalletService extends EventEmitter {
 
   async privacySecondQuote(id: string, amountInput: string) {
     const p = (await this.privacyList()).find((x) => x.id === id);
-    if (!p) throw new Error('프라이버시 스왑 기록이 없어.');
+    if (!p) throw new Error('No such privacy swap.');
     const list = await this.swapQuote('XMR', p.to, amountInput);
     // Offer a different service from step one first.
     return list.sort((a, b) => Number(a.providerId === p.firstProviderId) - Number(b.providerId === p.firstProviderId));
@@ -740,16 +740,16 @@ export class WalletService extends EventEmitter {
   async privacySecond(id: string, amountInput: string, providerId: SwapProviderId) {
     this.session();
     const p = (await this.privacyList()).find((x) => x.id === id);
-    if (!p) throw new Error('프라이버시 스왑 기록이 없어.');
-    if (p.stage !== 'ready') throw new Error('XMR이 도착하고 잠금이 풀린 뒤에 진행할 수 있어.');
+    if (!p) throw new Error('No such privacy swap.');
+    if (p.stage !== 'ready') throw new Error('You can continue after the XMR arrives and unlocks.');
     const value = parseAmount(amountInput, 12);
-    if (value > parseAmount(p.unlocked === '0' ? '0.000000000001' : p.unlocked, 12)) throw new Error(`이 스왑으로 받은 ${p.unlocked} XMR까지만 보낼 수 있어.`);
+    if (value > parseAmount(p.unlocked === '0' ? '0.000000000001' : p.unlocked, 12)) throw new Error(`You can send up to ${p.unlocked} XMR from this swap.`);
     return this.openOrder('XMR', p.to, formatAmount(value, 12), providerId, p.destination, p.via, true, { leg: 'second', id });
   }
 
   async swapConfirm(previewId: string, password: string) {
     const swap = this.pendingSwaps.get(previewId);
-    if (!swap) throw new Error('확인 시간이 지났어. 다시 진행해.');
+    if (!swap) throw new Error('The review expired. Try again.');
     const res = await this.confirmSend(previewId, password);
     this.pendingSwaps.delete(previewId);
     const record: SwapRecord = { id: swap.id, from: swap.from, to: swap.to, amount: swap.amount, receive: swap.receive, rate: swap.rate, createdAt: Date.now(), providerId: swap.providerId, provider: swap.provider, approximate: swap.approximate, status: 'wait', hashIn: res.hashes[0], withdrawalAddress: swap.withdrawalAddress };
@@ -774,9 +774,9 @@ export class WalletService extends EventEmitter {
     this.session();
     const list = await this.swapList();
     const record = list.find((r) => r.id === id);
-    if (!record) throw new Error('스왑 기록이 없어.');
+    if (!record) throw new Error('No such swap.');
     const client = this.swapClients()[record.providerId ?? 'exolix'];
-    if (!client) throw new Error(`${record.provider ?? '이 업체'}는 지금 상태를 볼 수 없어.`);
+    if (!client) throw new Error(`${record.provider ?? 'This provider'} can't show the status right now.`);
     const st = await client.status(id);
     record.status = st.status;
     record.hashOut = st.hashOut ?? record.hashOut;
@@ -815,7 +815,7 @@ export class WalletService extends EventEmitter {
 
   async qr(text: string): Promise<string> {
     // A Zcash unified address runs past 200 characters.
-    if (text.length > 500) throw new Error('QR로 만들 수 없는 값이야.');
+    if (text.length > 500) throw new Error('This value can\'t be made into a QR code.');
     return QRCode.toDataURL(text, { margin: 1, width: 320, errorCorrectionLevel: 'M', color: { dark: '#16302b', light: '#ffffff' } });
   }
 
@@ -868,7 +868,7 @@ export class WalletService extends EventEmitter {
   private get tornadoPoolMap(): Record<string, string> { return this.dev.tornadoPools ?? TORNADO_POOLS; }
   private poolAddress(pool: string): string {
     const address = this.tornadoPoolMap[pool];
-    if (!address) throw new Error('없는 풀이야.');
+    if (!address) throw new Error('No such pool.');
     return address;
   }
 
@@ -891,7 +891,7 @@ export class WalletService extends EventEmitter {
   async tornadoDepositConfirm(id: string, pool: string, password: string): Promise<TornadoNote> {
     const { eth } = this.session();
     const preview = this.previews.get(id);
-    if (!preview?.eth || preview.expires < Date.now() || preview.to !== this.poolAddress(pool)) throw new Error('확인 시간이 지났어. 다시 진행해.');
+    if (!preview?.eth || preview.expires < Date.now() || preview.to !== this.poolAddress(pool)) throw new Error('The review expired. Try again.');
     const secrets = await this.vault.open(password);
     this.previews.delete(id);
     const store = await this.tornadoStore.read();
@@ -924,7 +924,7 @@ export class WalletService extends EventEmitter {
   async tornadoExport(noteId: string, password: string): Promise<string> {
     const store = await this.tornadoStore.read();
     const note = store.notes.find((n) => n.id === noteId);
-    if (!note) throw new Error('입금 기록이 없어.');
+    if (!note) throw new Error('No such deposit.');
     const secrets = await this.vault.open(password);
     return noteText(note.pool, noteSecrets(secrets.tronMnemonic, note.index));
   }
@@ -934,10 +934,10 @@ export class WalletService extends EventEmitter {
     const { eth } = this.session();
     const store = await this.tornadoStore.read();
     const note = store.notes.find((n) => n.id === noteId);
-    if (!note) throw new Error('입금 기록이 없어.');
+    if (!note) throw new Error('No such deposit.');
     const recipient = recipientInput.trim();
-    if (!isEthAddress(recipient)) throw new Error('받을 주소가 Ethereum 주소가 아니야.');
-    if (recipient.toLowerCase() === eth.address.toLowerCase()) throw new Error('입금한 주소로 받으면 프라이버시 효과가 없어. 새 주소를 넣어줘.');
+    if (!isEthAddress(recipient)) throw new Error('The receiving address is not an Ethereum address.');
+    if (recipient.toLowerCase() === eth.address.toLowerCase()) throw new Error('Receiving at the deposit address gives no privacy benefit. Enter a new address.');
     const total = denomination(note.pool);
     if (!relayerInput.trim()) {
       const gas = (await eth.gasPrice()) * WITHDRAW_GAS;
@@ -955,31 +955,31 @@ export class WalletService extends EventEmitter {
     const tor = this.tornadoStore;
     const store = await tor.read();
     const note = store.notes.find((n) => n.id === noteId);
-    if (!note) throw new Error('입금 기록이 없어.');
+    if (!note) throw new Error('No such deposit.');
     const secrets = await this.vault.open(password);
     const quote = await this.tornadoWithdrawQuote(noteId, recipientInput, relayerInput);
     const address = this.poolAddress(note.pool);
     const keys = noteSecrets(secrets.tronMnemonic, note.index);
     const [{ commitment, nullifierHash }] = await runTornado('commit', { notes: [keys] });
-    if (commitment !== note.commitment) throw new Error('이 시드의 입금이 아니야.');
+    if (commitment !== note.commitment) throw new Error('This deposit is not from this seed.');
     const spent = tornadoAbi.decodeFunctionResult('isSpent', await eth.call(address, tornadoAbi.encodeFunctionData('isSpent', [nullifierHash])));
-    if (spent[0]) { note.status = 'withdrawn'; await tor.write(store); throw new Error('이미 출금된 입금이야.'); }
+    if (spent[0]) { note.status = 'withdrawn'; await tor.write(store); throw new Error('This deposit was already withdrawn.'); }
 
     const leaves = await tor.leaves(note.pool, address, eth, { seed: !this.dev.tornadoPools, agent: this.priceAgent, progress: say });
     const leafIndex = leaves.findIndex((l) => l.toLowerCase() === commitment.toLowerCase());
-    if (leafIndex < 0) throw new Error('입금이 아직 체인에서 확인되지 않았어. 컨펌 뒤에 다시 해봐.');
+    if (leafIndex < 0) throw new Error('The deposit isn\'t confirmed on the chain yet. Try again after it confirms.');
     const relayer = quote.mode === 'relayer' ? quote.relayer as string : `0x${'0'.repeat(40)}`;
     const fee = quote.mode === 'relayer' ? parseAmount(quote.fee, 18) : 0n;
     const { proof, args } = await runTornado('prove', { leaves, leafIndex, ...keys, recipient: quote.recipient, relayer, fee: fee.toString() }, (stage) => {
-      say(stage === 'tree' ? `머클 트리 만드는 중… ${leaves.length}건이라 몇 분 걸릴 수 있어.` : '영지식 증명 만드는 중… 화면이 잠깐 멈춰 보일 수 있어. 앱을 닫지 마.');
+      say(stage === 'tree' ? `Building the Merkle tree… ${leaves.length} deposits, so this can take a few minutes.` : 'Making the zero-knowledge proof… The screen may seem to freeze. Don\'t close the app.');
     });
     const known = tornadoAbi.decodeFunctionResult('isKnownRoot', await eth.call(address, tornadoAbi.encodeFunctionData('isKnownRoot', [args[0]])));
-    if (!known[0]) throw new Error('입금 기록이 체인과 맞지 않아서 중단했어. 코인은 그대로야. 다시 시도해줘.');
+    if (!known[0]) throw new Error('The deposit records don\'t match the chain, so this was stopped. Your coins are safe. Try again.');
 
     note.status = 'withdrawing';
     note.recipient = quote.recipient;
     await tor.write(store);
-    say('출금 전송 중…');
+    say('Sending the withdrawal…');
     try {
       let txHash: string;
       if (quote.mode === 'relayer') {
@@ -1031,7 +1031,7 @@ export class WalletService extends EventEmitter {
 
   async prepareSend(asset: Asset, to: string, amountInput: string) {
     const { tron, monero, btc, eth, dcr, dash } = this.session();
-    if (this.torNotReady) throw new Error('Tor 연결 중이야. 연결되면 다시 해봐.');
+    if (this.torNotReady) throw new Error('Tor is connecting. Try again once it connects.');
     const address = to.trim();
     const isMax = amountInput.trim().toLowerCase() === 'max';
     const decimals = DECIMALS[asset];
@@ -1039,71 +1039,71 @@ export class WalletService extends EventEmitter {
     let preview: Preview;
 
     if (asset === 'ARRR') {
-      if (!this.arrr) throw new Error('이 기기에서는 Pirate Chain을 쓸 수 없어.');
-      if (!isArrrAddress(address)) throw new Error('Pirate Chain 주소가 아니야. zs1 또는 pirate1로 시작해.');
-      if (address === this.arrr.receive) throw new Error('내 주소로는 보낼 수 없어.');
+      if (!this.arrr) throw new Error('Pirate Chain is not available on this device.');
+      if (!isArrrAddress(address)) throw new Error('Not a Pirate Chain address. It should start with zs1 or pirate1.');
+      if (address === this.arrr.receive) throw new Error('You cannot send to your own address.');
       const draft = await this.arrr.draft(address, isMax ? 'max' : parseAmount(amountInput, decimals));
       preview = this.storePreview({ asset, to: address, amount: draft.value, fee: draft.fee, arrr: draft });
     } else if (asset === 'ZANO') {
-      if (!this.zano) throw new Error('이 기기에서는 Zano를 쓸 수 없어.');
-      if (!isZanoAddress(address)) throw new Error('Zano 주소가 아니야.');
-      if (address === this.zano.receive) throw new Error('내 주소로는 보낼 수 없어.');
+      if (!this.zano) throw new Error('Zano is not available on this device.');
+      if (!isZanoAddress(address)) throw new Error('Not a Zano address.');
+      if (address === this.zano.receive) throw new Error('You cannot send to your own address.');
       const draft = await this.zano.draft(address, isMax ? 'max' : parseAmount(amountInput, decimals));
       preview = this.storePreview({ asset, to: address, amount: draft.value, fee: draft.fee, zano: draft });
     } else if (asset === 'ZEC') {
-      if (!this.zec) throw new Error('이 기기에서는 Zcash를 쓸 수 없어.');
-      if (!isZecAddress(address)) throw new Error('Zcash 주소가 아니야. u1, zs1, t1로 시작하는 주소만 보낼 수 있어.');
+      if (!this.zec) throw new Error('Zcash is not available on this device.');
+      if (!isZecAddress(address)) throw new Error('Not a Zcash address. Only addresses starting with u1, zs1 or t1 can be used.');
       const receive = this.zec.receive;
-      if (address === receive?.unified || address === receive?.transparent) throw new Error('내 주소로는 보낼 수 없어.');
+      if (address === receive?.unified || address === receive?.transparent) throw new Error('You cannot send to your own address.');
       const draft = await this.zec.draft(address, isMax ? 'max' : parseAmount(amountInput, decimals));
-      if (/^t/.test(address)) warnings.push('투명 주소로 보내면 받는 쪽 주소와 금액이 체인에 공개돼.');
+      if (/^t/.test(address)) warnings.push('Sending to a transparent address makes the recipient and amount public on the chain.');
       preview = this.storePreview({ asset, to: address, amount: draft.value, fee: draft.fee, zec: draft });
     } else if (asset === 'FIRO') {
-      if (!isFiroAddress(address)) throw new Error('Firo 주소가 아니야. a로 시작하는 투명 주소만 보낼 수 있어. Spark 주소는 아직 지원하지 않아.');
-      if (address === this.firo!.receiveAddress) throw new Error('내 주소로는 보낼 수 없어.');
+      if (!isFiroAddress(address)) throw new Error('Not a Firo address. Only transparent addresses starting with a can be used. Spark addresses are not supported.');
+      if (address === this.firo!.receiveAddress) throw new Error('You cannot send to your own address.');
       const draft = await this.firo!.draft(address, isMax ? 'max' : parseAmount(amountInput, decimals));
-      warnings.push('FIRO는 투명 거래만 지원해. 주소와 금액이 체인에 공개돼.');
+      warnings.push('FIRO only supports transparent transactions. Addresses and amounts are public on the chain.');
       preview = this.storePreview({ asset, to: address, amount: draft.amount, fee: draft.fee, firo: draft });
     } else if (asset === 'DASH') {
-      if (!isDashAddress(address)) throw new Error('Dash 주소가 아니야. X로 시작하는 주소만 보낼 수 있어.');
-      if (address === dash.receiveAddress) throw new Error('내 주소로는 보낼 수 없어.');
+      if (!isDashAddress(address)) throw new Error('Not a Dash address. Only addresses starting with X can be used.');
+      if (address === dash.receiveAddress) throw new Error('You cannot send to your own address.');
       const draft = await dash.draft(address, isMax ? 'max' : parseAmount(amountInput, decimals));
       preview = this.storePreview({ asset, to: address, amount: draft.amount, fee: draft.fee, dash: draft });
     } else if (asset === 'DCR') {
-      if (!isDcrAddress(address)) throw new Error('Decred 주소가 아니야. Ds로 시작하는 주소만 보낼 수 있어.');
-      if (address === dcr.receiveAddress) throw new Error('내 주소로는 보낼 수 없어.');
+      if (!isDcrAddress(address)) throw new Error('Not a Decred address. Only addresses starting with Ds can be used.');
+      if (address === dcr.receiveAddress) throw new Error('You cannot send to your own address.');
       const draft = await dcr.draft(address, isMax ? 'max' : parseAmount(amountInput, decimals));
       preview = this.storePreview({ asset, to: address, amount: draft.amount, fee: draft.fee, dcr: draft });
     } else if (asset === 'BTC') {
-      if (!isBtcAddress(address)) throw new Error('Bitcoin 주소가 아니야.');
+      if (!isBtcAddress(address)) throw new Error('Not a Bitcoin address.');
       const draft = await btc.draft(address, isMax ? 'max' : parseAmount(amountInput, decimals));
-      if (draft.fee * 2n > draft.amount) warnings.push('수수료가 보내는 금액의 절반을 넘어.');
+      if (draft.fee * 2n > draft.amount) warnings.push('The fee is more than half of the amount being sent.');
       preview = this.storePreview({ asset, to: address, amount: draft.amount, fee: draft.fee, btc: draft });
     } else if (asset === 'ETH' || asset === 'USDTE') {
-      if (!isEthAddress(address)) throw new Error('Ethereum 주소가 아니야. 0x로 시작하는 주소만 보낼 수 있어.');
-      if (address.toLowerCase() === eth.address.toLowerCase()) throw new Error('내 주소로는 보낼 수 없어.');
+      if (!isEthAddress(address)) throw new Error('Not an Ethereum address. Only addresses starting with 0x can be used.');
+      if (address.toLowerCase() === eth.address.toLowerCase()) throw new Error('You cannot send to your own address.');
       const draft = await eth.draft(asset, address, isMax ? 'max' : parseAmount(amountInput, decimals));
-      if (asset === 'ETH' && isMax) warnings.push('실제 수수료가 예상보다 적으면 차액은 ETH로 조금 남아.');
+      if (asset === 'ETH' && isMax) warnings.push('If the actual fee is lower than expected, a little ETH stays behind.');
       preview = this.storePreview({ asset, to: address, amount: draft.amount, fee: draft.expectedFee, eth: draft });
     } else if (asset === 'XMR') {
-      if (!(await monero.isValidAddress(address))) throw new Error('이 네트워크의 Monero 주소가 아니야.');
+      if (!(await monero.isValidAddress(address))) throw new Error('Not a Monero address on this network.');
       const amount = isMax ? 'max' as const : parseAmount(amountInput, decimals);
       const draft = await monero.draft(address, amount);
       preview = this.storePreview({ asset, to: address, amount: draft.amount, fee: draft.fee, monero: draft });
     } else {
-      if (!isTronAddress(address)) throw new Error('Tron 주소가 아니야. T로 시작하는 주소만 보낼 수 있어.');
-      if (address === tron.address) throw new Error('내 주소로는 보낼 수 없어.');
+      if (!isTronAddress(address)) throw new Error('Not a Tron address. Only addresses starting with T can be used.');
+      if (address === tron.address) throw new Error('You cannot send to your own address.');
       const trx = await tron.getTrxBalance();
       if (asset === 'USDT') {
         const usdt = await tron.getUsdtBalance();
         const amount = isMax ? usdt : parseAmount(amountInput, decimals);
-        if (amount <= 0n) throw new Error('보낼 USDT가 없어.');
-        if (amount > usdt) throw new Error('USDT 잔액이 부족해.');
+        if (amount <= 0n) throw new Error('No USDT to send.');
+        if (amount > usdt) throw new Error('Not enough USDT.');
         const fee = await tron.estimateFee({ asset, to: address, amount });
         if (fee.feeSun > trx) {
-          throw new Error(`수수료용 TRX가 부족해. 약 ${formatAmount(fee.feeSun, 6)} TRX가 필요한데 ${formatAmount(trx, 6)} TRX만 있어.`);
+          throw new Error(`Not enough TRX for the fee. About ${formatAmount(fee.feeSun, 6)} TRX is needed, and there is ${formatAmount(trx, 6)} TRX.`);
         }
-        if (fee.recipientIsNew) warnings.push('받는 주소가 아직 활성화되지 않아서 수수료가 더 나올 수 있어.');
+        if (fee.recipientIsNew) warnings.push('The receiving address isn\'t activated yet, so the fee may be higher.');
         preview = this.storePreview({
           asset, to: address, amount, fee: fee.feeSun,
           tron: { asset, to: address, amount, feeLimit: fee.feeLimitSun },
@@ -1111,9 +1111,9 @@ export class WalletService extends EventEmitter {
       } else {
         const probe = await tron.estimateFee({ asset, to: address, amount: 1n });
         const amount = isMax ? trx - probe.feeSun : parseAmount(amountInput, decimals);
-        if (amount <= 0n) throw new Error('수수료를 빼면 보낼 TRX가 없어.');
-        if (amount + probe.feeSun > trx) throw new Error('수수료까지 합치면 TRX 잔액이 부족해.');
-        if (probe.recipientIsNew) warnings.push('처음 쓰는 주소라서 활성화 수수료가 포함됐어.');
+        if (amount <= 0n) throw new Error('No TRX left to send after the fee.');
+        if (amount + probe.feeSun > trx) throw new Error('Not enough TRX to cover the amount and fee.');
+        if (probe.recipientIsNew) warnings.push('This is a new address, so an activation fee is included.');
         preview = this.storePreview({ asset, to: address, amount, fee: probe.feeSun, tron: { asset, to: address, amount } });
       }
     }
@@ -1141,22 +1141,22 @@ export class WalletService extends EventEmitter {
     const preview = this.previews.get(id);
     if (!preview || preview.expires < Date.now()) {
       this.previews.delete(id);
-      throw new Error('확인 시간이 지났어. 다시 진행해.');
+      throw new Error('The review expired. Try again.');
     }
     const secrets = await this.vault.open(password);
     this.previews.delete(id); // one shot: a retry must go through a fresh preview
     this.balanceMemo.clear(); // money is about to move
 
     if (preview.arrr) {
-      if (!this.arrr) throw new Error('Pirate Chain 엔진이 꺼져 있어.');
+      if (!this.arrr) throw new Error('The Pirate Chain engine is off.');
       return { hashes: [await this.arrr.send(preview.arrr)] };
     }
     if (preview.zano) {
-      if (!this.zano) throw new Error('Zano 엔진이 꺼져 있어.');
+      if (!this.zano) throw new Error('The Zano engine is off.');
       return { hashes: [await this.zano.send(preview.zano)] };
     }
     if (preview.zec) {
-      if (!this.zec) throw new Error('Zcash 엔진이 꺼져 있어.');
+      if (!this.zec) throw new Error('The Zcash engine is off.');
       return { hashes: await this.zec.send(preview.zec, secrets.tronMnemonic) };
     }
     if (preview.firo) return { hashes: [await this.firo!.send(preview.firo, secrets.tronMnemonic)] };
@@ -1173,7 +1173,7 @@ export class WalletService extends EventEmitter {
       return { hashes };
     }
     const account = deriveTronAccount(secrets.tronMnemonic);
-    if (account.address !== tron.address) throw new Error('지갑 주소가 일치하지 않아서 중단했어.');
+    if (account.address !== tron.address) throw new Error('The wallet address does not match, so this was stopped.');
     const txid = await tron.send(preview.tron as TronTransfer, account.privateKey);
     void tron.waitForResult(txid).then((status) => this.emit('tron-tx', { txid, status, asset: preview.asset }));
     return { hashes: [txid] };
@@ -1187,9 +1187,9 @@ export class WalletService extends EventEmitter {
 
   /** date: YYYY-MM-DD. The earlier the date, the longer the scan. */
   async arrrRescan(date: string, password: string): Promise<void> {
-    if (!this.arrr) throw new Error('이 기기에서는 Pirate Chain을 쓸 수 없어.');
+    if (!this.arrr) throw new Error('Pirate Chain is not available on this device.');
     const parsed = /^\d{4}-\d{2}-\d{2}$/.test(date.trim()) ? new Date(date.trim() + 'T00:00:00Z') : null;
-    if (!parsed || Number.isNaN(parsed.getTime())) throw new Error('날짜는 YYYY-MM-DD로 입력해.');
+    if (!parsed || Number.isNaN(parsed.getTime())) throw new Error('Enter the date as YYYY-MM-DD.');
     await this.vault.open(password);
     await this.arrr.rescan(date.trim());
   }
@@ -1210,17 +1210,17 @@ export class WalletService extends EventEmitter {
   }
 
   async zecShield(password: string) {
-    if (!this.zec) throw new Error('이 기기에서는 Zcash를 쓸 수 없어.');
-    if (this.torNotReady) throw new Error('Tor 연결 중이야. 연결되면 다시 해봐.');
+    if (!this.zec) throw new Error('Zcash is not available on this device.');
+    if (this.torNotReady) throw new Error('Tor is connecting. Try again once it connects.');
     const secrets = await this.vault.open(password);
     return { hashes: await this.zec.shield(secrets.tronMnemonic) };
   }
 
   /** date: YYYY-MM-DD. The earlier the date, the longer the scan. */
   async zecRescan(date: string, password: string): Promise<void> {
-    if (!this.zec) throw new Error('이 기기에서는 Zcash를 쓸 수 없어.');
+    if (!this.zec) throw new Error('Zcash is not available on this device.');
     const parsed = /^\d{4}-\d{2}-\d{2}$/.test(date.trim()) ? new Date(date.trim() + 'T00:00:00Z') : null;
-    if (!parsed || Number.isNaN(parsed.getTime())) throw new Error('날짜는 YYYY-MM-DD로 입력해.');
+    if (!parsed || Number.isNaN(parsed.getTime())) throw new Error('Enter the date as YYYY-MM-DD.');
     const secrets = await this.vault.open(password);
     await this.zec.rescan(secrets.tronMnemonic, zecHeightForDate(parsed));
   }
@@ -1242,7 +1242,7 @@ export class WalletService extends EventEmitter {
     const next: Settings = { ...this.settings };
     if (typeof patch.customMoneroNode === 'string') {
       const node = patch.customMoneroNode.trim();
-      if (node && !/^https?:\/\/[^\s/]+(:\d+)?\/?$/.test(node)) throw new Error('노드 주소는 http://host:port 형식으로 입력해.');
+      if (node && !/^https?:\/\/[^\s/]+(:\d+)?\/?$/.test(node)) throw new Error('Enter the node address as http://host:port.');
       next.customMoneroNode = node;
     }
     if (typeof patch.showPrices === 'boolean') next.showPrices = patch.showPrices;
@@ -1250,7 +1250,7 @@ export class WalletService extends EventEmitter {
     if (typeof patch.simpleSwapKey === 'string') next.simpleSwapKey = patch.simpleSwapKey.trim();
     if (typeof patch.ghostSwapKey === 'string') next.ghostSwapKey = patch.ghostSwapKey.trim();
     if (typeof patch.torEnabled === 'boolean') {
-      if (patch.torEnabled && !this.tor.isInstalled()) throw new Error('Tor를 먼저 설치해.');
+      if (patch.torEnabled && !this.tor.isInstalled()) throw new Error('Install Tor first.');
       next.torEnabled = patch.torEnabled;
     }
     if (typeof patch.tronApiKey === 'string') next.tronApiKey = patch.tronApiKey.trim();
@@ -1284,7 +1284,7 @@ export class WalletService extends EventEmitter {
     }
     const r = await this.walletRegistry();
     const left = r.list.filter((w) => w.id !== id);
-    const next = left.length ? { active: left[0].id, list: left } : { active: 'main', list: [{ id: 'main', name: '내 지갑' }] };
+    const next = left.length ? { active: left[0].id, list: left } : { active: 'main', list: [{ id: 'main', name: 'My wallet' }] };
     await this.walletRegistrySave(next);
     this.activate(next.active);
     return id;
@@ -1292,10 +1292,10 @@ export class WalletService extends EventEmitter {
 
   explorerUrl(asset: Asset, hash: string): string {
     if (asset === 'ETH' || asset === 'USDTE') {
-      if (!/^0x[0-9a-fA-F]{64}$/.test(hash)) throw new Error('잘못된 거래 해시야.');
+      if (!/^0x[0-9a-fA-F]{64}$/.test(hash)) throw new Error('Invalid transaction hash.');
       return ETH_EXPLORER_TX + hash;
     }
-    if (!/^[0-9a-fA-F]{64}$/.test(hash)) throw new Error('잘못된 거래 해시야.');
+    if (!/^[0-9a-fA-F]{64}$/.test(hash)) throw new Error('Invalid transaction hash.');
     const net = NETWORKS[this.settings.network];
     if (asset === 'DCR') return DCR_EXPLORER_TX + hash;
     if (asset === 'DASH') return DASH_EXPLORER_TX + hash;

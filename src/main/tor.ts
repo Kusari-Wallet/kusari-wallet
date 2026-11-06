@@ -48,12 +48,12 @@ export interface TorState {
 
 async function download(url: string, onProgress?: (bytes: number) => void): Promise<Buffer> {
   const res = await fetch(url, { signal: AbortSignal.timeout(15 * 60_000) });
-  if (!res.ok || !res.body) throw new Error(`다운로드 실패 (${res.status})`);
+  if (!res.ok || !res.body) throw new Error(`Download failed (${res.status})`);
   const chunks: Uint8Array[] = [];
   let size = 0;
   for await (const chunk of res.body as any as AsyncIterable<Uint8Array>) {
     size += chunk.length;
-    if (size > MAX_DOWNLOAD) throw new Error('파일이 너무 커서 중단했어.');
+    if (size > MAX_DOWNLOAD) throw new Error('The file is too large, so this was stopped.');
     chunks.push(chunk);
     onProgress?.(size);
   }
@@ -66,11 +66,11 @@ export async function verifyDetached(data: Buffer, armoredSignature: string, key
   const key = head.startsWith('-----')
     ? await openpgp.readKey({ armoredKey: keyBytes.toString('utf8') })
     : await openpgp.readKey({ binaryKey: keyBytes });
-  if (key.getFingerprint().toLowerCase() !== fingerprint.toLowerCase()) throw new Error('서명 키가 공식 키가 아니야.');
+  if (key.getFingerprint().toLowerCase() !== fingerprint.toLowerCase()) throw new Error('The signing key is not the official key.');
   const signature = await openpgp.readSignature({ armoredSignature });
   const message = await openpgp.createMessage({ binary: data });
   const { signatures } = await openpgp.verify({ message, signature, verificationKeys: key, format: 'binary' });
-  if (signatures.length === 0) throw new Error('서명이 없어.');
+  if (signatures.length === 0) throw new Error('No signature found.');
   await signatures[0].verified;
 }
 
@@ -93,7 +93,7 @@ export class TorManager extends EventEmitter {
   private get runtimeDir() { return path.join(this.dir, 'runtime'); }
   private get platform() {
     const p = PLATFORM[process.platform];
-    if (!p) throw new Error('이 운영체제는 Tor 자동 설치를 지원하지 않아.');
+    if (!p) throw new Error('Automatic Tor install isn\'t supported on this operating system.');
     return p;
   }
   private get binPath() { return this.opts.binPath ?? path.join(this.runtimeDir, 'tor', this.platform.exe); }
@@ -121,18 +121,18 @@ export class TorManager extends EventEmitter {
   async install(onProgress: (message: string) => void = () => {}): Promise<string> {
     const src = this.sources;
     const platform = this.platform;
-    onProgress('최신 버전 확인 중…');
+    onProgress('Checking for the latest version…');
     const versionUrl = src.versionUrl ?? `https://aus1.torproject.org/torbrowser/update_3/release/${platform.versionFile}`;
     const info = await getJson(versionUrl, { timeoutMs: 30_000 });
     const version = String(info.version ?? '');
-    if (!/^\d+\.\d+(\.\d+)*$/.test(version)) throw new Error('Tor 버전 정보를 읽지 못했어.');
+    if (!/^\d+\.\d+(\.\d+)*$/.test(version)) throw new Error('Could not read Tor version information.');
 
-    onProgress('서명 키 받는 중…');
+    onProgress('Downloading the signing key…');
     let keyBytes: Buffer | null = null;
     for (const url of src.keyUrls) {
       try { keyBytes = await download(url); break; } catch { /* next source */ }
     }
-    if (!keyBytes) throw new Error('Tor 서명 키를 받지 못했어.');
+    if (!keyBytes) throw new Error('Could not download the Tor signing key.');
 
     const name = `tor-expert-bundle-${platform.bundle}-${version}.tar.gz`;
     let bundle: Buffer | null = null;
@@ -141,20 +141,20 @@ export class TorManager extends EventEmitter {
     for (const base of src.bundleBases) {
       try {
         signature = (await download(`${base}/${version}/${name}.asc`)).toString('utf8');
-        bundle = await download(`${base}/${version}/${name}`, (b) => onProgress(`Tor 받는 중… ${Math.floor(b / 1048576)}MB`));
+        bundle = await download(`${base}/${version}/${name}`, (b) => onProgress(`Downloading Tor… ${Math.floor(b / 1048576)} MB`));
         break;
       } catch (e) { lastError = (e as Error).message; }
     }
-    if (!bundle) throw new Error(`Tor를 받지 못했어. ${lastError}`);
+    if (!bundle) throw new Error(`Could not download Tor. ${lastError}`);
 
-    onProgress('서명 확인 중…');
+    onProgress('Checking the signature…');
     try {
       await verifyDetached(bundle, signature, keyBytes, src.fingerprint);
     } catch (e) {
-      throw new Error(`Tor 파일 서명 확인에 실패해서 설치를 중단했어. ${(e as Error).message}`);
+      throw new Error(`The Tor file signature check failed, so the install was stopped. ${(e as Error).message}`);
     }
 
-    onProgress('설치 중…');
+    onProgress('Installing…');
     await fs.mkdir(this.dir, { recursive: true });
     const archive = path.join(this.dir, 'bundle.tar.gz');
     const staging = path.join(this.dir, 'runtime.new');
@@ -165,7 +165,7 @@ export class TorManager extends EventEmitter {
     await fs.rm(archive, { force: true });
     if (!existsSync(path.join(staging, 'tor', platform.exe))) {
       await fs.rm(staging, { recursive: true, force: true });
-      throw new Error('받은 파일에 Tor 실행 파일이 없어.');
+      throw new Error('The download has no Tor executable.');
     }
     await this.stop();
     await fs.rm(this.runtimeDir, { recursive: true, force: true });
@@ -197,7 +197,7 @@ export class TorManager extends EventEmitter {
     if (this.opts.socksOverride) { this.patch({ phase: 'ready', percent: 100, error: null }); void this.check(); return; }
     if (this.proc) return;
     this.stopping = false;
-    if (!existsSync(this.binPath)) { this.patch({ phase: 'error', error: 'Tor가 설치돼 있지 않아.' }); return; }
+    if (!existsSync(this.binPath)) { this.patch({ phase: 'error', error: 'Tor isn\'t installed.' }); return; }
     this.patch({ phase: 'starting', percent: 0, error: null, verified: null, exitIp: null });
     const dataDir = path.join(this.dir, 'data');
     const proc = spawn(this.binPath, [
@@ -227,12 +227,12 @@ export class TorManager extends EventEmitter {
     };
     proc.stdout?.on('data', onData);
     proc.stderr?.on('data', () => undefined);
-    proc.on('error', (e) => { this.patch({ phase: 'error', error: `Tor를 실행하지 못했어. ${e.message}` }); });
+    proc.on('error', (e) => { this.patch({ phase: 'error', error: `Could not start Tor. ${e.message}` }); });
     proc.on('exit', () => {
       this.proc = null;
       if (this.stopping) return;
       // Nothing listens on the port now, so wallet traffic fails rather than leaving unprotected.
-      this.patch({ phase: 'error', percent: 0, verified: null, exitIp: null, error: 'Tor가 종료됐어. 다시 시작하는 중이야.' });
+      this.patch({ phase: 'error', percent: 0, verified: null, exitIp: null, error: 'Tor stopped. Restarting it.' });
       this.restartTimer = setTimeout(() => this.start(), 5000);
     });
   }

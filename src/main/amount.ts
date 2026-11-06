@@ -1,11 +1,11 @@
 /** Decimal <-> integer conversion. Floats never touch money. */
 export function parseAmount(input: string, decimals: number): bigint {
   const s = input.trim();
-  if (!/^\d+(\.\d+)?$/.test(s)) throw new Error('금액 형식이 올바르지 않아.');
+  if (!/^\d+(\.\d+)?$/.test(s)) throw new Error('The amount format is not valid.');
   const [whole, frac = ''] = s.split('.');
-  if (frac.length > decimals) throw new Error(`소수점 ${decimals}자리까지만 입력할 수 있어.`);
+  if (frac.length > decimals) throw new Error(`Only ${decimals} decimal places are allowed.`);
   const value = BigInt(whole + frac.padEnd(decimals, '0'));
-  if (value <= 0n) throw new Error('0보다 큰 금액을 입력해.');
+  if (value <= 0n) throw new Error('Enter an amount above 0.');
   return value;
 }
 

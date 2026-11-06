@@ -76,10 +76,10 @@ test('restore from a date, scan, send, shield, reopen', { timeout: 60000 }, asyn
   assert.ok(parsed.ct && parsed.iv);
   assert.ok(!raw.includes('abandon') && !Buffer.from(parsed.ct, 'base64').toString().includes('total'));
 
-  await assert.rejects(service.prepareSend('ZEC', U, '1'), /내 주소/);
-  await assert.rejects(service.prepareSend('ZEC', T, '1'), /내 주소/);
-  await assert.rejects(service.prepareSend('ZEC', 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh', '1'), /Zcash 주소가 아니/);
-  await assert.rejects(service.prepareSend('ZEC', OTHER, '5'), /투명 잔액은 먼저 쉴드/);
+  await assert.rejects(service.prepareSend('ZEC', U, '1'), /your own address/);
+  await assert.rejects(service.prepareSend('ZEC', T, '1'), /your own address/);
+  await assert.rejects(service.prepareSend('ZEC', 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh', '1'), /Not a Zcash address/);
+  await assert.rejects(service.prepareSend('ZEC', OTHER, '5'), /Transparent balance must be shielded/);
 
   const p = await service.prepareSend('ZEC', OTHER, '0.5');
   assert.equal(p.amount, '0.5');
@@ -130,7 +130,7 @@ test('a failed server gives way to the next, keeping the state', { timeout: 6000
   assert.equal(opens[0].server, 'https://one');
   assert.equal(opens[1].server, 'https://two');
   assert.equal(opens[1].hasDb, true);
-  assert.match(service.zec.lastError, /Zcash 서버에 연결하지 못했어/);
+  assert.match(service.zec.lastError, /Could not reach a Zcash server/);
   assert.equal(logged().find((l) => l.m === 'account').birthday, null, 'no date, so it starts from now');
 });
 
@@ -159,13 +159,13 @@ test('a stuck connection is given up on, and the next server gets the same seed'
   const c = new ZecClient({ engine: () => startZecEngine(ENGINE), dir, secret: 'x', servers: ['https://one', 'https://two'], canConnect: () => true, onChange: () => {}, accountLimitMs: 400 }, TRON);
   await c.start();
   await until(() => fs.existsSync(flag));
-  assert.match(c.phase, /계정 만드는 중 \(서버 1\)/);
+  assert.match(c.phase, /Creating account \(server 1\)/);
   await until(() => c.balance());
   delete process.env.FAKE_ZEC_HANG_FLAG;
   const lines = fs.readFileSync(log, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
   assert.deepEqual(lines.filter((l) => l.m === 'open').map((l) => l.server), ['https://one', 'https://two']);
   assert.equal(lines.filter((l) => l.m === 'account').at(-1).seedWords, 12);
-  assert.equal(c.phase, '최신');
+  await until(() => c.phase === 'Up to date');
   assert.equal(c.receive.unified, U);
   await c.stop();
 });
@@ -198,7 +198,7 @@ test('no engine: no ZEC anywhere, and the other coins carry on', { timeout: 6000
   assert.equal(o.balances.ZEC, undefined);
   assert.equal(o.zec, null);
   assert.ok(o.balances.BTC);
-  await assert.rejects(service.prepareSend('ZEC', OTHER, '1'), /쓸 수 없어/);
+  await assert.rejects(service.prepareSend('ZEC', OTHER, '1'), /not available/);
   assert.deepEqual(await service.history('ZEC'), []);
 });
 

@@ -44,14 +44,14 @@ export function estimateVbytes(inputs: number, outputs: number): bigint {
 /** Largest coins first, with no change output when the remainder would be dust. */
 export function selectCoins(utxos: BtcUtxo[], amount: bigint | 'max', feeRate: bigint): { inputs: BtcUtxo[]; amount: bigint; fee: bigint; change: bigint } {
   const sorted = [...utxos].sort((a, b) => (b.value > a.value ? 1 : -1));
-  if (sorted.length === 0) throw new Error('보낼 수 있는 BTC가 없어. 입금은 1컨펌 뒤에 쓸 수 있어.');
+  if (sorted.length === 0) throw new Error('No BTC available to send. Deposits can be used after 1 confirmation.');
   if (amount === 'max') {
     const total = sorted.reduce((s, u) => s + u.value, 0n);
     const fee = estimateVbytes(sorted.length, 1) * feeRate;
-    if (total - fee < DUST) throw new Error('수수료를 빼면 보낼 BTC가 없어.');
+    if (total - fee < DUST) throw new Error('No BTC left to send after the fee.');
     return { inputs: sorted, amount: total - fee, fee, change: 0n };
   }
-  if (amount < DUST) throw new Error(`최소 ${formatAmount(DUST, 8)} BTC부터 보낼 수 있어.`);
+  if (amount < DUST) throw new Error(`The minimum to send is ${formatAmount(DUST, 8)} BTC.`);
   const inputs: BtcUtxo[] = [];
   let total = 0n;
   for (const u of sorted) {
@@ -62,7 +62,7 @@ export function selectCoins(utxos: BtcUtxo[], amount: bigint | 'max', feeRate: b
     const noChange = estimateVbytes(inputs.length, 1) * feeRate;
     if (total >= amount + noChange) return { inputs, amount, fee: total - amount, change: 0n };
   }
-  throw new Error('수수료까지 합치면 BTC 잔액이 부족해.');
+  throw new Error('Not enough BTC to cover the amount and fee.');
 }
 
 export class BtcClient {
@@ -112,8 +112,8 @@ export class BtcClient {
           if (/429/.test((e as Error).message)) this.cooling.set(base, Date.now() + COOLDOWN_MS);
         }
       }
-      if (!last || /429/.test((last as Error).message)) throw new Error('BTC 서버가 요청을 잠시 제한 중이야. 코인은 그대로고, 잠시 뒤 자동으로 다시 시도해.');
-      throw last instanceof Error ? last : new Error('BTC 서버에 연결하지 못했어.');
+      if (!last || /429/.test((last as Error).message)) throw new Error('The BTC server is limiting requests for now. Your coins are safe, and it will retry automatically.');
+      throw last instanceof Error ? last : new Error('Could not reach the BTC server.');
     });
     this.queue = turn.catch(() => undefined).then(() => (this.spacingMs ? new Promise((r) => setTimeout(r, this.spacingMs)) : undefined));
     return turn;
@@ -140,7 +140,7 @@ export class BtcClient {
       if (BigInt(c.funded_txo_sum ?? 0) + BigInt(m.funded_txo_sum ?? 0) === BigInt(c.spent_txo_sum ?? 0) + BigInt(m.spent_txo_sum ?? 0)) continue;
       const list: any[] = await this.get(`/address/${address}/utxo`);
       for (const u of list) {
-        if (!/^[0-9a-f]{64}$/.test(u.txid) || !Number.isInteger(u.vout)) throw new Error('BTC 서버 응답이 이상해.');
+        if (!/^[0-9a-f]{64}$/.test(u.txid) || !Number.isInteger(u.vout)) throw new Error('The BTC server gave an unexpected answer.');
         out.utxos.push({ txid: u.txid, vout: u.vout, value: BigInt(u.value), address, chain, index, confirmed: Boolean(u.status?.confirmed) });
       }
     }
@@ -185,9 +185,9 @@ export class BtcClient {
       const r = await this.get('/fee-estimates');
       rate = r['3'];
     }
-    if (typeof rate !== 'number' || !Number.isFinite(rate) || rate <= 0) throw new Error('BTC 수수료 정보를 읽지 못했어.');
+    if (typeof rate !== 'number' || !Number.isFinite(rate) || rate <= 0) throw new Error('Could not read BTC fee information.');
     const fee = BigInt(Math.max(1, Math.ceil(rate)));
-    if (fee > MAX_FEE_RATE) throw new Error(`수수료가 비정상적으로 높아서 중단했어 (${fee} sat/vB).`);
+    if (fee > MAX_FEE_RATE) throw new Error(`The fee is abnormally high, so this was stopped (${fee} sat/vB).`);
     return fee;
   }
 
@@ -203,7 +203,7 @@ export class BtcClient {
   async send(draft: BtcDraft, mnemonic: string): Promise<string> {
     const { hex, id } = signBtcDraft(draft, mnemonic);
     const answer = (await this.broadcast(hex)).trim();
-    if (answer !== id) throw new Error(`서버가 다른 거래 ID를 돌려줬어. 탐색기에서 ${id}를 확인해.`);
+    if (answer !== id) throw new Error(`The server returned a different transaction ID. Check ${id} on an explorer.`);
     this.state = null;
     return id;
   }
@@ -213,7 +213,7 @@ export class BtcClient {
     for (const base of this.apis) {
       try { return await requestText(`${base}/tx`, { method: 'POST', body: hex, agent: this.agent, timeoutMs: this.timeoutMs }); } catch (e) { last = e; }
     }
-    throw last instanceof Error ? new Error(`전송 거부됨: ${last.message}`) : new Error('전송에 실패했어.');
+    throw last instanceof Error ? new Error(`Send rejected: ${last.message}`) : new Error('The send failed.');
   }
 
   async getHistory(): Promise<BtcHistoryItem[]> {
@@ -248,18 +248,18 @@ export function signBtcDraft(draft: BtcDraft, mnemonic: string): { hex: string; 
   for (const u of draft.inputs) {
     const child = taproot.deriveChild(u.chain).deriveChild(u.index);
     const pay = btc.p2tr(xOnly(child.publicKey));
-    if (pay.address !== u.address) throw new Error('입력 주소가 내 키와 맞지 않아서 서명을 중단했어.');
+    if (pay.address !== u.address) throw new Error('An input address does not match this wallet\'s keys, so signing was stopped.');
     tx.addInput({ txid: u.txid, index: u.vout, witnessUtxo: { script: pay.script, amount: u.value }, tapInternalKey: pay.tapInternalKey });
     keys.push(child.privateKey);
   }
   tx.addOutputAddress(draft.to, draft.amount);
   if (draft.change > 0n) {
     const change = taproot.deriveChild(draft.changePath[0]).deriveChild(draft.changePath[1]);
-    if (btc.p2tr(xOnly(change.publicKey)).address !== draft.changeAddress) throw new Error('잔돈 주소가 내 키와 맞지 않아서 서명을 중단했어.');
+    if (btc.p2tr(xOnly(change.publicKey)).address !== draft.changeAddress) throw new Error('The change address does not match this wallet\'s keys, so signing was stopped.');
     tx.addOutputAddress(draft.changeAddress, draft.change);
   }
   const totalIn = draft.inputs.reduce((s, u) => s + u.value, 0n);
-  if (totalIn - draft.amount - draft.change !== draft.fee) throw new Error('금액 계산이 맞지 않아서 서명을 중단했어.');
+  if (totalIn - draft.amount - draft.change !== draft.fee) throw new Error('The amounts do not add up, so signing was stopped.');
   keys.forEach((k, i) => tx.signIdx(k, i));
   tx.finalize();
   return { hex: tx.hex, id: tx.id };

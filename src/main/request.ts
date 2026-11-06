@@ -26,7 +26,7 @@ export function requestJson(url: string, opts: { method?: 'GET' | 'POST'; body?:
       });
       res.on('error', reject);
     });
-    req.setTimeout(opts.timeoutMs ?? 30_000, () => req.destroy(new Error('시간 초과')));
+    req.setTimeout(opts.timeoutMs ?? 30_000, () => req.destroy(new Error('Timed out')));
     req.on('error', reject);
     if (payload) req.write(payload);
     req.end();
@@ -42,12 +42,12 @@ export function requestText(url: string, opts: { method: 'POST'; body: string; a
       res.on('data', (c: Buffer) => chunks.push(c));
       res.on('end', () => {
         const text = Buffer.concat(chunks).toString('utf8');
-        if ((res.statusCode ?? 500) >= 400) reject(new Error(text.slice(0, 200) || `서버 오류 (${res.statusCode})`));
+        if ((res.statusCode ?? 500) >= 400) reject(new Error(text.slice(0, 200) || `Server error (${res.statusCode})`));
         else resolve(text);
       });
       res.on('error', reject);
     });
-    req.setTimeout(opts.timeoutMs ?? 30_000, () => req.destroy(new Error('시간 초과')));
+    req.setTimeout(opts.timeoutMs ?? 30_000, () => req.destroy(new Error('Timed out')));
     req.on('error', reject);
     req.end(opts.body);
   });
@@ -61,16 +61,16 @@ export function getJson(url: string, opts: { headers?: Record<string, string>; a
       let size = 0;
       res.on('data', (c: Buffer) => {
         size += c.length;
-        if (size > 8 * 1024 * 1024) { req.destroy(new Error('응답이 너무 커.')); return; }
+        if (size > 8 * 1024 * 1024) { req.destroy(new Error('The answer is too large.')); return; }
         chunks.push(c);
       });
       res.on('end', () => {
-        if ((res.statusCode ?? 500) >= 400) { reject(new Error(`서버 오류 (${res.statusCode})`)); return; }
-        try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8'))); } catch { reject(new Error('응답을 읽지 못했어.')); }
+        if ((res.statusCode ?? 500) >= 400) { reject(new Error(`Server error (${res.statusCode})`)); return; }
+        try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8'))); } catch { reject(new Error('Could not read the answer.')); }
       });
       res.on('error', reject);
     });
-    req.setTimeout(opts.timeoutMs ?? 30_000, () => req.destroy(new Error('시간 초과')));
+    req.setTimeout(opts.timeoutMs ?? 30_000, () => req.destroy(new Error('Timed out')));
     req.on('error', reject);
   });
 }

@@ -15,7 +15,7 @@ let next = 1;
   w.resolve(line.slice(tab + 1));
 };
 (window as any).__zanoExit = () => {
-  const e = new Error('Zano 엔진이 종료됐어.');
+  const e = new Error('Zano engine stopped.');
   for (const w of waiting.values()) w.reject(e);
   waiting.clear();
 };
@@ -24,7 +24,7 @@ export const zanoEngineAvailable = (_?: string): boolean => Boolean(native().zan
 export const zanoEngineInfo = (_?: string): string => String(native().zanoInfo());
 
 export function startZanoEngine(_: string | undefined, __: string): ZanoEngine {
-  if (!native().zanoStart()) throw new Error('이 기기에서는 Zano를 쓸 수 없어.');
+  if (!native().zanoStart()) throw new Error('Zano is not available on this device.');
   return {
     dir: String(native().zanoDir()),
     call(method, instance, params) {
@@ -33,7 +33,7 @@ export function startZanoEngine(_: string | undefined, __: string): ZanoEngine {
         waiting.set(id, { resolve, reject });
         if (!native().zanoWrite(`${id}\t${method}\t${instance}\t${params}`)) {
           waiting.delete(id);
-          reject(new Error('Zano 엔진이 종료됐어.'));
+          reject(new Error('Zano engine stopped.'));
         }
       });
     },

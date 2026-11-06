@@ -19,11 +19,11 @@ function findEngine(override?: string): string | null {
 }
 
 export const zanoEngineAvailable = (override?: string): boolean => findEngine(override) !== null;
-export const zanoEngineInfo = (override?: string): string => findEngine(override) ?? '엔진 파일 없음';
+export const zanoEngineInfo = (override?: string): string => findEngine(override) ?? 'Engine file not found';
 
 export function startZanoEngine(override: string | undefined, dir: string): ZanoEngine {
   const file = findEngine(override);
-  if (!file) throw new Error('이 빌드에는 Zano 엔진이 없어.');
+  if (!file) throw new Error('This build has no Zano engine.');
   const home = path.join(dir, 'zano');
   mkdirSync(home, { recursive: true });
   const child = spawn(file, [], { stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true, cwd: home });
@@ -37,7 +37,7 @@ export function startZanoEngine(override: string | undefined, dir: string): Zano
     waiting.clear();
   };
   child.on('error', (e) => die(e));
-  child.on('exit', () => die(new Error('Zano 엔진이 종료됐어.')));
+  child.on('exit', () => die(new Error('Zano engine stopped.')));
   child.stdin.on('error', () => undefined);
   child.stdout.setEncoding('utf8');
   child.stdout.on('data', (chunk: string) => {

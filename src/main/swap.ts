@@ -82,9 +82,9 @@ export class SwapClient implements SwapProvider {
     const max = num(b.maxAmount);
     const receive = num(b.toAmount);
     const problem = res.status >= 400 || !receive || Number(receive) <= 0
-      ? (min && Number(amount) < Number(min) ? `최소 금액은 ${min} ${from}이야.`
-        : max && Number(amount) > Number(max) ? `최대 금액은 ${max} ${from}이야.`
-          : typeof b.message === 'string' && b.message ? b.message : '지금은 이 스왑 견적을 받을 수 없어.')
+      ? (min && Number(amount) < Number(min) ? `The minimum amount is ${min} ${from}.`
+        : max && Number(amount) > Number(max) ? `The maximum amount is ${max} ${from}.`
+          : typeof b.message === 'string' && b.message ? b.message : 'No quote available for this swap right now.')
       : null;
     return { from, to, amount, receive: receive ?? '0', rate: num(b.rate) ?? '0', min, max, problem, provider: SWAP_PROVIDER, providerId: 'exolix', approximate: false };
   }
@@ -97,28 +97,28 @@ export class SwapClient implements SwapProvider {
       amount: Number(amount), withdrawalAddress, refundAddress, rateType: 'fixed',
     });
     const b = res.body ?? {};
-    if (res.status >= 400) throw new Error(typeof b.message === 'string' && b.message ? `스왑 주문 실패: ${b.message}` : `스왑 주문을 만들지 못했어 (${res.status}).`);
+    if (res.status >= 400) throw new Error(typeof b.message === 'string' && b.message ? `Swap order failed: ${b.message}` : `Could not create the swap order (${res.status}).`);
 
-    const stop = (why: string): never => { throw new Error(`업체 응답이 요청과 달라서 중단했어: ${why}. 아직 코인은 안 나갔어.`); };
-    if (typeof b.id !== 'string' && typeof b.id !== 'number') stop('주문 번호 없음');
-    if (typeof b.depositAddress !== 'string' || !b.depositAddress) stop('입금 주소 없음');
-    if (b.depositExtraId) stop('추가 메모가 필요한 입금 주소');
-    if (!sameAddress(b.withdrawalAddress, withdrawalAddress)) stop('받는 주소가 내 주소가 아님');
-    if (b.refundAddress && !sameAddress(b.refundAddress, refundAddress)) stop('환불 주소가 내 주소가 아님');
-    if (b.coinFrom?.coinCode && String(b.coinFrom.coinCode).toUpperCase() !== COIN[from].coin) stop('보내는 코인이 다름');
-    if (b.coinTo?.coinCode && String(b.coinTo.coinCode).toUpperCase() !== COIN[to].coin) stop('받는 코인이 다름');
-    if (b.coinFrom?.network && String(b.coinFrom.network) !== networkFrom) stop('보내는 네트워크가 다름');
-    if (b.coinTo?.network && String(b.coinTo.network) !== networkTo) stop('받는 네트워크가 다름');
-    if (parseAmount(String(b.amount), DECIMALS[from]) !== parseAmount(amount, DECIMALS[from])) stop('보낼 금액이 다름');
+    const stop = (why: string): never => { throw new Error(`The provider's answer differs from the request, so this was stopped: ${why}. No coins have left your wallet.`); };
+    if (typeof b.id !== 'string' && typeof b.id !== 'number') stop('no order number');
+    if (typeof b.depositAddress !== 'string' || !b.depositAddress) stop('no deposit address');
+    if (b.depositExtraId) stop('the deposit address needs an extra memo');
+    if (!sameAddress(b.withdrawalAddress, withdrawalAddress)) stop('the receiving address is not yours');
+    if (b.refundAddress && !sameAddress(b.refundAddress, refundAddress)) stop('the refund address is not yours');
+    if (b.coinFrom?.coinCode && String(b.coinFrom.coinCode).toUpperCase() !== COIN[from].coin) stop('the sent coin differs');
+    if (b.coinTo?.coinCode && String(b.coinTo.coinCode).toUpperCase() !== COIN[to].coin) stop('the received coin differs');
+    if (b.coinFrom?.network && String(b.coinFrom.network) !== networkFrom) stop('the sending network differs');
+    if (b.coinTo?.network && String(b.coinTo.network) !== networkTo) stop('the receiving network differs');
+    if (parseAmount(String(b.amount), DECIMALS[from]) !== parseAmount(amount, DECIMALS[from])) stop('the send amount differs');
     const receive = num(b.amountTo);
-    if (!receive || Number(receive) < Number(expectedReceive) * 0.98) stop('받을 금액이 견적보다 적음');
+    if (!receive || Number(receive) < Number(expectedReceive) * 0.98) stop('the receive amount is less than quoted');
     return { id: String(b.id), depositAddress: b.depositAddress, receive: receive as string, rate: num(b.rate) ?? '0', provider: SWAP_PROVIDER, approximate: false };
   }
 
   async status(id: string): Promise<{ status: string; hashIn?: string; hashOut?: string }> {
-    if (!/^[A-Za-z0-9_-]{1,80}$/.test(id)) throw new Error('잘못된 주문 번호야.');
+    if (!/^[A-Za-z0-9_-]{1,80}$/.test(id)) throw new Error('Invalid order number.');
     const res = await this.call('GET', `/transactions/${id}`);
-    if (res.status >= 400) throw new Error(`스왑 상태를 읽지 못했어 (${res.status}).`);
+    if (res.status >= 400) throw new Error(`Could not read the swap status (${res.status}).`);
     const hash = (v: any) => (typeof v === 'string' ? v : typeof v?.hash === 'string' ? v.hash : undefined);
     return { status: String(res.body?.status ?? 'unknown'), hashIn: hash(res.body?.hashIn), hashOut: hash(res.body?.hashOut) };
   }
@@ -134,7 +134,7 @@ function apiMessage(b: any, fallback: string): string {
   return typeof m === 'string' && m ? m : fallback;
 }
 
-const stop = (why: string): never => { throw new Error(`업체 응답이 요청과 달라서 중단했어: ${why}. 아직 코인은 안 나갔어.`); };
+const stop = (why: string): never => { throw new Error(`The provider's answer differs from the request, so this was stopped: ${why}. No coins have left your wallet.`); };
 const ORDER_ID = /^[A-Za-z0-9_-]{1,80}$/;
 
 // ---- SimpleSwap ----
@@ -178,9 +178,9 @@ export class SimpleSwapClient implements SwapProvider {
     const row = res.body?.result ?? res.body ?? {};
     const receive = num(row.estimatedAmount);
     const base = { from, to, amount, min: null, max: null, provider: 'SimpleSwap', providerId: 'simpleswap' as const, approximate: true };
-    if (res.status === 401 || res.status === 403) return { ...base, receive: '0', rate: '0', problem: 'SimpleSwap API 키를 확인해줘.' };
+    if (res.status === 401 || res.status === 403) return { ...base, receive: '0', rate: '0', problem: 'Check the SimpleSwap API key.' };
     if (res.status >= 400 || !receive || Number(receive) <= 0) {
-      return { ...base, receive: '0', rate: '0', problem: apiMessage(res.body, '지금은 이 스왑 견적을 받을 수 없어. 금액을 바꿔봐.') };
+      return { ...base, receive: '0', rate: '0', problem: apiMessage(res.body, 'No quote available for this swap right now. Try a different amount.') };
     }
     return { ...base, receive, rate: String(Number(receive) / Number(amount)), problem: null };
   }
@@ -190,28 +190,28 @@ export class SimpleSwapClient implements SwapProvider {
       fixed: false, ...this.pair(from, to), amount, reverse: false,
       addressTo: withdrawalAddress, extraIdTo: '', userRefundAddress: refundAddress, userRefundExtraId: '',
     });
-    if (res.status >= 400) throw new Error(`스왑 주문 실패: ${apiMessage(res.body, String(res.status))}`);
+    if (res.status >= 400) throw new Error(`Swap order failed: ${apiMessage(res.body, String(res.status))}`);
     const b = res.body?.result ?? res.body ?? {};
     const id = b.publicId ?? b.id;
-    if (typeof id !== 'string' || !ORDER_ID.test(id)) stop('주문 번호 없음');
-    if (typeof b.addressFrom !== 'string' || !b.addressFrom) stop('입금 주소 없음');
-    if (b.extraIdFrom) stop('추가 메모가 필요한 입금 주소');
-    if (!sameAddress(b.addressTo, withdrawalAddress)) stop('받는 주소가 내 주소가 아님');
-    if (b.userRefundAddress && !sameAddress(b.userRefundAddress, refundAddress)) stop('환불 주소가 내 주소가 아님');
-    if (b.tickerFrom && String(b.tickerFrom).toLowerCase() !== SIMPLE_COIN[from].ticker) stop('보내는 코인이 다름');
-    if (b.tickerTo && String(b.tickerTo).toLowerCase() !== SIMPLE_COIN[to].ticker) stop('받는 코인이 다름');
-    if (b.networkFrom && String(b.networkFrom).toLowerCase() !== SIMPLE_COIN[from].network) stop('보내는 네트워크가 다름');
-    if (b.networkTo && String(b.networkTo).toLowerCase() !== SIMPLE_COIN[to].network) stop('받는 네트워크가 다름');
-    if (!sameAmount(b.amountFrom, amount, DECIMALS[from])) stop('보낼 금액이 다름');
+    if (typeof id !== 'string' || !ORDER_ID.test(id)) stop('no order number');
+    if (typeof b.addressFrom !== 'string' || !b.addressFrom) stop('no deposit address');
+    if (b.extraIdFrom) stop('the deposit address needs an extra memo');
+    if (!sameAddress(b.addressTo, withdrawalAddress)) stop('the receiving address is not yours');
+    if (b.userRefundAddress && !sameAddress(b.userRefundAddress, refundAddress)) stop('the refund address is not yours');
+    if (b.tickerFrom && String(b.tickerFrom).toLowerCase() !== SIMPLE_COIN[from].ticker) stop('the sent coin differs');
+    if (b.tickerTo && String(b.tickerTo).toLowerCase() !== SIMPLE_COIN[to].ticker) stop('the received coin differs');
+    if (b.networkFrom && String(b.networkFrom).toLowerCase() !== SIMPLE_COIN[from].network) stop('the sending network differs');
+    if (b.networkTo && String(b.networkTo).toLowerCase() !== SIMPLE_COIN[to].network) stop('the receiving network differs');
+    if (!sameAmount(b.amountFrom, amount, DECIMALS[from])) stop('the send amount differs');
     const receive = num(b.amountTo);
-    if (!receive || Number(receive) < Number(expectedReceive) * 0.98) stop('받을 금액이 견적보다 적음');
+    if (!receive || Number(receive) < Number(expectedReceive) * 0.98) stop('the receive amount is less than quoted');
     return { id, depositAddress: b.addressFrom, receive: receive as string, rate: String(Number(receive) / Number(amount)), provider: 'SimpleSwap', approximate: true };
   }
 
   async status(id: string): Promise<{ status: string; hashIn?: string; hashOut?: string }> {
-    if (!ORDER_ID.test(id)) throw new Error('잘못된 주문 번호야.');
+    if (!ORDER_ID.test(id)) throw new Error('Invalid order number.');
     const res = await this.call('GET', `/v3/exchanges/${id}`);
-    if (res.status >= 400) throw new Error(`스왑 상태를 읽지 못했어 (${res.status}).`);
+    if (res.status >= 400) throw new Error(`Could not read the swap status (${res.status}).`);
     const b = res.body?.result ?? res.body ?? {};
     return { status: String(b.status ?? 'unknown'), hashIn: b.txFrom ?? undefined, hashOut: b.txTo ?? undefined };
   }
@@ -238,7 +238,7 @@ export class GhostSwapClient implements SwapProvider {
     const res = await this.call('GET', '/v1/currencies');
     const list: any[] = Array.isArray(res.body?.currencies) ? res.body.currencies : [];
     const row = list.find((c) => /^usdt/i.test(String(c?.ticker)) && /^(eth|ethereum|erc-?20)$/i.test(String(c?.blockchain)) && c?.enabled !== false);
-    if (!row) throw new Error('GhostSwap에서 USDT(Eth)를 찾지 못했어.');
+    if (!row) throw new Error('GhostSwap doesn\'t list USDT (Eth).');
     this.usdtEth = String(row.ticker);
     return this.usdtEth;
   }
@@ -248,11 +248,11 @@ export class GhostSwapClient implements SwapProvider {
     const q = res.body?.quote ?? {};
     const receive = num(q.amountUserReceives);
     const base = { from, to, amount, provider: 'GhostSwap', providerId: 'ghostswap' as const, approximate: true };
-    if (res.status === 401 || res.status === 403) return { ...base, receive: '0', rate: '0', min: null, max: null, problem: 'GhostSwap API 키를 확인해줘.' };
+    if (res.status === 401 || res.status === 403) return { ...base, receive: '0', rate: '0', min: null, max: null, problem: 'Check the GhostSwap API key.' };
     const min = num(q.min);
     const max = num(q.max);
     if (res.status >= 400 || !receive || Number(receive) <= 0) {
-      return { ...base, receive: '0', rate: '0', min, max, problem: apiMessage(res.body, '지금은 이 스왑 견적을 받을 수 없어. 금액을 바꿔봐.') };
+      return { ...base, receive: '0', rate: '0', min, max, problem: apiMessage(res.body, 'No quote available for this swap right now. Try a different amount.') };
     }
     return { ...base, receive, rate: num(q.rate) ?? String(Number(receive) / Number(amount)), min, max, problem: null };
   }
@@ -263,27 +263,27 @@ export class GhostSwapClient implements SwapProvider {
     const res = await this.call('POST', '/v1/swaps', {
       from: tickerFrom, to: tickerTo, amountFrom: amount, address: withdrawalAddress, refundAddress, mode: 'float', extraIdNotRequired: true,
     }, { 'Idempotency-Key': randomUUID() });
-    if (res.status >= 400) throw new Error(`스왑 주문 실패: ${apiMessage(res.body, String(res.status))}`);
+    if (res.status >= 400) throw new Error(`Swap order failed: ${apiMessage(res.body, String(res.status))}`);
     const b = res.body?.swap ?? {};
-    if (typeof b.id !== 'string' || !ORDER_ID.test(b.id)) stop('주문 번호 없음');
-    if (typeof b.payinAddress !== 'string' || !b.payinAddress) stop('입금 주소 없음');
-    if (b.payinExtraId) stop('추가 메모가 필요한 입금 주소');
-    if (!sameAddress(b.payoutAddress, withdrawalAddress)) stop('받는 주소가 내 주소가 아님');
-    if (b.refundAddress && !sameAddress(b.refundAddress, refundAddress)) stop('환불 주소가 내 주소가 아님');
-    if (b.from && String(b.from).toLowerCase() !== tickerFrom.toLowerCase()) stop('보내는 코인이 다름');
-    if (b.to && String(b.to).toLowerCase() !== tickerTo.toLowerCase()) stop('받는 코인이 다름');
-    if (!sameAmount(b.amountExpectedFrom ?? b.amountFrom, amount, DECIMALS[from])) stop('보낼 금액이 다름');
+    if (typeof b.id !== 'string' || !ORDER_ID.test(b.id)) stop('no order number');
+    if (typeof b.payinAddress !== 'string' || !b.payinAddress) stop('no deposit address');
+    if (b.payinExtraId) stop('the deposit address needs an extra memo');
+    if (!sameAddress(b.payoutAddress, withdrawalAddress)) stop('the receiving address is not yours');
+    if (b.refundAddress && !sameAddress(b.refundAddress, refundAddress)) stop('the refund address is not yours');
+    if (b.from && String(b.from).toLowerCase() !== tickerFrom.toLowerCase()) stop('the sent coin differs');
+    if (b.to && String(b.to).toLowerCase() !== tickerTo.toLowerCase()) stop('the received coin differs');
+    if (!sameAmount(b.amountExpectedFrom ?? b.amountFrom, amount, DECIMALS[from])) stop('the send amount differs');
     const gross = Number(b.amountExpectedTo);
     const fee = Number(b.networkFee ?? 0);
     const net = gross - (Number.isFinite(fee) ? fee : 0);
-    if (!Number.isFinite(net) || net < Number(expectedReceive) * 0.98) stop('받을 금액이 견적보다 적음');
+    if (!Number.isFinite(net) || net < Number(expectedReceive) * 0.98) stop('the receive amount is less than quoted');
     return { id: b.id, depositAddress: b.payinAddress, receive: String(net), rate: num(b.rate) ?? String(net / Number(amount)), provider: 'GhostSwap', approximate: true };
   }
 
   async status(id: string): Promise<{ status: string; hashIn?: string; hashOut?: string }> {
-    if (!ORDER_ID.test(id)) throw new Error('잘못된 주문 번호야.');
+    if (!ORDER_ID.test(id)) throw new Error('Invalid order number.');
     const res = await this.call('GET', `/v1/swaps/${id}`);
-    if (res.status >= 400) throw new Error(`스왑 상태를 읽지 못했어 (${res.status}).`);
+    if (res.status >= 400) throw new Error(`Could not read the swap status (${res.status}).`);
     const b = res.body?.swap ?? {};
     return { status: String(b.status ?? 'unknown'), hashIn: b.payinHash ?? undefined, hashOut: b.payoutHash ?? undefined };
   }

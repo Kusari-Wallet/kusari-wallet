@@ -33,7 +33,7 @@ test('vault round trip, wrong password, tampering', async () => {
   const v = new Vault(file, fastKdf);
   await v.save('correct horse battery', secrets);
   assert.deepEqual(await v.open('correct horse battery'), secrets);
-  await assert.rejects(v.open('wrong password!!'), /비밀번호/);
+  await assert.rejects(v.open('wrong password!!'), /[Pp]assword/);
   assert.ok(!fs.readFileSync(file, 'utf8').includes('tronMnemonic'));
   const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
   const ct = Buffer.from(raw.ct, 'base64'); ct[0] ^= 1;

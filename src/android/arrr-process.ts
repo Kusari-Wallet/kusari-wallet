@@ -16,7 +16,7 @@ let next = 1;
   if ('error' in answer) w.reject(new Error(String(answer.error))); else w.resolve(answer.result);
 };
 (window as any).__arrrExit = () => {
-  const e = new Error('Pirate Chain 엔진이 종료됐어.');
+  const e = new Error('Pirate Chain engine stopped.');
   for (const w of waiting.values()) w.reject(e);
   waiting.clear();
 };
@@ -26,7 +26,7 @@ export const arrrEngineAvailable = (): boolean => Boolean(native().arrrAvailable
 export const arrrEngineInfo = (): string => String(native().arrrInfo());
 
 export function startArrrEngine(): ArrrEngine {
-  if (!native().arrrStart()) throw new Error('이 기기에서는 Pirate Chain를 쓸 수 없어.');
+  if (!native().arrrStart()) throw new Error('Pirate Chain is not available on this device.');
   return {
     dir: () => String(native().arrrDir()),
     call(method, params = {}) {
@@ -35,7 +35,7 @@ export function startArrrEngine(): ArrrEngine {
         waiting.set(id, { resolve, reject });
         if (!native().arrrWrite(JSON.stringify({ id, m: method, p: params }))) {
           waiting.delete(id);
-          reject(new Error('Pirate Chain 엔진이 종료됐어.'));
+          reject(new Error('Pirate Chain engine stopped.'));
         }
       });
     },

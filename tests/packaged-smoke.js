@@ -21,12 +21,12 @@ const { chromium } = require('playwright');
     assert.ok(browser, 'debug port never opened: ' + log);
     let page;
     for (let i = 0; i < 40 && !page; i++) { page = browser.contexts()[0]?.pages()[0]; if (!page) await new Promise((r) => setTimeout(r, 250)); }
-    await page.getByText('지갑 시작하기').waitFor({ timeout: 20000 });
-    await page.getByText('새 지갑 만들기').click();
+    await page.getByText('Get started').waitFor({ timeout: 20000 });
+    await page.getByText('Create a new wallet').click();
     await page.fill('#pw', 'correct horse battery');
     await page.fill('#pw2', 'correct horse battery');
     await page.click('#next');
-    await page.getByText('시드 문구 두 개를 종이에 적어').waitFor({ timeout: 25000 }).catch(async (e) => {
+    await page.getByText('Write both seed phrases on paper').waitFor({ timeout: 25000 }).catch(async (e) => {
       console.log('screen:', await page.locator('.entry-form').innerText().catch(() => '?'));
       console.log('log:', log.slice(-1500));
       throw e;
@@ -37,7 +37,7 @@ const { chromium } = require('playwright');
     await page.check('#saved');
     await page.click('#next');
     const labels = await page.locator('label.field > span').allInnerTexts();
-    const idx = labels.map((l) => Number(l.match(/(\d+)번째/)[1]) - 1);
+    const idx = labels.map((l) => Number(l.match(/word (\d+)/)[1]) - 1);
     await page.locator('.quiz').first().fill(t[idx[0]]);
     await page.locator('.quiz').nth(1).fill(x[idx[1]]);
     await page.click('#next');
@@ -63,7 +63,7 @@ const { chromium } = require('playwright');
     const dirs = fs.readdirSync(home);
     await page.click('#go-swap');
     await page.click('#go-tornado');
-    await page.locator('#tornado-engine', { hasText: '준비됨' }).waitFor({ timeout: 60000 });
+    await page.locator('#tornado-engine', { hasText: 'Ready' }).waitFor({ timeout: 60000 });
     console.log('ok Tornado proof engine starts from the packaged app');
     console.log('user data under', dirs, '| xmr address', addr.slice(0, 12) + '…');
     // A wallet made under the old app name must open, not ask to start over.
@@ -80,7 +80,7 @@ const { chromium } = require('playwright');
       let p2;
       for (let i = 0; i < 40 && !p2; i++) { p2 = b2.contexts()[0]?.pages()[0]; if (!p2) await new Promise((r) => setTimeout(r, 250)); }
       await p2.locator('input[type=password]').first().waitFor({ timeout: 20000 });
-      assert.equal(await p2.getByText('지갑 시작하기').count(), 0, 'old wallet must be found');
+      assert.equal(await p2.getByText('Get started').count(), 0, 'old wallet must be found');
       await b2.close();
     } finally { second.kill('SIGKILL'); }
     console.log('ok wallet from the old app name is found');
