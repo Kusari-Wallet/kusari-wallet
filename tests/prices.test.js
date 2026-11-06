@@ -4,7 +4,7 @@ const http = require('node:http');
 const os = require('node:os');
 const fs = require('node:fs');
 const path = require('node:path');
-const { coingecko, kraken, cryptocompare } = require('../dist/main/prices');
+const { coingecko, kraken, cryptocompare, mexc, gate, binance, okx, bybit, coinbase, PRICE_SOURCES } = require('../dist/main/prices');
 const { WalletService } = require('../dist/main/service');
 
 const CG = { bitcoin: { usd: 70000, usd_24h_change: 1 }, ethereum: { usd: 3000, usd_24h_change: 2 }, tron: { usd: 0.3, usd_24h_change: 3 }, tether: { usd: 1, usd_24h_change: 0 }, monero: { usd: 150, usd_24h_change: -1 } };
@@ -30,6 +30,30 @@ test('broken answers are refused, not shown', () => {
   assert.throws(() => cryptocompare('x').parse({ Response: 'Error' }));
   assert.throws(() => coingecko('x').parse({ ...CG, monero: { usd: 0 } }));
   assert.throws(() => coingecko('x').parse({ ...CG, tether: { usd: 40 } }), 'a dollar token at $40');
+});
+
+test('exchanges: each one read for the coins it lists, and nothing made up', () => {
+  const g = gate('x').parse([{ currency_pair: 'SOL_USDT', last: '150', change_percentage: '2.5' }, { currency_pair: 'SOL_BTC', last: '0.002', change_percentage: '9' }, { currency_pair: 'ZANO_USDT', last: '4', change_percentage: '-1' }]);
+  assert.deepEqual(g, { SOL: { usd: 150, change: 2.5 }, ZANO: { usd: 4, change: -1 } });
+  assert.deepEqual(binance('x').parse([{ symbol: 'DOGEUSDT', lastPrice: '0.08', priceChangePercent: '3' }, { symbol: 'DOGEBTC', lastPrice: '0.000001' }]), { DOGE: { usd: 0.08, change: 3 } });
+  assert.deepEqual(okx('x').parse({ data: [{ instId: 'ZEC-USDT', last: '110', open24h: '100' }] }).ZEC.usd, 110);
+  assert.ok(Math.abs(okx('x').parse({ data: [{ instId: 'ZEC-USDT', last: '110', open24h: '100' }] }).ZEC.change - 10) < 1e-9);
+  assert.deepEqual(bybit('x').parse({ result: { list: [{ symbol: 'DASHUSDT', lastPrice: '30', price24hPcnt: '0.02' }] } }), { DASH: { usd: 30, change: 2 } });
+  assert.deepEqual(coinbase('x').parse({ data: { rates: { SOL: '0.005', EUR: '0.9' } } }), { SOL: { usd: 200, change: null } });
+  const m = mexc('x').parse([{ symbol: 'ARRRUSDT', lastPrice: '0.22', openPrice: '0.2' }, { symbol: 'ARRRUSDC', lastPrice: '9', openPrice: '9' }]);
+  assert.equal(m.ARRR.usd, 0.22);
+  assert.ok(Math.abs(m.ARRR.change - 10) < 1e-9);
+  for (const source of [mexc('x'), gate('x'), binance('x'), okx('x'), bybit('x'), coinbase('x')]) {
+    assert.throws(() => source.parse({}), source.name);
+    assert.throws(() => source.parse(null), source.name);
+  }
+  assert.throws(() => gate('x').parse([{ currency_pair: 'SOL_USDT', last: '0' }]), 'a zero price');
+  assert.throws(() => coinbase('x').parse({ data: { rates: { SOL: '0' } } }));
+});
+
+test('every source is an https address', () => {
+  assert.equal(PRICE_SOURCES.length, 9);
+  for (const s of PRICE_SOURCES) assert.match(s.url, /^https:\/\//);
 });
 
 async function make(tt, sources) {
@@ -70,6 +94,29 @@ test('coins a source does not list come from the next one, without replacing wha
   assert.equal(p.SOL.usd, 150);
   assert.equal(p.DOGE.usd, 0.08);
   assert.equal(p.XMR.usd, 150, 'the earlier source wins');
+});
+
+test('with the first source down, every other one fills gaps at once, and one that hangs holds up nothing else', async (tt) => {
+  const seen = [];
+  const server = http.createServer((q, r) => {
+    seen.push(q.headers['user-agent']);
+    r.setHeader('content-type', 'application/json');
+    if (q.url === '/a') { r.statusCode = 403; return r.end('{}'); }
+    if (q.url === '/b') return r.end(JSON.stringify(KR));
+    if (q.url === '/g') return r.end(JSON.stringify([{ currency_pair: 'ZANO_USDT', last: '4', change_percentage: '1' }, { currency_pair: 'XMR_USDT', last: '777', change_percentage: '1' }]));
+    if (q.url === '/n') return r.end(JSON.stringify([{ symbol: 'SOLUSDT', lastPrice: '150', priceChangePercent: '1' }]));
+    r.statusCode = 451; r.end('{}');
+  });
+  await new Promise((res) => server.listen(0, '127.0.0.1', res));
+  tt.after(() => { server.close(); server.closeAllConnections(); });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const s = await make(tt, [coingecko(`${base}/a`), kraken(`${base}/b`), gate(`${base}/g`), binance(`${base}/n`), bybit(`${base}/blocked`)]);
+  const p = await s.prices();
+  assert.equal(p.ZANO.usd, 4);
+  assert.equal(p.SOL.usd, 150);
+  assert.equal(p.XMR.usd, 150, 'an earlier source wins');
+  assert.equal(p.USDT.usd, 1);
+  assert.ok(seen.every((ua) => ua === 'KusariWallet'), 'names a client, as some services require');
 });
 
 test('when everything fails: no made-up price, and it stops asking for a while', async (tt) => {

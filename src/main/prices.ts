@@ -50,8 +50,69 @@ export const cryptocompare = (url: string): PriceSource => ({
   },
 });
 
+const EXCHANGE_COINS: Asset[] = ['BTC', 'ETH', 'TRX', 'XMR', 'SOL', 'DOGE', 'DASH', 'ZEC', 'FIRO', 'ZANO', 'ARRR'];
+
+/**
+ * An exchange lists only some of the coins, which is fine: it fills in what the others left out. Its prices are in
+ * USDT, so it says nothing about USDT itself.
+ */
+function exchange(name: string, url: string, read: (json: any, coin: Asset) => { last: unknown; change?: unknown } | undefined): PriceSource {
+  return {
+    name, url,
+    parse: (j) => {
+      const prices: Partial<PriceMap> = {};
+      for (const coin of EXCHANGE_COINS) {
+        const got = optional(() => { const t = read(j, coin); return row(t?.last, t?.change); });
+        if (got) prices[coin] = got;
+      }
+      if (!Object.keys(prices).length) throw new Error('bad price');
+      return prices as PriceMap;
+    },
+  };
+}
+
+const percent = (v: unknown, scale = 1) => { const n = Number(v) * scale; return Number.isFinite(n) ? n : null; };
+const listed = (rows: unknown, field: string, symbol: string): any => (Array.isArray(rows) ? rows.find((r) => r?.[field] === symbol) : undefined);
+
+export const mexc = (url: string) => exchange('MEXC', url, (j, coin) => {
+  const t = listed(j, 'symbol', `${coin}USDT`);
+  return t && { last: t.lastPrice, change: Number(t.openPrice) > 0 ? ((Number(t.lastPrice) - Number(t.openPrice)) / Number(t.openPrice)) * 100 : null };
+});
+
+export const gate = (url: string) => exchange('Gate', url, (j, coin) => {
+  const t = listed(j, 'currency_pair', `${coin}_USDT`);
+  return t && { last: t.last, change: percent(t.change_percentage) };
+});
+
+export const binance = (url: string) => exchange('Binance', url, (j, coin) => {
+  const t = listed(j, 'symbol', `${coin}USDT`);
+  return t && { last: t.lastPrice, change: percent(t.priceChangePercent) };
+});
+
+export const okx = (url: string) => exchange('OKX', url, (j, coin) => {
+  const t = listed(j?.data, 'instId', `${coin}-USDT`);
+  return t && { last: t.last, change: Number(t.open24h) > 0 ? ((Number(t.last) - Number(t.open24h)) / Number(t.open24h)) * 100 : null };
+});
+
+export const bybit = (url: string) => exchange('Bybit', url, (j, coin) => {
+  const t = listed(j?.result?.list, 'symbol', `${coin}USDT`);
+  return t && { last: t.lastPrice, change: percent(t.price24hPcnt, 100) };
+});
+
+/** Rates here are how much of a coin one dollar buys, and there is no 24-hour change. */
+export const coinbase = (url: string) => exchange('Coinbase', url, (j, coin) => {
+  const rate = Number(j?.data?.rates?.[coin]);
+  return rate > 0 ? { last: 1 / rate } : undefined;
+});
+
 export const PRICE_SOURCES: PriceSource[] = [
   coingecko('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,tron,tether,monero,dash,zcash,zano,pirate-chain,zcoin,solana,dogecoin&vs_currencies=usd&include_24hr_change=true'),
   kraken('https://api.kraken.com/0/public/Ticker?pair=XBTUSD,ETHUSD,TRXUSD,USDTUSD,XMRUSD'),
   cryptocompare('https://min-api.cryptocompare.com/data/pricemultifull?fsyms=BTC,ETH,TRX,USDT,XMR,DASH,ZEC,ZANO,ARRR,FIRO,SOL,DOGE&tsyms=USD'),
+  mexc('https://api.mexc.com/api/v3/ticker/24hr'),
+  gate('https://api.gateio.ws/api/v4/spot/tickers'),
+  binance('https://data-api.binance.vision/api/v3/ticker/24hr'),
+  okx('https://www.okx.com/api/v5/market/tickers?instType=SPOT'),
+  bybit('https://api.bybit.com/v5/market/tickers?category=spot'),
+  coinbase('https://api.coinbase.com/v2/exchange-rates?currency=USD'),
 ];

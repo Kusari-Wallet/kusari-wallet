@@ -320,7 +320,7 @@
 "Pirate Chain is not available on this device.": "Pirate Chain недоступний на цьому пристрої.",
 "Pirate Chain must finish scanning before it can send.": "Для надсилання Pirate Chain має завершити сканування.",
 "Pool address": "Адреса пулу",
-"Prices come from CoinGecko, then Kraken and CryptoCompare if blocked. Addresses and balances aren't sent, but your IP can be seen.": "Ціни беруться з CoinGecko, а в разі блокування з Kraken і CryptoCompare. Адреси й баланси не надсилаються, але вашу IP-адресу можуть бачити.",
+"Prices come from CoinGecko, then from other price services and exchanges if it's blocked or a coin is missing. Addresses and balances aren't sent, but your IP can be seen.": "Ціни беруться з CoinGecko, а в разі блокування чи відсутності монети з інших сервісів цін і бірж. Адреси й баланси не надсилаються, але ваш IP можуть бачити.",
 "Privacy swap": "Приватний обмін",
 "Privacy swaps in progress": "Приватні обміни в процесі",
 "Privacy swaps only work with BTC, ETH and USDT (Eth).": "Приватні обміни працюють лише з BTC, ETH і USDT (Eth).",

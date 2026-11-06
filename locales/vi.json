@@ -320,7 +320,7 @@
 "Pirate Chain is not available on this device.": "Pirate Chain không có trên thiết bị này.",
 "Pirate Chain must finish scanning before it can send.": "Pirate Chain phải quét xong mới gửi được.",
 "Pool address": "Địa chỉ pool",
-"Prices come from CoinGecko, then Kraken and CryptoCompare if blocked. Addresses and balances aren't sent, but your IP can be seen.": "Giá lấy từ CoinGecko, nếu bị chặn thì dùng Kraken và CryptoCompare. Không gửi địa chỉ và số dư, nhưng IP của bạn có thể bị thấy.",
+"Prices come from CoinGecko, then from other price services and exchanges if it's blocked or a coin is missing. Addresses and balances aren't sent, but your IP can be seen.": "Giá lấy từ CoinGecko, nếu bị chặn hoặc thiếu coin thì dùng các dịch vụ giá và sàn giao dịch khác. Không gửi địa chỉ và số dư, nhưng IP của bạn có thể bị thấy.",
 "Privacy swap": "Hoán đổi riêng tư",
 "Privacy swaps in progress": "Hoán đổi riêng tư đang diễn ra",
 "Privacy swaps only work with BTC, ETH and USDT (Eth).": "Hoán đổi riêng tư chỉ dùng được với BTC, ETH và USDT (Eth).",

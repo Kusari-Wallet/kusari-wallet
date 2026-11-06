@@ -320,7 +320,7 @@
 "Pirate Chain is not available on this device.": "此设备无法使用 Pirate Chain。",
 "Pirate Chain must finish scanning before it can send.": "Pirate Chain 扫描完成后才能发送。",
 "Pool address": "资金池地址",
-"Prices come from CoinGecko, then Kraken and CryptoCompare if blocked. Addresses and balances aren't sent, but your IP can be seen.": "价格来自 CoinGecko,被屏蔽时使用 Kraken 和 CryptoCompare。不会发送地址和余额,但你的 IP 可能被看到。",
+"Prices come from CoinGecko, then from other price services and exchanges if it's blocked or a coin is missing. Addresses and balances aren't sent, but your IP can be seen.": "价格来自 CoinGecko,被屏蔽或缺少某个币时使用其他价格服务和交易所。不会发送地址和余额,但你的 IP 可能被看到。",
 "Privacy swap": "隐私兑换",
 "Privacy swaps in progress": "进行中的隐私兑换",
 "Privacy swaps only work with BTC, ETH and USDT (Eth).": "隐私兑换仅支持 BTC、ETH 和 USDT(Eth)。",

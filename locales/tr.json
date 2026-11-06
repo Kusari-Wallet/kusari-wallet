@@ -320,7 +320,7 @@
 "Pirate Chain is not available on this device.": "Pirate Chain bu cihazda kullanılamıyor.",
 "Pirate Chain must finish scanning before it can send.": "Göndermek için Pirate Chain taraması bitmelidir.",
 "Pool address": "Havuz adresi",
-"Prices come from CoinGecko, then Kraken and CryptoCompare if blocked. Addresses and balances aren't sent, but your IP can be seen.": "Fiyatlar CoinGecko'dan, engellenirse Kraken ve CryptoCompare'den gelir. Adresler ve bakiyeler gönderilmez ama IP'niz görülebilir.",
+"Prices come from CoinGecko, then from other price services and exchanges if it's blocked or a coin is missing. Addresses and balances aren't sent, but your IP can be seen.": "Fiyatlar CoinGecko'dan gelir; engellenirse veya bir coin eksikse diğer fiyat servisleri ve borsalar kullanılır. Adresler ve bakiyeler gönderilmez ama IP'niz görülebilir.",
 "Privacy swap": "Gizli takas",
 "Privacy swaps in progress": "Devam eden gizli takaslar",
 "Privacy swaps only work with BTC, ETH and USDT (Eth).": "Gizli takaslar yalnızca BTC, ETH ve USDT (Eth) ile çalışır.",

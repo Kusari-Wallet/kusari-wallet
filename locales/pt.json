@@ -320,7 +320,7 @@
 "Pirate Chain is not available on this device.": "Pirate Chain não está disponível neste dispositivo.",
 "Pirate Chain must finish scanning before it can send.": "O Pirate Chain precisa terminar a verificação para enviar.",
 "Pool address": "Endereço do pool",
-"Prices come from CoinGecko, then Kraken and CryptoCompare if blocked. Addresses and balances aren't sent, but your IP can be seen.": "Os preços vêm do CoinGecko e, se bloqueado, do Kraken e CryptoCompare. Endereços e saldos não são enviados, mas seu IP pode ser visto.",
+"Prices come from CoinGecko, then from other price services and exchanges if it's blocked or a coin is missing. Addresses and balances aren't sent, but your IP can be seen.": "Os preços vêm do CoinGecko e, se estiver bloqueado ou faltar uma moeda, de outros serviços de preços e corretoras. Endereços e saldos não são enviados, mas seu IP pode ser visto.",
 "Privacy swap": "Troca privada",
 "Privacy swaps in progress": "Trocas privadas em andamento",
 "Privacy swaps only work with BTC, ETH and USDT (Eth).": "Trocas privadas só funcionam com BTC, ETH e USDT (Eth).",

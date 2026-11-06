@@ -900,16 +900,17 @@ export class WalletService extends EventEmitter {
 
   private async fetchPrices(): Promise<PriceMap | null> {
     const sources = this.dev.priceSources ?? (this.dev.priceUrl ? [coingecko(this.dev.priceUrl)] : PRICE_SOURCES);
-    // Not every source lists every coin (Kraken here has only five), so the next ones fill in what's still missing.
-    let value = null as PriceMap | null;
-    for (const source of sources) {
-      if (value && Object.keys(DECIMALS).every((a) => value![a as Asset])) break;
-      try {
-        const json = await getJson(source.url, { agent: this.priceAgent, timeoutMs: this.settings.torEnabled ? (value ? 20_000 : 45_000) : 10_000 });
-        value = { ...source.parse(json), ...(value as PriceMap | null ?? {}) };
-        this.priceCache = { at: Date.now(), value };
-      } catch { /* next source */ }
+    // Not every source lists every coin, so the rest are only asked when the first left something out, and all at
+    // once because a blocked one would otherwise hold up the others. Earlier sources win where they overlap.
+    const ask = async (source: PriceSource, timeoutMs: number) => source.parse(await getJson(source.url, { agent: this.priceAgent, timeoutMs, headers: { Accept: 'application/json', 'User-Agent': 'KusariWallet' } }));
+    const tor = this.settings.torEnabled;
+    const [first, ...rest] = sources;
+    let value = first ? await ask(first, tor ? 45_000 : 10_000).catch(() => null) : null;
+    if (rest.length && !(value && Object.keys(DECIMALS).every((a) => value![a as Asset]))) {
+      const more = await Promise.allSettled(rest.map((source) => ask(source, tor ? 30_000 : 10_000)));
+      for (const r of more) if (r.status === 'fulfilled') value = { ...r.value, ...(value ?? {}) } as PriceMap;
     }
+    if (value) this.priceCache = { at: Date.now(), value };
     if (value) return value;
     this.priceRetryAt = Date.now() + 60_000;
     return this.priceCache?.value ?? null;

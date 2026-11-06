@@ -320,7 +320,7 @@
 "Pirate Chain is not available on this device.": "이 기기에서는 Pirate Chain을 사용할 수 없습니다.",
 "Pirate Chain must finish scanning before it can send.": "Pirate Chain 스캔이 끝나야 보낼 수 있습니다.",
 "Pool address": "풀 주소",
-"Prices come from CoinGecko, then Kraken and CryptoCompare if blocked. Addresses and balances aren't sent, but your IP can be seen.": "가격은 CoinGecko에서 가져오고, 막히면 Kraken과 CryptoCompare를 사용합니다. 주소와 잔액은 보내지 않지만 IP는 보일 수 있습니다.",
+"Prices come from CoinGecko, then from other price services and exchanges if it's blocked or a coin is missing. Addresses and balances aren't sent, but your IP can be seen.": "가격은 CoinGecko에서 가져오고, 막히거나 빠진 코인이 있으면 다른 가격 서비스와 거래소를 사용합니다. 주소와 잔액은 보내지 않지만 IP는 보일 수 있습니다.",
 "Privacy swap": "프라이버시 스왑",
 "Privacy swaps in progress": "진행 중인 프라이버시 스왑",
 "Privacy swaps only work with BTC, ETH and USDT (Eth).": "프라이버시 스왑은 BTC, ETH, USDT(Eth)에서만 됩니다.",

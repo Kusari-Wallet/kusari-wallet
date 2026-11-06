@@ -112,7 +112,7 @@ The scan button in the send address field turns on the camera. Video is only use
 
 ## Prices
 
-USD prices come from CoinGecko, with Kraken and CryptoCompare as fallbacks. Addresses and balances aren't sent, but these services can see your IP. Prices can be turned off in Settings. Testnet shows no USD amounts.
+USD prices come from CoinGecko. If it's blocked or a coin is missing, Kraken, CryptoCompare, MEXC, Gate, Binance, OKX, Bybit and Coinbase fill the gaps. Addresses and balances aren't sent, but these services can see your IP. Prices can be turned off in Settings. Testnet shows no USD amounts.
 
 ## Tests
 

@@ -320,7 +320,7 @@
 "Pirate Chain is not available on this device.": "この端末では Pirate Chain を利用できません。",
 "Pirate Chain must finish scanning before it can send.": "Pirate Chain のスキャンが終わるまで送信できません。",
 "Pool address": "プールアドレス",
-"Prices come from CoinGecko, then Kraken and CryptoCompare if blocked. Addresses and balances aren't sent, but your IP can be seen.": "価格は CoinGecko から取得し、ブロックされた場合は Kraken と CryptoCompare を使います。アドレスと残高は送信しませんが、IP は見える場合があります。",
+"Prices come from CoinGecko, then from other price services and exchanges if it's blocked or a coin is missing. Addresses and balances aren't sent, but your IP can be seen.": "価格は CoinGecko から取得し、ブロックされた場合やコインが欠けている場合は他の価格サービスと取引所を使います。アドレスと残高は送信しませんが、IP は見える可能性があります。",
 "Privacy swap": "プライバシースワップ",
 "Privacy swaps in progress": "進行中のプライバシースワップ",
 "Privacy swaps only work with BTC, ETH and USDT (Eth).": "プライバシースワップは BTC、ETH、USDT(Eth)でのみ使えます。",
