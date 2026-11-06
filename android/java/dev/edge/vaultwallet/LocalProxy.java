@@ -37,6 +37,11 @@ final class LocalProxy {
     /** With a port set, everything goes through that SOCKS proxy and nothing else. 0 means direct. */
     void setSocksPort(int port) { socksPort = port; }
 
+    private volatile int routeGeneration = 0;
+
+    /** Connections from here on leave on new Tor routes. */
+    void newRoutes() { routeGeneration++; }
+
     LocalProxy(String allowedOrigin) {
         this.allowedOrigin = allowedOrigin;
     }
@@ -170,9 +175,23 @@ final class LocalProxy {
             raw.setSoTimeout(120_000);
             InputStream si = raw.getInputStream();
             OutputStream so = raw.getOutputStream();
-            so.write(new byte[] { 5, 1, 0 });
+            so.write(new byte[] { 5, 2, 0, 2 });
             so.flush();
-            if (si.read() != 5 || si.read() != 0) throw new IOException("socks hello");
+            if (si.read() != 5) throw new IOException("socks hello");
+            int chosen = si.read();
+            if (chosen == 2) {
+                // Tor keeps different logins on different routes, so each host gets its own. The login goes no further than the local Tor.
+                byte[] user = (Integer.toHexString(host.hashCode()) + "-" + routeGeneration).getBytes(StandardCharsets.US_ASCII);
+                ByteArrayOutputStream login = new ByteArrayOutputStream();
+                login.write(new byte[] { 1, (byte) user.length });
+                login.write(user);
+                login.write(new byte[] { 1, 'x' });
+                so.write(login.toByteArray());
+                so.flush();
+                if (si.read() != 1 || si.read() != 0) throw new IOException("socks login");
+            } else if (chosen != 0) {
+                throw new IOException("socks hello");
+            }
             ByteArrayOutputStream req = new ByteArrayOutputStream();
             req.write(new byte[] { 5, 1, 0, 3, (byte) name.length });
             req.write(name);

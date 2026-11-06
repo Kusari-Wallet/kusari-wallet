@@ -10,7 +10,7 @@ const openpgp = require('openpgp');
 const tar = require('tar');
 const { TronClient } = require('../dist/main/tron');
 const { TorManager, TOR_SIGNING_FINGERPRINT, scrubLog } = require('../dist/main/tor');
-const { socksAgent, getJson } = require('../dist/main/request');
+const { socksAgent, getJson, newTorRoute } = require('../dist/main/request');
 const { NETWORKS } = require('../dist/main/config');
 const { mockNode, me, RECIPIENT } = require('./mock-tron');
 const { mockSocks } = require('./mock-socks');
@@ -157,6 +157,33 @@ test('Tor messages lose IP and onion addresses', () => {
   const line = scrubLog('Tried 1.2.3.4:443 and [2001:db8::1]:443 via duskgytldkxiuqc6.onion, 100% done');
   assert.doesNotMatch(line, /1\.2\.3\.4|2001:db8|duskgytldkxiuqc6/);
   assert.match(line, /100% done/);
+  const kept = scrubLog('Nov 06 20:47:12.442 [notice] Tor 0.4.8.21 (git-4d8e) running');
+  assert.match(kept, /20:47:12\.442/, 'times stay readable');
+  assert.match(kept, /Tor 0\.4\.8\.21/, 'the version stays readable');
+  assert.doesNotMatch(scrubLog('file "C:\\Users\\someone\\AppData\\Roaming\\Vault Wallet\\tor\\no-torrc" not present'), /someone|Roaming/);
+  assert.doesNotMatch(scrubLog('resolve to C:\\Users\\someone\\Desktop\\KusariWallet\\<default>. Is this'), /someone/);
+});
+
+test('each new route uses a new SOCKS login, so Tor keeps them apart', async (t) => {
+  const socks = await mockSocks();
+  const server = http.createServer((_q, res) => res.end('{"ok":1}'));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  t.after(async () => { server.closeAllConnections(); await new Promise((r) => server.close(r)); await socks.close(); });
+  const url = `http://127.0.0.1:${server.address().port}/x`;
+  const a = socksAgent(socks.uri);
+  const b = socksAgent(socks.uri);
+  newTorRoute(a);
+  newTorRoute(b);
+  await getJson(url, { agent: a });
+  await getJson(url, { agent: a });
+  await getJson(url, { agent: b });
+  newTorRoute(a);
+  await getJson(url, { agent: a });
+  const users = socks.log.map((d) => d.user);
+  assert.ok(users.every(Boolean));
+  assert.equal(users[0], users[1], 'a route stays the same until it is renewed');
+  assert.notEqual(users[0], users[2], 'two coins, two routes');
+  assert.notEqual(users[0], users[3], 'renewing changes the route');
 });
 
 test('real tor process starts, reports progress, listens, and stops', { skip: !torBin }, async () => {

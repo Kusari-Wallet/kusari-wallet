@@ -102,6 +102,12 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
   assert.deepEqual(echoed, { method: 'POST', url: '/json_rpc?a=1', body: 'hello', key: 'K1', sig: 'sig', secret: 'sec', ref: 'ref', auth: 'Bearer a:b', idem: 'I1' });
   assert.deepEqual(await (await proxied(pTls, '/p')).json(), { tls: true });
   assert.ok(fwd.log.every((d) => d.type === 'domain'), 'hostnames reach the proxy unresolved');
+  assert.ok(fwd.log.every((d) => d.user), 'every connection names its Tor route');
+  assert.notEqual(fwd.log.find((d) => d.host === 'plain.invalid').user, fwd.log.find((d) => d.host === 'tron.invalid').user, 'each host has its own route');
+  const routeBefore = fwd.log.find((d) => d.host === 'plain.invalid').user;
+  await open('newroutes');
+  await proxied(pPlain, '/again');
+  assert.notEqual(fwd.log.filter((d) => d.host === 'plain.invalid').pop().user, routeBefore, 'a new route after renewing');
   assert.equal((await proxied(pWrong, '/p')).status, 502, 'certificate for another host is refused');
   await fwd.close();
   assert.equal((await proxied(pPlain, '/x')).status, 502, 'proxy gone: fails, no direct connection');
@@ -131,6 +137,7 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
       torStart: () => { setTimeout(() => window.__torState('starting', 30, '')); setTimeout(() => window.__torState('ready', 100, ''), 300); },
       torStop: () => setTimeout(() => window.__torState('off', 0, '')),
       torDirect: () => {},
+      torNewRoute: () => { window.__newRoutes = (window.__newRoutes || 0) + 1; },
       // The Java side passes lines to and from the engine; this stands in for both.
       zanoAvailable: () => false,
       arrrAvailable: () => false,
@@ -379,6 +386,7 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
   await page.click('#refresh');
   await page.locator('#asset-TRX', { hasText: /Lookup failed|recent value/ }).waitFor({ timeout: 100000 });
   assert.equal(conns, 0, 'nothing reaches the node once Tor is gone');
+  assert.ok(await page.evaluate(() => window.__newRoutes > 0), 'a failed lookup asks for new routes');
   console.log('ok Tor mode: all traffic through SOCKS, onion nodes, browser not opened, stops when Tor is gone');
 
   if (errors.filter((e) => !/monero|sync/i.test(e)).length) console.log('PAGE ERRORS', JSON.stringify(errors).slice(0, 1500));

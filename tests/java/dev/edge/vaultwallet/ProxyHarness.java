@@ -10,7 +10,10 @@ public final class ProxyHarness {
         BufferedReader in = new BufferedReader(new InputStreamReader(System.in));
         String line;
         while ((line = in.readLine()) != null) {
-            if (line.startsWith("socks:")) {
+            if (line.equals("newroutes")) {
+                proxy.newRoutes();
+                System.out.println(0);
+            } else if (line.startsWith("socks:")) {
                 proxy.setSocksPort(Integer.parseInt(line.substring(6).trim()));
                 System.out.println(0);
             } else {

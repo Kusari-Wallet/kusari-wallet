@@ -11,13 +11,14 @@ function mockSocks(map = {}) {
     client.on('error', () => {});
     client.once('data', (hello) => {
       if (hello[0] !== 5) { client.destroy(); return; }
-      client.write(Buffer.from([5, 0]));
-      client.once('data', (req) => {
+      let user = null;
+      const wantsLogin = [...hello.subarray(2, 2 + hello[1])].includes(2);
+      const request = (req) => {
         let host, port;
         if (req[3] === 3) { const n = req[4]; host = req.subarray(5, 5 + n).toString(); port = req.readUInt16BE(5 + n); }
         else if (req[3] === 1) { host = [...req.subarray(4, 8)].join('.'); port = req.readUInt16BE(8); }
         else { client.destroy(); return; }
-        log.push({ host, port, type: req[3] === 3 ? 'domain' : 'ip' });
+        log.push({ host, port, type: req[3] === 3 ? 'domain' : 'ip', user });
         const target = map[host] ?? host;
         const out = net.connect(port, target, () => {
           outboundPorts.add(out.localPort);
@@ -27,7 +28,18 @@ function mockSocks(map = {}) {
         sockets.add(out);
         out.on('close', () => { sockets.delete(out); client.destroy(); });
         out.on('error', () => { if (client.writable) client.end(Buffer.from([5, 1, 0, 1, 0, 0, 0, 0, 0, 0])); });
-      });
+      };
+      if (wantsLogin) {
+        client.write(Buffer.from([5, 2]));
+        client.once('data', (login) => {
+          user = login.subarray(2, 2 + login[1]).toString();
+          client.write(Buffer.from([1, 0]));
+          client.once('data', request);
+        });
+      } else {
+        client.write(Buffer.from([5, 0]));
+        client.once('data', request);
+      }
     });
   });
   return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve({

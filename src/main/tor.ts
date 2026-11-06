@@ -77,9 +77,11 @@ export async function verifyDetached(data: Buffer, armoredSignature: string, key
 /** Tor's own messages, safe to paste somewhere: no IP addresses. */
 export function scrubLog(line: string): string {
   return line
-    .replace(/\b\d{1,3}(?:\.\d{1,3}){3}\b/g, '[ip]')
-    .replace(/\[?\b[0-9a-f]{1,4}(?::[0-9a-f]{0,4}){2,}\b\]?/gi, '[ip]')
-    .replace(/\b[a-z2-7]{16,56}\.onion\b/gi, '[onion]');
+    .replace(/(?<!Tor )\b\d{1,3}(?:\.\d{1,3}){3}\b/g, '[ip]')
+    .replace(/\[?\b(?:[0-9a-f]{1,4}:){3,}[0-9a-f:]*\]?|\[?\b[0-9a-f]{0,4}::[0-9a-f:]*\]?/gi, '[ip]')
+    .replace(/\b[a-z2-7]{16,56}\.onion\b/gi, '[onion]')
+    .replace(/[A-Z]:\\[^"\s]*(?: [^"\s\\]+\\[^"\s]*)*/gi, '[path]')
+    .replace(/\/(?:home|Users|data)\/[^"\s]*/g, '[path]');
 }
 
 const LOG_LINES = 200;

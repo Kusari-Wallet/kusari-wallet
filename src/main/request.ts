@@ -2,12 +2,23 @@ import http from 'node:http';
 import https from 'node:https';
 import type { Agent } from 'node:http';
 import { SocksProxyAgent } from 'socks-proxy-agent';
+import { randomUUID } from 'node:crypto';
 
 /** socks5h: the proxy resolves hostnames, so no DNS query leaves this PC. */
 export function socksAgent(proxyUri: string): SocksProxyAgent {
   const { host } = new URL(proxyUri);
   // A new connection per request: a kept one can stall inside a Tor circuit and only show up as a timeout.
   return new SocksProxyAgent(`socks5h://${host}`, { keepAlive: false, timeout: 60_000 });
+}
+
+/**
+ * Tor keeps connections with different SOCKS logins on different routes, so a new login is a new route and usually
+ * a new exit. The login is made up and goes no further than the local Tor. Affects connections from here on.
+ */
+export function newTorRoute(agent?: SocksProxyAgent): void {
+  if (!agent) return;
+  const { host, port, type } = agent.proxy;
+  (agent as { proxy: unknown }).proxy = { host, port, type, userId: randomUUID(), password: 'kusari' };
 }
 
 /** For APIs that report problems in the response body: returns the status instead of throwing on it. */

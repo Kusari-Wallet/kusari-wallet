@@ -124,3 +124,49 @@ test('the connection log has what went wrong, no addresses or links, and locking
   await s.lock();
   assert.match(s.connectionLog(), /Failed lookups:\nnone/);
 });
+
+test('over Tor a quick refusal moves that coin to new routes; its neighbors keep theirs', async (t) => {
+  const { socksAgent } = require('../dist/main/request');
+  const { s, v } = await make(t);
+  s.settings.torEnabled = true;
+  s.tor.state.phase = 'ready';
+  s.torProxy = 'socks5h://127.0.0.1:1';
+  const tron = s.torRoute('tron');
+  const dcr = s.torRoute('dcr');
+  const dcrUser = dcr.proxy.userId;
+  const seen = [];
+  s.tron.getTrxBalance = async () => {
+    seen.push(tron.proxy.userId);
+    if (seen.length < 3) throw new Error('Request failed with status code 403');
+    return 5_000_000n;
+  };
+  const o = await s.overview();
+  assert.equal(o.balances.TRX.total, '5');
+  assert.equal(new Set(seen).size, 3, 'each try used a different route');
+  assert.equal(dcr.proxy.userId, dcrUser, 'other coins stay where they are');
+  assert.equal(typeof socksAgent, 'function');
+});
+
+test('over Tor a slow timeout isn\'t repeated, repeats slow down, and the reason is plain', async (t) => {
+  const { lookupRetryDelay } = require('../dist/main/service');
+  assert.deepEqual([1, 2, 3, 4, 5, 6, 9].map(lookupRetryDelay), [30000, 60000, 120000, 240000, 300000, 300000, 300000]);
+  const { s } = await make(t);
+  s.settings.torEnabled = true;
+  s.tor.state.phase = 'ready';
+  let calls = 0;
+  const realNow = Date.now;
+  let offset = 0;
+  Date.now = () => realNow() + offset;
+  t.after(() => { Date.now = realNow; });
+  s.dcr.getBalance = async () => { calls++; offset += 120_000; throw new Error('Timed out'); };
+  for (let i = 0; i < 3; i++) await s.overview();
+  assert.equal(calls, 6, 'two tries a round, no more');
+  const o = await s.overview();
+  assert.match(o.balances.DCR.error, /isn't answering over Tor/);
+});
+
+test('one failed lookup that many callers waited on is one log line', async (t) => {
+  const { s } = await make(t);
+  for (let i = 0; i < 5; i++) s.noteFailure('DCR', Date.now(), new Error('Timed out'));
+  assert.equal(s.connectionLog().match(/DCR after/g).length, 1);
+});

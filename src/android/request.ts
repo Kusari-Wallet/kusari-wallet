@@ -10,6 +10,9 @@ export function route(url: string): string {
 
 export function socksAgent(): undefined { return undefined; }
 
+/** The forwarder keeps each host on its own Tor route; this moves them all to new ones. */
+export function newTorRoute(_agent?: unknown): void { (window as any).VaultNative.torNewRoute(); }
+
 export async function getJson(url: string, opts: { headers?: Record<string, string>; timeoutMs?: number } = {}): Promise<any> {
   const res = await fetch(route(url), { headers: opts.headers, signal: AbortSignal.timeout(Math.max(opts.timeoutMs ?? 30_000, 45_000)) });
   if (!res.ok) throw new Error(`Server error (${res.status})`);

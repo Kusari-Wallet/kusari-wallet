@@ -258,6 +258,7 @@ public class MainActivity extends Activity {
             }
         }
 
+        @JavascriptInterface public void torNewRoute() { proxy.newRoutes(); }
         @JavascriptInterface public void torStart() { tor.start(); }
         @JavascriptInterface public void torStop() { tor.stop(); }
         @JavascriptInterface public void torDirect() { tor.stop(); proxy.setSocksPort(0); }

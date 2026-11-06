@@ -7,7 +7,7 @@ import { formatAmount, parseAmount } from './amount';
 import { Asset, BTC_APIS, BTC_EXPLORER_TX, DECIMALS, FIRO_APIS, FIRO_EXPLORER_TX, DASH_APIS, DASH_EXPLORER_TX, DCR_APIS, DCR_EXPLORER_TX, DEFAULT_SETTINGS, ARRR_EXPLORER_TX, ARRR_SERVERS, ZANO_EXPLORER_TX, ZANO_NODE, ZEC_EXPLORER_TX, ZEC_SERVERS, ETH_EXPLORER_TX, ETH_RPCS, ETH_SCOUT, ETH_USDT, NETWORKS, NetworkId, Settings, estimateMainnetHeight } from './config';
 import { MIN_PASSWORD, Secrets, Vault } from './vault';
 import { TronClient, TronTransfer, deriveTronAccount, generateTronMnemonic, isTronAddress } from './tron';
-import { socksAgent, getJson, requestJson } from './request';
+import { socksAgent, getJson, requestJson, newTorRoute } from './request';
 import { BtcClient, BtcDraft, btcAccountXpub, estimateVbytes, isBtcAddress } from './btc';
 import { PRICE_SOURCES, PriceMap, PriceSource, coingecko } from './prices';
 import { DEPOSIT_GAS, TORNADO_POOLS, TornadoNote, TornadoStore, WITHDRAW_GAS, abi as tornadoAbi, checkRelayerUrl, denomination, noteSecrets, noteText, relayerFee, relayerStatus, relayerSubmit, tornadoEngineCheck } from './tornado';
@@ -28,6 +28,14 @@ import { MoneroClient, MoneroDraft, MoneroOptions, generateMoneroSeed, validateM
 
 const BALANCE_TTL_MS = 40_000;
 const BALANCE_BACKOFF_MS = 30_000;
+const QUICK_REFUSAL_MS = 15_000;
+/** Which Tor route each balance lookup uses. */
+const LOOKUP_ROUTE: Record<string, string> = { BTC: 'btc', ETH: 'eth', USDTE: 'eth', TRX: 'tron', USDT: 'tron', DCR: 'dcr', DASH: 'dash', FIRO: 'firo' };
+
+/** Waits longer each time, up to five minutes, so a server that's down isn't asked over and over. */
+export function lookupRetryDelay(fails: number): number {
+  return Math.min(BALANCE_BACKOFF_MS * 2 ** Math.max(fails - 1, 0), 300_000);
+}
 const BALANCE_STALE_MS = 30 * 60_000;
 const PREVIEW_TTL_MS = 10 * 60_000;
 
@@ -85,6 +93,10 @@ export class WalletService extends EventEmitter {
   private pendingSwaps = new Map<string, { id: string; from: Asset; to: Asset; amount: string; receive: string; rate: string; providerId: SwapProviderId; provider: string; approximate: boolean; statusKey?: string; withdrawalAddress: string; privacy?: { leg: 'first'; via: string; destination: string } | { leg: 'second'; id: string } }>();
   readonly tor: TorManager;
   private priceAgent: ReturnType<typeof socksAgent> | undefined;
+  private torProxy: string | undefined;
+  private lastNoted: { stamp: string; at: number } | undefined;
+  private readonly routes = new Map<string, ReturnType<typeof socksAgent>>();
+  private readonly balanceFails = new Map<string, number>();
   private readonly lookupFailures: string[] = [];
   private readonly lastLookupError = new Map<string, string>();
   private closing: Promise<void> = Promise.resolve();
@@ -277,12 +289,15 @@ export class WalletService extends EventEmitter {
   private async startSession(secrets: Secrets): Promise<void> {
     await this.closing;
     this.priceAgent = undefined;
+    this.torProxy = undefined;
+    this.routes.clear();
     let proxyUri: string | undefined;
     if (this.settings.torEnabled) {
       const socks = await this.tor.allocate();
       if (!this.dev.nativeTor) {
         proxyUri = socks;
-        this.priceAgent = socksAgent(socks);
+        this.torProxy = socks;
+        this.priceAgent = this.torRoute('general');
       }
     } else {
       this.tor.useDirect();
@@ -294,19 +309,19 @@ export class WalletService extends EventEmitter {
     const tronNet = this.dev.tronHost
       ? { ...net.tron, host: route(this.dev.tronHost), usdt: NETWORKS.mainnet.tron.usdt }
       : { ...net.tron, host: route(net.tron.host) };
-    this.tron = new TronClient(tronNet, this.settings.tronApiKey, account.address, this.priceAgent, this.settings.torEnabled);
+    this.tron = new TronClient(tronNet, this.settings.tronApiKey, account.address, this.torRoute('tron'), this.settings.torEnabled);
 
     const slow = this.settings.torEnabled;
-    this.btc = new BtcClient(btcAccountXpub(secrets.tronMnemonic), this.dev.btcApi ? [this.dev.btcApi] : BTC_APIS, this.priceAgent, slow ? 60_000 : 30_000);
+    this.btc = new BtcClient(btcAccountXpub(secrets.tronMnemonic), this.dev.btcApi ? [this.dev.btcApi] : BTC_APIS, this.torRoute('btc'), slow ? 60_000 : 30_000);
     if (this.dev.btcApi) this.btc.spacingMs = 0;
     const scanFile = path.join(this.dir, 'btc-scan.json');
     try { this.btc.importHints(JSON.parse(await fs.readFile(scanFile, 'utf8') as unknown as string)); } catch { /* first time */ }
     this.btc.onHints = (hints) => { void fs.mkdir(this.dir, { recursive: true }).then(() => fs.writeFile(scanFile, JSON.stringify(hints), { mode: 0o600 })).catch(() => undefined); };
     if (!this.torNotReady) void this.btc.refresh().catch(() => undefined);
-    this.firo = new FiroClient(firoAccountXpub(secrets.tronMnemonic), this.dev.firoApi ? [this.dev.firoApi] : FIRO_APIS, this.priceAgent, slow ? 60_000 : 20_000);
-    this.dash = new DashClient(dashAccountXpub(secrets.tronMnemonic), this.dev.dashApi ? [this.dev.dashApi] : DASH_APIS, this.priceAgent, slow ? 60_000 : 20_000);
-    this.dcr = new DcrClient(dcrAccount(secrets.tronMnemonic), this.dev.dcrApi ? [this.dev.dcrApi] : DCR_APIS, this.priceAgent, slow ? 60_000 : 20_000);
-    this.eth = new EthClient(this.dev.ethRpc ? [this.dev.ethRpc] : ETH_RPCS, this.dev.ethScout ?? ETH_SCOUT, ETH_USDT, deriveEthAccount(secrets.tronMnemonic).address, this.priceAgent, slow ? 60_000 : 15_000);
+    this.firo = new FiroClient(firoAccountXpub(secrets.tronMnemonic), this.dev.firoApi ? [this.dev.firoApi] : FIRO_APIS, this.torRoute('firo'), slow ? 60_000 : 20_000);
+    this.dash = new DashClient(dashAccountXpub(secrets.tronMnemonic), this.dev.dashApi ? [this.dev.dashApi] : DASH_APIS, this.torRoute('dash'), slow ? 60_000 : 20_000);
+    this.dcr = new DcrClient(dcrAccount(secrets.tronMnemonic), this.dev.dcrApi ? [this.dev.dcrApi] : DCR_APIS, this.torRoute('dcr'), slow ? 60_000 : 20_000);
+    this.eth = new EthClient(this.dev.ethRpc ? [this.dev.ethRpc] : ETH_RPCS, this.dev.ethScout ?? ETH_SCOUT, ETH_USDT, deriveEthAccount(secrets.tronMnemonic).address, this.torRoute('eth'), slow ? 60_000 : 15_000);
     const monero = new MoneroClient({
       type: net.monero.type,
       dir: this.moneroDir(net.id),
@@ -395,6 +410,8 @@ export class WalletService extends EventEmitter {
     this.balanceMemo.clear();
     this.balanceRetryAt.clear();
     this.lookupFailures.length = 0;
+    this.balanceFails.clear();
+    this.routes.clear();
     this.lastLookupError.clear();
     this.tron = null;
     this.btc = null;
@@ -452,9 +469,27 @@ export class WalletService extends EventEmitter {
     ].join('\n');
   }
 
+  /** Each coin leaves Tor on its own route, so one exit neither sees them together nor takes them down together. */
+  private torRoute(name: string): ReturnType<typeof socksAgent> | undefined {
+    if (!this.torProxy) return undefined;
+    const agent = socksAgent(this.torProxy);
+    newTorRoute(agent);
+    this.routes.set(name, agent);
+    return agent;
+  }
+
+  private renewTorRoute(key: string): void {
+    if (!this.settings.torEnabled || key === 'XMR') return;
+    newTorRoute(this.routes.get(LOOKUP_ROUTE[key]));
+  }
+
   private noteFailure(key: string, startedAt: number, e: Error): void {
     const message = e.message.replace(/https?:\/\/\S+/g, '[link]').replace(/\b[1-9A-HJ-NP-Za-km-z]{25,}\b/g, '[address]').slice(0, 160);
     this.lastLookupError.set(key, message);
+    // Everything waiting on one failed lookup hears about it at once. That's still one failure.
+    const stamp = `${key} ${message}`;
+    if (this.lastNoted?.stamp === stamp && Date.now() - this.lastNoted.at < 1000) return;
+    this.lastNoted = { stamp, at: Date.now() };
     this.lookupFailures.push(`${new Date().toISOString()} ${key} after ${((Date.now() - startedAt) / 1000).toFixed(1)}s: ${message}`);
     this.lookupFailures.splice(0, Math.max(0, this.lookupFailures.length - 100));
   }
@@ -466,25 +501,32 @@ export class WalletService extends EventEmitter {
     if (key !== 'XMR' && this.torNotReady) return { ok: false, pending: true, total: '', spendable: '' };
     let failure: Error | undefined;
     if (Date.now() >= (this.balanceRetryAt.get(key) ?? 0)) {
-      for (let attempt = 0; attempt < 2; attempt++) {
+      // A quick refusal over Tor usually means that exit is blocked, so a few more routes are worth a try. A timeout already took minutes.
+      for (let attempt = 0, tries = 2; attempt < tries; attempt++) {
         const startedAt = Date.now();
         try {
           const [total, spendable] = await fn();
           this.lastLookupError.delete(key);
+          this.balanceFails.delete(key);
           this.balanceMemo.set(key, { at: Date.now(), total, spendable, decimals });
           this.balanceRetryAt.delete(key);
           return view({ total, spendable });
         } catch (e) {
           failure = e as Error;
           this.noteFailure(key, startedAt, failure);
-          if (attempt === 0) await new Promise((r) => setTimeout(r, this.dev.tronHost ? 50 : 1500));
+          this.renewTorRoute(key);
+          if (this.settings.torEnabled && Date.now() - startedAt < QUICK_REFUSAL_MS) tries = 4;
+          if (attempt + 1 < tries) await new Promise((r) => setTimeout(r, this.dev.tronHost ? 50 : 1500));
         }
       }
-      this.balanceRetryAt.set(key, Date.now() + (this.dev.tronHost ? 0 : BALANCE_BACKOFF_MS));
+      const fails = (this.balanceFails.get(key) ?? 0) + 1;
+      this.balanceFails.set(key, fails);
+      this.balanceRetryAt.set(key, Date.now() + (this.dev.tronHost ? 0 : lookupRetryDelay(fails)));
     }
     // With Tor down, an old number would hide that the connection is gone.
     const torDown = this.settings.torEnabled && this.tor.state.phase !== 'ready';
     if (memo && !torDown && Date.now() - memo.at < BALANCE_STALE_MS) return view(memo, true);
+    if (this.settings.torEnabled && (this.balanceFails.get(key) ?? 0) >= 3) return { ok: false, total: '', spendable: '', error: 'This server isn\'t answering over Tor right now. The wallet keeps trying.' };
     return { ok: false, total: '', spendable: '', error: failure ? this.friendlyError(failure) : this.lastLookupError.get(key) ?? 'Retrying shortly.' };
   }
 
@@ -498,6 +540,8 @@ export class WalletService extends EventEmitter {
         return b ? { ok: true, total: formatAmount(b.total, 8), spendable: formatAmount(b.spendable, 8) } : { ok: false, pending: true, total: '', spendable: '' };
       } catch (e) {
         const message = (e as Error).message;
+        this.noteFailure('BTC', Date.now(), e as Error);
+        this.renewTorRoute('BTC');
         // Being rate limited with nothing known yet is "still loading": it clears up by itself.
         return /limiting requests/.test(message) ? { ok: false, pending: true, total: '', spendable: '' } : { ok: false, total: '', spendable: '', error: this.friendlyError(e as Error) };
       }
