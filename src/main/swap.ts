@@ -2,6 +2,7 @@ import type { Agent } from 'node:http';
 import { requestJson } from './request';
 import { parseAmount } from './amount';
 import { randomUUID } from 'node:crypto';
+import { computeHmac, toUtf8Bytes } from 'ethers';
 import { Asset, DECIMALS } from './config';
 
 export const SWAP_BASE = 'https://exolix.com/api/v2';
@@ -30,15 +31,16 @@ function sameAddress(a: unknown, b: string): boolean {
 
 export interface SwapQuote { from: Asset; to: Asset; amount: string; receive: string; rate: string; min: string | null; max: string | null; problem: string | null; provider: string; providerId: SwapProviderId; approximate: boolean }
 
-export type SwapProviderId = 'exolix' | 'simpleswap' | 'ghostswap';
+export type SwapProviderId = 'exolix' | 'simpleswap' | 'ghostswap' | 'etzswap' | 'ccecash';
 
 export interface SwapProvider {
   quote(from: Asset, to: Asset, amount: string): Promise<SwapQuote>;
   create(from: Asset, to: Asset, amount: string, expectedReceive: string, withdrawalAddress: string, refundAddress: string): Promise<SwapOrder>;
-  status(id: string): Promise<{ status: string; hashIn?: string; hashOut?: string }>;
+  status(id: string, statusKey?: string): Promise<{ status: string; hashIn?: string; hashOut?: string }>;
 }
-export interface SwapOrder { id: string; depositAddress: string; receive: string; rate: string; provider: string; approximate: boolean }
-export interface SwapRecord { id: string; from: Asset; to: Asset; amount: string; receive: string; rate: string; createdAt: number; providerId?: SwapProviderId; provider?: string; withdrawalAddress?: string; privacyId?: string; approximate?: boolean; status: string; hashIn?: string; hashOut?: string }
+/** statusKey: the order's private lookup code, where the provider has one. Never shown on screen. */
+export interface SwapOrder { id: string; depositAddress: string; receive: string; rate: string; provider: string; approximate: boolean; statusKey?: string }
+export interface SwapRecord { id: string; from: Asset; to: Asset; amount: string; receive: string; rate: string; createdAt: number; providerId?: SwapProviderId; provider?: string; withdrawalAddress?: string; privacyId?: string; approximate?: boolean; statusKey?: string; status: string; hashIn?: string; hashOut?: string }
 
 function num(v: unknown): string | null {
   return typeof v === 'number' || (typeof v === 'string' && v !== '') ? String(v) : null;
@@ -140,8 +142,9 @@ const ORDER_ID = /^[A-Za-z0-9_-]{1,80}$/;
 // ---- SimpleSwap ----
 
 /**
- * Partner keys shipped with the app, so nobody has to sign up. Anyone holding the app can extract them:
- * they identify the partner account and are not secrets. They stay out of the source; see scripts/gen-keys.js.
+ * Partner keys put in at build time; see scripts/gen-keys.js. They stay out of the source, but anyone holding
+ * a build can extract them. The ETZ Swap and CCECash keys can read the account's orders, addresses included,
+ * so a build holding those must stay with the account's owner and never be distributed.
  */
 export { BUILTIN_SWAP_KEYS } from './swap-keys.generated';
 
@@ -286,6 +289,205 @@ export class GhostSwapClient implements SwapProvider {
     if (res.status >= 400) throw new Error(`Could not read the swap status (${res.status}).`);
     const b = res.body?.swap ?? {};
     return { status: String(b.status ?? 'unknown'), hashIn: b.payinHash ?? undefined, hashOut: b.payoutHash ?? undefined };
+  }
+}
+
+// ---- ETZ Swap ----
+
+/** Their JSON numbers can't always hold every decimal, so a difference this small is rounding and nothing else. */
+function closeAmount(answer: unknown, amount: string): boolean {
+  const a = Number(answer);
+  const b = Number(amount);
+  return Number.isFinite(a) && b > 0 && Math.abs(a - b) <= b * 1e-9;
+}
+
+export const ETZSWAP_BASE = 'https://api.etz-swap.com';
+const ETZ_COIN: Partial<Record<Asset, { coin: string; network: string }>> = {
+  BTC: { coin: 'BTC', network: 'BTC' },
+  XMR: { coin: 'XMR', network: 'XMR' },
+  ETH: { coin: 'ETH', network: 'ETH' },
+  TRX: { coin: 'TRX', network: 'TRX' },
+  USDT: { coin: 'USDT', network: 'TRX' },
+  USDTE: { coin: 'USDT', network: 'ETH' },
+  DASH: { coin: 'DASH', network: 'DASH' },
+  ZEC: { coin: 'ZEC', network: 'ZEC' },
+  ZANO: { coin: 'ZANO', network: 'ZANO' },
+};
+
+/** Their errors come as { errors: { someName: { message, args } } }. */
+function etzError(b: any): { name: string; message: string; args: any } | null {
+  const [name, e] = Object.entries(b?.errors ?? {})[0] as [string, any] ?? [];
+  return name ? { name, message: String(e?.message ?? name), args: e?.args ?? {} } : null;
+}
+
+export class EtzSwapClient implements SwapProvider {
+  constructor(private readonly base: string, private readonly key: string, private readonly secret: string, private readonly agent?: Agent, private readonly timeoutMs = 30_000) {}
+
+  private call(method: 'GET' | 'POST', path: string, body?: unknown) {
+    return requestJson(this.base + path, { method, body, agent: this.agent, timeoutMs: this.timeoutMs, headers: { 'X-API-KEY': this.key, 'X-API-SECRET-KEY': this.secret, 'X-API-KEY-VERSION': '1' } });
+  }
+
+  async quote(from: Asset, to: Asset, amount: string): Promise<SwapQuote> {
+    const base = { from, to, amount, provider: 'ETZ Swap', providerId: 'etzswap' as const, approximate: true };
+    const none = (problem: string, min: string | null = null, max: string | null = null) => ({ ...base, receive: '0', rate: '0', min, max, problem });
+    const a = ETZ_COIN[from];
+    const b = ETZ_COIN[to];
+    if (!a || !b) return none('ETZ Swap doesn\'t offer this coin.');
+    const q = new URLSearchParams({ coinFrom: a.coin, networkFrom: a.network, coinTo: b.coin, networkTo: b.network, amountFrom: amount, rateType: 'float' });
+    const res = await this.call('GET', `/api/v1/deposit/public/rate?${q}`);
+    if (res.status === 401 || res.status === 403) return none('Check the ETZ Swap API key.');
+    const d = res.body?.data;
+    const e = etzError(res.body);
+    if (e || !d) {
+      const min = num(e?.args?.minAllowedAmount);
+      const max = num(e?.args?.maxAllowedAmount);
+      return none(e?.name === 'amountTooSmall' && min ? `The minimum amount is ${min} ${from}.` : e?.name === 'amountTooBig' && max ? `The maximum amount is ${max} ${from}.` : e?.message ?? 'No quote available for this swap right now.', min, max);
+    }
+    const receive = num(d.amountTo);
+    if (!receive || Number(receive) <= 0) return none('No quote available for this swap right now.');
+    return { ...base, receive, rate: num(d.rate) ?? String(Number(receive) / Number(amount)), min: num(d.minAmountFrom), max: num(d.maxAmountFrom), problem: null };
+  }
+
+  async create(from: Asset, to: Asset, amount: string, expectedReceive: string, withdrawalAddress: string, refundAddress: string): Promise<SwapOrder> {
+    const a = ETZ_COIN[from];
+    const c = ETZ_COIN[to];
+    if (!a || !c) throw new Error('ETZ Swap doesn\'t offer this coin.');
+    const res = await this.call('POST', '/api/v1/deposit/public/transaction', {
+      coinFrom: a.coin, networkFrom: a.network, coinTo: c.coin, networkTo: c.network, amountFrom: Number(amount),
+      withdrawalAddress, refundAddress, securityType: 'secureToken', rateType: 'float',
+    });
+    const b = res.body?.data;
+    const e = etzError(res.body);
+    if (res.status >= 400 || e || !b) throw new Error(`Swap order failed: ${e?.message ?? res.status}`);
+    if (typeof b.transactionId !== 'string' || !ORDER_ID.test(b.transactionId)) stop('no order number');
+    if (typeof b.deposit?.address !== 'string' || !b.deposit.address) stop('no deposit address');
+    if (b.deposit.memo) stop('the deposit address needs an extra memo');
+    if (!sameAddress(b.withdraw?.address, withdrawalAddress)) stop('the receiving address is not yours');
+    if (b.refund?.address && !sameAddress(b.refund.address, refundAddress)) stop('the refund address is not yours');
+    if (String(b.coinFrom?.coinCode).toUpperCase() !== a.coin) stop('the sent coin differs');
+    if (String(b.coinTo?.coinCode).toUpperCase() !== c.coin) stop('the received coin differs');
+    if (!COIN[from].network.test(String(b.coinFrom?.network))) stop('the sending network differs');
+    if (!COIN[to].network.test(String(b.coinTo?.network))) stop('the receiving network differs');
+    if (!closeAmount(b.amount, amount)) stop('the send amount differs');
+    const receive = num(b.amountTo);
+    if (!receive || Number(receive) < Number(expectedReceive) * 0.98) stop('the receive amount is less than quoted');
+    const token = b.transactionSecurity?.secureToken;
+    if (typeof token !== 'string' || !token) stop('no private order code');
+    return { id: b.transactionId, depositAddress: b.deposit.address, receive: receive as string, rate: num(b.rate) ?? String(Number(receive) / Number(amount)), provider: 'ETZ Swap', approximate: true, statusKey: token };
+  }
+
+  async status(id: string, statusKey = ''): Promise<{ status: string; hashIn?: string; hashOut?: string }> {
+    if (!ORDER_ID.test(id)) throw new Error('Invalid order number.');
+    const res = await this.call('GET', `/api/v1/deposit/public/transactions/${id}?${new URLSearchParams({ secureToken: statusKey })}`);
+    const e = etzError(res.body);
+    if (res.status >= 400 || e) throw new Error(e?.message ?? `Could not read the swap status (${res.status}).`);
+    const b = res.body?.data ?? {};
+    return { status: String(b.status ?? 'unknown'), hashIn: b.inboundTransfer?.hash ?? undefined, hashOut: b.outboundTransfer?.hash ?? undefined };
+  }
+}
+
+// ---- CCECash ----
+
+export const CCECASH_BASE = 'https://cce.cash/api/v1';
+const CCE_COIN: Partial<Record<Asset, { abbr: string; chain: string }>> = {
+  BTC: { abbr: 'BTC', chain: 'Bitcoin' },
+  XMR: { abbr: 'XMR', chain: 'Monero' },
+  ETH: { abbr: 'ETH', chain: 'Ethereum' },
+  TRX: { abbr: 'TRX', chain: 'TRON' },
+  USDT: { abbr: 'USDT', chain: 'TRON' },
+  USDTE: { abbr: 'USDT', chain: 'Ethereum' },
+  DASH: { abbr: 'DASH', chain: 'Dash' },
+  ZEC: { abbr: 'ZEC', chain: 'Zcash' },
+};
+/** Their order states, as the words the rest of the wallet uses. */
+const CCE_STATUS: Record<number, string> = { 1: 'wait', 2: 'confirming', 3: 'exchanging', 4: 'success', 5: 'refunded', 7: 'hold', 8: 'expired', 9: 'failed' };
+
+export class CceCashClient implements SwapProvider {
+  constructor(private readonly base: string, private readonly key: string, private readonly secret: string, private readonly refCode = '', private readonly agent?: Agent, private readonly timeoutMs = 30_000) {}
+
+  private async once(method: 'GET' | 'POST', path: string, query: string, body: unknown, extra: Record<string, string>) {
+    const nonce = randomUUID().replace(/-/g, '');
+    const timestamp = String(Math.floor(Date.now() / 1000));
+    const text = body === undefined ? '' : JSON.stringify(body);
+    const signature = computeHmac('sha256', toUtf8Bytes(this.secret), toUtf8Bytes(this.key + nonce + timestamp + query + text)).slice(2);
+    return requestJson(`${this.base}${path}${query ? `?${query}` : ''}`, { method, body, agent: this.agent, timeoutMs: this.timeoutMs, headers: { 'X-Api-Key': this.key, 'X-Api-Nonce': nonce, 'X-Api-Timestamp': timestamp, 'X-Api-Signature': signature, 'Content-Type': 'application/json', ...extra } });
+  }
+
+  /** The signature only lives for 5 seconds, which Tor can use up. A request refused for that was never processed, so it's safe to sign again. */
+  private async call(method: 'GET' | 'POST', path: string, query = '', body?: unknown, extra: Record<string, string> = {}) {
+    let res = await this.once(method, path, query, body, extra);
+    for (let i = 0; i < 2 && res.body?.code === 400003; i++) res = await this.once(method, path, query, body, extra);
+    if (res.body?.code === 400003) throw new Error('CCECash refused the request\'s time. Check that this device\'s clock is correct, or try again.');
+    return res;
+  }
+
+  private problem(res: { status: number; body: any }, fallback: string): string | null {
+    if (res.status === 403 && res.body?.code === 700100) return 'CCECash refused this connection\'s IP address. With Tor on, try again shortly.';
+    if (res.status === 403 || (res.status === 400 && Number(res.body?.code) >= 400000)) return 'Check the CCECash API key.';
+    if (res.status >= 400 || res.body?.code !== 0) return typeof res.body?.msg === 'string' && res.body.msg ? res.body.msg : fallback;
+    return null;
+  }
+
+  async quote(from: Asset, to: Asset, amount: string): Promise<SwapQuote> {
+    const base = { from, to, amount, provider: 'CCECash', providerId: 'ccecash' as const, approximate: true };
+    const none = (problem: string, min: string | null = null, max: string | null = null) => ({ ...base, receive: '0', rate: '0', min, max, problem });
+    const a = CCE_COIN[from];
+    const b = CCE_COIN[to];
+    if (!a || !b) return none('CCECash doesn\'t offer this coin.');
+    const res = await this.call('POST', '/openapi/order/calculate', '', {
+      exchange_mode: 'float', from_abbr: a.abbr, from_chain: a.chain, from_quantity: Number(amount), to_address: [{ to_abbr: b.abbr, to_chain: b.chain, to_ratio: 1 }],
+    });
+    const d = res.body?.data;
+    const min = num(d?.min_from_quantity);
+    const max = num(d?.max_from_quantity);
+    const problem = this.problem(res, 'No quote available for this swap right now.');
+    if (problem) {
+      const text = /too small/i.test(problem) && min ? `The minimum amount is ${min} ${from}.` : /too large/i.test(problem) && max ? `The maximum amount is ${max} ${from}.` : problem;
+      return none(text, min, max);
+    }
+    const receive = num(d?.to?.[0]?.to_quantity);
+    if (!receive || Number(receive) <= 0) return none('No quote available for this swap right now.', min, max);
+    return { ...base, receive, rate: String(Number(receive) / Number(amount)), min, max, problem: null };
+  }
+
+  private async read(queryCode: string): Promise<any> {
+    const res = await this.call('GET', '/openapi/order/query', new URLSearchParams({ query_code: queryCode }).toString());
+    const problem = this.problem(res, 'Could not read the swap status.');
+    if (problem) throw new Error(problem);
+    return res.body?.data ?? {};
+  }
+
+  async create(from: Asset, to: Asset, amount: string, expectedReceive: string, withdrawalAddress: string, _refundAddress: string): Promise<SwapOrder> {
+    const a = CCE_COIN[from];
+    const c = CCE_COIN[to];
+    if (!a || !c) throw new Error('CCECash doesn\'t offer this coin.');
+    const res = await this.call('POST', '/openapi/order/place', '', {
+      exchange_mode: 'float', from_abbr: a.abbr, from_chain: a.chain, from_quantity: Number(amount), to_address: [{ to_abbr: c.abbr, to_address: withdrawalAddress, to_chain: c.chain, to_ratio: 1 }],
+    }, this.refCode ? { 'Ref-Code': this.refCode } : {});
+    const problem = this.problem(res, 'Could not create the swap order.');
+    if (problem) throw new Error(`Swap order failed: ${problem}`);
+    const placed = res.body?.data ?? {};
+    if (typeof placed.order_no !== 'string' || !ORDER_ID.test(placed.order_no)) stop('no order number');
+    if (typeof placed.query_code !== 'string' || !ORDER_ID.test(placed.query_code)) stop('no private order code');
+    if (typeof placed.address !== 'string' || !placed.address) stop('no deposit address');
+    // Placing an order only answers with the deposit address, so the order is read back and checked before any coins move.
+    const b = await this.read(placed.query_code);
+    const out = Array.isArray(b.children) && b.children.length === 1 ? b.children[0] : null;
+    if (!out) stop('the receiving address is not yours');
+    if (b.address !== placed.address) stop('the deposit address differs');
+    if (String(b.abbr).toUpperCase() !== a.abbr || b.chain !== a.chain) stop('the sent coin differs');
+    if (String(out.abbr).toUpperCase() !== c.abbr || out.chain !== c.chain) stop('the received coin differs');
+    if (!sameAddress(out.address, withdrawalAddress)) stop('the receiving address is not yours');
+    if (!closeAmount(b.odr_volume, amount)) stop('the send amount differs');
+    const receive = num(out.volume_origin);
+    if (!receive || Number(receive) < Number(expectedReceive) * 0.98) stop('the receive amount is less than quoted');
+    return { id: placed.order_no, depositAddress: placed.address, receive: receive as string, rate: String(Number(receive) / Number(amount)), provider: 'CCECash', approximate: true, statusKey: placed.query_code };
+  }
+
+  async status(id: string, statusKey = ''): Promise<{ status: string; hashIn?: string; hashOut?: string }> {
+    if (!ORDER_ID.test(id) || !ORDER_ID.test(statusKey)) throw new Error('Invalid order number.');
+    const b = await this.read(statusKey);
+    return { status: CCE_STATUS[Number(b.status)] ?? 'unknown', hashIn: b.input?.[0]?.txid || undefined, hashOut: b.output?.[0]?.txid || undefined };
   }
 }
 

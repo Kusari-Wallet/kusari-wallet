@@ -89,7 +89,7 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
     r.write('{"tls":'); r.end('true}'); // two writes make it a chunked reply
   });
   await new Promise((r) => tlsServer.listen(0, '127.0.0.1', r));
-  const plain = http.createServer((q, r) => { let b = ''; q.on('data', (c) => { b += c; }); q.on('end', () => { r.write(JSON.stringify({ method: q.method, url: q.url, body: b, key: q.headers['x-api-key'], auth: q.headers.authorization, idem: q.headers['idempotency-key'] })); r.end(); }); });
+  const plain = http.createServer((q, r) => { let b = ''; q.on('data', (c) => { b += c; }); q.on('end', () => { r.write(JSON.stringify({ method: q.method, url: q.url, body: b, key: q.headers['x-api-key'], sig: q.headers['x-api-signature'], secret: q.headers['x-api-secret-key'], ref: q.headers['ref-code'], auth: q.headers.authorization, idem: q.headers['idempotency-key'] })); r.end(); }); });
   await new Promise((r) => plain.listen(0, '127.0.0.1', r));
   const fwd = await mockSocks({ 'plain.invalid': '127.0.0.1', 'tron.invalid': '127.0.0.1', 'wrong.invalid': '127.0.0.1' });
   const pPlain = await open(`http://plain.invalid:${plain.address().port}`);
@@ -98,8 +98,8 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
   const proxied = async (port, path_, init = {}) => fetch(`http://127.0.0.1:${port}${path_}`, { ...init, headers: { Origin: origin, ...(init.headers ?? {}) } });
   assert.equal((await proxied(pPlain, '/x')).status, 502, 'unresolvable name fails while direct');
   await open(`socks:${new URL(fwd.uri).port}`);
-  const echoed = await (await proxied(pPlain, '/json_rpc?a=1', { method: 'POST', body: 'hello', headers: { 'Content-Type': 'application/json', 'x-api-key': 'K1', Authorization: 'Bearer a:b', 'Idempotency-Key': 'I1' } })).json();
-  assert.deepEqual(echoed, { method: 'POST', url: '/json_rpc?a=1', body: 'hello', key: 'K1', auth: 'Bearer a:b', idem: 'I1' });
+  const echoed = await (await proxied(pPlain, '/json_rpc?a=1', { method: 'POST', body: 'hello', headers: { 'Content-Type': 'application/json', 'X-Api-Signature': 'sig', 'X-API-SECRET-KEY': 'sec', 'Ref-Code': 'ref', 'x-api-key': 'K1', Authorization: 'Bearer a:b', 'Idempotency-Key': 'I1' } })).json();
+  assert.deepEqual(echoed, { method: 'POST', url: '/json_rpc?a=1', body: 'hello', key: 'K1', sig: 'sig', secret: 'sec', ref: 'ref', auth: 'Bearer a:b', idem: 'I1' });
   assert.deepEqual(await (await proxied(pTls, '/p')).json(), { tls: true });
   assert.ok(fwd.log.every((d) => d.type === 'domain'), 'hostnames reach the proxy unresolved');
   assert.equal((await proxied(pWrong, '/p')).status, 502, 'certificate for another host is refused');

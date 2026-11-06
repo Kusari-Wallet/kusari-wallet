@@ -936,7 +936,7 @@ async function renderReceive(current?: string): Promise<void> {
 
 const SWAP_STATUS: Record<string, string> = {
   hold: 'Held for provider review', verifying: 'Under provider review', new: 'Waiting for deposit', waiting: 'Waiting for deposit', confirming: 'Checking the deposit', finished: 'Finished', failed: 'Failed', expired: 'Expired', halted: 'Held for provider review', 'paid partially': 'Partly deposited',
-  wait: 'Waiting for deposit', confirmation: 'Checking the deposit', confirmed: 'Deposit confirmed', exchanging: 'Exchanging', sending: 'Sending',
+  deposit: 'Waiting for deposit', confirmations: 'Checking the deposit', wait: 'Waiting for deposit', confirmation: 'Checking the deposit', confirmed: 'Deposit confirmed', exchanging: 'Exchanging', sending: 'Sending',
   success: 'Finished', overdue: 'Expired', refund: 'Refunding', refunded: 'Refunded', unknown: 'Checking',
 };
 
@@ -1091,7 +1091,7 @@ function renderSwapReview(p: any, backTo: () => void): void {
       h('tr', {}, h('th', {}, s.external ? 'Receiving address' : s.privacy?.leg === 'first' ? 'Intermediate XMR address' : 'Your receiving address'), h('td', {}, h('div', { class: 'addr-check', id: 'review-receive-address' }, s.receiveAddress))),
       s.privacy?.leg === 'first' && h('tr', {}, h('th', {}, 'Final receiving address'), h('td', {}, h('div', { class: 'addr-check', id: 'review-final-address' }, s.privacy.destination))),
       h('tr', {}, h('th', {}, 'Provider'), h('td', {}, `${s.provider}, order ${s.id}`))))),
-    h('p', { class: 'small muted' }, `The swap is handled by ${s.provider}, an outside provider. It holds the coins during the swap, so a deposit can't be cancelled, and it may hold funds for review or ask for KYC.${s.approximate ? ' The rate floats, so the amount received can change a little at deposit time.' : ''} Test large amounts with a small one first.`),
+    h('p', { class: 'small muted' }, `The swap is handled by ${s.provider}, an outside provider. It holds the coins during the swap, so a deposit can't be cancelled, and it may hold funds for review or ask for KYC.${s.approximate ? ' The rate floats, so the amount received can change a little at deposit time.' : ''} ${s.providerId === 'ccecash' ? ' Trades are processed by CCECash under CCECash\'s service rules (cce.cash). CCECash takes no refund address in the order, so a refund is handled under those rules.' : ''} Test large amounts with a small one first.`),
     h('br'),
     h('label', { class: 'field' }, h('span', {}, 'Password'), pw),
     go)));

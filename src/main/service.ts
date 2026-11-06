@@ -23,7 +23,7 @@ import { DashClient, DashDraft, dashAccountXpub, isDashAddress, typicalDashFee }
 import { DcrClient, DcrDraft, dcrAccount, isDcrAddress, typicalDcrFee } from './dcr';
 import { EthClient, EthDraft, deriveEthAccount, isEthAddress } from './eth';
 import { TorManager } from './tor';
-import { BUILTIN_SWAP_KEYS, GHOSTSWAP_BASE, GhostSwapClient, PRIVACY_ASSETS, PrivacySwap, SIMPLESWAP_BASE, SWAP_BASE, SWAP_DEAD, SWAP_DONE, SimpleSwapClient, SwapClient, SwapProvider, SwapProviderId, SwapRecord } from './swap';
+import { BUILTIN_SWAP_KEYS, CCECASH_BASE, CceCashClient, ETZSWAP_BASE, EtzSwapClient, GHOSTSWAP_BASE, GhostSwapClient, PRIVACY_ASSETS, PrivacySwap, SIMPLESWAP_BASE, SWAP_BASE, SWAP_DEAD, SWAP_DONE, SimpleSwapClient, SwapClient, SwapProvider, SwapProviderId, SwapRecord } from './swap';
 import { MoneroClient, MoneroDraft, MoneroOptions, generateMoneroSeed, validateMoneroSeed } from './monero';
 
 const BALANCE_TTL_MS = 40_000;
@@ -82,7 +82,7 @@ export class WalletService extends EventEmitter {
   private arrr: ArrrClient | null = null;
   private previews = new Map<string, Preview>();
   private privacyTargets = new Map<string, Asset>();
-  private pendingSwaps = new Map<string, { id: string; from: Asset; to: Asset; amount: string; receive: string; rate: string; providerId: SwapProviderId; provider: string; approximate: boolean; withdrawalAddress: string; privacy?: { leg: 'first'; via: string; destination: string } | { leg: 'second'; id: string } }>();
+  private pendingSwaps = new Map<string, { id: string; from: Asset; to: Asset; amount: string; receive: string; rate: string; providerId: SwapProviderId; provider: string; approximate: boolean; statusKey?: string; withdrawalAddress: string; privacy?: { leg: 'first'; via: string; destination: string } | { leg: 'second'; id: string } }>();
   readonly tor: TorManager;
   private priceAgent: ReturnType<typeof socksAgent> | undefined;
   private readonly lookupFailures: string[] = [];
@@ -95,7 +95,7 @@ export class WalletService extends EventEmitter {
   settings: Settings = { ...DEFAULT_SETTINGS };
 
   constructor(private readonly baseDir: string, private readonly kdf?: { N: number; r: number; p: number }, private readonly dev: {
-    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; dcrApi?: string; dashApi?: string; firoApi?: string; zecBin?: string; zecServers?: string[]; zanoBin?: string; zanoNode?: string; arrrBin?: string; arrrServers?: string[]; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; btcApi?: string;
+    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; dcrApi?: string; dashApi?: string; firoApi?: string; zecBin?: string; zecServers?: string[]; zanoBin?: string; zanoNode?: string; arrrBin?: string; arrrServers?: string[]; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; etzSwapBase?: string; cceCashBase?: string; btcApi?: string;
     /** Android: every outside address goes through the app's local forwarder. */
     route?: (url: string) => string;
     moneroStore?: (net: NetworkId, walletId: string) => MoneroOptions['store'];
@@ -585,6 +585,12 @@ export class WalletService extends EventEmitter {
     const keys = this.dev.swapBase ? { simpleswap: this.settings.simpleSwapKey, ghostswap: this.settings.ghostSwapKey } : BUILTIN_SWAP_KEYS;
     if (keys.simpleswap) clients.simpleswap = new SimpleSwapClient(this.dev.simpleSwapBase ?? SIMPLESWAP_BASE, keys.simpleswap, this.priceAgent, timeout);
     if (keys.ghostswap) clients.ghostswap = new GhostSwapClient(this.dev.ghostSwapBase ?? GHOSTSWAP_BASE, keys.ghostswap, this.priceAgent, timeout);
+    // Reading orders needs these keys too, so a test run only gets them by asking for that service.
+    const built = this.dev.swapBase ? null : BUILTIN_SWAP_KEYS;
+    const etz = this.dev.etzSwapBase ? { key: 'etz-key', secret: 'etz-secret' } : built && { key: built.etzswapKey, secret: built.etzswapSecret };
+    if (etz?.key && etz.secret) clients.etzswap = new EtzSwapClient(this.dev.etzSwapBase ?? ETZSWAP_BASE, etz.key, etz.secret, this.priceAgent, timeout);
+    const cce = this.dev.cceCashBase ? { key: 'cce-key', secret: 'cce-secret', ref: 'REF' } : built && { key: built.ccecashKey, secret: built.ccecashSecret, ref: built.ccecashRefCode };
+    if (cce?.key && cce.secret) clients.ccecash = new CceCashClient(this.dev.cceCashBase ?? CCECASH_BASE, cce.key, cce.secret, cce.ref, this.priceAgent, timeout);
     return clients;
   }
   private get swapsPath() { return path.join(this.dir, 'swaps.json'); }
@@ -661,9 +667,9 @@ export class WalletService extends EventEmitter {
     const order = await client.create(from, to, amount, quote.receive, withdrawal, refund);
     const preview = await this.prepareSend(from, order.depositAddress, amount);
     if (preview.amount !== amount) throw new Error('The send amount differs, so this was stopped.');
-    const swap = { id: order.id, from, to, amount, receive: order.receive, rate: order.rate, providerId, provider: order.provider, approximate: order.approximate, receiveAddress: withdrawal, withdrawalAddress: withdrawal, external, privacy };
+    const swap = { id: order.id, from, to, amount, receive: order.receive, rate: order.rate, providerId, provider: order.provider, approximate: order.approximate, statusKey: order.statusKey, receiveAddress: withdrawal, withdrawalAddress: withdrawal, external, privacy };
     this.pendingSwaps.set(preview.id, swap);
-    return { ...preview, swap };
+    return { ...preview, swap: { ...swap, statusKey: undefined } }; // The private code stays on this side.
   }
 
   /** Gets a fresh rate, opens the order, checks it, and prepares the deposit like any other send. Nothing is signed yet. */
@@ -779,7 +785,7 @@ export class WalletService extends EventEmitter {
     if (!swap) throw new Error('The review expired. Try again.');
     const res = await this.confirmSend(previewId, password);
     this.pendingSwaps.delete(previewId);
-    const record: SwapRecord = { id: swap.id, from: swap.from, to: swap.to, amount: swap.amount, receive: swap.receive, rate: swap.rate, createdAt: Date.now(), providerId: swap.providerId, provider: swap.provider, approximate: swap.approximate, status: 'wait', hashIn: res.hashes[0], withdrawalAddress: swap.withdrawalAddress };
+    const record: SwapRecord = { id: swap.id, from: swap.from, to: swap.to, amount: swap.amount, receive: swap.receive, rate: swap.rate, createdAt: Date.now(), providerId: swap.providerId, provider: swap.provider, approximate: swap.approximate, statusKey: swap.statusKey, status: 'wait', hashIn: res.hashes[0], withdrawalAddress: swap.withdrawalAddress };
     await this.swapSave([record, ...(await this.swapList())]);
     let privacy: PrivacySwap | undefined;
     if (swap.privacy) {
@@ -804,7 +810,7 @@ export class WalletService extends EventEmitter {
     if (!record) throw new Error('No such swap.');
     const client = this.swapClients()[record.providerId ?? 'exolix'];
     if (!client) throw new Error(`${record.provider ?? 'This provider'} can't show the status right now.`);
-    const st = await client.status(id);
+    const st = await client.status(id, record.statusKey);
     record.status = st.status;
     record.hashOut = st.hashOut ?? record.hashOut;
     await this.swapSave(list);
