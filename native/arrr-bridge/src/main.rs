@@ -137,9 +137,19 @@ async fn selftest(server: &str, socks: Option<u64>, dir: &str) -> R<()> {
     let seed = api::generate_mnemonic(None, None).map_err(fail)?;
     let open = json!({ "dir": dir, "pass": "selftest passphrase only", "socks": socks });
     call("open", &open).await?;
-    let tip = call("tip", &json!({ "server": server })).await?;
-    println!("tip: {tip}");
-    let height = tip["height"].as_u64().ok_or("no height from the server")?;
+    // Reports every server, then uses the first that gives a height.
+    let mut chosen: Option<(String, u64)> = None;
+    for one in server.split(',') {
+        let tip = call("tip", &json!({ "server": one })).await;
+        println!("tip {one}: {}", tip.as_ref().map(|t| t.to_string()).unwrap_or_else(|e| e.clone()).chars().take(150).collect::<String>());
+        if let (None, Ok(t)) = (&chosen, &tip) {
+            if let Some(h) = t["height"].as_u64().filter(|h| *h > 0) {
+                chosen = Some((one.to_string(), h));
+            }
+        }
+    }
+    let (server, height) = chosen.ok_or("no server gave a height")?;
+    let server = server.as_str();
     let id = call("restore", &json!({ "seed": seed, "birthday": height - 200 })).await?;
     let id = id.as_str().unwrap_or_default().to_string();
     call("use", &json!({ "wallet": id, "server": server })).await?;
