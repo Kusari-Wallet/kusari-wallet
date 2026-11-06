@@ -29,12 +29,14 @@ jobs:
           git -C stashi checkout "$STASHI_COMMIT"
           bash native/arrr-bridge/prepare.sh stashi
       - name: Tools
-        run: choco install -y --no-progress nasm protoc
+        run: choco install -y --no-progress nasm protoc strawberryperl
       - name: Build
         shell: bash
         working-directory: stashi/crates
         run: |
-          export PATH="$PATH:/c/Program Files/NASM"
+          # OpenSSL needs a native Perl; the one that comes with Git for Windows can't build it.
+          export PATH="/c/Strawberry/perl/bin:/c/Program Files/NASM:$PATH"
+          export PERL='C:\Strawberry\perl\bin\perl.exe'
           cargo build --release -p arrr-bridge
       - name: Real scan
         shell: bash
@@ -66,7 +68,7 @@ jobs:
       - uses: nttld/setup-ndk@v1
         id: ndk
         with:
-          ndk-version: r26d
+          ndk-version: r28c # OpenSSL 3.6 won't assemble with r26
       - name: Build
         working-directory: stashi/crates
         env:
