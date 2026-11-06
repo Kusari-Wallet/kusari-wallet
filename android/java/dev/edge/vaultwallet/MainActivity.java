@@ -19,6 +19,7 @@ import android.webkit.PermissionRequest;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
+import android.webkit.RenderProcessGoneDetail;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
@@ -105,10 +106,21 @@ public class MainActivity extends Activity {
                 if (!HOST.equals(url.getHost())) return null;
                 return asset(url.getPath());
             }
+            // Android can end the page's process while the app is in the background. Without this the screen stays
+            // black on return, so the page starts over and asks for the password again.
+            @Override public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
+                if (view == web) {
+                    web = null;
+                    view.destroy();
+                    recreate();
+                }
+                return true;
+            }
         });
         setContentView(web);
-        if (state == null) web.loadUrl(ORIGIN + "/index.html");
-        else web.restoreState(state);
+        // Always a fresh start. When Android had closed the screen in the background, the page has nothing worth
+        // restoring (the wallet locks anyway), and restoring it left an empty black screen.
+        web.loadUrl(ORIGIN + "/index.html");
     }
 
     private WebResourceResponse asset(String path) {
@@ -144,10 +156,11 @@ public class MainActivity extends Activity {
 
     @Override protected void onPause() {
         super.onPause();
-        web.evaluateJavascript("window.__appPaused && window.__appPaused()", null);
+        if (web != null) web.evaluateJavascript("window.__appPaused && window.__appPaused()", null);
     }
 
     @Override public void onBackPressed() {
+        if (web == null) { moveTaskToBack(true); return; }
         web.evaluateJavascript("window.__appBack && window.__appBack()", new ValueCallback<String>() {
             @Override public void onReceiveValue(String value) {
                 if (!"true".equals(value)) moveTaskToBack(true);
@@ -166,7 +179,7 @@ public class MainActivity extends Activity {
 
     private void bioResult(int id, boolean ok, String value) {
         final String script = "window.__bioResult(" + id + "," + ok + "," + JSONObject.quote(value) + ")";
-        runOnUiThread(new Runnable() { @Override public void run() { web.evaluateJavascript(script, null); } });
+        runOnUiThread(new Runnable() { @Override public void run() { if (web != null) web.evaluateJavascript(script, null); } });
     }
 
     private void toPage(final String script) {
