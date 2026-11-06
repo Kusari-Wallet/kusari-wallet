@@ -36,7 +36,7 @@ public class MainActivity extends Activity {
     private static final String HOST = "appassets.androidplatform.net";
     private static final String ORIGIN = "https://" + HOST;
     private static final List<String> EXPLORERS = Arrays.asList(
-            "https://mempool.space/", "https://etherscan.io/", "https://dcrdata.decred.org/", "https://insight.dash.org/", "https://tronscan.org/", "https://nile.tronscan.org/", "https://xmrchain.net/", "https://stagenet.xmrchain.net/");
+            "https://mempool.space/", "https://etherscan.io/", "https://insight.dash.org/", "https://tronscan.org/", "https://nile.tronscan.org/", "https://xmrchain.net/", "https://stagenet.xmrchain.net/");
 
     private final LocalProxy proxy = new LocalProxy(ORIGIN);
     private static final int CAMERA_REQUEST = 41;

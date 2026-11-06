@@ -124,7 +124,7 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
   const socks = await mockSocks();
   const socksPort = Number(new URL(socks.uri).port);
   await context.addInitScript(({ map, tronUp, socksPort }) => {
-    window.__VAULT_TEST__ = { allowFakechain: true, tronHost: tronUp, priceUrl: tronUp + '/simple/price', swapBase: tronUp + '/swap', btcApi: tronUp + '/btc', dcrApi: tronUp + '/dcr', dashApi: tronUp + '/dash', ethRpc: tronUp + '/eth/rpc', ethScout: tronUp + '/eth/scout' };
+    window.__VAULT_TEST__ = { allowFakechain: true, tronHost: tronUp, priceUrl: tronUp + '/simple/price', swapBase: tronUp + '/swap', btcApi: tronUp + '/btc', dashApi: tronUp + '/dash', ethRpc: tronUp + '/eth/rpc', ethScout: tronUp + '/eth/scout' };
     window.__opened = []; window.__clip = '';
     let saved = localStorage.getItem('bio');
     window.VaultNative = {

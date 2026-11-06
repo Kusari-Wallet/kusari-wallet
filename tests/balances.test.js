@@ -17,7 +17,6 @@ async function make(t) {
   s.monero = { state: {}, getBalance: async () => ({ total: 1n, unlocked: 1n }), getPrimaryAddress: async () => '4x', close: async () => {} };
   s.btc = { receiveAddress: 'bc1p', getBalance: async () => ({ total: 1n, spendable: 1n }) };
   s.eth = { address: '0x', getEthBalance: async () => 1n, getUsdtBalance: async () => 1n };
-  s.dcr = { receiveAddress: 'Ds', getBalance: async () => ({ total: 1n, spendable: 1n }) };
   s.dash = { receiveAddress: 'X', getBalance: async () => ({ total: 1n, spendable: 1n }) };
   s.firo = { receiveAddress: 'a', getBalance: async () => ({ total: 1n, spendable: 1n }) };
   return { s, v };
@@ -132,8 +131,8 @@ test('over Tor a quick refusal moves that coin to new routes; its neighbors keep
   s.tor.state.phase = 'ready';
   s.torProxy = 'socks5h://127.0.0.1:1';
   const tron = s.torRoute('tron');
-  const dcr = s.torRoute('dcr');
-  const dcrUser = dcr.proxy.userId;
+  const dash = s.torRoute('dash');
+  const dashUser = dash.proxy.userId;
   const seen = [];
   s.tron.getTrxBalance = async () => {
     seen.push(tron.proxy.userId);
@@ -143,7 +142,7 @@ test('over Tor a quick refusal moves that coin to new routes; its neighbors keep
   const o = await s.overview();
   assert.equal(o.balances.TRX.total, '5');
   assert.equal(new Set(seen).size, 3, 'each try used a different route');
-  assert.equal(dcr.proxy.userId, dcrUser, 'other coins stay where they are');
+  assert.equal(dash.proxy.userId, dashUser, 'other coins stay where they are');
   assert.equal(typeof socksAgent, 'function');
 });
 
@@ -158,15 +157,15 @@ test('over Tor a slow timeout isn\'t repeated, repeats slow down, and the reason
   let offset = 0;
   Date.now = () => realNow() + offset;
   t.after(() => { Date.now = realNow; });
-  s.dcr.getBalance = async () => { calls++; offset += 120_000; throw new Error('Timed out'); };
+  s.dash.getBalance = async () => { calls++; offset += 120_000; throw new Error('Timed out'); };
   for (let i = 0; i < 3; i++) await s.overview();
   assert.equal(calls, 6, 'two tries a round, no more');
   const o = await s.overview();
-  assert.match(o.balances.DCR.error, /isn't answering over Tor/);
+  assert.match(o.balances.DASH.error, /isn't answering over Tor/);
 });
 
 test('one failed lookup that many callers waited on is one log line', async (t) => {
   const { s } = await make(t);
-  for (let i = 0; i < 5; i++) s.noteFailure('DCR', Date.now(), new Error('Timed out'));
-  assert.equal(s.connectionLog().match(/DCR after/g).length, 1);
+  for (let i = 0; i < 5; i++) s.noteFailure('DASH', Date.now(), new Error('Timed out'));
+  assert.equal(s.connectionLog().match(/DASH after/g).length, 1);
 });

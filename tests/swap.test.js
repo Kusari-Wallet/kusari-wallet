@@ -268,7 +268,7 @@ test('ETZ Swap: limits, a bad key and coins it lacks are explained', async (t) =
   const m = await etz(); closing(t, m.server);
   const small = await m.client.quote('USDT', 'XMR', '0.1');
   assert.match(small.problem, /minimum amount is 5 USDT/);
-  assert.match((await m.client.quote('DCR', 'XMR', '1')).problem, /doesn't offer/);
+  assert.match((await m.client.quote('FIRO', 'XMR', '1')).problem, /doesn't offer/);
   assert.match((await m.client.quote('XMR', 'ARRR', '1')).problem, /doesn't offer/);
   const bad = new EtzSwapClient(`http://127.0.0.1:${m.server.address().port}`, 'x', 'y');
   assert.match((await bad.quote('BTC', 'XMR', '1')).problem, /API key/);
@@ -401,7 +401,7 @@ test('wallet: a swap keeps its private code for status checks and keeps it from 
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const base = `http://127.0.0.1:${server.address().port}`;
   const s = new WalletService(dir, undefined, { swapBase: `${base}/ex`, etzSwapBase: base });
-  Object.assign(s, { tron: {}, monero: {}, btc: {}, eth: {}, dcr: {}, dash: {}, firo: {} });
+  Object.assign(s, { tron: {}, monero: {}, btc: {}, eth: {}, dash: {}, firo: {} });
   fs.writeFileSync(path.join(s.dir, 'swaps.json'), JSON.stringify([{ id: 'trA9', from: 'BTC', to: 'XMR', amount: '1', receive: '1', rate: '1', createdAt: 1, providerId: 'etzswap', provider: 'ETZ Swap', statusKey: 'token-9', status: 'wait' }]));
   const record = await s.swapRefresh('trA9');
   assert.equal(record.status, 'success');

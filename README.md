@@ -1,6 +1,6 @@
 # Kusari Wallet
 
-A self-custody wallet for Windows and Android that sends and receives XMR, BTC, ETH, TRX, USDT (ERC-20, TRC-20), DCR, DASH, FIRO, ZEC, ZANO and ARRR. There is no account server: seeds are encrypted and stored on your device.
+A self-custody wallet for Windows and Android that sends and receives XMR, BTC, ETH, TRX, USDT (ERC-20, TRC-20), DASH, FIRO, ZEC, ZANO and ARRR. There is no account server: seeds are encrypted and stored on your device.
 
 You can add several wallets and rename them. Each wallet has its own seeds, password and records. Settings and Tor are shared.
 
@@ -47,7 +47,7 @@ This is mainnet only. These are real coins, so start with amounts you can afford
 
 ## Why there are two seeds
 
-- BTC, ETH, Tron, DCR, DASH, FIRO, ZEC, ZANO, ARRR: one BIP39 12-word seed.
+- BTC, ETH, Tron, DASH, FIRO, ZEC, ZANO, ARRR: one BIP39 12-word seed.
   - BTC uses `m/86'/0'/0'` only (Taproot, BIP86). Addresses from `m/84'/0'/0'` (`bc1q`) in older versions don't appear in the app. If they hold coins, move them by entering the same seed in another wallet.
   - ETH uses `m/44'/60'/0'/0/0` (the same as MetaMask's first account). Tron uses `m/44'/195'/0'/0/0`.
 - Monero: the standard 25 words, which restore in Monero GUI and Cake Wallet.
@@ -68,7 +68,6 @@ They are separate because a single combined seed couldn't restore XMR in other w
 ## Privacy
 
 - Public Monero nodes can see your IP. You can set your own node in Settings. The default node uses HTTP, so traffic isn't encrypted. Keys are never sent.
-- DCR uses `m/44'/42'/0'`, with public dcrdata servers for lookups and sends. The signing library dcr-ts was checked against dcrd values, but hasn't been audited.
 - DASH uses plain addresses at `m/44'/5'/0'`. There is no CoinJoin. Lookups and sends use insight.dash.org.
 - FIRO uses plain addresses at `m/44'/136'/0'`. Spark, Firo's private mode, isn't supported, so addresses and amounts are public.
 - ZEC uses shielded addresses by default. Swap services pay a transparent address, so those coins need shielding after they arrive.

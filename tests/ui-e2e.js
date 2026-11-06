@@ -38,7 +38,7 @@ const PASSWORD = 'correct horse battery';
   const data = fs.mkdtempSync(path.join(os.tmpdir(), 'vw-ui-'));
   const launch = () => _electron.launch({
     args: ['--no-sandbox', '--use-fake-device-for-media-stream', `--use-file-for-fake-video-capture=${camVideo}`, path.join(__dirname, '..')],
-    env: { ...process.env, VAULT_WALLET_DATA: data, VAULT_DEV_TRON_HOST: `http://127.0.0.1:${server.address().port}`, VAULT_DEV_SOCKS: socks.uri, VAULT_DEV_BTC_API: `http://127.0.0.1:${server.address().port}/btc`, VAULT_DEV_TORNADO: JSON.stringify({ 0.1: '0x12D66f87A04A9E220743712cE6d9bB1B5616B8Fc', 1: '0x47CE0C6eD5B0Ce3d3A51fdb1C52DC66a7c3c2936' }), VAULT_DEV_DASH_API: `http://127.0.0.1:${server.address().port}/dash`, VAULT_DEV_FIRO_API: `http://127.0.0.1:${server.address().port}/dash-firo`, VAULT_DEV_ZEC_BIN: path.join(__dirname, 'fake-zec-engine.js'), VAULT_DEV_ZANO_BIN: path.join(__dirname, 'fake-zano-engine.js'), VAULT_DEV_ARRR_BIN: path.join(__dirname, 'fake-arrr-engine.js'), VAULT_DEV_DCR_API: `http://127.0.0.1:${server.address().port}/dcr`, VAULT_DEV_ETH_RPC: `http://127.0.0.1:${server.address().port}/eth/rpc`, VAULT_DEV_ETH_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_SIMPLESWAP_BASE: `http://127.0.0.1:${server.address().port}/simple`, VAULT_DEV_GHOSTSWAP_BASE: `http://127.0.0.1:${server.address().port}/ghost`, VAULT_DEV_SWAP_BASE: `http://127.0.0.1:${server.address().port}/swap`, VAULT_DEV_PRICE_URL: `http://127.0.0.1:${server.address().port}/simple/price`, NO_PROXY: '*' },
+    env: { ...process.env, VAULT_WALLET_DATA: data, VAULT_DEV_TRON_HOST: `http://127.0.0.1:${server.address().port}`, VAULT_DEV_SOCKS: socks.uri, VAULT_DEV_BTC_API: `http://127.0.0.1:${server.address().port}/btc`, VAULT_DEV_TORNADO: JSON.stringify({ 0.1: '0x12D66f87A04A9E220743712cE6d9bB1B5616B8Fc', 1: '0x47CE0C6eD5B0Ce3d3A51fdb1C52DC66a7c3c2936' }), VAULT_DEV_DASH_API: `http://127.0.0.1:${server.address().port}/dash`, VAULT_DEV_FIRO_API: `http://127.0.0.1:${server.address().port}/dash-firo`, VAULT_DEV_ZEC_BIN: path.join(__dirname, 'fake-zec-engine.js'), VAULT_DEV_ZANO_BIN: path.join(__dirname, 'fake-zano-engine.js'), VAULT_DEV_ARRR_BIN: path.join(__dirname, 'fake-arrr-engine.js'), VAULT_DEV_ETH_RPC: `http://127.0.0.1:${server.address().port}/eth/rpc`, VAULT_DEV_ETH_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_SIMPLESWAP_BASE: `http://127.0.0.1:${server.address().port}/simple`, VAULT_DEV_GHOSTSWAP_BASE: `http://127.0.0.1:${server.address().port}/ghost`, VAULT_DEV_SWAP_BASE: `http://127.0.0.1:${server.address().port}/swap`, VAULT_DEV_PRICE_URL: `http://127.0.0.1:${server.address().port}/simple/price`, NO_PROXY: '*' },
   });
   let app = await launch();
   let page = await app.firstWindow();
@@ -118,7 +118,7 @@ const PASSWORD = 'correct horse battery';
   await page.fill('#from', '');
   await page.click('#next');
   await page.locator('#asset-USDT').waitFor({ timeout: 90000 });
-  assert.deepEqual(await page.locator('.asset').evaluateAll((els) => els.map((e) => e.id)), ['asset-XMR', 'asset-BTC', 'asset-ETH', 'asset-TRX', 'asset-USDTE', 'asset-USDT', 'asset-DCR', 'asset-DASH', 'asset-FIRO', 'asset-ZEC', 'asset-ZANO', 'asset-ARRR']);
+  assert.deepEqual(await page.locator('.asset').evaluateAll((els) => els.map((e) => e.id)), ['asset-XMR', 'asset-BTC', 'asset-ETH', 'asset-TRX', 'asset-USDTE', 'asset-USDT', 'asset-DASH', 'asset-FIRO', 'asset-ZEC', 'asset-ZANO', 'asset-ARRR']);
   assert.match(await page.locator('#asset-USDTE').innerText(), /USDT \(Eth\)/);
   assert.match(await page.locator('#asset-USDT').innerText(), /USDT \(Tron\)/);
   await page.locator('#asset-TRX .amt', { hasText: '50' }).waitFor({ timeout: 30000 });
@@ -370,32 +370,6 @@ const PASSWORD = 'correct horse battery';
   await page.click('#back');
   console.log('ok Ethereum: ETH and USDT sends, signed mainnet, fee shortfall explained');
 
-  // Decred
-  const dcrAddress = await page.evaluate(() => window.wallet.addresses().then((a) => a.DCR));
-  assert.match(dcrAddress, /^Ds/);
-  state.dcrUtxos = [{ address: dcrAddress, txid: 'ab'.repeat(32), vout: 0, satoshis: 100000000, confirmations: 5 }];
-  await page.click('#nav-home');
-  await page.click('#go-send');
-  await page.click('#coin-picker');
-  await page.click('#pick-DCR');
-  await page.fill('#to', ETH_TO);
-  await page.fill('#amount', '0.25');
-  await page.click('#review');
-  await page.getByText('Not a Decred address').waitFor({ timeout: 15000 });
-  await page.fill('#to', 'DsUZxxoHJSty8DCfwfartwTYbuhmVct7tJu');
-  await page.click('#review');
-  await page.locator('#confirm-send').waitFor({ timeout: 15000 });
-  assert.equal(await page.locator('#review-amount').innerText(), '0.25 DCR');
-  assert.equal(await page.locator('#review-fee').innerText(), 'about $0.01 or less (0.0000508 DCR)');
-  await shot('review-dcr');
-  await page.fill('#confirm-pw', PASSWORD);
-  await page.click('#confirm-send');
-  await page.locator('#sent').waitFor({ timeout: 20000 });
-  assert.equal(state.dcrRaw.length, 1);
-  state.dcrUtxos = [];
-  await page.click('#send-again');
-  await page.click('#back');
-  console.log('ok Decred: address, checks, signed send');
 
   // Dash
   const dashAddress = await page.evaluate(() => window.wallet.addresses().then((a) => a.DASH));

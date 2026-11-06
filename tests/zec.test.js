@@ -48,7 +48,7 @@ async function wallet(t, env = {}, dev = {}) {
   Object.assign(process.env, { FAKE_ZEC_LOG: log, FAKE_ZEC_FAIL_SYNC_ONCE: '' }, env);
   const moneroSeed = await new WalletService(fs.mkdtempSync(path.join(os.tmpdir(), 'z0-')), { N: 2 ** 10, r: 8, p: 1 }).generateSeeds().then((s) => s.moneroSeed);
   const open = async () => {
-    const s = new WalletService(dir, { N: 2 ** 10, r: 8, p: 1 }, { tronHost: 'http://127.0.0.1:9', btcApi: 'http://127.0.0.1:9', ethRpc: 'http://127.0.0.1:9', dcrApi: 'http://127.0.0.1:9', dashApi: 'http://127.0.0.1:9', zecBin: ENGINE, zecServers: ['https://one', 'https://two'], priceUrl: 'http://127.0.0.1:9', ...dev });
+    const s = new WalletService(dir, { N: 2 ** 10, r: 8, p: 1 }, { tronHost: 'http://127.0.0.1:9', btcApi: 'http://127.0.0.1:9', ethRpc: 'http://127.0.0.1:9', dashApi: 'http://127.0.0.1:9', zecBin: ENGINE, zecServers: ['https://one', 'https://two'], priceUrl: 'http://127.0.0.1:9', ...dev });
     await s.init();
     return s;
   };

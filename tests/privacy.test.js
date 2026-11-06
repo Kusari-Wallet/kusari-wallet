@@ -55,7 +55,6 @@ async function setup(t) {
   s.tron = { address: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t' };
   s.btc = { receiveAddress: BTC_ME, refresh: async () => {}, draft: async (to, amount) => ({ to, amount, fee: 1n }), send: async () => 'ab'.repeat(32) };
   s.eth = { address: ETH_ME, draft: async (asset, to, amount) => ({ asset, to, amount, expectedFee: 1n }), send: async (d) => { sent.push(d); return '0x' + 'cd'.repeat(32); } };
-  s.dcr = { receiveAddress: 'Ds', refresh: async () => {} };
   s.dash = { receiveAddress: 'X', refresh: async () => {} };
   s.firo = { receiveAddress: 'a', refresh: async () => {} };
   s.monero = {

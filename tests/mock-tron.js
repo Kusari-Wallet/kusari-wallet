@@ -22,9 +22,6 @@ function mockNode() {
       if (url.startsWith('/dash/addrs/') && url.endsWith('/utxo')) return send(state.dashUtxos ?? []);
       if (url.startsWith('/dash/addrs/') && url.endsWith('/txs')) return send({ totalItems: 0, items: [] });
       if (url === '/dash/tx/send') { (state.dashRaw = state.dashRaw ?? []).push(json.rawtx); return send({}); }
-      if (url.startsWith('/dcr/addrs/') && url.endsWith('/utxo')) return send(state.dcrUtxos ?? []);
-      if (url.startsWith('/dcr/addrs/') && url.endsWith('/txs')) return send({ totalItems: 0, items: [] });
-      if (url === '/dcr/tx/send') { (state.dcrRaw = state.dcrRaw ?? []).push(json.rawtx); return send({}); }
       if (url === '/eth/rpc') {
         const ok = (result) => send({ jsonrpc: '2.0', id: json.id, result });
         const m = json.method;
@@ -56,7 +53,7 @@ function mockNode() {
         return send({ id: 'SWAP1', amount: json.amount, amountTo: 0.01, depositAddress: json.networkFrom === 'ETH' ? '0x70997970C51812dc3A010C7d01b50e0d17dc79C8' : RECIPIENT, withdrawalAddress: json.withdrawalAddress, refundAddress: json.refundAddress, rate: 0.005, status: 'wait', coinFrom: { coinCode: json.coinFrom, network: json.networkFrom }, coinTo: { coinCode: json.coinTo, network: json.networkTo } });
       }
       if (url === '/swap/transactions/SWAP1') return send({ id: 'SWAP1', status: state.swapStatus ?? 'exchanging' });
-      if (url.endsWith('/simple/price')) return send({ tron: { usd: 0.32, usd_24h_change: 1.2 }, tether: { usd: 1, usd_24h_change: 0.0 }, monero: { usd: 151.23, usd_24h_change: -0.85 }, ethereum: { usd: 3000, usd_24h_change: 0.5 }, decred: { usd: 20, usd_24h_change: 1 }, dash: { usd: 30, usd_24h_change: 1 }, bitcoin: { usd: 70000, usd_24h_change: 0.5 } });
+      if (url.endsWith('/simple/price')) return send({ tron: { usd: 0.32, usd_24h_change: 1.2 }, tether: { usd: 1, usd_24h_change: 0.0 }, monero: { usd: 151.23, usd_24h_change: -0.85 }, ethereum: { usd: 3000, usd_24h_change: 0.5 }, dash: { usd: 30, usd_24h_change: 1 }, bitcoin: { usd: 70000, usd_24h_change: 0.5 } });
       if (url.endsWith('/getaccount')) {
         const isMe = json.address === TronWeb.address.toHex(me.address) || json.address === me.address;
         if (isMe) return send({ address: json.address, balance: state.balance });
