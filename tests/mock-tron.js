@@ -20,6 +20,8 @@ function mockNode() {
       if (url.startsWith('/dash-firo/addrs/') && url.endsWith('/utxo')) return send([]);
       if (url.startsWith('/dash-firo/addrs/') && url.includes('/txs')) return send({ totalItems: 0, items: [] });
       if (url === '/sol') return send({ jsonrpc: '2.0', id: 1, result: json.method === 'getBalance' ? { value: 0 } : json.method === 'getTokenAccountsByOwner' ? { value: [] } : [] });
+      if (url.startsWith('/scrt/cosmos/bank/v1beta1/balances/')) return send({ balances: [{ denom: 'uscrt', amount: '2500000' }] });
+      if (url.startsWith('/scrt/cosmos/tx/v1beta1/txs')) return send({ tx_responses: [] });
       if (url === '/bch/block/tip') return send({ height: 900000 });
       if (url.startsWith('/bch/address/')) return send([]);
       if (url.startsWith('/doge/addrs/')) return send({ address: url.match(/addrs\/(\w+)/)[1], final_balance: 0, n_tx: 0 });

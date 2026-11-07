@@ -1,6 +1,6 @@
 # Kusari Wallet
 
-A self-custody wallet for Windows and Android that sends and receives XMR, BTC, ETH, TRX, USDT (ERC-20, TRC-20, SPL, Polygon, Arbitrum), SOL, POL, ARB, ETH on Arbitrum, LINK, WLD, BCH, LTC, DOGE, DASH, FIRO, ZEC, ZANO and ARRR. There is no account server: seeds are encrypted and stored on your device.
+A self-custody wallet for Windows and Android that sends and receives XMR, BTC, ETH, TRX, USDT (ERC-20, TRC-20, SPL, Polygon, Arbitrum), SOL, POL, ARB, ETH on Arbitrum, LINK, WLD, BCH, LTC, SCRT, DOGE, DASH, FIRO, ZEC, ZANO and ARRR. There is no account server: seeds are encrypted and stored on your device.
 
 You can add several wallets and rename them. Each wallet has its own seeds, password and records. Settings and Tor are shared.
 
@@ -71,6 +71,7 @@ They are separate because a single combined seed couldn't restore XMR in other w
 - DASH uses plain addresses at `m/44'/5'/0'`. There is no CoinJoin. Lookups and sends use insight.dash.org.
 - POL, ARB and ETH on Arbitrum use the same 0x address as ETH, through public Polygon and Arbitrum RPC servers, with Blockscout for history. Every node is checked for the right chain id before it's used, and fees on Arbitrum are paid in ETH on Arbitrum.
 - LTC uses BIP84 (`m/84'/2'/0'`, ltc1q addresses) and litecoinspace.org, which has the mempool.space API, so it shares the Bitcoin code. Addresses starting with 3 are refused because they look like Bitcoin ones. LINK and WLD are Ethereum tokens on the ETH address.
+- SCRT is plain Secret Network SCRT (`m/44'/529'/0'/0/0`, the same address as Keplr). Transfers are signed by hand (protobuf, SIGN_MODE_DIRECT), checked byte for byte against CosmJS, and go through public LCD servers. Native SCRT transfers are public on the chain, and sends carry no memo.
 - BCH uses `m/44'/145'/0'` (Electron Cash's path) and BitPay's public Bitcore API, asked about one address at a time. Only CashAddr addresses are accepted, because old-style ones look exactly like Bitcoin addresses. Transactions are signed with SIGHASH_FORKID, checked byte for byte against bitcore-lib-cash.
 - SOL uses `m/44'/501'/0'/0'`, the path Phantom uses, with public Solana RPC servers. USDT on Solana uses the same address and its standard token account; when the receiver has no USDT account yet, the send opens one and pays its deposit of about 0.002 SOL. Other Solana tokens aren't shown.
 - DOGE uses `m/44'/3'/0'` with BlockCypher's public API, asked about one address at a time so it never gets the account's xpub. Sends go to Dogechain or Blockchair, and BlockCypher then has to show the transaction before it counts as sent. BlockCypher's free tier allows 100 requests an hour, so DOGE balances refresh every 10 minutes and look 5 addresses past the last used one.

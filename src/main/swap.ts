@@ -32,6 +32,7 @@ const COIN: Record<Asset, { coin: string; network: RegExp; fallback: string }> =
   ZEC: { coin: 'ZEC', network: /^(zec|zcash)$/i, fallback: 'ZEC' },
   ZANO: { coin: 'ZANO', network: /^zano$/i, fallback: 'ZANO' },
   ARRR: { coin: 'ARRR', network: /^(arrr|pirate)/i, fallback: 'ARRR' },
+  SCRT: { coin: 'SCRT', network: /^(scrt|secret)/i, fallback: 'SCRT' },
 };
 
 /** Ethereum addresses differ only in checksum casing, which services often drop. */
@@ -190,6 +191,7 @@ const SIMPLE_COIN: Record<Asset, { ticker: string; network: string }> = {
   ZEC: { ticker: 'zec', network: 'zec' },
   ZANO: { ticker: 'zano', network: 'zano' },
   ARRR: { ticker: 'arrr', network: 'arrr' },
+  SCRT: { ticker: 'scrt', network: 'scrt' },
 };
 
 export class SimpleSwapClient implements SwapProvider {
@@ -264,7 +266,7 @@ const GHOST_LOOKUP: Record<LookedUp, { ticker: RegExp; chain: RegExp; label: str
   ETHA: { ticker: /^eth/i, chain: /^(arb|arbitrum)$/i, label: 'ETH (Arb)' },
   USDTA: { ticker: /^usdt/i, chain: /^(arb|arbitrum)$/i, label: 'USDT (Arb)' },
 };
-const GHOST_TICKER: Record<Exclude<Asset, LookedUp>, string> = { BTC: 'btc', XMR: 'xmr', ETH: 'eth', TRX: 'trx', USDT: 'usdtrx', DASH: 'dash', FIRO: 'firo', SOL: 'sol', BCH: 'bch', LTC: 'ltc', DOGE: 'doge', ZEC: 'zec', ZANO: 'zano', ARRR: 'arrr' };
+const GHOST_TICKER: Record<Exclude<Asset, LookedUp>, string> = { BTC: 'btc', XMR: 'xmr', ETH: 'eth', TRX: 'trx', USDT: 'usdtrx', DASH: 'dash', FIRO: 'firo', SOL: 'sol', BCH: 'bch', LTC: 'ltc', DOGE: 'doge', ZEC: 'zec', ZANO: 'zano', ARRR: 'arrr', SCRT: 'scrt' };
 
 export class GhostSwapClient implements SwapProvider {
   constructor(private readonly base: string, private readonly bearer: string, private readonly agent?: Agent, private readonly timeoutMs = 30_000) {}
@@ -463,6 +465,7 @@ const CN_COIN: Partial<Record<Asset, { ticker: string; network: string }>> = {
   ZEC: { ticker: 'zec', network: 'zec' },
   ZANO: { ticker: 'zano', network: 'zano' },
   ARRR: { ticker: 'arrr', network: 'arrr' },
+  SCRT: { ticker: 'scrt', network: 'scrt' },
 };
 
 export class ChangeNowClient implements SwapProvider {

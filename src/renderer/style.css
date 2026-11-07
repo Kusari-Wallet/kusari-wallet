@@ -268,10 +268,9 @@ label.field > span { display: block; margin-bottom: 6px; font-size: 14px; font-w
 .offer-net { display: block; margin-top: 2px; font-weight: 600; color: #bff0d3; }
 
 
-.asset-group { display: grid; grid-template-columns: 1fr auto; align-items: center; }
-.asset-group .asset { margin-right: 0; }
-.fold { background: none; border: 0; padding: 10px 4px 10px 10px; color: var(--muted); display: grid; place-items: center; }
-.fold svg.icon { width: 20px; height: 20px; transition: transform .15s; }
+.fold { display: inline-grid; place-items: center; vertical-align: middle; margin-left: 4px; padding: 4px; margin-block: -4px; border-radius: 6px; color: var(--muted); cursor: pointer; }
+.fold:hover, .fold:focus-visible { color: var(--text); background: rgba(255,255,255,.06); }
+.fold svg.icon { width: 18px; height: 18px; transition: transform .15s; }
 .fold.open svg.icon { transform: rotate(180deg); }
 .asset.child { padding-left: 34px; }
 .asset.child .coin, .asset.child .coin-wrap { width: 40px; height: 40px; }
