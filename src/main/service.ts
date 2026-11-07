@@ -24,7 +24,7 @@ import { SOL_FEE, SolClient, SolDraft, SolUsdtDraft, isSolAddress, solAddress } 
 import { DashClient, DashDraft, dashAccountXpub, isDashAddress, typicalDashFee } from './dash';
 import { EthClient, EthDraft, deriveEthAccount, isEthAddress } from './eth';
 import { TorManager } from './tor';
-import { BUILTIN_SWAP_KEYS, CCECASH_BASE, CceCashClient, ETZSWAP_BASE, EtzSwapClient, GHOSTSWAP_BASE, GhostSwapClient, PRIVACY_ASSETS, PrivacySwap, SIMPLESWAP_BASE, SWAP_BASE, SWAP_DEAD, SWAP_DONE, SimpleSwapClient, SwapClient, SwapProvider, SwapProviderId, SwapRecord } from './swap';
+import { BUILTIN_SWAP_KEYS, CCECASH_BASE, CHANGENOW_BASE, CceCashClient, ChangeNowClient, ETZSWAP_BASE, EtzSwapClient, GHOSTSWAP_BASE, GhostSwapClient, PRIVACY_ASSETS, PrivacySwap, SIMPLESWAP_BASE, SWAP_BASE, SWAP_DEAD, SWAP_DONE, SimpleSwapClient, SwapClient, SwapProvider, SwapProviderId, SwapRecord } from './swap';
 import { MoneroClient, MoneroDraft, MoneroOptions, generateMoneroSeed, validateMoneroSeed } from './monero';
 
 const BALANCE_TTL_MS = 40_000;
@@ -33,7 +33,7 @@ const QUICK_REFUSAL_MS = 15_000;
 const QUOTE_DEADLINE_MS = 20_000;
 const QUOTE_DEADLINE_TOR_MS = 40_000;
 const QUOTE_EXTRAS_MS = 8_000;
-const SWAP_NAMES: Record<SwapProviderId, string> = { exolix: 'Exolix', simpleswap: 'SimpleSwap', ghostswap: 'GhostSwap', etzswap: 'ETZ Swap', ccecash: 'CCECash' };
+const SWAP_NAMES: Record<SwapProviderId, string> = { exolix: 'Exolix', simpleswap: 'SimpleSwap', ghostswap: 'GhostSwap', etzswap: 'ETZ Swap', ccecash: 'CCECash', changenow: 'ChangeNOW' };
 
 function within<T, F>(ms: number, work: Promise<T>, late: F): Promise<T | F> {
   let timer: ReturnType<typeof setTimeout>;
@@ -120,7 +120,7 @@ export class WalletService extends EventEmitter {
   settings: Settings = { ...DEFAULT_SETTINGS };
 
   constructor(private readonly baseDir: string, private readonly kdf?: { N: number; r: number; p: number }, private readonly dev: {
-    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; dashApi?: string; firoApi?: string; solRpc?: string; dogeApi?: string; zecBin?: string; zecServers?: string[]; zanoBin?: string; zanoNode?: string; arrrBin?: string; arrrServers?: string[]; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; etzSwapBase?: string; cceCashBase?: string; quoteDeadlineMs?: number; btcApi?: string;
+    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; dashApi?: string; firoApi?: string; solRpc?: string; dogeApi?: string; zecBin?: string; zecServers?: string[]; zanoBin?: string; zanoNode?: string; arrrBin?: string; arrrServers?: string[]; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; etzSwapBase?: string; cceCashBase?: string; changeNowBase?: string; quoteDeadlineMs?: number; btcApi?: string;
     /** Android: every outside address goes through the app's local forwarder. */
     route?: (url: string) => string;
     moneroStore?: (net: NetworkId, walletId: string) => MoneroOptions['store'];
@@ -654,6 +654,8 @@ export class WalletService extends EventEmitter {
     if (etz?.key && etz.secret) clients.etzswap = new EtzSwapClient(this.dev.etzSwapBase ?? ETZSWAP_BASE, etz.key, etz.secret, this.priceAgent, timeout, (etz as { version?: string }).version);
     const cce = this.dev.cceCashBase ? { key: 'cce-key', secret: 'cce-secret', ref: 'REF' } : built && { key: built.ccecashKey, secret: built.ccecashSecret, ref: built.ccecashRefCode };
     if (cce?.key && cce.secret) clients.ccecash = new CceCashClient(this.dev.cceCashBase ?? CCECASH_BASE, cce.key, cce.secret, cce.ref, this.priceAgent, timeout);
+    const changenow = this.dev.changeNowBase ? 'cn-key' : built?.changenow;
+    if (changenow) clients.changenow = new ChangeNowClient(this.dev.changeNowBase ?? CHANGENOW_BASE, changenow, this.priceAgent, timeout);
     return clients;
   }
   private get swapsPath() { return path.join(this.dir, 'swaps.json'); }

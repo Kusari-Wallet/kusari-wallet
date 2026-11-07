@@ -13,6 +13,7 @@ const keys = {
   // ETZ counts up each time the key is regenerated, and refuses the old number.
   etzswapVersion: process.env.ETZSWAP_KEY_VERSION || String(local.etzswapVersion || '1'),
   ccecashKey: process.env.CCECASH_KEY || local.ccecashKey || '',
+  changenow: process.env.CHANGENOW_KEY || local.changenow || '',
   ccecashSecret: process.env.CCECASH_SECRET || local.ccecashSecret || '',
   ccecashRefCode: process.env.CCECASH_REF_CODE || local.ccecashRefCode || '',
 };

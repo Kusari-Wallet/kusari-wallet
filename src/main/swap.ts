@@ -33,7 +33,7 @@ function sameAddress(a: unknown, b: string): boolean {
 
 export interface SwapQuote { from: Asset; to: Asset; amount: string; receive: string; rate: string; min: string | null; max: string | null; problem: string | null; provider: string; providerId: SwapProviderId; approximate: boolean }
 
-export type SwapProviderId = 'exolix' | 'simpleswap' | 'ghostswap' | 'etzswap' | 'ccecash';
+export type SwapProviderId = 'exolix' | 'simpleswap' | 'ghostswap' | 'etzswap' | 'ccecash' | 'changenow';
 
 export interface SwapProvider {
   quote(from: Asset, to: Asset, amount: string): Promise<SwapQuote>;
@@ -392,6 +392,91 @@ export class EtzSwapClient implements SwapProvider {
     if (res.status >= 400 || e) throw new Error(e?.message ?? `Could not read the swap status (${res.status}).`);
     const b = res.body?.data ?? {};
     return { status: String(b.status ?? 'unknown'), hashIn: b.inboundTransfer?.hash ?? undefined, hashOut: b.outboundTransfer?.hash ?? undefined };
+  }
+}
+
+// ---- ChangeNOW ----
+
+export const CHANGENOW_BASE = 'https://api.changenow.io';
+// Their v2 names a coin by ticker plus network, e.g. USDT on Tron is usdt on trx.
+const CN_COIN: Partial<Record<Asset, { ticker: string; network: string }>> = {
+  BTC: { ticker: 'btc', network: 'btc' },
+  XMR: { ticker: 'xmr', network: 'xmr' },
+  ETH: { ticker: 'eth', network: 'eth' },
+  TRX: { ticker: 'trx', network: 'trx' },
+  USDT: { ticker: 'usdt', network: 'trx' },
+  USDTE: { ticker: 'usdt', network: 'eth' },
+  USDTS: { ticker: 'usdt', network: 'sol' },
+  SOL: { ticker: 'sol', network: 'sol' },
+  DOGE: { ticker: 'doge', network: 'doge' },
+  DASH: { ticker: 'dash', network: 'dash' },
+  FIRO: { ticker: 'firo', network: 'firo' },
+  ZEC: { ticker: 'zec', network: 'zec' },
+  ZANO: { ticker: 'zano', network: 'zano' },
+  ARRR: { ticker: 'arrr', network: 'arrr' },
+};
+
+export class ChangeNowClient implements SwapProvider {
+  constructor(private readonly base: string, private readonly key: string, private readonly agent?: Agent, private readonly timeoutMs = 30_000) {}
+
+  // No forwarded IP is sent: the example in their docs has one, but this wallet doesn't hand out where its user is.
+  private call(method: 'GET' | 'POST', path: string, body?: unknown) {
+    return requestJson(this.base + path, { method, body, agent: this.agent, timeoutMs: this.timeoutMs, headers: { 'x-changenow-api-key': this.key } });
+  }
+
+  private pair(from: Asset, to: Asset) {
+    const a = CN_COIN[from];
+    const b = CN_COIN[to];
+    return a && b ? { fromCurrency: a.ticker, fromNetwork: a.network, toCurrency: b.ticker, toNetwork: b.network } : null;
+  }
+
+  async quote(from: Asset, to: Asset, amount: string): Promise<SwapQuote> {
+    const base = { from, to, amount, provider: 'ChangeNOW', providerId: 'changenow' as const, approximate: true };
+    const none = (problem: string, min: string | null = null) => ({ ...base, receive: '0', rate: '0', min, max: null, problem });
+    const pair = this.pair(from, to);
+    if (!pair) return none('ChangeNOW doesn\'t offer this coin.');
+    const res = await this.call('GET', `/v2/exchange/estimated-amount?${new URLSearchParams({ ...pair, fromAmount: amount, flow: 'standard', type: 'direct' })}`);
+    if (res.status === 401 || res.status === 403) return none('Check the ChangeNOW API key.');
+    const b = res.body;
+    const receive = num(b?.toAmount);
+    if (res.status < 400 && receive && Number(receive) > 0 && b?.fromCurrency === pair.fromCurrency && b?.toCurrency === pair.toCurrency && b?.toNetwork === pair.toNetwork) {
+      return { ...base, receive, rate: String(Number(receive) / Number(amount)), min: null, max: null, problem: null };
+    }
+    // A refused amount is usually under the minimum, which has its own question.
+    const range = await this.call('GET', `/v2/exchange/min-amount?${new URLSearchParams({ ...pair, flow: 'standard' })}`).catch(() => null);
+    const min = num(range?.body?.minAmount);
+    if (min && Number(amount) < Number(min)) return none(`The minimum amount is ${min} ${from}.`, min);
+    const message = typeof b?.message === 'string' && b.message ? b.message.slice(0, 200) : 'No quote available for this swap right now.';
+    return none(message, min);
+  }
+
+  async create(from: Asset, to: Asset, amount: string, expectedReceive: string, withdrawalAddress: string, refundAddress: string): Promise<SwapOrder> {
+    const pair = this.pair(from, to);
+    if (!pair) throw new Error('ChangeNOW doesn\'t offer this coin.');
+    const res = await this.call('POST', '/v2/exchange', { ...pair, fromAmount: amount, address: withdrawalAddress, refundAddress, flow: 'standard', type: 'direct' });
+    const b = res.body;
+    if (res.status >= 400 || !b || b.error) throw new Error(`Swap order failed: ${typeof b?.message === 'string' ? b.message.slice(0, 200) : res.status}`);
+    if (typeof b.id !== 'string' || !ORDER_ID.test(b.id)) stop('no order number');
+    if (typeof b.payinAddress !== 'string' || !b.payinAddress) stop('no deposit address');
+    if (b.payinExtraId) stop('the deposit address needs an extra memo');
+    if (!sameAddress(b.payoutAddress, withdrawalAddress)) stop('the receiving address is not yours');
+    if (b.refundAddress && !sameAddress(b.refundAddress, refundAddress)) stop('the refund address is not yours');
+    if (b.fromCurrency !== pair.fromCurrency) stop('the sent coin differs');
+    if (b.toCurrency !== pair.toCurrency) stop('the received coin differs');
+    if (b.fromNetwork !== pair.fromNetwork) stop('the sending network differs');
+    if (b.toNetwork !== pair.toNetwork) stop('the receiving network differs');
+    if (!closeAmount(b.fromAmount, amount)) stop('the send amount differs');
+    const receive = num(b.toAmount);
+    if (!receive || Number(receive) < Number(expectedReceive) * 0.98) stop('the receive amount is less than quoted');
+    return { id: b.id, depositAddress: b.payinAddress, receive: receive as string, rate: String(Number(receive) / Number(amount)), provider: 'ChangeNOW', approximate: true };
+  }
+
+  async status(id: string): Promise<{ status: string; hashIn?: string; hashOut?: string }> {
+    if (!ORDER_ID.test(id)) throw new Error('Invalid order number.');
+    const res = await this.call('GET', `/v2/exchange/by-id?${new URLSearchParams({ id })}`);
+    const b = res.body;
+    if (res.status >= 400 || !b || b.error) throw new Error(typeof b?.message === 'string' ? b.message.slice(0, 200) : `Could not read the swap status (${res.status}).`);
+    return { status: String(b.status ?? 'unknown'), hashIn: b.payinHash ?? undefined, hashOut: b.payoutHash ?? undefined };
   }
 }
 
