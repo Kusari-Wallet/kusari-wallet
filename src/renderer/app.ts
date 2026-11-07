@@ -1,15 +1,15 @@
 declare const wallet: any;
 declare const jsQR: any;
 
-type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'SOL' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA' | 'BCH' | 'DOGE' | 'DASH' | 'FIRO' | 'ZEC' | 'ZANO' | 'ARRR';
+type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'LINK' | 'WLD' | 'SOL' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA' | 'BCH' | 'LTC' | 'DOGE' | 'DASH' | 'FIRO' | 'ZEC' | 'ZANO' | 'ARRR';
 type Attrs = Record<string, any>;
 type Child = Node | string | null | undefined | false;
 
-const ALL_ASSETS: Asset[] = ['XMR', 'BTC', 'ETH', 'USDTE', 'ZEC', 'SOL', 'USDTS', 'TRX', 'USDT', 'POL', 'USDTP', 'ARB', 'ETHA', 'USDTA', 'BCH', 'DOGE', 'DASH', 'FIRO', 'ZANO', 'ARRR'];
+const ALL_ASSETS: Asset[] = ['XMR', 'BTC', 'ETH', 'USDTE', 'LINK', 'WLD', 'ZEC', 'SOL', 'USDTS', 'TRX', 'USDT', 'POL', 'USDTP', 'ARB', 'ETHA', 'USDTA', 'BCH', 'LTC', 'DOGE', 'DASH', 'FIRO', 'ZANO', 'ARRR'];
 /** Tokens shown under the coin of their chain on the home screen, folded until opened. */
-const GROUPS: Partial<Record<Asset, Asset[]>> = { ETH: ['USDTE'], SOL: ['USDTS'], TRX: ['USDT'], POL: ['USDTP'], ARB: ['ETHA', 'USDTA'] };
+const GROUPS: Partial<Record<Asset, Asset[]>> = { ETH: ['USDTE', 'LINK', 'WLD'], SOL: ['USDTS'], TRX: ['USDT'], POL: ['USDTP'], ARB: ['ETHA', 'USDTA'] };
 const IN_GROUP = new Set(Object.values(GROUPS).flat());
-const EVM_ASSETS: Asset[] = ['ETH', 'USDTE', 'POL', 'USDTP', 'ARB', 'ETHA', 'USDTA'];
+const EVM_ASSETS: Asset[] = ['ETH', 'USDTE', 'LINK', 'WLD', 'POL', 'USDTP', 'ARB', 'ETHA', 'USDTA'];
 // These need their engines, which aren't in every build or on every phone.
 let ASSETS: Asset[] = ALL_ASSETS.filter((a) => a !== 'ZEC' && a !== 'ZANO' && a !== 'ARRR');
 let zecInSession = false;
@@ -22,6 +22,7 @@ const COIN: Record<Asset, { label: string; file: string; note: string }> = {
   SOL: { label: 'SOL', file: 'coins/sol.png', note: 'Solana mainnet only. The fee is paid in SOL.' },
   USDTS: { label: 'USDT (Sol)', file: 'coins/usdt.png', note: 'Solana network (SPL) only. SOL is needed for the fee. Don\'t send to addresses on other chains.' },
   BCH: { label: 'BCH', file: 'coins/bch.png', note: 'Bitcoin Cash only, to CashAddr addresses (bitcoincash:q…). The fee is paid in BCH.' },
+  LTC: { label: 'LTC', file: 'coins/ltc.png', note: 'Litecoin only. The fee depends on the network and is shown on the review screen.' },
   DOGE: { label: 'DOGE', file: 'coins/doge.png', note: 'Dogecoin mainnet only. The fee is paid in DOGE.' },
   FIRO: { label: 'FIRO', file: 'coins/firo.png', note: 'Transparent transactions only. Addresses and amounts are public on the chain.' },
   DASH: { label: 'DASH', file: 'coins/dash.png', note: 'Dash mainnet only. The fee is paid in DASH.' },
@@ -30,6 +31,8 @@ const COIN: Record<Asset, { label: string; file: string; note: string }> = {
   ZEC: { label: 'ZEC', file: 'coins/zec.png', note: 'Sent from your shielded balance. The fee is paid in ZEC.' },
   ETH: { label: 'ETH', file: 'coins/eth.png', note: 'The fee for sending USDT (Eth) is also paid in ETH.' },
   USDTE: { label: 'USDT (Eth)', file: 'coins/usdt.png', note: 'Ethereum network only. ETH is needed for the fee. Don\'t send to addresses on other chains.' },
+  LINK: { label: 'LINK', file: 'coins/link.png', note: 'Chainlink on Ethereum (ERC-20) only. ETH is needed for the fee.' },
+  WLD: { label: 'WLD', file: 'coins/wld.png', note: 'Worldcoin on Ethereum (ERC-20) only. ETH is needed for the fee.' },
   POL: { label: 'POL', file: 'coins/pol.png', note: 'Polygon network only. The fee is paid in POL.' },
   USDTP: { label: 'USDT (Pol)', file: 'coins/usdt.png', note: 'Polygon network only. POL is needed for the fee. Don\'t send to addresses on other chains.' },
   ARB: { label: 'ARB', file: 'coins/arb.png', note: 'The ARB token on Arbitrum One. The fee is paid in ETH (Arb).' },
@@ -538,7 +541,7 @@ function assetRow(a: Asset, child = false): HTMLElement {
     ? (moneroBusy() ? syncLabel() : status)
     : p
       ? h('span', {}, usdFormat(p.usd), p.change !== null && h('span', { class: p.change >= 0 ? 'up' : 'down' }, `${p.change >= 0 ? '+' : ''}${p.change.toFixed(2)}%`))
-      : a === 'BTC' ? 'Bitcoin' : a === 'SOL' ? 'Solana' : a === 'DOGE' ? 'Dogecoin' : a === 'BCH' ? 'Bitcoin Cash' : a === 'DASH' ? 'Dash' : a === 'FIRO' ? 'Firo' : a === 'ZEC' ? 'Zcash' : a === 'ZANO' ? 'Zano' : a === 'ARRR' ? 'Pirate Chain' : a === 'ETH' || a === 'ETHA' ? 'Ethereum' : a === 'POL' ? 'Polygon' : a === 'ARB' ? 'Arbitrum' : a === 'USDT' || a === 'USDTE' || a === 'USDTS' || a === 'USDTP' || a === 'USDTA' ? 'Tether' : a === 'TRX' ? 'Tron' : 'Monero';
+      : a === 'BTC' ? 'Bitcoin' : a === 'SOL' ? 'Solana' : a === 'DOGE' ? 'Dogecoin' : a === 'BCH' ? 'Bitcoin Cash' : a === 'LTC' ? 'Litecoin' : a === 'DASH' ? 'Dash' : a === 'FIRO' ? 'Firo' : a === 'ZEC' ? 'Zcash' : a === 'ZANO' ? 'Zano' : a === 'ARRR' ? 'Pirate Chain' : a === 'ETH' || a === 'ETHA' ? 'Ethereum' : a === 'POL' ? 'Polygon' : a === 'LINK' ? 'Chainlink' : a === 'WLD' ? 'Worldcoin' : a === 'ARB' ? 'Arbitrum' : a === 'USDT' || a === 'USDTE' || a === 'USDTS' || a === 'USDTP' || a === 'USDTA' ? 'Tether' : a === 'TRX' ? 'Tron' : 'Monero';
   const usd = assetUsd(a);
   return h('button', { class: `asset${child ? ' child' : ''}`, id: `asset-${a}`, onclick: () => { selected = a; void renderAsset(); } },
     coin(a),
@@ -746,10 +749,10 @@ function renderSend(keep?: { to: string; amount: string }): void {
 /** Reads an address out of a QR code. Accepts a bare address or a wallet link such as monero:4...?tx_amount=1. */
 function parseScanned(asset: Asset, raw: string): { address: string; amount: string } | null {
   const text = raw.trim();
-  const m = text.match(/^(?:(bitcoincash|bitcoin|btc|solana|sol|dogecoin|doge|dash|firo|zcash|zec|zano|pirate|arrr|ethereum|eth|tron|trx|usdt|monero|xmr)(?::\/\/|:))?([0-9A-Za-z]+)(?:@1)?(?:\?(.*))?$/i);
+  const m = text.match(/^(?:(bitcoincash|bitcoin|btc|litecoin|ltc|solana|sol|dogecoin|doge|dash|firo|zcash|zec|zano|pirate|arrr|ethereum|eth|tron|trx|usdt|monero|xmr)(?::\/\/|:))?([0-9A-Za-z]+)(?:@1)?(?:\?(.*))?$/i);
   if (!m) return null;
   const scheme = (m[1] ?? '').toLowerCase();
-  const family = (a: Asset) => (a === 'BCH' ? ['bitcoincash'] : a === 'SOL' ? ['solana', 'sol'] : a === 'USDTS' ? ['solana', 'sol', 'usdt'] : a === 'POL' || a === 'USDTP' ? ['ethereum', 'polygon', 'pol', 'matic', 'usdt'] : a === 'ARB' || a === 'ETHA' || a === 'USDTA' ? ['ethereum', 'arbitrum', 'arb', 'eth', 'usdt'] : a === 'DOGE' ? ['dogecoin', 'doge'] : a === 'DASH' ? ['dash'] : a === 'FIRO' ? ['firo'] : a === 'ZEC' ? ['zcash', 'zec'] : a === 'ZANO' ? ['zano'] : a === 'ARRR' ? ['pirate', 'arrr'] : a === 'BTC' ? ['bitcoin', 'btc'] : a === 'XMR' ? ['monero', 'xmr'] : a === 'ETH' || a === 'USDTE' ? ['ethereum', 'eth', 'usdt'] : ['tron', 'trx', 'usdt']);
+  const family = (a: Asset) => (a === 'BCH' ? ['bitcoincash'] : a === 'LTC' ? ['litecoin', 'ltc'] : a === 'SOL' ? ['solana', 'sol'] : a === 'USDTS' ? ['solana', 'sol', 'usdt'] : a === 'POL' || a === 'USDTP' ? ['ethereum', 'polygon', 'pol', 'matic', 'usdt'] : a === 'ARB' || a === 'ETHA' || a === 'USDTA' ? ['ethereum', 'arbitrum', 'arb', 'eth', 'usdt'] : a === 'DOGE' ? ['dogecoin', 'doge'] : a === 'DASH' ? ['dash'] : a === 'FIRO' ? ['firo'] : a === 'ZEC' ? ['zcash', 'zec'] : a === 'ZANO' ? ['zano'] : a === 'ARRR' ? ['pirate', 'arrr'] : a === 'BTC' ? ['bitcoin', 'btc'] : a === 'XMR' ? ['monero', 'xmr'] : a === 'ETH' || a === 'USDTE' ? ['ethereum', 'eth', 'usdt'] : ['tron', 'trx', 'usdt']);
   if (scheme && !family(asset).includes(scheme)) return null;
   // Bech32 QR codes are often in upper case to make them smaller.
   const address = asset === 'BTC' && /^BC1/.test(m[2]) ? m[2].toLowerCase() : m[2];
@@ -757,6 +760,7 @@ function parseScanned(asset: Asset, raw: string): { address: string; amount: str
     : asset === 'SOL' || asset === 'USDTS' ? /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address)
     : asset === 'DOGE' ? /^[DA9][1-9A-HJ-NP-Za-km-z]{33}$/.test(address)
     : asset === 'BCH' ? /^[qp][02-9ac-hj-np-z]{41}$/i.test(address)
+    : asset === 'LTC' ? /^(ltc1[02-9ac-hj-np-z]{8,87}|[LM][1-9A-HJ-NP-Za-km-z]{25,34})$/.test(address)
     : asset === 'FIRO' ? /^[a3][1-9A-HJ-NP-Za-km-z]{33}$/.test(address)
     : asset === 'DASH' ? /^[X7][1-9A-HJ-NP-Za-km-z]{33}$/.test(address)
     : asset === 'ARRR' ? /^(zs1[02-9ac-hj-np-z]{75}|pirate1[02-9ac-hj-np-z]{40,})$/.test(address)
@@ -832,7 +836,7 @@ async function openScanner(asset: Asset, onFound: (found: { address: string; amo
       if (code?.data) {
         const found = parseScanned(asset, code.data);
         if (found) { close(); onFound(found); return; }
-        status.textContent = `This is not a ${asset === 'XMR' ? 'Monero' : asset === 'SOL' || asset === 'USDTS' ? 'Solana' : asset === 'DOGE' ? 'Dogecoin' : asset === 'BCH' ? 'Bitcoin Cash' : asset === 'DASH' ? 'Dash' : asset === 'FIRO' ? 'Firo' : asset === 'ZEC' ? 'Zcash' : asset === 'ZANO' ? 'Zano' : asset === 'ARRR' ? 'Pirate Chain' : asset === 'BTC' ? 'Bitcoin' : EVM_ASSETS.includes(asset) ? 'Ethereum' : 'Tron'} address QR. Try another one.`;
+        status.textContent = `This is not a ${asset === 'XMR' ? 'Monero' : asset === 'SOL' || asset === 'USDTS' ? 'Solana' : asset === 'DOGE' ? 'Dogecoin' : asset === 'BCH' ? 'Bitcoin Cash' : asset === 'LTC' ? 'Litecoin' : asset === 'DASH' ? 'Dash' : asset === 'FIRO' ? 'Firo' : asset === 'ZEC' ? 'Zcash' : asset === 'ZANO' ? 'Zano' : asset === 'ARRR' ? 'Pirate Chain' : asset === 'BTC' ? 'Bitcoin' : EVM_ASSETS.includes(asset) ? 'Ethereum' : 'Tron'} address QR. Try another one.`;
       }
     }
     timer = window.setTimeout(tick, 180);
@@ -982,6 +986,7 @@ async function renderReceive(current?: string): Promise<void> {
     : asset === 'ZEC' ? (address.startsWith('t') ? 'This is a transparent address. The amount and address are public on the chain. Coins must be shielded after arrival before they can be sent.' : 'This is a shielded address. The amount and address don\'t show on the chain. Received ZEC can be used after a few confirmations. If a provider can\'t pay this address, use the transparent one.')
     : asset === 'SOL' ? 'The same address as USDT (Sol). Receives SOL on Solana mainnet only. Other Solana tokens aren\'t shown.'
     : asset === 'USDTS' ? 'Receives USDT on the Solana network (SPL) only. Sending needs a little SOL at this address for the fee.'
+    : asset === 'LTC' ? 'A Litecoin address (ltc1q). Coins sent from Bitcoin or other chains won\'t arrive. Once a deposit is seen, a new address appears next time.'
     : asset === 'BCH' ? 'Receives BCH on Bitcoin Cash only. Coins sent from Bitcoin or other chains won\'t arrive. Once a deposit is seen, a new address appears next time.'
     : asset === 'DOGE' ? 'Receives DOGE on Dogecoin mainnet only. Once a deposit is seen, a new address appears next time.'
     : asset === 'FIRO' ? 'Receives FIRO on Firo mainnet only. This is a transparent address, so the amount and address are public on the chain. Once a deposit is seen, a new address appears next time.'
@@ -989,6 +994,8 @@ async function renderReceive(current?: string): Promise<void> {
     : asset === 'BTC' ? 'A Bitcoin Taproot (bc1p) address. Coins sent from other chains won\'t arrive. Once a deposit is seen, a new address appears next time.'
     : asset === 'ETH' ? 'The same address as USDT (Eth). Receives ETH on Ethereum mainnet only. Coins sent over L2s or other chains won\'t arrive.'
     : asset === 'USDTE' ? 'Receives USDT on the Ethereum network (ERC-20) only. Sending needs ETH at this address for the fee.'
+    : asset === 'LINK' ? 'Receives LINK on Ethereum (ERC-20) only. Sending needs ETH at this address for the fee.'
+    : asset === 'WLD' ? 'Receives WLD on Ethereum (ERC-20) only. Sending needs ETH at this address for the fee.'
     : asset === 'POL' ? 'The same 0x address as on Ethereum and Arbitrum. Receives POL on Polygon only.'
     : asset === 'USDTP' ? 'Receives USDT on Polygon only. Sending needs POL at this address for the fee.'
     : asset === 'ARB' ? 'Receives the ARB token on Arbitrum One only. Sending needs ETH (Arb) at this address for the fee.'

@@ -15,6 +15,8 @@ const COIN: Record<Asset, { coin: string; network: RegExp; fallback: string }> =
   USDT: { coin: 'USDT', network: /^(trx|tron|trc-?20)$/i, fallback: 'TRX' },
   ETH: { coin: 'ETH', network: /^(eth|ethereum|erc-?20)$/i, fallback: 'ETH' },
   USDTE: { coin: 'USDT', network: /^(eth|ethereum|erc-?20)$/i, fallback: 'ETH' },
+  LINK: { coin: 'LINK', network: /^(eth|ethereum|erc-?20)$/i, fallback: 'ETH' },
+  WLD: { coin: 'WLD', network: /^(eth|ethereum|erc-?20)$/i, fallback: 'ETH' },
   DASH: { coin: 'DASH', network: /^dash$/i, fallback: 'DASH' },
   FIRO: { coin: 'FIRO', network: /^firo$/i, fallback: 'FIRO' },
   SOL: { coin: 'SOL', network: /^(sol|solana)$/i, fallback: 'SOL' },
@@ -25,6 +27,7 @@ const COIN: Record<Asset, { coin: string; network: RegExp; fallback: string }> =
   ETHA: { coin: 'ETH', network: /^(arb|arbitrum|arbitrum one)$/i, fallback: 'ARBITRUM' },
   USDTA: { coin: 'USDT', network: /^(arb|arbitrum|arbitrum one)$/i, fallback: 'ARBITRUM' },
   BCH: { coin: 'BCH', network: /^(bch|bitcoin ?cash)$/i, fallback: 'BCH' },
+  LTC: { coin: 'LTC', network: /^(ltc|litecoin)$/i, fallback: 'LTC' },
   DOGE: { coin: 'DOGE', network: /^(doge|dogecoin)$/i, fallback: 'DOGE' },
   ZEC: { coin: 'ZEC', network: /^(zec|zcash)$/i, fallback: 'ZEC' },
   ZANO: { coin: 'ZANO', network: /^zano$/i, fallback: 'ZANO' },
@@ -170,6 +173,8 @@ const SIMPLE_COIN: Record<Asset, { ticker: string; network: string }> = {
   USDT: { ticker: 'usdt', network: 'trx' },
   ETH: { ticker: 'eth', network: 'eth' },
   USDTE: { ticker: 'usdt', network: 'eth' },
+  LINK: { ticker: 'link', network: 'eth' },
+  WLD: { ticker: 'wld', network: 'eth' },
   DASH: { ticker: 'dash', network: 'dash' },
   FIRO: { ticker: 'firo', network: 'firo' },
   SOL: { ticker: 'sol', network: 'sol' },
@@ -180,6 +185,7 @@ const SIMPLE_COIN: Record<Asset, { ticker: string; network: string }> = {
   ETHA: { ticker: 'eth', network: 'arbitrum' },
   USDTA: { ticker: 'usdt', network: 'arbitrum' },
   BCH: { ticker: 'bch', network: 'bch' },
+  LTC: { ticker: 'ltc', network: 'ltc' },
   DOGE: { ticker: 'doge', network: 'doge' },
   ZEC: { ticker: 'zec', network: 'zec' },
   ZANO: { ticker: 'zano', network: 'zano' },
@@ -246,17 +252,19 @@ export class SimpleSwapClient implements SwapProvider {
 
 export const GHOSTSWAP_BASE = 'https://partners-api.ghostswap.io';
 // Coins whose GhostSwap ticker depends on the chain: read from their list by coin and chain, never guessed.
-type LookedUp = 'USDTE' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA';
+type LookedUp = 'USDTE' | 'LINK' | 'WLD' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA';
 const GHOST_LOOKUP: Record<LookedUp, { ticker: RegExp; chain: RegExp; label: string }> = {
   USDTE: { ticker: /^usdt/i, chain: /^(eth|ethereum|erc-?20)$/i, label: 'USDT (Eth)' },
   USDTS: { ticker: /^usdt/i, chain: /^(sol|solana|spl)$/i, label: 'USDT (Sol)' },
+  LINK: { ticker: /^link/i, chain: /^(eth|ethereum|erc-?20)$/i, label: 'LINK' },
+  WLD: { ticker: /^wld/i, chain: /^(eth|ethereum|erc-?20)$/i, label: 'WLD' },
   POL: { ticker: /^(pol|matic)/i, chain: /^(pol|polygon|matic)$/i, label: 'POL' },
   USDTP: { ticker: /^usdt/i, chain: /^(pol|polygon|matic)$/i, label: 'USDT (Pol)' },
   ARB: { ticker: /^arb/i, chain: /^(arb|arbitrum)$/i, label: 'ARB' },
   ETHA: { ticker: /^eth/i, chain: /^(arb|arbitrum)$/i, label: 'ETH (Arb)' },
   USDTA: { ticker: /^usdt/i, chain: /^(arb|arbitrum)$/i, label: 'USDT (Arb)' },
 };
-const GHOST_TICKER: Record<Exclude<Asset, LookedUp>, string> = { BTC: 'btc', XMR: 'xmr', ETH: 'eth', TRX: 'trx', USDT: 'usdtrx', DASH: 'dash', FIRO: 'firo', SOL: 'sol', BCH: 'bch', DOGE: 'doge', ZEC: 'zec', ZANO: 'zano', ARRR: 'arrr' };
+const GHOST_TICKER: Record<Exclude<Asset, LookedUp>, string> = { BTC: 'btc', XMR: 'xmr', ETH: 'eth', TRX: 'trx', USDT: 'usdtrx', DASH: 'dash', FIRO: 'firo', SOL: 'sol', BCH: 'bch', LTC: 'ltc', DOGE: 'doge', ZEC: 'zec', ZANO: 'zano', ARRR: 'arrr' };
 
 export class GhostSwapClient implements SwapProvider {
   constructor(private readonly base: string, private readonly bearer: string, private readonly agent?: Agent, private readonly timeoutMs = 30_000) {}
@@ -347,6 +355,7 @@ const ETZ_COIN: Partial<Record<Asset, { coin: string; network: string }>> = {
   DASH: { coin: 'DASH', network: 'DASH' },
   SOL: { coin: 'SOL', network: 'SOL' },
   BCH: { coin: 'BCH', network: 'BCH' },
+  LTC: { coin: 'LTC', network: 'LTC' },
   USDTS: { coin: 'USDT', network: 'SOL' },
   DOGE: { coin: 'DOGE', network: 'DOGE' },
   ZEC: { coin: 'ZEC', network: 'ZEC' },
@@ -436,6 +445,8 @@ const CN_COIN: Partial<Record<Asset, { ticker: string; network: string }>> = {
   TRX: { ticker: 'trx', network: 'trx' },
   USDT: { ticker: 'usdt', network: 'trx' },
   USDTE: { ticker: 'usdt', network: 'eth' },
+  LINK: { ticker: 'link', network: 'eth' },
+  WLD: { ticker: 'wld', network: 'eth' },
   USDTS: { ticker: 'usdt', network: 'sol' },
   // Names as their currency list has them; one they don't recognize gets no quote, and orders are checked anyway.
   POL: { ticker: 'pol', network: 'matic' },
@@ -444,6 +455,7 @@ const CN_COIN: Partial<Record<Asset, { ticker: string; network: string }>> = {
   ETHA: { ticker: 'eth', network: 'arbitrum' },
   USDTA: { ticker: 'usdt', network: 'arbitrum' },
   BCH: { ticker: 'bch', network: 'bch' },
+  LTC: { ticker: 'ltc', network: 'ltc' },
   SOL: { ticker: 'sol', network: 'sol' },
   DOGE: { ticker: 'doge', network: 'doge' },
   DASH: { ticker: 'dash', network: 'dash' },
@@ -527,9 +539,11 @@ const CCE_COIN: Partial<Record<Asset, { abbr: string; chain: string }>> = {
   TRX: { abbr: 'TRX', chain: 'TRON' },
   USDT: { abbr: 'USDT', chain: 'TRON' },
   USDTE: { abbr: 'USDT', chain: 'Ethereum' },
+  LINK: { abbr: 'LINK', chain: 'Ethereum' },
   DASH: { abbr: 'DASH', chain: 'Dash' },
   SOL: { abbr: 'SOL', chain: 'Solana' },
   BCH: { abbr: 'BCH', chain: 'Bitcoin Cash' },
+  LTC: { abbr: 'LTC', chain: 'Litecoin' },
   USDTS: { abbr: 'USDT', chain: 'Solana' },
   POL: { abbr: 'POL', chain: 'Polygon' },
   USDTP: { abbr: 'USDT', chain: 'Polygon' },

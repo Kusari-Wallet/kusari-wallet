@@ -46,6 +46,7 @@ const service = new WalletService('/data', undefined, {
   tornadoLocalRelayer: __TEST__ ? testConfig.tornadoLocalRelayer : undefined,
   ethScout: __TEST__ ? testConfig.ethScout : undefined,
   bchApi: __TEST__ ? testConfig.bchApi : undefined,
+  ltcApi: __TEST__ ? testConfig.ltcApi : undefined,
   polRpc: __TEST__ ? testConfig.polRpc : undefined,
   polScout: __TEST__ ? testConfig.polScout : undefined,
   arbRpc: __TEST__ ? testConfig.arbRpc : undefined,

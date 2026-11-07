@@ -12,7 +12,7 @@ test('buy: ChangeNOW\'s page, the partner link, the right coin and nothing about
   assert.deepEqual([p.to, p.toFiat, p.from, p.fromFiat], ['usdtsol', 'usdtsol', 'usd', 'usd']);
   assert.ok(u.searchParams.has('isFiat'));
   assert.ok(![...u.searchParams.keys()].some((k) => /address|email|user/i.test(k)), 'no address or identity in the link');
-  const tickers = { BTC: 'btc', XMR: 'xmr', ETH: 'eth', ZEC: 'zec', SOL: 'sol', TRX: 'trx', USDTE: 'usdterc20', USDT: 'usdttrc20', USDTS: 'usdtsol', POL: 'maticmainnet', USDTP: 'usdtmatic', ARB: 'arb', ETHA: 'etharb', USDTA: 'usdtarb', BCH: 'bch', DOGE: 'doge', DASH: 'dash', FIRO: 'firo', ZANO: 'zano', ARRR: 'arrr' };
+  const tickers = { BTC: 'btc', XMR: 'xmr', ETH: 'eth', ZEC: 'zec', SOL: 'sol', TRX: 'trx', USDTE: 'usdterc20', LINK: 'link', WLD: 'wlderc20', USDT: 'usdttrc20', USDTS: 'usdtsol', POL: 'maticmainnet', USDTP: 'usdtmatic', ARB: 'arb', ETHA: 'etharb', USDTA: 'usdtarb', BCH: 'bch', LTC: 'ltc', DOGE: 'doge', DASH: 'dash', FIRO: 'firo', ZANO: 'zano', ARRR: 'arrr' };
   for (const [asset, ticker] of Object.entries(tickers)) assert.equal(new URL(buyUrl(asset)).searchParams.get('to'), ticker, asset);
   assert.throws(() => buyUrl('NOPE'), /can't be bought/);
   assert.throws(() => buyUrl('BTC', 'us&x=1'), /currency/);

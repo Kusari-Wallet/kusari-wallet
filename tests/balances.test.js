@@ -20,7 +20,7 @@ async function make(t) {
   s.pol = { address: '0x', balanceOf: async () => 1n }; s.arb = { address: '0x', balanceOf: async () => 1n };
   s.dash = { receiveAddress: 'X', getBalance: async () => ({ total: 1n, spendable: 1n }) };
   s.firo = { receiveAddress: 'a', getBalance: async () => ({ total: 1n, spendable: 1n }) };
-  s.doge = { receiveAddress: 'D', refresh: async () => {}, getBalance: async () => ({ total: 1n, spendable: 1n }) }; s.bch = { receiveAddress: 'bitcoincash:q', refresh: async () => {}, getBalance: async () => ({ total: 1n, spendable: 1n }) }; s.sol = { receiveAddress: 'S', getBalance: async () => ({ total: 1n, spendable: 1n }), getUsdtBalance: async () => 1n };
+  s.doge = { receiveAddress: 'D', refresh: async () => {}, getBalance: async () => ({ total: 1n, spendable: 1n }) }; s.ltc = { receiveAddress: 'ltc1', coin: { symbol: 'LTC' }, refresh: async () => {}, getBalance: async () => ({ total: 1n, spendable: 1n }) }; s.bch = { receiveAddress: 'bitcoincash:q', refresh: async () => {}, getBalance: async () => ({ total: 1n, spendable: 1n }) }; s.sol = { receiveAddress: 'S', getBalance: async () => ({ total: 1n, spendable: 1n }), getUsdtBalance: async () => 1n };
   return { s, v };
 }
 
@@ -174,7 +174,7 @@ test('one failed lookup that many callers waited on is one log line', async (t) 
 
 test('each coin gets its own balance', async (t) => {
   const { s } = await make(t);
-  const coins = { btc: 'BTC', dash: 'DASH', firo: 'FIRO', doge: 'DOGE', sol: 'SOL', bch: 'BCH' };
+  const coins = { btc: 'BTC', dash: 'DASH', firo: 'FIRO', doge: 'DOGE', sol: 'SOL', bch: 'BCH', ltc: 'LTC' };
   const expected = {};
   Object.entries(coins).forEach(([key, symbol], i) => {
     s[key].getBalance = async () => ({ total: BigInt(i + 1) * 100000000n, spendable: BigInt(i + 1) * 100000000n });

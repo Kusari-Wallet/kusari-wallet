@@ -201,3 +201,17 @@ test('Arbitrum: ETH pays the fee, ARB and USDT are separate tokens, no tip neede
   assert.equal(chainOf('ETHA'), ARBITRUM);
   assert.equal(chainOf('USDTP'), POLYGON);
 });
+
+test('LINK and WLD: Ethereum tokens at their own contracts, 18 decimals', async (t) => {
+  const m = await node({ usdt: 3n * 10n ** 18n }); closing(t, m.server);
+  assert.equal(await m.client.balanceOf('LINK'), 3n * 10n ** 18n);
+  for (const [asset, contract] of [['LINK', '0x514910771AF9Ca656af840dff83E8264EcF986CA'], ['WLD', '0x163f8C2467924be0ae7B5347228CABF260318753']]) {
+    const d = await m.client.draft(asset, TO, 10n ** 18n);
+    await m.client.send(d, deriveEthAccount(PHRASE).wallet);
+    const tx = Transaction.from(m.log.raw.at(-1));
+    assert.equal(tx.to, contract, asset);
+    assert.equal(tx.chainId, 1n);
+    assert.equal(tx.data, encodeUsdtTransfer(TO, 10n ** 18n));
+  }
+  await assert.rejects(m.client.draft('ETH', '0x514910771AF9Ca656af840dff83E8264EcF986CA', 1n), /token contract/);
+});

@@ -7,7 +7,7 @@ export const ETH_PATH = "m/44'/60'/0'/0/0";
 const GWEI = 1_000_000_000n;
 const BALANCE_CACHE_MS = 20_000;
 
-export type EthAsset = 'ETH' | 'USDTE' | 'POL' | 'USDTP' | 'ETHA' | 'ARB' | 'USDTA';
+export type EthAsset = 'ETH' | 'USDTE' | 'LINK' | 'WLD' | 'POL' | 'USDTP' | 'ETHA' | 'ARB' | 'USDTA';
 export interface EvmToken { contract: string; decimals: number; symbol: string; label: string; dust: bigint }
 /** One EVM chain. The same key and address serve all of them, so the chain id is what keeps them apart. */
 export interface EvmChain {
@@ -20,7 +20,11 @@ export interface EvmChain {
 
 export const ETHEREUM: EvmChain = {
   id: 1n, name: 'Ethereum', native: 'ETH', symbol: 'ETH', nativeLabel: 'ETH',
-  tokens: { USDTE: { contract: '0xdAC17F958D2ee523a2206206994597C13D831ec7', decimals: 6, symbol: 'USDT', label: 'USDT (Eth)', dust: 100_000n } },
+  tokens: {
+    USDTE: { contract: '0xdAC17F958D2ee523a2206206994597C13D831ec7', decimals: 6, symbol: 'USDT', label: 'USDT (Eth)', dust: 100_000n },
+    LINK: { contract: '0x514910771AF9Ca656af840dff83E8264EcF986CA', decimals: 18, symbol: 'LINK', label: 'LINK', dust: 10_000_000_000_000_000n },
+    WLD: { contract: '0x163f8C2467924be0ae7B5347228CABF260318753', decimals: 18, symbol: 'WLD', label: 'WLD', dust: 10_000_000_000_000_000n },
+  },
   maxBaseFee: 500n * GWEI, minTip: GWEI / 10n, defaultTip: GWEI, maxTip: 5n * GWEI, gasToken: 200_000n, gasContract: 300_000n, dust: 100_000_000_000_000n,
 };
 // Polygon needs a priority fee of about 25 gwei or more, and its base fee can spike far above Ethereum's.

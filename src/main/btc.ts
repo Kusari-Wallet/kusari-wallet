@@ -14,13 +14,20 @@ const GAP_RECHECK = 3; // past the last used address, on the quick rechecks
 const FULL_SCAN_MS = 6 * 60 * 60_000;
 const COOLDOWN_MS = 90_000;
 const DUST = 294n;
-const MAX_FEE_RATE = 300n; // sat/vB; a higher answer from an API is treated as broken
 const CACHE_MS = 180_000;
 
 export interface BtcScanHints { used: string[]; nexts: Record<string, number>; lastFullScan: number }
 export interface BtcUtxo { txid: string; vout: number; value: bigint; address: string; chain: number; index: number; confirmed: boolean }
 export interface BtcDraft { to: string; amount: bigint; fee: bigint; change: bigint; changeAddress: string; changePath: [number, number]; inputs: BtcUtxo[] }
-export interface BtcHistoryItem { asset: 'BTC'; hash: string; direction: 'in' | 'out' | 'self'; amount: string; counterparty: string; timestamp: number; status: 'confirmed' | 'pending'; dust: boolean }
+/** What differs between Bitcoin and the coins that copy its server API: keys, addresses, sizes and signing. */
+export interface UtxoCoin {
+  symbol: 'BTC' | 'LTC';
+  address: (publicKey: Uint8Array) => string;
+  sign: (draft: BtcDraft, mnemonic: string) => { hex: string; id: string };
+  /** Virtual bytes of one input, the largest output, and dust. */
+  inputVb: number; outputVb: number; dust: bigint; maxFeeRate: bigint;
+}
+export interface BtcHistoryItem { asset: 'BTC' | 'LTC'; hash: string; direction: 'in' | 'out' | 'self'; amount: string; counterparty: string; timestamp: number; status: 'confirmed' | 'pending'; dust: boolean }
 
 /** Public keys only: enough to find addresses and balances, not to spend. */
 export function btcAccountXpub(mnemonic: string): string {
@@ -37,32 +44,34 @@ export function isBtcAddress(address: string): boolean {
  * Virtual size, rounded up. Outputs are counted at 43 vB, the taproot size and the largest common
  * one, so a smaller destination pays a touch more rather than getting stuck.
  */
-export function estimateVbytes(inputs: number, outputs: number): bigint {
-  return BigInt(Math.ceil(10.5 + 57.5 * inputs + 43 * outputs));
+export function estimateVbytes(inputs: number, outputs: number, inputVb = 57.5, outputVb = 43): bigint {
+  return BigInt(Math.ceil(10.5 + inputVb * inputs + outputVb * outputs));
 }
 
 /** Largest coins first, with no change output when the remainder would be dust. */
-export function selectCoins(utxos: BtcUtxo[], amount: bigint | 'max', feeRate: bigint): { inputs: BtcUtxo[]; amount: bigint; fee: bigint; change: bigint } {
+export function selectCoins(utxos: BtcUtxo[], amount: bigint | 'max', feeRate: bigint, coin: UtxoCoin = BITCOIN): { inputs: BtcUtxo[]; amount: bigint; fee: bigint; change: bigint } {
+  const { symbol, dust } = coin;
+  const size = (i: number, o: number) => estimateVbytes(i, o, coin.inputVb, coin.outputVb);
   const sorted = [...utxos].sort((a, b) => (b.value > a.value ? 1 : -1));
-  if (sorted.length === 0) throw new Error('No BTC available to send. Deposits can be used after 1 confirmation.');
+  if (sorted.length === 0) throw new Error(`No ${symbol} available to send. Deposits can be used after 1 confirmation.`);
   if (amount === 'max') {
     const total = sorted.reduce((s, u) => s + u.value, 0n);
-    const fee = estimateVbytes(sorted.length, 1) * feeRate;
-    if (total - fee < DUST) throw new Error('No BTC left to send after the fee.');
+    const fee = size(sorted.length, 1) * feeRate;
+    if (total - fee < dust) throw new Error(`No ${symbol} left to send after the fee.`);
     return { inputs: sorted, amount: total - fee, fee, change: 0n };
   }
-  if (amount < DUST) throw new Error(`The minimum to send is ${formatAmount(DUST, 8)} BTC.`);
+  if (amount < dust) throw new Error(`The minimum to send is ${formatAmount(dust, 8)} ${symbol}.`);
   const inputs: BtcUtxo[] = [];
   let total = 0n;
   for (const u of sorted) {
     inputs.push(u);
     total += u.value;
-    const withChange = estimateVbytes(inputs.length, 2) * feeRate;
-    if (total >= amount + withChange + DUST) return { inputs, amount, fee: withChange, change: total - amount - withChange };
-    const noChange = estimateVbytes(inputs.length, 1) * feeRate;
+    const withChange = size(inputs.length, 2) * feeRate;
+    if (total >= amount + withChange + dust) return { inputs, amount, fee: withChange, change: total - amount - withChange };
+    const noChange = size(inputs.length, 1) * feeRate;
     if (total >= amount + noChange) return { inputs, amount, fee: total - amount, change: 0n };
   }
-  throw new Error('Not enough BTC to cover the amount and fee.');
+  throw new Error(`Not enough ${symbol} to cover the amount and fee.`);
 }
 
 export class BtcClient {
@@ -78,7 +87,7 @@ export class BtcClient {
   spacingMs = BtcClient.defaultSpacingMs;
   private lastError: string | null = null;
 
-  constructor(xpub: string, private readonly apis: string[], private readonly agent?: Agent, private readonly timeoutMs = 30_000) {
+  constructor(xpub: string, private readonly apis: string[], private readonly agent?: Agent, private readonly timeoutMs = 30_000, readonly coin: UtxoCoin = BITCOIN) {
     this.account = HDKey.fromExtendedKey(xpub);
   }
 
@@ -94,7 +103,7 @@ export class BtcClient {
   }
 
   addressAt(chain: number, index: number): string {
-    return btc.p2tr(xOnly(this.account.deriveChild(chain).deriveChild(index).publicKey)).address;
+    return this.coin.address(this.account.deriveChild(chain).deriveChild(index).publicKey);
   }
 
   get receiveAddress(): string { return this.addressAt(0, this.state?.nextReceive ?? 0); }
@@ -112,8 +121,8 @@ export class BtcClient {
           if (/429/.test((e as Error).message)) this.cooling.set(base, Date.now() + COOLDOWN_MS);
         }
       }
-      if (!last || /429/.test((last as Error).message)) throw new Error('The BTC server is limiting requests for now. Your coins are safe, and it will retry automatically.');
-      throw last instanceof Error ? last : new Error('Could not reach the BTC server.');
+      if (!last || /429/.test((last as Error).message)) throw new Error(`The ${this.coin.symbol} server is limiting requests for now. Your coins are safe, and it will retry automatically.`);
+      throw last instanceof Error ? last : new Error(`Could not reach the ${this.coin.symbol} server.`);
     });
     this.queue = turn.catch(() => undefined).then(() => (this.spacingMs ? new Promise((r) => setTimeout(r, this.spacingMs)) : undefined));
     return turn;
@@ -140,7 +149,7 @@ export class BtcClient {
       if (BigInt(c.funded_txo_sum ?? 0) + BigInt(m.funded_txo_sum ?? 0) === BigInt(c.spent_txo_sum ?? 0) + BigInt(m.spent_txo_sum ?? 0)) continue;
       const list: any[] = await this.get(`/address/${address}/utxo`);
       for (const u of list) {
-        if (!/^[0-9a-f]{64}$/.test(u.txid) || !Number.isInteger(u.vout)) throw new Error('The BTC server gave an unexpected answer.');
+        if (!/^[0-9a-f]{64}$/.test(u.txid) || !Number.isInteger(u.vout)) throw new Error(`The ${this.coin.symbol} server gave an unexpected answer.`);
         out.utxos.push({ txid: u.txid, vout: u.vout, value: BigInt(u.value), address, chain, index, confirmed: Boolean(u.status?.confirmed) });
       }
     }
@@ -185,9 +194,9 @@ export class BtcClient {
       const r = await this.get('/fee-estimates');
       rate = r['3'];
     }
-    if (typeof rate !== 'number' || !Number.isFinite(rate) || rate <= 0) throw new Error('Could not read BTC fee information.');
+    if (typeof rate !== 'number' || !Number.isFinite(rate) || rate <= 0) throw new Error(`Could not read ${this.coin.symbol} fee information.`);
     const fee = BigInt(Math.max(1, Math.ceil(rate)));
-    if (fee > MAX_FEE_RATE) throw new Error(`The fee is abnormally high, so this was stopped (${fee} sat/vB).`);
+    if (fee > this.coin.maxFeeRate) throw new Error(`The fee is abnormally high, so this was stopped (${fee} sat/vB).`);
     return fee;
   }
 
@@ -195,13 +204,13 @@ export class BtcClient {
     await this.refresh(true);
     const state = this.state!;
     const rate = await this.feeRate();
-    const picked = selectCoins(state.utxos.filter((u) => u.confirmed), amount, rate);
+    const picked = selectCoins(state.utxos.filter((u) => u.confirmed), amount, rate, this.coin);
     return { to, amount: picked.amount, fee: picked.fee, change: picked.change, changeAddress: this.addressAt(1, state.nextChange), changePath: [1, state.nextChange], inputs: picked.inputs };
   }
 
   /** Signs here, checks the result against what was approved, then broadcasts. */
   async send(draft: BtcDraft, mnemonic: string): Promise<string> {
-    const { hex, id } = signBtcDraft(draft, mnemonic);
+    const { hex, id } = this.coin.sign(draft, mnemonic);
     const answer = (await this.broadcast(hex)).trim();
     if (answer !== id) throw new Error(`The server returned a different transaction ID. Check ${id} on an explorer.`);
     this.state = null;
@@ -232,7 +241,7 @@ export class BtcClient {
       const net = out - spent;
       const direction = spent === 0n ? 'in' : net < 0n ? 'out' : 'self';
       return {
-        asset: 'BTC', hash: tx.txid, direction,
+        asset: this.coin.symbol, hash: tx.txid, direction,
         amount: formatAmount(direction === 'in' ? out : net < 0n ? -net : net, 8),
         counterparty: '', timestamp: (tx.status?.block_time ?? Date.now() / 1000) * 1000,
         status: tx.status?.confirmed ? 'confirmed' : 'pending', dust: direction === 'in' && out < 1000n,
@@ -264,3 +273,55 @@ export function signBtcDraft(draft: BtcDraft, mnemonic: string): { hex: string; 
   tx.finalize();
   return { hex: tx.hex, id: tx.id };
 }
+
+export const BITCOIN: UtxoCoin = {
+  symbol: 'BTC', address: (pub) => btc.p2tr(xOnly(pub)).address, sign: signBtcDraft,
+  // A higher fee rate from an API is treated as broken.
+  inputVb: 57.5, outputVb: 43, dust: DUST, maxFeeRate: 300n,
+};
+
+// ---- Litecoin ----
+
+// BIP84 with coin type 2, as Litecoin Core and Electrum-LTC use for ltc1q addresses.
+export const LTC_PATH = "m/84'/2'/0'";
+export const LTC_NET = { bech32: 'ltc', pubKeyHash: 0x30, scriptHash: 0x32, wif: 0xb0 };
+
+export function ltcAccountXpub(mnemonic: string): string {
+  return HDKey.fromMasterSeed(mnemonicToSeedSync(mnemonic)).derive(LTC_PATH).publicExtendedKey;
+}
+
+/** ltc1, L and M addresses. Old 3 addresses are refused: they look exactly like Bitcoin ones. MWEB isn't supported. */
+export function isLtcAddress(address: string): boolean {
+  if (!/^(ltc1[02-9ac-hj-np-z]{8,87}|[LM][1-9A-HJ-NP-Za-km-z]{25,34})$/.test(address)) return false;
+  try { btc.Address(LTC_NET).decode(address); return true; } catch { return false; }
+}
+
+export function signLtcDraft(draft: BtcDraft, mnemonic: string): { hex: string; id: string } {
+  if (!isLtcAddress(draft.to)) throw new Error('The receiving address is not an LTC address.');
+  const account = HDKey.fromMasterSeed(mnemonicToSeedSync(mnemonic)).derive(LTC_PATH);
+  const tx = new btc.Transaction();
+  const keys: Uint8Array[] = [];
+  for (const u of draft.inputs) {
+    const child = account.deriveChild(u.chain).deriveChild(u.index);
+    const pay = btc.p2wpkh(child.publicKey, LTC_NET);
+    if (pay.address !== u.address) throw new Error('An input address does not match this wallet\'s keys, so signing was stopped.');
+    tx.addInput({ txid: u.txid, index: u.vout, witnessUtxo: { script: pay.script, amount: u.value } });
+    keys.push(child.privateKey);
+  }
+  tx.addOutputAddress(draft.to, draft.amount, LTC_NET);
+  if (draft.change > 0n) {
+    const change = account.deriveChild(draft.changePath[0]).deriveChild(draft.changePath[1]);
+    if (btc.p2wpkh(change.publicKey, LTC_NET).address !== draft.changeAddress) throw new Error('The change address does not match this wallet\'s keys, so signing was stopped.');
+    tx.addOutputAddress(draft.changeAddress, draft.change, LTC_NET);
+  }
+  const totalIn = draft.inputs.reduce((s, u) => s + u.value, 0n);
+  if (totalIn - draft.amount - draft.change !== draft.fee) throw new Error('The amounts do not add up, so signing was stopped.');
+  keys.forEach((k, i) => tx.signIdx(k, i));
+  tx.finalize();
+  return { hex: tx.hex, id: tx.id };
+}
+
+export const LITECOIN: UtxoCoin = {
+  symbol: 'LTC', address: (pub) => btc.p2wpkh(pub, LTC_NET).address, sign: signLtcDraft,
+  inputVb: 68, outputVb: 43, dust: 1_000n, maxFeeRate: 500n,
+};
