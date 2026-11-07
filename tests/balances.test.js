@@ -19,7 +19,7 @@ async function make(t) {
   s.eth = { address: '0x', getEthBalance: async () => 1n, getUsdtBalance: async () => 1n };
   s.dash = { receiveAddress: 'X', getBalance: async () => ({ total: 1n, spendable: 1n }) };
   s.firo = { receiveAddress: 'a', getBalance: async () => ({ total: 1n, spendable: 1n }) };
-  s.doge = { receiveAddress: 'D', refresh: async () => {}, getBalance: async () => ({ total: 1n, spendable: 1n }) }; s.sol = { receiveAddress: 'S', getBalance: async () => ({ total: 1n, spendable: 1n }) };
+  s.doge = { receiveAddress: 'D', refresh: async () => {}, getBalance: async () => ({ total: 1n, spendable: 1n }) }; s.sol = { receiveAddress: 'S', getBalance: async () => ({ total: 1n, spendable: 1n }), getUsdtBalance: async () => 1n };
   return { s, v };
 }
 
@@ -183,7 +183,8 @@ test('each coin gets its own balance', async (t) => {
   s.eth.getUsdtBalance = async () => 12_000_000n;
   s.tron.getTrxBalance = async () => 13_000_000n;
   s.tron.getUsdtBalance = async () => 14_000_000n;
+  s.sol.getUsdtBalance = async () => 16_000_000n;
   s.monero.getBalance = async () => ({ total: 15n * 10n ** 12n, unlocked: 15n * 10n ** 12n });
   const { balances } = await s.overview();
-  for (const [symbol, n] of Object.entries({ ...expected, ETH: 11, USDTE: 12, TRX: 13, USDT: 14, XMR: 15 })) assert.equal(balances[symbol].total, String(symbol === 'SOL' ? n / 10 : n), symbol);
+  for (const [symbol, n] of Object.entries({ ...expected, ETH: 11, USDTE: 12, TRX: 13, USDT: 14, XMR: 15, USDTS: 16 })) assert.equal(balances[symbol].total, String(symbol === 'SOL' ? n / 10 : n), symbol);
 });

@@ -17,7 +17,7 @@ function all(btc: Row, eth: Row, trx: Row, usdt: Row, xmr: Row, dash?: Row, zec?
   // Stablecoin far from a dollar means the answer can't be trusted, or the market has bigger news than this screen.
   if (usdt.usd < 0.5 || usdt.usd > 1.5) throw new Error('bad price');
   // A smaller coin missing from one source shouldn't cost every other coin its price.
-  return { BTC: btc, ETH: eth, TRX: trx, USDT: usdt, USDTE: usdt, XMR: xmr, ...(sol ? { SOL: sol } : {}), ...(doge ? { DOGE: doge } : {}), ...(dash ? { DASH: dash } : {}), ...(zec ? { ZEC: zec } : {}), ...(zano ? { ZANO: zano } : {}), ...(arrr ? { ARRR: arrr } : {}), ...(firo ? { FIRO: firo } : {}) } as PriceMap;
+  return { BTC: btc, ETH: eth, TRX: trx, USDT: usdt, USDTE: usdt, USDTS: usdt, XMR: xmr, ...(sol ? { SOL: sol } : {}), ...(doge ? { DOGE: doge } : {}), ...(dash ? { DASH: dash } : {}), ...(zec ? { ZEC: zec } : {}), ...(zano ? { ZANO: zano } : {}), ...(arrr ? { ARRR: arrr } : {}), ...(firo ? { FIRO: firo } : {}) } as PriceMap;
 }
 
 export const coingecko = (url: string): PriceSource => ({

@@ -18,6 +18,7 @@ const COIN: Record<Asset, { coin: string; network: RegExp; fallback: string }> =
   DASH: { coin: 'DASH', network: /^dash$/i, fallback: 'DASH' },
   FIRO: { coin: 'FIRO', network: /^firo$/i, fallback: 'FIRO' },
   SOL: { coin: 'SOL', network: /^(sol|solana)$/i, fallback: 'SOL' },
+  USDTS: { coin: 'USDT', network: /^(sol|solana|spl)$/i, fallback: 'SOL' },
   DOGE: { coin: 'DOGE', network: /^(doge|dogecoin)$/i, fallback: 'DOGE' },
   ZEC: { coin: 'ZEC', network: /^(zec|zcash)$/i, fallback: 'ZEC' },
   ZANO: { coin: 'ZANO', network: /^zano$/i, fallback: 'ZANO' },
@@ -160,6 +161,7 @@ const SIMPLE_COIN: Record<Asset, { ticker: string; network: string }> = {
   DASH: { ticker: 'dash', network: 'dash' },
   FIRO: { ticker: 'firo', network: 'firo' },
   SOL: { ticker: 'sol', network: 'sol' },
+  USDTS: { ticker: 'usdt', network: 'sol' },
   DOGE: { ticker: 'doge', network: 'doge' },
   ZEC: { ticker: 'zec', network: 'zec' },
   ZANO: { ticker: 'zano', network: 'zano' },
@@ -225,7 +227,7 @@ export class SimpleSwapClient implements SwapProvider {
 // ---- GhostSwap ----
 
 export const GHOSTSWAP_BASE = 'https://partners-api.ghostswap.io';
-const GHOST_TICKER: Record<Exclude<Asset, 'USDTE'>, string> = { BTC: 'btc', XMR: 'xmr', ETH: 'eth', TRX: 'trx', USDT: 'usdtrx', DASH: 'dash', FIRO: 'firo', SOL: 'sol', DOGE: 'doge', ZEC: 'zec', ZANO: 'zano', ARRR: 'arrr' };
+const GHOST_TICKER: Record<Exclude<Asset, 'USDTE' | 'USDTS'>, string> = { BTC: 'btc', XMR: 'xmr', ETH: 'eth', TRX: 'trx', USDT: 'usdtrx', DASH: 'dash', FIRO: 'firo', SOL: 'sol', DOGE: 'doge', ZEC: 'zec', ZANO: 'zano', ARRR: 'arrr' };
 
 export class GhostSwapClient implements SwapProvider {
   constructor(private readonly base: string, private readonly bearer: string, private readonly agent?: Agent, private readonly timeoutMs = 30_000) {}
@@ -234,18 +236,20 @@ export class GhostSwapClient implements SwapProvider {
     return requestJson(this.base + path, { method, body, agent: this.agent, timeoutMs: this.timeoutMs, headers: { Authorization: `Bearer ${this.bearer}`, ...extra } });
   }
 
-  private usdtEth: string | null = null;
+  private usdtTickers: Partial<Record<Asset, string>> = {};
 
-  /** Their docs do not name the Ethereum USDT ticker, so it is read from their list and never guessed. */
+  /** Their docs name only Tron's USDT ticker, so the others are read from their list and never guessed. */
   private async ticker(asset: Asset): Promise<string> {
-    if (asset !== 'USDTE') return GHOST_TICKER[asset];
-    if (this.usdtEth) return this.usdtEth;
+    if (asset !== 'USDTE' && asset !== 'USDTS') return GHOST_TICKER[asset];
+    const known = this.usdtTickers[asset];
+    if (known) return known;
+    const chain = asset === 'USDTE' ? /^(eth|ethereum|erc-?20)$/i : /^(sol|solana|spl)$/i;
     const res = await this.call('GET', '/v1/currencies');
     const list: any[] = Array.isArray(res.body?.currencies) ? res.body.currencies : [];
-    const row = list.find((c) => /^usdt/i.test(String(c?.ticker)) && /^(eth|ethereum|erc-?20)$/i.test(String(c?.blockchain)) && c?.enabled !== false);
-    if (!row) throw new Error('GhostSwap doesn\'t list USDT (Eth).');
-    this.usdtEth = String(row.ticker);
-    return this.usdtEth;
+    const row = list.find((c) => /^usdt/i.test(String(c?.ticker)) && chain.test(String(c?.blockchain)) && c?.enabled !== false);
+    if (!row) throw new Error(`GhostSwap doesn't list ${asset === 'USDTE' ? 'USDT (Eth)' : 'USDT (Sol)'}.`);
+    this.usdtTickers[asset] = String(row.ticker);
+    return this.usdtTickers[asset]!;
   }
 
   async quote(from: Asset, to: Asset, amount: string): Promise<SwapQuote> {
@@ -313,6 +317,7 @@ const ETZ_COIN: Partial<Record<Asset, { coin: string; network: string }>> = {
   USDTE: { coin: 'USDT', network: 'ETH' },
   DASH: { coin: 'DASH', network: 'DASH' },
   SOL: { coin: 'SOL', network: 'SOL' },
+  USDTS: { coin: 'USDT', network: 'SOL' },
   DOGE: { coin: 'DOGE', network: 'DOGE' },
   ZEC: { coin: 'ZEC', network: 'ZEC' },
   ZANO: { coin: 'ZANO', network: 'ZANO' },
@@ -402,6 +407,7 @@ const CCE_COIN: Partial<Record<Asset, { abbr: string; chain: string }>> = {
   USDTE: { abbr: 'USDT', chain: 'Ethereum' },
   DASH: { abbr: 'DASH', chain: 'Dash' },
   SOL: { abbr: 'SOL', chain: 'Solana' },
+  USDTS: { abbr: 'USDT', chain: 'Solana' },
   DOGE: { abbr: 'DOGE', chain: 'Dogecoin' },
   ZEC: { abbr: 'ZEC', chain: 'Zcash' },
 };

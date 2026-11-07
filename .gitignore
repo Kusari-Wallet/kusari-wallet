@@ -13,3 +13,4 @@ src/main/swap-keys.generated.ts
 *.p12
 *.jks
 native-bin
+locales/source.txt
