@@ -24,6 +24,7 @@ const COIN: Record<Asset, { coin: string; network: RegExp; fallback: string }> =
   ARB: { coin: 'ARB', network: /^(arb|arbitrum|arbitrum one)$/i, fallback: 'ARBITRUM' },
   ETHA: { coin: 'ETH', network: /^(arb|arbitrum|arbitrum one)$/i, fallback: 'ARBITRUM' },
   USDTA: { coin: 'USDT', network: /^(arb|arbitrum|arbitrum one)$/i, fallback: 'ARBITRUM' },
+  BCH: { coin: 'BCH', network: /^(bch|bitcoin ?cash)$/i, fallback: 'BCH' },
   DOGE: { coin: 'DOGE', network: /^(doge|dogecoin)$/i, fallback: 'DOGE' },
   ZEC: { coin: 'ZEC', network: /^(zec|zcash)$/i, fallback: 'ZEC' },
   ZANO: { coin: 'ZANO', network: /^zano$/i, fallback: 'ZANO' },
@@ -33,6 +34,9 @@ const COIN: Record<Asset, { coin: string; network: RegExp; fallback: string }> =
 /** Ethereum addresses differ only in checksum casing, which services often drop. */
 function sameAddress(a: unknown, b: string): boolean {
   if (typeof a !== 'string') return false;
+  // Bitcoin Cash addresses are often written without their bitcoincash: prefix, and either case is the same address.
+  const bch = (x: string) => x.toLowerCase().replace(/^bitcoincash:/, '');
+  if (/^bitcoincash:/i.test(b)) return bch(a) === bch(b);
   return /^0x/i.test(b) ? a.toLowerCase() === b.toLowerCase() : a === b;
 }
 
@@ -175,6 +179,7 @@ const SIMPLE_COIN: Record<Asset, { ticker: string; network: string }> = {
   ARB: { ticker: 'arb', network: 'arbitrum' },
   ETHA: { ticker: 'eth', network: 'arbitrum' },
   USDTA: { ticker: 'usdt', network: 'arbitrum' },
+  BCH: { ticker: 'bch', network: 'bch' },
   DOGE: { ticker: 'doge', network: 'doge' },
   ZEC: { ticker: 'zec', network: 'zec' },
   ZANO: { ticker: 'zano', network: 'zano' },
@@ -251,7 +256,7 @@ const GHOST_LOOKUP: Record<LookedUp, { ticker: RegExp; chain: RegExp; label: str
   ETHA: { ticker: /^eth/i, chain: /^(arb|arbitrum)$/i, label: 'ETH (Arb)' },
   USDTA: { ticker: /^usdt/i, chain: /^(arb|arbitrum)$/i, label: 'USDT (Arb)' },
 };
-const GHOST_TICKER: Record<Exclude<Asset, LookedUp>, string> = { BTC: 'btc', XMR: 'xmr', ETH: 'eth', TRX: 'trx', USDT: 'usdtrx', DASH: 'dash', FIRO: 'firo', SOL: 'sol', DOGE: 'doge', ZEC: 'zec', ZANO: 'zano', ARRR: 'arrr' };
+const GHOST_TICKER: Record<Exclude<Asset, LookedUp>, string> = { BTC: 'btc', XMR: 'xmr', ETH: 'eth', TRX: 'trx', USDT: 'usdtrx', DASH: 'dash', FIRO: 'firo', SOL: 'sol', BCH: 'bch', DOGE: 'doge', ZEC: 'zec', ZANO: 'zano', ARRR: 'arrr' };
 
 export class GhostSwapClient implements SwapProvider {
   constructor(private readonly base: string, private readonly bearer: string, private readonly agent?: Agent, private readonly timeoutMs = 30_000) {}
@@ -341,6 +346,7 @@ const ETZ_COIN: Partial<Record<Asset, { coin: string; network: string }>> = {
   USDTE: { coin: 'USDT', network: 'ETH' },
   DASH: { coin: 'DASH', network: 'DASH' },
   SOL: { coin: 'SOL', network: 'SOL' },
+  BCH: { coin: 'BCH', network: 'BCH' },
   USDTS: { coin: 'USDT', network: 'SOL' },
   DOGE: { coin: 'DOGE', network: 'DOGE' },
   ZEC: { coin: 'ZEC', network: 'ZEC' },
@@ -437,6 +443,7 @@ const CN_COIN: Partial<Record<Asset, { ticker: string; network: string }>> = {
   ARB: { ticker: 'arb', network: 'arbitrum' },
   ETHA: { ticker: 'eth', network: 'arbitrum' },
   USDTA: { ticker: 'usdt', network: 'arbitrum' },
+  BCH: { ticker: 'bch', network: 'bch' },
   SOL: { ticker: 'sol', network: 'sol' },
   DOGE: { ticker: 'doge', network: 'doge' },
   DASH: { ticker: 'dash', network: 'dash' },
@@ -522,6 +529,7 @@ const CCE_COIN: Partial<Record<Asset, { abbr: string; chain: string }>> = {
   USDTE: { abbr: 'USDT', chain: 'Ethereum' },
   DASH: { abbr: 'DASH', chain: 'Dash' },
   SOL: { abbr: 'SOL', chain: 'Solana' },
+  BCH: { abbr: 'BCH', chain: 'Bitcoin Cash' },
   USDTS: { abbr: 'USDT', chain: 'Solana' },
   POL: { abbr: 'POL', chain: 'Polygon' },
   USDTP: { abbr: 'USDT', chain: 'Polygon' },

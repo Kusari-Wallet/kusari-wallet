@@ -26,7 +26,7 @@ export const coingecko = (url: string): PriceSource => ({
   name: 'CoinGecko', url,
   parse: (j) => {
     const r = (id: string) => row(j[id]?.usd, j[id]?.usd_24h_change);
-    return all(r('bitcoin'), r('ethereum'), r('tron'), r('tether'), r('monero'), optional(() => r('dash')), optional(() => r('zcash')), optional(() => r('zano')), optional(() => r('pirate-chain')), optional(() => r('zcoin')), optional(() => r('solana')), optional(() => r('dogecoin')), { POL: optional(() => r('polygon-ecosystem-token')), ARB: optional(() => r('arbitrum')) });
+    return all(r('bitcoin'), r('ethereum'), r('tron'), r('tether'), r('monero'), optional(() => r('dash')), optional(() => r('zcash')), optional(() => r('zano')), optional(() => r('pirate-chain')), optional(() => r('zcoin')), optional(() => r('solana')), optional(() => r('dogecoin')), { POL: optional(() => r('polygon-ecosystem-token')), ARB: optional(() => r('arbitrum')), BCH: optional(() => r('bitcoin-cash')) });
   },
 });
 
@@ -48,11 +48,11 @@ export const cryptocompare = (url: string): PriceSource => ({
   name: 'CryptoCompare', url,
   parse: (j) => {
     const r = (s: string) => row(j?.RAW?.[s]?.USD?.PRICE, j?.RAW?.[s]?.USD?.CHANGEPCT24HOUR);
-    return all(r('BTC'), r('ETH'), r('TRX'), r('USDT'), r('XMR'), optional(() => r('DASH')), optional(() => r('ZEC')), optional(() => r('ZANO')), optional(() => r('ARRR')), optional(() => r('FIRO')), optional(() => r('SOL')), optional(() => r('DOGE')), { POL: optional(() => r('POL')), ARB: optional(() => r('ARB')) });
+    return all(r('BTC'), r('ETH'), r('TRX'), r('USDT'), r('XMR'), optional(() => r('DASH')), optional(() => r('ZEC')), optional(() => r('ZANO')), optional(() => r('ARRR')), optional(() => r('FIRO')), optional(() => r('SOL')), optional(() => r('DOGE')), { POL: optional(() => r('POL')), ARB: optional(() => r('ARB')), BCH: optional(() => r('BCH')) });
   },
 });
 
-const EXCHANGE_COINS: Asset[] = ['BTC', 'ETH', 'TRX', 'XMR', 'SOL', 'POL', 'ARB', 'DOGE', 'DASH', 'ZEC', 'FIRO', 'ZANO', 'ARRR'];
+const EXCHANGE_COINS: Asset[] = ['BTC', 'ETH', 'TRX', 'XMR', 'SOL', 'POL', 'ARB', 'BCH', 'DOGE', 'DASH', 'ZEC', 'FIRO', 'ZANO', 'ARRR'];
 
 /**
  * An exchange lists only some of the coins, which is fine: it fills in what the others left out. Its prices are in
@@ -109,9 +109,9 @@ export const coinbase = (url: string) => exchange('Coinbase', url, (j, coin) => 
 });
 
 export const PRICE_SOURCES: PriceSource[] = [
-  coingecko('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,tron,tether,monero,dash,zcash,zano,pirate-chain,zcoin,solana,dogecoin,polygon-ecosystem-token,arbitrum&vs_currencies=usd&include_24hr_change=true'),
+  coingecko('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,tron,tether,monero,dash,zcash,zano,pirate-chain,zcoin,solana,dogecoin,polygon-ecosystem-token,arbitrum,bitcoin-cash&vs_currencies=usd&include_24hr_change=true'),
   kraken('https://api.kraken.com/0/public/Ticker?pair=XBTUSD,ETHUSD,TRXUSD,USDTUSD,XMRUSD'),
-  cryptocompare('https://min-api.cryptocompare.com/data/pricemultifull?fsyms=BTC,ETH,TRX,USDT,XMR,DASH,ZEC,ZANO,ARRR,FIRO,SOL,DOGE,POL,ARB&tsyms=USD'),
+  cryptocompare('https://min-api.cryptocompare.com/data/pricemultifull?fsyms=BTC,ETH,TRX,USDT,XMR,DASH,ZEC,ZANO,ARRR,FIRO,SOL,DOGE,POL,ARB,BCH&tsyms=USD'),
   mexc('https://api.mexc.com/api/v3/ticker/24hr'),
   gate('https://api.gateio.ws/api/v4/spot/tickers'),
   binance('https://data-api.binance.vision/api/v3/ticker/24hr'),
