@@ -647,8 +647,8 @@ export class WalletService extends EventEmitter {
     if (keys.ghostswap) clients.ghostswap = new GhostSwapClient(this.dev.ghostSwapBase ?? GHOSTSWAP_BASE, keys.ghostswap, this.priceAgent, timeout);
     // Reading orders needs these keys too, so a test run only gets them by asking for that service.
     const built = this.dev.swapBase ? null : BUILTIN_SWAP_KEYS;
-    const etz = this.dev.etzSwapBase ? { key: 'etz-key', secret: 'etz-secret' } : built && { key: built.etzswapKey, secret: built.etzswapSecret };
-    if (etz?.key && etz.secret) clients.etzswap = new EtzSwapClient(this.dev.etzSwapBase ?? ETZSWAP_BASE, etz.key, etz.secret, this.priceAgent, timeout);
+    const etz = this.dev.etzSwapBase ? { key: 'etz-key', secret: 'etz-secret' } : built && { key: built.etzswapKey, secret: built.etzswapSecret, version: built.etzswapVersion };
+    if (etz?.key && etz.secret) clients.etzswap = new EtzSwapClient(this.dev.etzSwapBase ?? ETZSWAP_BASE, etz.key, etz.secret, this.priceAgent, timeout, (etz as { version?: string }).version);
     const cce = this.dev.cceCashBase ? { key: 'cce-key', secret: 'cce-secret', ref: 'REF' } : built && { key: built.ccecashKey, secret: built.ccecashSecret, ref: built.ccecashRefCode };
     if (cce?.key && cce.secret) clients.ccecash = new CceCashClient(this.dev.cceCashBase ?? CCECASH_BASE, cce.key, cce.secret, cce.ref, this.priceAgent, timeout);
     return clients;

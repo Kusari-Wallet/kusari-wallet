@@ -325,10 +325,10 @@ function etzError(b: any): { name: string; message: string; args: any } | null {
 }
 
 export class EtzSwapClient implements SwapProvider {
-  constructor(private readonly base: string, private readonly key: string, private readonly secret: string, private readonly agent?: Agent, private readonly timeoutMs = 30_000) {}
+  constructor(private readonly base: string, private readonly key: string, private readonly secret: string, private readonly agent?: Agent, private readonly timeoutMs = 30_000, private readonly version = '1') {}
 
   private call(method: 'GET' | 'POST', path: string, body?: unknown) {
-    return requestJson(this.base + path, { method, body, agent: this.agent, timeoutMs: this.timeoutMs, headers: { 'X-API-KEY': this.key, 'X-API-SECRET-KEY': this.secret, 'X-API-KEY-VERSION': '1' } });
+    return requestJson(this.base + path, { method, body, agent: this.agent, timeoutMs: this.timeoutMs, headers: { 'X-API-KEY': this.key, 'X-API-SECRET-KEY': this.secret, 'X-API-KEY-VERSION': this.version } });
   }
 
   async quote(from: Asset, to: Asset, amount: string): Promise<SwapQuote> {
@@ -339,7 +339,7 @@ export class EtzSwapClient implements SwapProvider {
     if (!a || !b) return none('ETZ Swap doesn\'t offer this coin.');
     const q = new URLSearchParams({ coinFrom: a.coin, networkFrom: a.network, coinTo: b.coin, networkTo: b.network, amountFrom: amount, rateType: 'float' });
     const res = await this.call('GET', `/api/v1/deposit/public/rate?${q}`);
-    if (res.status === 401 || res.status === 403) return none('Check the ETZ Swap API key.');
+    if (res.status === 401 || res.status === 403 || /key version/i.test(String(res.body?.message ?? res.body?.error ?? ''))) return none('Check the ETZ Swap API key.');
     const d = res.body?.data;
     const e = etzError(res.body);
     if (e || !d) {

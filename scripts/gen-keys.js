@@ -10,6 +10,8 @@ const keys = {
   ghostswap: process.env.GHOSTSWAP_KEY || local.ghostswap || '',
   etzswapKey: process.env.ETZSWAP_KEY || local.etzswapPublic || '',
   etzswapSecret: process.env.ETZSWAP_SECRET || local.etzswapPrivate || '',
+  // ETZ counts up each time the key is regenerated, and refuses the old number.
+  etzswapVersion: process.env.ETZSWAP_KEY_VERSION || String(local.etzswapVersion || '1'),
   ccecashKey: process.env.CCECASH_KEY || local.ccecashKey || '',
   ccecashSecret: process.env.CCECASH_SECRET || local.ccecashSecret || '',
   ccecashRefCode: process.env.CCECASH_REF_CODE || local.ccecashRefCode || '',
