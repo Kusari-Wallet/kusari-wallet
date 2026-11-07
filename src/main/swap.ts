@@ -44,6 +44,9 @@ export interface SwapProvider {
 export interface SwapOrder { id: string; depositAddress: string; receive: string; rate: string; provider: string; approximate: boolean; statusKey?: string }
 export interface SwapRecord { id: string; from: Asset; to: Asset; amount: string; receive: string; rate: string; createdAt: number; providerId?: SwapProviderId; provider?: string; withdrawalAddress?: string; privacyId?: string; approximate?: boolean; statusKey?: string; status: string; hashIn?: string; hashOut?: string }
 
+/** How an amount's unit reads to a person: the three USDTs are all USDT. */
+const unit = (a: Asset): string => (a === 'USDTE' || a === 'USDTS' ? 'USDT' : a);
+
 function num(v: unknown): string | null {
   return typeof v === 'number' || (typeof v === 'string' && v !== '') ? String(v) : null;
 }
@@ -86,8 +89,8 @@ export class SwapClient implements SwapProvider {
     const max = num(b.maxAmount);
     const receive = num(b.toAmount);
     const problem = res.status >= 400 || !receive || Number(receive) <= 0
-      ? (min && Number(amount) < Number(min) ? `The minimum amount is ${min} ${from}.`
-        : max && Number(amount) > Number(max) ? `The maximum amount is ${max} ${from}.`
+      ? (min && Number(amount) < Number(min) ? `The minimum amount is ${min} ${unit(from)}.`
+        : max && Number(amount) > Number(max) ? `The maximum amount is ${max} ${unit(from)}.`
           : typeof b.message === 'string' && b.message ? b.message : 'No quote available for this swap right now.')
       : null;
     return { from, to, amount, receive: receive ?? '0', rate: num(b.rate) ?? '0', min, max, problem, provider: SWAP_PROVIDER, providerId: 'exolix', approximate: false };
@@ -350,7 +353,7 @@ export class EtzSwapClient implements SwapProvider {
     if (e || !d) {
       const min = num(e?.args?.minAllowedAmount);
       const max = num(e?.args?.maxAllowedAmount);
-      return none(e?.name === 'amountTooSmall' && min ? `The minimum amount is ${min} ${from}.` : e?.name === 'amountTooBig' && max ? `The maximum amount is ${max} ${from}.` : e?.message ?? 'No quote available for this swap right now.', min, max);
+      return none(e?.name === 'amountTooSmall' && min ? `The minimum amount is ${min} ${unit(from)}.` : e?.name === 'amountTooBig' && max ? `The maximum amount is ${max} ${unit(from)}.` : e?.message ?? 'No quote available for this swap right now.', min, max);
     }
     const receive = num(d.amountTo);
     if (!receive || Number(receive) <= 0) return none('No quote available for this swap right now.');
@@ -454,7 +457,7 @@ export class CceCashClient implements SwapProvider {
     const max = num(d?.max_from_quantity);
     const problem = this.problem(res, 'No quote available for this swap right now.');
     if (problem) {
-      const text = /too small/i.test(problem) && min ? `The minimum amount is ${min} ${from}.` : /too large/i.test(problem) && max ? `The maximum amount is ${max} ${from}.` : problem;
+      const text = /too small/i.test(problem) && min ? `The minimum amount is ${min} ${unit(from)}.` : /too large/i.test(problem) && max ? `The maximum amount is ${max} ${unit(from)}.` : problem;
       return none(text, min, max);
     }
     const receive = num(d?.to?.[0]?.to_quantity);

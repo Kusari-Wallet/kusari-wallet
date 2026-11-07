@@ -27,6 +27,8 @@ const COIN: Record<Asset, { label: string; file: string; note: string }> = {
   USDTE: { label: 'USDT (Eth)', file: 'coins/usdt.png', note: 'Ethereum network only. ETH is needed for the fee. Don\'t send to addresses on other chains.' },
 };
 const coinName = (a: Asset): string => COIN[a]?.label ?? a;
+/** The unit after an amount. The three USDTs are all just USDT there; the screen around them names the chain. */
+const unitOf = (a: Asset): string => (a === 'USDTE' || a === 'USDTS' ? 'USDT' : a);
 
 const root = document.getElementById('app') as HTMLElement;
 let selected: Asset = 'TRX';
@@ -557,7 +559,7 @@ async function renderAsset(): Promise<void> {
   const paint = () => {
     const b = overview?.balances?.[a];
     const shown = balanceText(a);
-    balance.textContent = hideBalance || shown === 'Lookup failed' ? shown : `${shown} ${a}`;
+    balance.textContent = hideBalance || shown === 'Lookup failed' ? shown : `${shown} ${unitOf(a)}`;
     const v = assetUsd(a);
     usd.textContent = !hideBalance && v !== null ? usdFormat(v) : '';
     setKids(notes,
@@ -665,7 +667,7 @@ function picker(onPick: () => void): HTMLElement {
 function renderSend(keep?: { to: string; amount: string }): void {
   const asset = selected;
   const to = h('input', { id: 'to', spellcheck: 'false', autocomplete: 'off', class: 'mono', placeholder: 'Enter, paste or scan an address', value: keep?.to ?? '' });
-  const amount = h('input', { id: 'amount', class: 'amount-input', inputmode: 'decimal', autocomplete: 'off', placeholder: '0.00', value: keep?.amount ?? '' });
+  const amount = numbersOnly(h('input', { id: 'amount', class: 'amount-input', inputmode: 'decimal', autocomplete: 'off', placeholder: '0.00', value: keep?.amount ?? '' }) as HTMLInputElement);
   const usd = h('div', { class: 'usd', id: 'usd-preview' });
   const box = errorBox();
   const next = h('button', { class: 'primary', id: 'review', type: 'submit' }, 'Next');
@@ -694,7 +696,7 @@ function renderSend(keep?: { to: string; amount: string }): void {
         update();
       }) }, icon('scan')))),
   h('div', { class: 'panel' }, h('label', { class: 'label', for: 'amount' }, 'Amount'),
-    h('div', { class: 'input-wrap' }, amount, h('span', { class: 'unit' }, asset),
+    h('div', { class: 'input-wrap' }, amount, h('span', { class: 'unit' }, unitOf(asset)),
       h('button', { type: 'button', class: 'max', id: 'max', onclick: () => { amount.value = 'max'; update(); } }, 'Max'))),
   usd,
   feeLine(asset, 'send-fee', (f) => `Estimated fee: ${feeText(f)}. It depends on the amount and address, and the next screen shows the exact value.`),
@@ -908,6 +910,26 @@ async function renderBuy(): Promise<void> {
   }
 }
 
+/**
+ * Amount fields take digits and one decimal point only. A comma counts as the decimal point, unless the text also
+ * has a point, in which case commas are thousands separators and go.
+ */
+function numbersOnly(input: HTMLInputElement): HTMLInputElement {
+  input.addEventListener('input', () => {
+    const raw = input.value;
+    let v = raw.includes('.') ? raw.replace(/,/g, '') : raw.replace(/,/g, '.');
+    v = v.replace(/[^0-9.]/g, '');
+    const dot = v.indexOf('.');
+    if (dot >= 0) v = v.slice(0, dot + 1) + v.slice(dot + 1).replace(/\./g, '');
+    if (v !== raw) {
+      const end = Math.max(0, (input.selectionEnd ?? v.length) - (raw.length - v.length));
+      input.value = v;
+      input.setSelectionRange(end, end);
+    }
+  });
+  return input;
+}
+
 // ---- receive ----
 
 async function renderReceive(current?: string): Promise<void> {
@@ -1000,7 +1022,7 @@ const PRIVACY_ASSETS: Asset[] = ['BTC', 'ETH', 'USDTE'];
 async function renderSwap(from: Asset = selected, to: Asset = selected === 'XMR' ? 'BTC' : 'XMR', keep = '', privacy = false): Promise<void> {
   if (privacy && !(PRIVACY_ASSETS.includes(from) && PRIVACY_ASSETS.includes(to))) privacy = false;
   if (!privacy && from === to) to = from === 'XMR' ? 'BTC' : 'XMR';
-  const amount = h('input', { id: 'swap-amount', class: 'amount-input', inputmode: 'decimal', autocomplete: 'off', placeholder: '0.00', value: keep });
+  const amount = numbersOnly(h('input', { id: 'swap-amount', class: 'amount-input', inputmode: 'decimal', autocomplete: 'off', placeholder: '0.00', value: keep }) as HTMLInputElement);
   const receive = h('div', { class: 'swap-receive', id: 'swap-receive' }, '0');
   const receiveNet = h('div', { class: 'swap-net', id: 'swap-net' });
   const info = h('div', { class: 'small muted swap-info', id: 'swap-info' });
@@ -1134,7 +1156,7 @@ function renderSwapReview(p: any, backTo: () => void): void {
     s.external && h('div', { class: 'warn', id: 'review-external' }, 'This receives at an address outside your wallet. A wrong address can\'t be recovered, so check every character.'),
     h('div', { class: 'panel' }, h('table', { class: 'review-table' }, h('tbody', {},
       h('tr', {}, h('th', {}, 'You send'), h('td', {}, h('div', { class: 'big-amount', id: 'review-amount' }, `${p.amount} ${coinName(p.asset)}`))),
-      h('tr', {}, h('th', {}, 'You receive'), h('td', {}, h('div', { class: 'big-amount', id: 'review-receive' }, `${s.approximate ? 'about ' : ''}${s.receive} ${s.to}`), h('div', { class: 'small muted' }, `1 ${s.from} ≈ ${s.rate} ${s.to}`))),
+      h('tr', {}, h('th', {}, 'You receive'), h('td', {}, h('div', { class: 'big-amount', id: 'review-receive' }, `${s.approximate ? 'about ' : ''}${s.receive} ${coinName(s.to)}`), h('div', { class: 'small muted' }, `1 ${coinName(s.from)} ≈ ${s.rate} ${coinName(s.to)}`))),
       h('tr', {}, h('th', {}, p.feeIsEstimate ? 'Estimated fee' : 'Network fee'), h('td', { id: 'review-fee' }, reviewFee(p.fee, p.feeAsset))),
       h('tr', {}, h('th', {}, 'Deposit address'), h('td', {}, addressCheck(p.to))),
       h('tr', {}, h('th', {}, s.external ? 'Receiving address' : s.privacy?.leg === 'first' ? 'Intermediate XMR address' : 'Your receiving address'), h('td', {}, h('div', { class: 'addr-check', id: 'review-receive-address' }, s.receiveAddress))),
@@ -1382,7 +1404,7 @@ function renderPrivacyStatus(initial: any): void {
   };
   const paintSecond = (p: any) => {
     const available = Math.max(0, Number(p.unlocked) - 0.001);
-    const amount = h('input', { id: 'pv-amount', class: 'amount-input', inputmode: 'decimal', autocomplete: 'off', value: available > 0 ? available.toFixed(12).replace(/0+$/, '').replace(/\.$/, '') : '' });
+    const amount = numbersOnly(h('input', { id: 'pv-amount', class: 'amount-input', inputmode: 'decimal', autocomplete: 'off', value: available > 0 ? available.toFixed(12).replace(/0+$/, '').replace(/\.$/, '') : '' }) as HTMLInputElement);
     const quote = h('div', { class: 'small muted', id: 'pv-quote' });
     const offers = h('div', { class: 'swap-offers', id: 'pv-offers' });
     let chosen: any = null;
