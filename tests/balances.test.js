@@ -190,3 +190,13 @@ test('each coin gets its own balance', async (t) => {
   const { balances } = await s.overview();
   for (const [symbol, n] of Object.entries({ ...expected, ETH: 11, USDTE: 12, TRX: 13, USDT: 14, XMR: 15, USDTS: 16 })) assert.equal(balances[symbol].total, String(symbol === 'SOL' ? n / 10 : n), symbol);
 });
+
+test('every coin the screen lists has a receiving address, tokens on their chain\'s one', async (t) => {
+  const { s } = await make(t);
+  const { DECIMALS } = require('../dist/main/config');
+  const engines = new Set(['ZEC', 'ZANO', 'ARRR']); // only when their engine runs
+  for (const list of [await s.addresses(), (await s.overview()).addresses]) {
+    for (const a of Object.keys(DECIMALS).filter((a) => !engines.has(a))) assert.ok(list[a], `${a} has an address`);
+    for (const a of ['LINK', 'WLD', 'POL', 'USDTP', 'ARB', 'ETHA', 'USDTA']) assert.equal(list[a], '0x', a);
+  }
+});

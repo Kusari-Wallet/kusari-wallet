@@ -639,7 +639,7 @@ export class WalletService extends EventEmitter {
       balances: { XMR, BTC, ETH, TRX, USDTE, USDT, SOL, USDTS, LINK, WLD, POL, USDTP, ARB, ETHA, USDTA, BCH, LTC, DOGE, DASH, FIRO, SCRT, ...(zec ? { ZEC: zecView() } : {}), ...(zano ? { ZANO: zanoView() } : {}), ...(arrr ? { ARRR: arrrView() } : {}) },
       arrr: arrr ? { scanning: arrr.isScanning, percent: arrr.percent } : null,
       zec: zec ? { ...zec.state(), address: zec.receive?.unified ?? '', transparentAddress: zec.transparentAddress } : null,
-      addresses: { BTC: btc.receiveAddress, XMR: await monero.getPrimaryAddress(), ETH: eth.address, TRX: tron.address, USDTE: eth.address, USDT: tron.address, DASH: dash.receiveAddress, FIRO: firo.receiveAddress, SOL: this.sol!.receiveAddress, USDTS: this.sol!.receiveAddress, BCH: this.bch!.receiveAddress, LTC: this.ltc!.receiveAddress, SCRT: this.scrt!.address, DOGE: this.doge!.receiveAddress, ...(zec ? { ZEC: zec.receive?.unified ?? '' } : {}), ...(zano ? { ZANO: zano.receive } : {}), ...(arrr ? { ARRR: arrr.receive } : {}) },
+      addresses: { ...Object.fromEntries(EVM.map((a) => [a, eth.address])), BTC: btc.receiveAddress, XMR: await monero.getPrimaryAddress(), ETH: eth.address, TRX: tron.address, USDTE: eth.address, USDT: tron.address, DASH: dash.receiveAddress, FIRO: firo.receiveAddress, SOL: this.sol!.receiveAddress, USDTS: this.sol!.receiveAddress, BCH: this.bch!.receiveAddress, LTC: this.ltc!.receiveAddress, SCRT: this.scrt!.address, DOGE: this.doge!.receiveAddress, ...(zec ? { ZEC: zec.receive?.unified ?? '' } : {}), ...(zano ? { ZANO: zano.receive } : {}), ...(arrr ? { ARRR: arrr.receive } : {}) },
       monero: monero.state,
     };
   }
@@ -647,7 +647,8 @@ export class WalletService extends EventEmitter {
   /** Answers without any network, so the receive screen never waits on a slow connection. */
   async addresses() {
     const { tron, monero, btc, eth, dash } = this.session();
-    return { DASH: dash.receiveAddress, FIRO: this.firo!.receiveAddress, SOL: this.sol!.receiveAddress, USDTS: this.sol!.receiveAddress, BCH: this.bch!.receiveAddress, LTC: this.ltc!.receiveAddress, SCRT: this.scrt!.address, DOGE: this.doge!.receiveAddress, BTC: btc.receiveAddress, XMR: await monero.getPrimaryAddress(), ETH: eth.address, TRX: tron.address, USDTE: eth.address, USDT: tron.address, ...(this.zec ? { ZEC: this.zec.receive?.unified ?? '', ZEC_T: this.zec.transparentAddress } : {}), ...(this.zano ? { ZANO: this.zano.receive } : {}), ...(this.arrr ? { ARRR: this.arrr.receive } : {}) };
+    // Every Ethereum, Polygon and Arbitrum coin and token lives on the one 0x address.
+    return { ...Object.fromEntries(EVM.map((a) => [a, eth.address])), DASH: dash.receiveAddress, FIRO: this.firo!.receiveAddress, SOL: this.sol!.receiveAddress, USDTS: this.sol!.receiveAddress, BCH: this.bch!.receiveAddress, LTC: this.ltc!.receiveAddress, SCRT: this.scrt!.address, DOGE: this.doge!.receiveAddress, BTC: btc.receiveAddress, XMR: await monero.getPrimaryAddress(), ETH: eth.address, TRX: tron.address, USDTE: eth.address, USDT: tron.address, ...(this.zec ? { ZEC: this.zec.receive?.unified ?? '', ZEC_T: this.zec.transparentAddress } : {}), ...(this.zano ? { ZANO: this.zano.receive } : {}), ...(this.arrr ? { ARRR: this.arrr.receive } : {}) };
   }
 
   async torInfo() {
