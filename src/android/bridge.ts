@@ -45,6 +45,10 @@ const service = new WalletService('/data', undefined, {
   tornadoPools: __TEST__ ? testConfig.tornadoPools : undefined,
   tornadoLocalRelayer: __TEST__ ? testConfig.tornadoLocalRelayer : undefined,
   ethScout: __TEST__ ? testConfig.ethScout : undefined,
+  polRpc: __TEST__ ? testConfig.polRpc : undefined,
+  polScout: __TEST__ ? testConfig.polScout : undefined,
+  arbRpc: __TEST__ ? testConfig.arbRpc : undefined,
+  arbScout: __TEST__ ? testConfig.arbScout : undefined,
 });
 const ready = service.init();
 

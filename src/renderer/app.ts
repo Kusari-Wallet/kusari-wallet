@@ -1,11 +1,15 @@
 declare const wallet: any;
 declare const jsQR: any;
 
-type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'SOL' | 'USDTS' | 'DOGE' | 'DASH' | 'FIRO' | 'ZEC' | 'ZANO' | 'ARRR';
+type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'SOL' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA' | 'DOGE' | 'DASH' | 'FIRO' | 'ZEC' | 'ZANO' | 'ARRR';
 type Attrs = Record<string, any>;
 type Child = Node | string | null | undefined | false;
 
-const ALL_ASSETS: Asset[] = ['XMR', 'BTC', 'ETH', 'ZEC', 'SOL', 'TRX', 'USDTE', 'USDT', 'USDTS', 'DOGE', 'DASH', 'FIRO', 'ZANO', 'ARRR'];
+const ALL_ASSETS: Asset[] = ['XMR', 'BTC', 'ETH', 'USDTE', 'ZEC', 'SOL', 'USDTS', 'TRX', 'USDT', 'POL', 'USDTP', 'ARB', 'ETHA', 'USDTA', 'DOGE', 'DASH', 'FIRO', 'ZANO', 'ARRR'];
+/** Tokens shown under the coin of their chain on the home screen, folded until opened. */
+const GROUPS: Partial<Record<Asset, Asset[]>> = { ETH: ['USDTE'], SOL: ['USDTS'], TRX: ['USDT'], POL: ['USDTP'], ARB: ['ETHA', 'USDTA'] };
+const IN_GROUP = new Set(Object.values(GROUPS).flat());
+const EVM_ASSETS: Asset[] = ['ETH', 'USDTE', 'POL', 'USDTP', 'ARB', 'ETHA', 'USDTA'];
 // These need their engines, which aren't in every build or on every phone.
 let ASSETS: Asset[] = ALL_ASSETS.filter((a) => a !== 'ZEC' && a !== 'ZANO' && a !== 'ARRR');
 let zecInSession = false;
@@ -25,10 +29,15 @@ const COIN: Record<Asset, { label: string; file: string; note: string }> = {
   ZEC: { label: 'ZEC', file: 'coins/zec.png', note: 'Sent from your shielded balance. The fee is paid in ZEC.' },
   ETH: { label: 'ETH', file: 'coins/eth.png', note: 'The fee for sending USDT (Eth) is also paid in ETH.' },
   USDTE: { label: 'USDT (Eth)', file: 'coins/usdt.png', note: 'Ethereum network only. ETH is needed for the fee. Don\'t send to addresses on other chains.' },
+  POL: { label: 'POL', file: 'coins/pol.png', note: 'Polygon network only. The fee is paid in POL.' },
+  USDTP: { label: 'USDT (Pol)', file: 'coins/usdt.png', note: 'Polygon network only. POL is needed for the fee. Don\'t send to addresses on other chains.' },
+  ARB: { label: 'ARB', file: 'coins/arb.png', note: 'The ARB token on Arbitrum One. The fee is paid in ETH (Arb).' },
+  ETHA: { label: 'ETH (Arb)', file: 'coins/eth.png', note: 'ETH on Arbitrum One. It pays the fees for ARB and USDT (Arb).' },
+  USDTA: { label: 'USDT (Arb)', file: 'coins/usdt.png', note: 'Arbitrum One only. ETH (Arb) is needed for the fee. Don\'t send to addresses on other chains.' },
 };
 const coinName = (a: Asset): string => COIN[a]?.label ?? a;
 /** The unit after an amount. The three USDTs are all just USDT there; the screen around them names the chain. */
-const unitOf = (a: Asset): string => (a === 'USDTE' || a === 'USDTS' ? 'USDT' : a);
+const unitOf = (a: Asset): string => (a === 'USDTE' || a === 'USDTS' || a === 'USDTP' || a === 'USDTA' ? 'USDT' : a === 'ETHA' ? 'ETH' : a);
 
 const root = document.getElementById('app') as HTMLElement;
 let selected: Asset = 'TRX';
@@ -87,9 +96,10 @@ const ICONS = {
 
 function coin(asset: Asset): HTMLElement {
   const img = h('img', { class: 'coin', src: COIN[asset].file, alt: '' });
-  if (asset !== 'USDT' && asset !== 'USDTE' && asset !== 'USDTS') return img;
-  // Same token on two chains: the badge is what tells them apart at a glance.
-  return h('span', { class: 'coin-wrap' }, img, h('img', { class: 'coin-badge', src: asset === 'USDT' ? 'coins/trx.png' : asset === 'USDTS' ? 'coins/sol.png' : 'coins/eth.png', alt: '' }));
+  // Same token on several chains: the badge is what tells them apart at a glance.
+  const badge: Partial<Record<Asset, string>> = { USDT: 'trx', USDTE: 'eth', USDTS: 'sol', USDTP: 'pol', USDTA: 'arb', ETHA: 'arb' };
+  if (!badge[asset]) return img;
+  return h('span', { class: 'coin-wrap' }, img, h('img', { class: 'coin-badge', src: `coins/${badge[asset]}.png`, alt: '' }));
 }
 
 function usdFee(usd: number): string {
@@ -477,7 +487,7 @@ function renderHome(): void {
       setKids(torChip, icon('shield'), label.text);
       torChip.setAttribute('class', `chip tor ${label.cls}`);
     }
-    if (homeTab === 'assets') setKids(list, ...ASSETS.map(assetRow));
+    if (homeTab === 'assets') setKids(list, ...assetRows());
   }
 
   show('home',
@@ -498,16 +508,38 @@ function renderHome(): void {
   else void renderAllHistory(body);
 }
 
-function assetRow(a: Asset): HTMLElement {
+let openGroups = new Set<Asset>();
+try { openGroups = new Set(JSON.parse(localStorage.getItem('kusari.openGroups') ?? '[]')); } catch { /* starts folded */ }
+
+/** Coins in order, each token right under its chain's coin, shown when that coin is unfolded. */
+function assetRows(): HTMLElement[] {
+  const rows: HTMLElement[] = [];
+  for (const a of ASSETS) {
+    if (IN_GROUP.has(a)) continue;
+    const kids = (GROUPS[a] ?? []).filter((k) => ASSETS.includes(k));
+    if (!kids.length) { rows.push(assetRow(a)); continue; }
+    const open = openGroups.has(a);
+    const toggle = h('button', { class: `fold${open ? ' open' : ''}`, id: `fold-${a}`, 'aria-expanded': String(open), 'aria-label': `${open ? 'Hide' : 'Show'} tokens on ${COIN[a].label}`, onclick: () => {
+      if (openGroups.has(a)) openGroups.delete(a); else openGroups.add(a);
+      try { localStorage.setItem('kusari.openGroups', JSON.stringify([...openGroups])); } catch { /* only this session */ }
+      renderHome();
+    } }, icon('down'));
+    rows.push(h('div', { class: 'asset-group' }, assetRow(a), toggle));
+    if (open) rows.push(...kids.map((k) => assetRow(k, true)));
+  }
+  return rows;
+}
+
+function assetRow(a: Asset, child = false): HTMLElement {
   const p = prices?.[a];
   const status = a === 'XMR' ? moneroStatus() : '';
   const sub: Child = status
     ? (moneroBusy() ? syncLabel() : status)
     : p
       ? h('span', {}, usdFormat(p.usd), p.change !== null && h('span', { class: p.change >= 0 ? 'up' : 'down' }, `${p.change >= 0 ? '+' : ''}${p.change.toFixed(2)}%`))
-      : a === 'BTC' ? 'Bitcoin' : a === 'SOL' ? 'Solana' : a === 'DOGE' ? 'Dogecoin' : a === 'DASH' ? 'Dash' : a === 'FIRO' ? 'Firo' : a === 'ZEC' ? 'Zcash' : a === 'ZANO' ? 'Zano' : a === 'ARRR' ? 'Pirate Chain' : a === 'ETH' ? 'Ethereum' : a === 'USDT' || a === 'USDTE' || a === 'USDTS' ? 'Tether' : a === 'TRX' ? 'Tron' : 'Monero';
+      : a === 'BTC' ? 'Bitcoin' : a === 'SOL' ? 'Solana' : a === 'DOGE' ? 'Dogecoin' : a === 'DASH' ? 'Dash' : a === 'FIRO' ? 'Firo' : a === 'ZEC' ? 'Zcash' : a === 'ZANO' ? 'Zano' : a === 'ARRR' ? 'Pirate Chain' : a === 'ETH' || a === 'ETHA' ? 'Ethereum' : a === 'POL' ? 'Polygon' : a === 'ARB' ? 'Arbitrum' : a === 'USDT' || a === 'USDTE' || a === 'USDTS' || a === 'USDTP' || a === 'USDTA' ? 'Tether' : a === 'TRX' ? 'Tron' : 'Monero';
   const usd = assetUsd(a);
-  return h('button', { class: 'asset', id: `asset-${a}`, onclick: () => { selected = a; void renderAsset(); } },
+  return h('button', { class: `asset${child ? ' child' : ''}`, id: `asset-${a}`, onclick: () => { selected = a; void renderAsset(); } },
     coin(a),
     h('div', {}, h('div', { class: 'name' }, COIN[a].label), h('div', { class: 'sub' }, sub)),
     h('div', { class: 'right' }, h('div', { class: 'amt' }, balanceText(a)),
@@ -716,7 +748,7 @@ function parseScanned(asset: Asset, raw: string): { address: string; amount: str
   const m = text.match(/^(?:(bitcoin|btc|solana|sol|dogecoin|doge|dash|firo|zcash|zec|zano|pirate|arrr|ethereum|eth|tron|trx|usdt|monero|xmr)(?::\/\/|:))?([0-9A-Za-z]+)(?:@1)?(?:\?(.*))?$/i);
   if (!m) return null;
   const scheme = (m[1] ?? '').toLowerCase();
-  const family = (a: Asset) => (a === 'SOL' ? ['solana', 'sol'] : a === 'USDTS' ? ['solana', 'sol', 'usdt'] : a === 'DOGE' ? ['dogecoin', 'doge'] : a === 'DASH' ? ['dash'] : a === 'FIRO' ? ['firo'] : a === 'ZEC' ? ['zcash', 'zec'] : a === 'ZANO' ? ['zano'] : a === 'ARRR' ? ['pirate', 'arrr'] : a === 'BTC' ? ['bitcoin', 'btc'] : a === 'XMR' ? ['monero', 'xmr'] : a === 'ETH' || a === 'USDTE' ? ['ethereum', 'eth', 'usdt'] : ['tron', 'trx', 'usdt']);
+  const family = (a: Asset) => (a === 'SOL' ? ['solana', 'sol'] : a === 'USDTS' ? ['solana', 'sol', 'usdt'] : a === 'POL' || a === 'USDTP' ? ['ethereum', 'polygon', 'pol', 'matic', 'usdt'] : a === 'ARB' || a === 'ETHA' || a === 'USDTA' ? ['ethereum', 'arbitrum', 'arb', 'eth', 'usdt'] : a === 'DOGE' ? ['dogecoin', 'doge'] : a === 'DASH' ? ['dash'] : a === 'FIRO' ? ['firo'] : a === 'ZEC' ? ['zcash', 'zec'] : a === 'ZANO' ? ['zano'] : a === 'ARRR' ? ['pirate', 'arrr'] : a === 'BTC' ? ['bitcoin', 'btc'] : a === 'XMR' ? ['monero', 'xmr'] : a === 'ETH' || a === 'USDTE' ? ['ethereum', 'eth', 'usdt'] : ['tron', 'trx', 'usdt']);
   if (scheme && !family(asset).includes(scheme)) return null;
   // Bech32 QR codes are often in upper case to make them smaller.
   const address = asset === 'BTC' && /^BC1/.test(m[2]) ? m[2].toLowerCase() : m[2];
@@ -729,11 +761,11 @@ function parseScanned(asset: Asset, raw: string): { address: string; amount: str
     : asset === 'ZANO' ? /^(Zx|iZ|aZ|ai)[1-9A-HJ-NP-Za-km-z]{90,120}$/.test(address)
     : asset === 'ZEC' ? /^(t[13][1-9A-HJ-NP-Za-km-z]{33}|zs1[02-9ac-hj-np-z]{75}|u1[02-9ac-hj-np-z]{100,}|tex1[02-9ac-hj-np-z]{30,})$/.test(address)
     : asset === 'XMR' ? /^[48][1-9A-HJ-NP-Za-km-z]{94}([1-9A-HJ-NP-Za-km-z]{11})?$/.test(address)
-      : asset === 'ETH' || asset === 'USDTE' ? /^0x[0-9a-fA-F]{40}$/.test(address)
+      : EVM_ASSETS.includes(asset) ? /^0x[0-9a-fA-F]{40}$/.test(address)
       : /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(address);
   if (!valid) return null;
   // Ethereum links carry value in wei, so the amount is left for the person to type.
-  const amount = asset === 'ETH' || asset === 'USDTE' ? '' : new URLSearchParams(m[3] ?? '').get(asset === 'XMR' ? 'tx_amount' : 'amount') ?? '';
+  const amount = EVM_ASSETS.includes(asset) ? '' : new URLSearchParams(m[3] ?? '').get(asset === 'XMR' ? 'tx_amount' : 'amount') ?? '';
   return { address, amount: /^\d+(\.\d+)?$/.test(amount) ? amount : '' };
 }
 
@@ -798,7 +830,7 @@ async function openScanner(asset: Asset, onFound: (found: { address: string; amo
       if (code?.data) {
         const found = parseScanned(asset, code.data);
         if (found) { close(); onFound(found); return; }
-        status.textContent = `This is not a ${asset === 'XMR' ? 'Monero' : asset === 'SOL' || asset === 'USDTS' ? 'Solana' : asset === 'DOGE' ? 'Dogecoin' : asset === 'DASH' ? 'Dash' : asset === 'FIRO' ? 'Firo' : asset === 'ZEC' ? 'Zcash' : asset === 'ZANO' ? 'Zano' : asset === 'ARRR' ? 'Pirate Chain' : asset === 'BTC' ? 'Bitcoin' : asset === 'ETH' || asset === 'USDTE' ? 'Ethereum' : 'Tron'} address QR. Try another one.`;
+        status.textContent = `This is not a ${asset === 'XMR' ? 'Monero' : asset === 'SOL' || asset === 'USDTS' ? 'Solana' : asset === 'DOGE' ? 'Dogecoin' : asset === 'DASH' ? 'Dash' : asset === 'FIRO' ? 'Firo' : asset === 'ZEC' ? 'Zcash' : asset === 'ZANO' ? 'Zano' : asset === 'ARRR' ? 'Pirate Chain' : asset === 'BTC' ? 'Bitcoin' : EVM_ASSETS.includes(asset) ? 'Ethereum' : 'Tron'} address QR. Try another one.`;
       }
     }
     timer = window.setTimeout(tick, 180);
@@ -954,6 +986,11 @@ async function renderReceive(current?: string): Promise<void> {
     : asset === 'BTC' ? 'A Bitcoin Taproot (bc1p) address. Coins sent from other chains won\'t arrive. Once a deposit is seen, a new address appears next time.'
     : asset === 'ETH' ? 'The same address as USDT (Eth). Receives ETH on Ethereum mainnet only. Coins sent over L2s or other chains won\'t arrive.'
     : asset === 'USDTE' ? 'Receives USDT on the Ethereum network (ERC-20) only. Sending needs ETH at this address for the fee.'
+    : asset === 'POL' ? 'The same 0x address as on Ethereum and Arbitrum. Receives POL on Polygon only.'
+    : asset === 'USDTP' ? 'Receives USDT on Polygon only. Sending needs POL at this address for the fee.'
+    : asset === 'ARB' ? 'Receives the ARB token on Arbitrum One only. Sending needs ETH (Arb) at this address for the fee.'
+    : asset === 'ETHA' ? 'Receives ETH on Arbitrum One only. ETH sent on Ethereum mainnet won\'t show here.'
+    : asset === 'USDTA' ? 'Receives USDT on Arbitrum One only. Sending needs ETH (Arb) at this address for the fee.'
     : asset === 'USDT' ? 'Receives USDT on the Tron network (TRC-20) only. Coins sent from other chains won\'t arrive.'
     : asset === 'TRX' ? 'The same address as USDT. Sending USDT needs TRX at this address for the fee.'
       : 'Received XMR can be used after 10 confirmations (about 20 minutes). A new address for each sender is better for privacy.';
@@ -1595,6 +1632,14 @@ async function renderSettings(): Promise<void> {
         h('label', { class: 'field' }, h('span', {}, 'Current password'), curPw),
         h('label', { class: 'field' }, h('span', {}, 'New password (at least 10 characters)'), newPw),
         h('div', { class: 'row' }, chg, chgDone)),
+      h('div', { class: 'section', id: 'support-section' }, h('h3', {}, 'Support'),
+        h('button', { class: 'ghost', id: 'support', 'aria-expanded': 'false', onclick: (e: Event) => {
+          const note = document.getElementById('support-note');
+          if (!note) return;
+          note.hidden = !note.hidden;
+          (e.currentTarget as HTMLElement).setAttribute('aria-expanded', String(!note.hidden));
+        } }, 'Support'),
+        h('p', { class: 'small', id: 'support-note', hidden: true }, 'Need help? Email kusari_wallet@proton.me, or message @Kusari_Wallet on Telegram.')),
       h('div', { class: 'section' }, h('h3', {}, 'Delete wallet'), delBox.el,
         h('p', { class: 'muted small' }, 'Coins stay on the blockchain, but can never be reached without the seeds. Check your seeds before deleting.'), h('br'),
         h('label', { class: 'field' }, h('span', {}, 'Password'), delPw), del)),

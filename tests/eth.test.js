@@ -160,3 +160,44 @@ test('history: direction, failed flag, fake tokens and zero transfers dropped', 
   assert.equal(usdt[0].amount, '2.5');
   assert.equal(usdt[1].dust, true);
 });
+
+// ---- Polygon and Arbitrum ----
+const { POLYGON, ARBITRUM, chainOf } = require('../dist/main/eth');
+const onChain = (m, chain) => new EthClient([m.base], m.base, '', ME, undefined, 15_000, chain);
+
+test('Polygon: its own chain id, POL fees with the 30 gwei floor, its own USDT contract', async (t) => {
+  const m = await node({ chain: '0x89', tip: 1_000_000_000n }); closing(t, m.server);
+  const c = onChain(m, POLYGON);
+  const d = await c.draft('USDTP', TO, 2_000_000n);
+  assert.equal(d.tip, 30_000_000_000n, 'a lower tip is raised to what Polygon needs');
+  await c.send(d, deriveEthAccount(PHRASE).wallet);
+  const tx = Transaction.from(m.log.raw[0]);
+  assert.equal(tx.chainId, 137n);
+  assert.equal(tx.to, '0xc2132D05D31c914a87C6611C10748AEb04B58e8F');
+  assert.equal(tx.data, encodeUsdtTransfer(TO, 2_000_000n));
+  const pol = await c.draft('POL', TO, 10n ** 16n);
+  await c.send(pol, deriveEthAccount(PHRASE).wallet);
+  assert.equal(Transaction.from(m.log.raw[1]).value, 10n ** 16n);
+  await assert.rejects(c.draft('USDTE', TO, 1n), /not on this network/, 'an Ethereum token is not sent on Polygon');
+  await assert.rejects(c.draft('POL', '0xc2132D05D31c914a87C6611C10748AEb04B58e8F', 1n), /token contract/);
+  await assert.rejects(onChain(m, ARBITRUM).getEthBalance(), /Arbitrum mainnet/, 'a Polygon node is not used for Arbitrum');
+});
+
+test('Arbitrum: ETH pays the fee, ARB and USDT are separate tokens, no tip needed', async (t) => {
+  const m = await node({ chain: '0xa4b1', tip: 0n, base: 10_000_000n, gas: 400_000n, usdt: 7_000_000n }); closing(t, m.server);
+  const c = onChain(m, ARBITRUM);
+  assert.equal(await c.balanceOf('USDTA'), 7_000_000n);
+  assert.equal(await c.balanceOf('ARB'), 7_000_000n);
+  const eth = await c.draft('ETHA', TO, 10n ** 15n);
+  assert.equal(eth.gas, 520_000n, 'even a plain transfer is estimated, because the data cost is in the gas');
+  assert.equal(eth.tip, 0n);
+  await c.send(eth, deriveEthAccount(PHRASE).wallet);
+  assert.equal(Transaction.from(m.log.raw[0]).chainId, 42161n);
+  const arb = await c.draft('ARB', TO, 1_000n);
+  await c.send(arb, deriveEthAccount(PHRASE).wallet);
+  assert.equal(Transaction.from(m.log.raw[1]).to, '0x912CE59144191C1204E64559FE8253a0e49E6548');
+  const none = await node({ chain: '0xa4b1', eth: 0n }); closing(t, none.server);
+  await assert.rejects(onChain(none, ARBITRUM).draft('USDTA', TO, 1n), /No ETH for the fee\. Sending USDT \(Arb\) needs ETH \(Arb\)/);
+  assert.equal(chainOf('ETHA'), ARBITRUM);
+  assert.equal(chainOf('USDTP'), POLYGON);
+});

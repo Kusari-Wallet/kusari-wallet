@@ -267,3 +267,11 @@ label.field > span { display: block; margin-bottom: 6px; font-size: 14px; font-w
 .swap-net { text-align: right; font-size: 14px; color: #bff0d3; min-height: 18px; margin-top: 2px; }
 .offer-net { display: block; margin-top: 2px; font-weight: 600; color: #bff0d3; }
 
+
+.asset-group { display: grid; grid-template-columns: 1fr auto; align-items: center; }
+.asset-group .asset { margin-right: 0; }
+.fold { background: none; border: 0; padding: 10px 4px 10px 10px; color: var(--muted); display: grid; place-items: center; }
+.fold svg.icon { width: 20px; height: 20px; transition: transform .15s; }
+.fold.open svg.icon { transform: rotate(180deg); }
+.asset.child { padding-left: 34px; }
+.asset.child .coin, .asset.child .coin-wrap { width: 40px; height: 40px; }

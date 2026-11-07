@@ -1,6 +1,6 @@
 # Kusari Wallet
 
-A self-custody wallet for Windows and Android that sends and receives XMR, BTC, ETH, TRX, USDT (ERC-20, TRC-20, SPL), SOL, DOGE, DASH, FIRO, ZEC, ZANO and ARRR. There is no account server: seeds are encrypted and stored on your device.
+A self-custody wallet for Windows and Android that sends and receives XMR, BTC, ETH, TRX, USDT (ERC-20, TRC-20, SPL, Polygon, Arbitrum), SOL, POL, ARB, ETH on Arbitrum, DOGE, DASH, FIRO, ZEC, ZANO and ARRR. There is no account server: seeds are encrypted and stored on your device.
 
 You can add several wallets and rename them. Each wallet has its own seeds, password and records. Settings and Tor are shared.
 
@@ -69,6 +69,7 @@ They are separate because a single combined seed couldn't restore XMR in other w
 
 - Public Monero nodes can see your IP. You can set your own node in Settings. The default node uses HTTP, so traffic isn't encrypted. Keys are never sent.
 - DASH uses plain addresses at `m/44'/5'/0'`. There is no CoinJoin. Lookups and sends use insight.dash.org.
+- POL, ARB and ETH on Arbitrum use the same 0x address as ETH, through public Polygon and Arbitrum RPC servers, with Blockscout for history. Every node is checked for the right chain id before it's used, and fees on Arbitrum are paid in ETH on Arbitrum.
 - SOL uses `m/44'/501'/0'/0'`, the path Phantom uses, with public Solana RPC servers. USDT on Solana uses the same address and its standard token account; when the receiver has no USDT account yet, the send opens one and pays its deposit of about 0.002 SOL. Other Solana tokens aren't shown.
 - DOGE uses `m/44'/3'/0'` with BlockCypher's public API, asked about one address at a time so it never gets the account's xpub. Sends go to Dogechain or Blockchair, and BlockCypher then has to show the transaction before it counts as sent. BlockCypher's free tier allows 100 requests an hour, so DOGE balances refresh every 10 minutes and look 5 addresses past the last used one.
 - FIRO uses plain addresses at `m/44'/136'/0'`. Spark, Firo's private mode, isn't supported, so addresses and amounts are public.
@@ -98,7 +99,7 @@ The app is in English, Korean, Japanese, Simplified Chinese, Vietnamese, Portugu
 
 The Buy button opens ChangeNOW's purchase page in the system browser for the chosen coin, with the partner link and nothing about the wallet in the URL. The person pastes their receiving address there, which the screen shows with a copy button. Payment and identity checks happen on ChangeNOW's side, and the browser isn't behind Tor.
 
-Coins can be swapped with each other, and entering a receiving address sends the result to another wallet. ETZ Swap and CCECash join when their keys are present at build time (`.swap-keys.json` or `ETZSWAP_KEY`, `ETZSWAP_SECRET`, `CCECASH_KEY`, `CCECASH_SECRET`, `CCECASH_REF_CODE`). Those keys can read the account's orders, addresses included, so never distribute a build that holds them. The default provider is Exolix. SimpleSwap uses a partner key that is put in at build time from the `SIMPLESWAP_KEY` environment variable or `.swap-keys.json`, and is not in the source. It can be extracted from the app, so don't treat it as secret. The app adds no fee of its own. Provider support differs per coin.
+Coins can be swapped with each other, and entering a receiving address sends the result to another wallet. ETZ Swap, CCECash and ChangeNOW join when their keys are present at build time (`.swap-keys.json` or `ETZSWAP_KEY`, `ETZSWAP_SECRET`, `CHANGENOW_KEY`, `CCECASH_KEY`, `CCECASH_SECRET`, `CCECASH_REF_CODE`). Those keys can read the account's orders, addresses included, so never distribute a build that holds them. The default provider is Exolix. SimpleSwap uses a partner key that is put in at build time from the `SIMPLESWAP_KEY` environment variable or `.swap-keys.json`, and is not in the source. It can be extracted from the app, so don't treat it as secret. The app adds no fee of its own. Provider support differs per coin.
 
 BTC, ETH and USDT (Eth) can also use a privacy swap, which splits into two orders through a new XMR subaddress. The second step needs approval with the password once the XMR has unlocked. ETH can also use Tornado Cash fixed pools (0.1, 1, 10, 100 ETH). Deposit secrets come from the seed so they can be restored, and proofs are made on the device.
 

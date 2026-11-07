@@ -5,16 +5,41 @@ import { formatAmount } from './amount';
 
 export const ETH_PATH = "m/44'/60'/0'/0/0";
 const GWEI = 1_000_000_000n;
-const MAX_BASE_FEE = 500n * GWEI; // a higher answer from a node is treated as broken
-const MAX_TIP = 5n * GWEI;
-const MIN_TIP = GWEI / 10n;
-const DEFAULT_TIP = GWEI;
-const MAX_GAS_TOKEN = 200_000n;
-const MAX_GAS_CONTRACT = 300_000n;
 const BALANCE_CACHE_MS = 20_000;
-const FEE_NOTE = 'Not enough ETH to cover the amount and fee.';
 
-export type EthAsset = 'ETH' | 'USDTE';
+export type EthAsset = 'ETH' | 'USDTE' | 'POL' | 'USDTP' | 'ETHA' | 'ARB' | 'USDTA';
+export interface EvmToken { contract: string; decimals: number; symbol: string; label: string; dust: bigint }
+/** One EVM chain. The same key and address serve all of them, so the chain id is what keeps them apart. */
+export interface EvmChain {
+  id: bigint; name: string; native: EthAsset; symbol: string; nativeLabel: string;
+  tokens: Partial<Record<EthAsset, EvmToken>>;
+  // A higher fee answer from a node is treated as broken.
+  maxBaseFee: bigint; minTip: bigint; defaultTip: bigint; maxTip: bigint;
+  gasToken: bigint; gasContract: bigint; dust: bigint;
+}
+
+export const ETHEREUM: EvmChain = {
+  id: 1n, name: 'Ethereum', native: 'ETH', symbol: 'ETH', nativeLabel: 'ETH',
+  tokens: { USDTE: { contract: '0xdAC17F958D2ee523a2206206994597C13D831ec7', decimals: 6, symbol: 'USDT', label: 'USDT (Eth)', dust: 100_000n } },
+  maxBaseFee: 500n * GWEI, minTip: GWEI / 10n, defaultTip: GWEI, maxTip: 5n * GWEI, gasToken: 200_000n, gasContract: 300_000n, dust: 100_000_000_000_000n,
+};
+// Polygon needs a priority fee of about 25 gwei or more, and its base fee can spike far above Ethereum's.
+export const POLYGON: EvmChain = {
+  id: 137n, name: 'Polygon', native: 'POL', symbol: 'POL', nativeLabel: 'POL',
+  tokens: { USDTP: { contract: '0xc2132D05D31c914a87C6611C10748AEb04B58e8F', decimals: 6, symbol: 'USDT', label: 'USDT (Pol)', dust: 100_000n } },
+  maxBaseFee: 20_000n * GWEI, minTip: 30n * GWEI, defaultTip: 30n * GWEI, maxTip: 500n * GWEI, gasToken: 200_000n, gasContract: 300_000n, dust: 10_000_000_000_000_000n,
+};
+// Arbitrum pays in ETH, needs no tip, and folds its Ethereum data cost into the gas amount, so limits are higher.
+export const ARBITRUM: EvmChain = {
+  id: 42161n, name: 'Arbitrum', native: 'ETHA', symbol: 'ETH', nativeLabel: 'ETH (Arb)',
+  tokens: {
+    ARB: { contract: '0x912CE59144191C1204E64559FE8253a0e49E6548', decimals: 18, symbol: 'ARB', label: 'ARB', dust: 10_000_000_000_000_000n },
+    USDTA: { contract: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9', decimals: 6, symbol: 'USDT', label: 'USDT (Arb)', dust: 100_000n },
+  },
+  maxBaseFee: 100n * GWEI, minTip: 0n, defaultTip: 0n, maxTip: GWEI, gasToken: 3_000_000n, gasContract: 3_000_000n, dust: 10_000_000_000_000n,
+};
+export const EVM_CHAINS = [ETHEREUM, POLYGON, ARBITRUM];
+export const chainOf = (asset: EthAsset): EvmChain => EVM_CHAINS.find((c) => c.native === asset || asset in c.tokens) as EvmChain;
 export interface EthDraft { asset: EthAsset; to: string; amount: bigint; gas: bigint; maxFee: bigint; tip: bigint; expectedFee: bigint; maxCost: bigint; data?: string }
 export interface EthHistoryItem { asset: EthAsset; hash: string; direction: 'in' | 'out' | 'self'; amount: string; counterparty: string; timestamp: number; status: 'confirmed' | 'failed' | 'pending'; dust: boolean }
 
@@ -34,7 +59,7 @@ const toHex = (n: bigint) => `0x${n.toString(16)}`;
 const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
 function quantity(value: unknown, what: string): bigint {
-  if (typeof value !== 'string' || !/^0x[0-9a-fA-F]+$/.test(value)) throw new Error(`The Ethereum node gave an unexpected answer (${what}).`);
+  if (typeof value !== 'string' || !/^0x[0-9a-fA-F]+$/.test(value)) throw new Error(`The node gave an unexpected answer (${what}).`);
   return BigInt(value);
 }
 
@@ -44,59 +69,78 @@ export function encodeUsdtTransfer(to: string, amount: bigint): string {
 
 export class EthClient {
   private readonly checked = new Set<string>();
-  private balances: { at: number; eth: bigint; usdt: bigint } | null = null;
+  private balances: { at: number; native: bigint; tokens: Map<EthAsset, bigint> } | null = null;
+  private readonly tokens: Partial<Record<EthAsset, EvmToken>>;
+  private readonly usdt: string;
 
+  /** usdt replaces the chain's USDT contract, for test runs against a mock token. */
   constructor(
     private readonly rpcs: string[],
     private readonly scout: string,
-    private readonly usdt: string,
+    usdt: string,
     readonly address: string,
     private readonly agent?: Agent,
     private readonly timeoutMs = 15_000,
-  ) {}
+    readonly chain: EvmChain = ETHEREUM,
+  ) {
+    const usdtAsset = (Object.keys(chain.tokens) as EthAsset[]).find((a) => chain.tokens[a]!.symbol === 'USDT') as EthAsset;
+    this.tokens = { ...chain.tokens, [usdtAsset]: { ...chain.tokens[usdtAsset]!, contract: usdt || chain.tokens[usdtAsset]!.contract } };
+    this.usdt = this.tokens[usdtAsset]!.contract;
+  }
+
+  private token(asset: EthAsset): EvmToken | undefined { return this.tokens[asset]; }
+  /** Every token contract on this chain: sending to one loses the coins. */
+  isTokenContract(address: string): boolean { return Object.values(this.tokens).some((t) => same(t!.contract, address)); }
 
   private async post(url: string, method: string, params: unknown[]): Promise<any> {
     const res = await requestJson(url, { method: 'POST', body: { jsonrpc: '2.0', id: 1, method, params }, agent: this.agent, timeoutMs: this.timeoutMs });
-    if (res.body?.error) throw new Error(String(res.body.error.message ?? 'Ethereum node error'));
-    if (res.status >= 400 || !res.body || !('result' in res.body)) throw new Error(`Ethereum node error (${res.status}).`);
+    if (res.body?.error) throw new Error(String(res.body.error.message ?? `${this.chain.name} node error`));
+    if (res.status >= 400 || !res.body || !('result' in res.body)) throw new Error(`${this.chain.name} node error (${res.status}).`);
     return res.body.result;
   }
 
-  /** Only talks to nodes that say they are on Ethereum mainnet. */
+  /** Only talks to nodes that say they are on this chain. */
   private async rpc(method: string, params: unknown[]): Promise<any> {
     let last: unknown;
     for (const url of this.rpcs) {
       try {
         if (!this.checked.has(url)) {
-          if (quantity(await this.post(url, 'eth_chainId', []), 'chain') !== 1n) throw new Error('This is not an Ethereum mainnet node.');
+          if (quantity(await this.post(url, 'eth_chainId', []), 'chain') !== this.chain.id) throw new Error(`This node is not on ${this.chain.name} mainnet.`);
           this.checked.add(url);
         }
         return await this.post(url, method, params);
       } catch (e) { last = e; }
     }
-    throw last instanceof Error ? last : new Error('Could not reach an Ethereum node.');
+    throw last instanceof Error ? last : new Error(`Could not reach a ${this.chain.name} node.`);
   }
 
-  private async readBalances(force = false): Promise<{ eth: bigint; usdt: bigint }> {
+  private async readBalances(force = false): Promise<{ native: bigint; tokens: Map<EthAsset, bigint> }> {
     if (!force && this.balances && Date.now() - this.balances.at < BALANCE_CACHE_MS) return this.balances;
-    const [eth, usdt] = await Promise.all([
+    const list = Object.entries(this.tokens) as [EthAsset, EvmToken][];
+    const [native, ...held] = await Promise.all([
       this.rpc('eth_getBalance', [this.address, 'latest']),
-      this.rpc('eth_call', [{ to: this.usdt, data: `0x70a08231${word(this.address.slice(2).toLowerCase())}` }, 'latest']),
+      ...list.map(([, t]) => this.rpc('eth_call', [{ to: t.contract, data: `0x70a08231${word(this.address.slice(2).toLowerCase())}` }, 'latest'])),
     ]);
-    this.balances = { at: Date.now(), eth: quantity(eth, 'ETH balance'), usdt: quantity(usdt, 'USDT balance') };
+    this.balances = { at: Date.now(), native: quantity(native, `${this.chain.symbol} balance`), tokens: new Map(list.map(([a, t], i) => [a, quantity(held[i], `${t.symbol} balance`)])) };
     return this.balances;
   }
 
-  async getEthBalance(force = false): Promise<bigint> { return (await this.readBalances(force)).eth; }
-  async getUsdtBalance(force = false): Promise<bigint> { return (await this.readBalances(force)).usdt; }
+  async getEthBalance(force = false): Promise<bigint> { return (await this.readBalances(force)).native; }
+  async getUsdtBalance(force = false): Promise<bigint> { return (await this.readBalances(force)).tokens.get((Object.keys(this.tokens) as EthAsset[]).find((a) => same(this.tokens[a]!.contract, this.usdt))!) ?? 0n; }
+  /** The balance of this chain's coin or one of its tokens. */
+  async balanceOf(asset: EthAsset, force = false): Promise<bigint> {
+    const b = await this.readBalances(force);
+    return asset === this.chain.native ? b.native : b.tokens.get(asset) ?? 0n;
+  }
 
   private async fees(): Promise<{ maxFee: bigint; tip: bigint; base: bigint }> {
     const block = await this.rpc('eth_getBlockByNumber', ['latest', false]);
     const base = quantity(block?.baseFeePerGas, 'base fee');
-    if (base > MAX_BASE_FEE) throw new Error('The fee is abnormally high, so this was stopped.');
-    let tip = DEFAULT_TIP;
+    const c = this.chain;
+    if (base > c.maxBaseFee) throw new Error('The fee is abnormally high, so this was stopped.');
+    let tip = c.defaultTip;
     try { tip = quantity(await this.rpc('eth_maxPriorityFeePerGas', []), 'priority fee'); } catch { /* not every node has this */ }
-    tip = tip > MAX_TIP ? MAX_TIP : tip < MIN_TIP ? MIN_TIP : tip;
+    tip = tip > c.maxTip ? c.maxTip : tip < c.minTip ? c.minTip : tip;
     return { maxFee: base * 2n + tip, tip, base };
   }
 
@@ -108,24 +152,29 @@ export class EthClient {
   }
 
   async draft(asset: EthAsset, to: string, amount: bigint | 'max'): Promise<EthDraft> {
-    if (same(to, this.usdt)) throw new Error('You cannot send to the USDT contract address. The coins would be lost.');
-    const { eth, usdt } = await this.readBalances(true);
+    const c = this.chain;
+    if (this.isTokenContract(to)) throw new Error('You cannot send to a token contract address. The coins would be lost.');
+    const { native, tokens } = await this.readBalances(true);
     const { maxFee, tip, base } = await this.fees();
+    const token = this.token(asset);
     let gas: bigint;
     let value: bigint;
-    if (asset === 'USDTE') {
-      value = amount === 'max' ? usdt : amount;
-      if (value <= 0n) throw new Error('No USDT to send.');
-      if (value > usdt) throw new Error('Not enough USDT.');
-      if (eth === 0n) throw new Error('No ETH for the fee. Sending USDT (Eth) needs ETH at this address.');
-      gas = await this.estimate({ to: this.usdt, data: encodeUsdtTransfer(to, value), value: '0x0' }, MAX_GAS_TOKEN);
-      if (gas * maxFee > eth) throw new Error(`Not enough ETH for the fee. Up to ${formatAmount(gas * maxFee, 18)} ETH is needed, and there is ${formatAmount(eth, 18)} ETH.`);
+    if (token) {
+      const held = tokens.get(asset) ?? 0n;
+      value = amount === 'max' ? held : amount;
+      if (value <= 0n) throw new Error(`No ${token.symbol} to send.`);
+      if (value > held) throw new Error(`Not enough ${token.symbol}.`);
+      if (native === 0n) throw new Error(`No ${c.symbol} for the fee. Sending ${token.label} needs ${c.nativeLabel} at this address.`);
+      gas = await this.estimate({ to: token.contract, data: encodeUsdtTransfer(to, value), value: '0x0' }, c.gasToken);
+      if (gas * maxFee > native) throw new Error(`Not enough ${c.symbol} for the fee. Up to ${formatAmount(gas * maxFee, 18)} ${c.symbol} is needed, and there is ${formatAmount(native, 18)} ${c.symbol}.`);
     } else {
+      if (asset !== c.native) throw new Error('This coin is not on this network.');
       const code = await this.rpc('eth_getCode', [to, 'latest']);
-      gas = code === '0x' || code === '0x0' ? 21_000n : await this.estimate({ to, value: '0x0' }, MAX_GAS_CONTRACT);
-      value = amount === 'max' ? eth - gas * maxFee : amount;
-      if (value <= 0n) throw new Error('No ETH left to send after the fee.');
-      if (value + gas * maxFee > eth) throw new Error(FEE_NOTE);
+      // Arbitrum's gas amount includes its data cost, so even a plain transfer is estimated there.
+      gas = (code === '0x' || code === '0x0') && c.id !== ARBITRUM.id ? 21_000n : await this.estimate({ to, value: '0x0' }, c.gasContract);
+      value = amount === 'max' ? native - gas * maxFee : amount;
+      if (value <= 0n) throw new Error(`No ${c.symbol} left to send after the fee.`);
+      if (value + gas * maxFee > native) throw new Error(`Not enough ${c.symbol} to cover the amount and fee.`);
     }
     return { asset, to, amount: value, gas, maxFee, tip, expectedFee: gas * (base + tip), maxCost: gas * maxFee };
   }
@@ -140,10 +189,10 @@ export class EthClient {
 
   /** A contract call with a set gas limit, for when the final call data only exists after the password. */
   async draftCall(to: string, value: bigint, gas: bigint): Promise<EthDraft> {
-    const eth = quantity(await this.rpc('eth_getBalance', [this.address, 'latest']), 'ETH balance');
+    const eth = quantity(await this.rpc('eth_getBalance', [this.address, 'latest']), `${this.chain.symbol} balance`);
     const { maxFee, tip, base } = await this.fees();
     if (value + gas * maxFee > eth) throw new Error(`Not enough ETH to cover the fee. Up to ${formatAmount(value + gas * maxFee, 18)} ETH is needed.`);
-    return { asset: 'ETH', to, amount: value, gas, maxFee, tip, expectedFee: gas * (base + tip), maxCost: gas * maxFee };
+    return { asset: this.chain.native, to, amount: value, gas, maxFee, tip, expectedFee: gas * (base + tip), maxCost: gas * maxFee };
   }
 
   async typicalFee(gas: bigint): Promise<bigint> {
@@ -155,18 +204,19 @@ export class EthClient {
 
   async send(draft: EthDraft, wallet: HDNodeWallet): Promise<string> {
     if (wallet.address !== this.address) throw new Error('The wallet address does not match, so this was stopped.');
-    const token = draft.asset === 'USDTE';
+    const token = this.token(draft.asset);
+    if (!token && draft.asset !== this.chain.native) throw new Error('This coin is not on this network.');
     const nonce = quantity(await this.rpc('eth_getTransactionCount', [this.address, 'pending']), 'nonce');
     const tx = {
-      type: 2, chainId: 1, nonce: Number(nonce),
-      to: token ? this.usdt : draft.to,
+      type: 2, chainId: Number(this.chain.id), nonce: Number(nonce),
+      to: token ? token.contract : draft.to,
       value: token ? 0n : draft.amount,
       data: token ? encodeUsdtTransfer(draft.to, draft.amount) : draft.data ?? '0x',
       gasLimit: draft.gas, maxFeePerGas: draft.maxFee, maxPriorityFeePerGas: draft.tip,
     };
     const raw = await wallet.signTransaction(tx);
     const parsed = Transaction.from(raw);
-    if (parsed.chainId !== 1n || parsed.from !== this.address || !same(parsed.to ?? '', tx.to) || parsed.value !== tx.value || parsed.data !== tx.data) {
+    if (parsed.chainId !== this.chain.id || parsed.from !== this.address || !same(parsed.to ?? '', tx.to) || parsed.value !== tx.value || parsed.data !== tx.data) {
       throw new Error('The signed transaction differs from the request, so this was stopped.');
     }
     try {
@@ -179,11 +229,13 @@ export class EthClient {
     return parsed.hash as string;
   }
 
-  /** Blockscout: the one public Ethereum history API that needs no key. */
+  /** Blockscout: the one public EVM history API that needs no key. */
   async getHistory(asset: EthAsset, limit = 30): Promise<EthHistoryItem[]> {
-    const path = asset === 'ETH'
+    const token = this.token(asset);
+    const native = !token;
+    const path = native
       ? `/addresses/${this.address}/transactions`
-      : `/addresses/${this.address}/token-transfers?type=ERC-20&token=${this.usdt}`;
+      : `/addresses/${this.address}/token-transfers?type=ERC-20&token=${token.contract}`;
     const body = await getJson(this.scout + path, { agent: this.agent, timeoutMs: this.timeoutMs });
     const rows: any[] = Array.isArray(body?.items) ? body.items : [];
     const out: EthHistoryItem[] = [];
@@ -196,15 +248,15 @@ export class EthClient {
       const mineTo = same(to, this.address);
       if (!mineFrom && !mineTo) continue;
       let value: bigint;
-      try { value = BigInt(asset === 'ETH' ? r.value : r.total?.value); } catch { continue; }
-      if (asset === 'USDTE') {
-        const token = r.token?.address_hash ?? r.token?.address;
-        if (typeof token !== 'string' || !same(token, this.usdt)) continue; // look-alike tokens are not USDT
+      try { value = BigInt(native ? r.value : r.total?.value); } catch { continue; }
+      if (token) {
+        const contract = r.token?.address_hash ?? r.token?.address;
+        if (typeof contract !== 'string' || !same(contract, token.contract)) continue; // look-alike tokens are not the real one
       }
       if (value === 0n) continue; // zero transfers are address poisoning or contract calls
-      const decimals = asset === 'ETH' ? 18 : 6;
+      const decimals = token ? token.decimals : 18;
       const direction = mineFrom && mineTo ? 'self' : mineFrom ? 'out' : 'in';
-      const dust = direction === 'in' && value < (asset === 'ETH' ? 100_000_000_000_000n : 100_000n);
+      const dust = direction === 'in' && value < (token ? token.dust : this.chain.dust);
       const failed = r.status === 'error' || (typeof r.result === 'string' && r.result !== 'success' && r.result !== 'pending' && r.result !== '');
       const pending = r.result === 'pending' || r.status === null;
       out.push({

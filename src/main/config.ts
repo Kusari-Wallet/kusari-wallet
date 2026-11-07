@@ -1,8 +1,11 @@
 export type NetworkId = 'mainnet' | 'testnet';
-/** USDT is the Tron token, USDTE the Ethereum one, USDTS the Solana one. */
-export type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'SOL' | 'USDTS' | 'DOGE' | 'DASH' | 'FIRO' | 'ZEC' | 'ZANO' | 'ARRR';
+/**
+ * USDT is the Tron token, USDTE the Ethereum one, USDTS Solana's, USDTP Polygon's and USDTA Arbitrum's.
+ * ETHA is ETH on Arbitrum, which pays Arbitrum's fees; ARB is the token.
+ */
+export type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'SOL' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA' | 'DOGE' | 'DASH' | 'FIRO' | 'ZEC' | 'ZANO' | 'ARRR';
 
-export const DECIMALS: Record<Asset, number> = { BTC: 8, XMR: 12, ETH: 18, TRX: 6, USDT: 6, USDTE: 6, SOL: 9, USDTS: 6, DOGE: 8, DASH: 8, FIRO: 8, ZEC: 8, ZANO: 12, ARRR: 8 };
+export const DECIMALS: Record<Asset, number> = { BTC: 8, XMR: 12, ETH: 18, TRX: 6, USDT: 6, USDTE: 6, SOL: 9, USDTS: 6, POL: 18, USDTP: 6, ARB: 18, ETHA: 18, USDTA: 6, DOGE: 8, DASH: 8, FIRO: 8, ZEC: 8, ZANO: 12, ARRR: 8 };
 
 export const BTC_APIS = ['https://mempool.space/api', 'https://blockstream.info/api'];
 export const BTC_EXPLORER_TX = 'https://mempool.space/tx/';
@@ -31,6 +34,12 @@ export const ETH_RPCS = ['https://ethereum-rpc.publicnode.com', 'https://eth.lla
 export const ETH_SCOUT = 'https://eth.blockscout.com/api/v2';
 export const ETH_USDT = '0xdAC17F958D2ee523a2206206994597C13D831ec7';
 export const ETH_EXPLORER_TX = 'https://etherscan.io/tx/';
+export const POL_RPCS = ['https://polygon-bor-rpc.publicnode.com', 'https://polygon-rpc.com', 'https://1rpc.io/matic'];
+export const POL_SCOUT = 'https://polygon.blockscout.com/api/v2';
+export const POL_EXPLORER_TX = 'https://polygonscan.com/tx/';
+export const ARB_RPCS = ['https://arbitrum-one-rpc.publicnode.com', 'https://arb1.arbitrum.io/rpc', 'https://1rpc.io/arb'];
+export const ARB_SCOUT = 'https://arbitrum.blockscout.com/api/v2';
+export const ARB_EXPLORER_TX = 'https://arbiscan.io/tx/';
 
 export interface NetworkConfig {
   id: NetworkId;

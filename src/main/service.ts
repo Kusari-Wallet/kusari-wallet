@@ -4,7 +4,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import QRCode from 'qrcode';
 import { formatAmount, parseAmount } from './amount';
-import { Asset, BTC_APIS, BTC_EXPLORER_TX, DECIMALS, FIRO_APIS, FIRO_EXPLORER_TX, SOL_RPCS, SOL_EXPLORER_TX, CHANGENOW_BUY_PAGE, CHANGENOW_LINK_ID, DOGE_APIS, DOGE_PUSH_URLS, DOGE_EXPLORER_TX, DASH_APIS, DASH_EXPLORER_TX, DEFAULT_SETTINGS, ARRR_EXPLORER_TX, ARRR_SERVERS, ZANO_EXPLORER_TX, ZANO_NODE, ZEC_EXPLORER_TX, ZEC_SERVERS, ETH_EXPLORER_TX, ETH_RPCS, ETH_SCOUT, ETH_USDT, NETWORKS, NetworkId, Settings, estimateMainnetHeight } from './config';
+import { Asset, BTC_APIS, BTC_EXPLORER_TX, DECIMALS, FIRO_APIS, FIRO_EXPLORER_TX, SOL_RPCS, SOL_EXPLORER_TX, CHANGENOW_BUY_PAGE, CHANGENOW_LINK_ID, DOGE_APIS, DOGE_PUSH_URLS, POL_RPCS, POL_SCOUT, POL_EXPLORER_TX, ARB_RPCS, ARB_SCOUT, ARB_EXPLORER_TX, DOGE_EXPLORER_TX, DASH_APIS, DASH_EXPLORER_TX, DEFAULT_SETTINGS, ARRR_EXPLORER_TX, ARRR_SERVERS, ZANO_EXPLORER_TX, ZANO_NODE, ZEC_EXPLORER_TX, ZEC_SERVERS, ETH_EXPLORER_TX, ETH_RPCS, ETH_SCOUT, ETH_USDT, NETWORKS, NetworkId, Settings, estimateMainnetHeight } from './config';
 import { MIN_PASSWORD, Secrets, Vault } from './vault';
 import { TronClient, TronTransfer, deriveTronAccount, generateTronMnemonic, isTronAddress } from './tron';
 import { socksAgent, getJson, requestJson, newTorRoute } from './request';
@@ -22,9 +22,9 @@ import { FiroClient, FiroDraft, firoAccountXpub, isFiroAddress, typicalFiroFee }
 import { DogeClient, DogeDraft, dogeAccountXpub, isDogeAddress, typicalDogeFee } from './doge';
 import { SOL_FEE, SolClient, SolDraft, SolUsdtDraft, isSolAddress, solAddress } from './sol';
 import { DashClient, DashDraft, dashAccountXpub, isDashAddress, typicalDashFee } from './dash';
-import { EthClient, EthDraft, deriveEthAccount, isEthAddress } from './eth';
+import { ARBITRUM, EthAsset, EthClient, EthDraft, POLYGON, chainOf, deriveEthAccount, isEthAddress } from './eth';
 import { TorManager } from './tor';
-import { BUILTIN_SWAP_KEYS, CCECASH_BASE, CceCashClient, ETZSWAP_BASE, EtzSwapClient, GHOSTSWAP_BASE, GhostSwapClient, PRIVACY_ASSETS, PrivacySwap, SIMPLESWAP_BASE, SWAP_BASE, SWAP_DEAD, SWAP_DONE, SimpleSwapClient, SwapClient, SwapProvider, SwapProviderId, SwapRecord } from './swap';
+import { BUILTIN_SWAP_KEYS, CCECASH_BASE, CHANGENOW_BASE, CceCashClient, ChangeNowClient, ETZSWAP_BASE, EtzSwapClient, GHOSTSWAP_BASE, GhostSwapClient, PRIVACY_ASSETS, PrivacySwap, SIMPLESWAP_BASE, SWAP_BASE, SWAP_DEAD, SWAP_DONE, SimpleSwapClient, SwapClient, SwapProvider, SwapProviderId, SwapRecord } from './swap';
 import { MoneroClient, MoneroDraft, MoneroOptions, generateMoneroSeed, validateMoneroSeed } from './monero';
 
 const BALANCE_TTL_MS = 40_000;
@@ -34,15 +34,22 @@ const QUOTE_DEADLINE_MS = 20_000;
 const QUOTE_DEADLINE_TOR_MS = 40_000;
 const QUOTE_EXTRAS_MS = 8_000;
 // ChangeNOW's own names, checked against their currency list.
-const BUY_TICKER: Record<Asset, string> = { BTC: 'btc', XMR: 'xmr', ETH: 'eth', ZEC: 'zec', SOL: 'sol', TRX: 'trx', USDTE: 'usdterc20', USDT: 'usdttrc20', USDTS: 'usdtsol', DOGE: 'doge', DASH: 'dash', FIRO: 'firo', ZANO: 'zano', ARRR: 'arrr' };
-const SWAP_NAMES: Record<SwapProviderId, string> = { exolix: 'Exolix', simpleswap: 'SimpleSwap', ghostswap: 'GhostSwap', etzswap: 'ETZ Swap', ccecash: 'CCECash' };
+const BUY_TICKER: Record<Asset, string> = { BTC: 'btc', XMR: 'xmr', ETH: 'eth', ZEC: 'zec', SOL: 'sol', TRX: 'trx', USDTE: 'usdterc20', USDT: 'usdttrc20', USDTS: 'usdtsol', POL: 'maticmainnet', USDTP: 'usdtmatic', ARB: 'arb', ETHA: 'etharb', USDTA: 'usdtarb', DOGE: 'doge', DASH: 'dash', FIRO: 'firo', ZANO: 'zano', ARRR: 'arrr' };
+const SWAP_NAMES: Record<SwapProviderId, string> = { exolix: 'Exolix', simpleswap: 'SimpleSwap', ghostswap: 'GhostSwap', etzswap: 'ETZ Swap', ccecash: 'CCECash', changenow: 'ChangeNOW' };
 
 function within<T, F>(ms: number, work: Promise<T>, late: F): Promise<T | F> {
   let timer: ReturnType<typeof setTimeout>;
   return Promise.race([work, new Promise<F>((resolve) => { timer = setTimeout(() => resolve(late), ms); })]).finally(() => clearTimeout(timer));
 }
 /** Which Tor route each balance lookup uses. */
-const LOOKUP_ROUTE: Record<string, string> = { BTC: 'btc', ETH: 'eth', USDTE: 'eth', TRX: 'tron', USDT: 'tron', DASH: 'dash', FIRO: 'firo', SOL: 'sol', USDTS: 'sol', DOGE: 'doge' };
+/** Coins and tokens on an EVM chain. They share one address. */
+const EVM: Asset[] = ['ETH', 'USDTE', 'POL', 'USDTP', 'ARB', 'ETHA', 'USDTA'];
+const isEvm = (a: Asset): a is Asset & EthAsset => EVM.includes(a);
+const EVM_EXPLORER: Record<string, string> = { '1': ETH_EXPLORER_TX, '137': POL_EXPLORER_TX, '42161': ARB_EXPLORER_TX };
+
+const ASSET_LABEL: Partial<Record<Asset, string>> = { USDTE: 'USDT (Eth)', USDT: 'USDT (Tron)', USDTS: 'USDT (Sol)', USDTP: 'USDT (Pol)', USDTA: 'USDT (Arb)', ETHA: 'ETH (Arb)' };
+
+const LOOKUP_ROUTE: Record<string, string> = { BTC: 'btc', ETH: 'eth', USDTE: 'eth', TRX: 'tron', USDT: 'tron', DASH: 'dash', FIRO: 'firo', SOL: 'sol', USDTS: 'sol', POL: 'pol', USDTP: 'pol', ARB: 'arb', ETHA: 'arb', USDTA: 'arb', DOGE: 'doge' };
 
 /** Waits longer each time, up to five minutes, so a server that's down isn't asked over and over. */
 export function lookupRetryDelay(fails: number): number {
@@ -96,6 +103,8 @@ export class WalletService extends EventEmitter {
   private monero: MoneroClient | null = null;
   private btc: BtcClient | null = null;
   private eth: EthClient | null = null;
+  private pol: EthClient | null = null;
+  private arb: EthClient | null = null;
   private dash: DashClient | null = null;
   private firo: FiroClient | null = null;
   private doge: DogeClient | null = null;
@@ -122,7 +131,7 @@ export class WalletService extends EventEmitter {
   settings: Settings = { ...DEFAULT_SETTINGS };
 
   constructor(private readonly baseDir: string, private readonly kdf?: { N: number; r: number; p: number }, private readonly dev: {
-    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; dashApi?: string; firoApi?: string; solRpc?: string; dogeApi?: string; zecBin?: string; zecServers?: string[]; zanoBin?: string; zanoNode?: string; arrrBin?: string; arrrServers?: string[]; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; etzSwapBase?: string; cceCashBase?: string; quoteDeadlineMs?: number; btcApi?: string;
+    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; polRpc?: string; polScout?: string; polUsdt?: string; arbRpc?: string; arbScout?: string; arbUsdt?: string; dashApi?: string; firoApi?: string; solRpc?: string; dogeApi?: string; zecBin?: string; zecServers?: string[]; zanoBin?: string; zanoNode?: string; arrrBin?: string; arrrServers?: string[]; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; etzSwapBase?: string; cceCashBase?: string; changeNowBase?: string; quoteDeadlineMs?: number; btcApi?: string;
     /** Android: every outside address goes through the app's local forwarder. */
     route?: (url: string) => string;
     moneroStore?: (net: NetworkId, walletId: string) => MoneroOptions['store'];
@@ -338,6 +347,9 @@ export class WalletService extends EventEmitter {
     this.sol = new SolClient(solAddress(secrets.tronMnemonic), this.dev.solRpc ? [this.dev.solRpc] : SOL_RPCS, this.torRoute('sol'), slow ? 60_000 : 20_000);
     this.dash = new DashClient(dashAccountXpub(secrets.tronMnemonic), this.dev.dashApi ? [this.dev.dashApi] : DASH_APIS, this.torRoute('dash'), slow ? 60_000 : 20_000);
     this.eth = new EthClient(this.dev.ethRpc ? [this.dev.ethRpc] : ETH_RPCS, this.dev.ethScout ?? ETH_SCOUT, ETH_USDT, deriveEthAccount(secrets.tronMnemonic).address, this.torRoute('eth'), slow ? 60_000 : 15_000);
+    const evmAddress = deriveEthAccount(secrets.tronMnemonic).address;
+    this.pol = new EthClient(this.dev.polRpc ? [this.dev.polRpc] : POL_RPCS, this.dev.polScout ?? POL_SCOUT, this.dev.polUsdt ?? '', evmAddress, this.torRoute('pol'), slow ? 60_000 : 15_000, POLYGON);
+    this.arb = new EthClient(this.dev.arbRpc ? [this.dev.arbRpc] : ARB_RPCS, this.dev.arbScout ?? ARB_SCOUT, this.dev.arbUsdt ?? '', evmAddress, this.torRoute('arb'), slow ? 60_000 : 15_000, ARBITRUM);
     const monero = new MoneroClient({
       type: net.monero.type,
       dir: this.moneroDir(net.id),
@@ -432,6 +444,8 @@ export class WalletService extends EventEmitter {
     this.tron = null;
     this.btc = null;
     this.eth = null;
+    this.pol = null;
+    this.arb = null;
     this.dash = null;
     this.firo = null;
     this.doge = null;
@@ -585,7 +599,7 @@ export class WalletService extends EventEmitter {
       if (zec?.lastError && !this.torNotReady) return { ok: false, total: '', spendable: '', error: this.friendlyError(new Error(zec.lastError)) };
       return { ok: false, pending: true, total: '', spendable: '' };
     };
-    const [BTC, XMR, ETH, TRX, USDTE, USDT, SOL, USDTS, DOGE, DASH, FIRO] = await Promise.all([
+    const [BTC, XMR, ETH, TRX, USDTE, USDT, SOL, USDTS, POL, USDTP, ARB, ETHA, USDTA, DOGE, DASH, FIRO] = await Promise.all([
       btcSettle(),
       settle('XMR', async () => { const b = await monero.getBalance(); return [b.total, b.unlocked]; }, 12),
       settle('ETH', async () => { const b = await eth.getEthBalance(); return [b, b]; }, 18),
@@ -594,6 +608,7 @@ export class WalletService extends EventEmitter {
       settle('USDT', async () => { const b = await tron.getUsdtBalance(); return [b, b]; }, 6, BALANCE_TTL_MS),
       settle('SOL', async () => { const b = await this.sol!.getBalance(); return [b.total, b.spendable]; }, 9),
       settle('USDTS', async () => { const b = await this.sol!.getUsdtBalance(); return [b, b]; }, 6),
+      ...(['POL', 'USDTP', 'ARB', 'ETHA', 'USDTA'] as const).map((a) => settle(a, async () => { const b = await this.evm(a).balanceOf(a); return [b, b]; }, DECIMALS[a])),
       settle('DOGE', async () => { const b = await this.doge!.getBalance(); return [b.total, b.spendable]; }, 8),
       settle('DASH', async () => { const b = await dash.getBalance(); return [b.total, b.spendable]; }, 8),
       settle('FIRO', async () => { const b = await firo.getBalance(); return [b.total, b.spendable]; }, 8),
@@ -601,7 +616,7 @@ export class WalletService extends EventEmitter {
     return {
       network: this.settings.network,
       tor: this.settings.torEnabled ? this.tor.state : null,
-      balances: { XMR, BTC, ETH, TRX, USDTE, USDT, SOL, USDTS, DOGE, DASH, FIRO, ...(zec ? { ZEC: zecView() } : {}), ...(zano ? { ZANO: zanoView() } : {}), ...(arrr ? { ARRR: arrrView() } : {}) },
+      balances: { XMR, BTC, ETH, TRX, USDTE, USDT, SOL, USDTS, POL, USDTP, ARB, ETHA, USDTA, DOGE, DASH, FIRO, ...(zec ? { ZEC: zecView() } : {}), ...(zano ? { ZANO: zanoView() } : {}), ...(arrr ? { ARRR: arrrView() } : {}) },
       arrr: arrr ? { scanning: arrr.isScanning, percent: arrr.percent } : null,
       zec: zec ? { ...zec.state(), address: zec.receive?.unified ?? '', transparentAddress: zec.transparentAddress } : null,
       addresses: { BTC: btc.receiveAddress, XMR: await monero.getPrimaryAddress(), ETH: eth.address, TRX: tron.address, USDTE: eth.address, USDT: tron.address, DASH: dash.receiveAddress, FIRO: firo.receiveAddress, SOL: this.sol!.receiveAddress, USDTS: this.sol!.receiveAddress, DOGE: this.doge!.receiveAddress, ...(zec ? { ZEC: zec.receive?.unified ?? '' } : {}), ...(zano ? { ZANO: zano.receive } : {}), ...(arrr ? { ARRR: arrr.receive } : {}) },
@@ -634,7 +649,7 @@ export class WalletService extends EventEmitter {
     if (asset === 'ZANO') return this.zano ? this.zano.getHistory() : [];
     if (asset === 'ARRR') return this.arrr ? this.arrr.getHistory() : [];
     if (asset === 'BTC') return btc.getHistory();
-    if (asset === 'ETH' || asset === 'USDTE') return eth.getHistory(asset);
+    if (isEvm(asset)) return this.evm(asset).getHistory(asset);
     return asset === 'XMR' ? monero.getHistory() : tron.getHistory(asset);
   }
 
@@ -656,8 +671,18 @@ export class WalletService extends EventEmitter {
     if (etz?.key && etz.secret) clients.etzswap = new EtzSwapClient(this.dev.etzSwapBase ?? ETZSWAP_BASE, etz.key, etz.secret, this.priceAgent, timeout, (etz as { version?: string }).version);
     const cce = this.dev.cceCashBase ? { key: 'cce-key', secret: 'cce-secret', ref: 'REF' } : built && { key: built.ccecashKey, secret: built.ccecashSecret, ref: built.ccecashRefCode };
     if (cce?.key && cce.secret) clients.ccecash = new CceCashClient(this.dev.cceCashBase ?? CCECASH_BASE, cce.key, cce.secret, cce.ref, this.priceAgent, timeout);
+    const changenow = this.dev.changeNowBase ? 'cn-key' : built?.changenow;
+    if (changenow) clients.changenow = new ChangeNowClient(this.dev.changeNowBase ?? CHANGENOW_BASE, changenow, this.priceAgent, timeout);
     return clients;
   }
+  /** The client for the chain an EVM coin or token lives on. */
+  private evm(asset: Asset): EthClient {
+    const id = chainOf(asset as EthAsset).id;
+    const client = id === POLYGON.id ? this.pol : id === ARBITRUM.id ? this.arb : this.session().eth;
+    if (!client) throw new Error('The wallet is locked.');
+    return client;
+  }
+
   private get swapsPath() { return path.join(this.dir, 'swaps.json'); }
 
   async swapList(): Promise<SwapRecord[]> {
@@ -709,10 +734,10 @@ export class WalletService extends EventEmitter {
       : asset === 'ZANO' ? isZanoAddress(address)
       : asset === 'ARRR' ? isArrrAddress(address)
       : asset === 'XMR' ? await monero.isValidAddress(address)
-        : asset === 'ETH' || asset === 'USDTE' ? isEthAddress(address)
+        : isEvm(asset) ? isEthAddress(address)
           : isTronAddress(address);
-    if (!valid) throw new Error(`The receiving address is not a ${asset === 'USDTE' ? 'USDT (Eth)' : asset === 'USDT' ? 'USDT (Tron)' : asset === 'USDTS' ? 'USDT (Sol)' : asset} address.`);
-    if ((asset === 'ETH' || asset === 'USDTE') && address.toLowerCase() === ETH_USDT.toLowerCase()) throw new Error('You cannot receive at the USDT contract address. The coins would be lost.');
+    if (!valid) throw new Error(`The receiving address is not a ${ASSET_LABEL[asset] ?? asset} address.`);
+    if (isEvm(asset) && Object.values(chainOf(asset).tokens).some((t) => t!.contract.toLowerCase() === address.toLowerCase())) throw new Error('You cannot receive at a token contract address. The coins would be lost.');
     return address;
   }
 
@@ -732,7 +757,8 @@ export class WalletService extends EventEmitter {
       return this.zec.transparentAddress;
     }
     await (asset === 'DOGE' ? this.doge!.refresh().catch(() => undefined) : asset === 'FIRO' ? this.firo!.refresh().catch(() => undefined) : asset === 'DASH' ? dash.refresh().catch(() => undefined) : asset === 'BTC' ? btc.refresh().catch(() => undefined) : undefined);
-    return asset === 'SOL' || asset === 'USDTS' ? this.sol!.receiveAddress : asset === 'DOGE' ? this.doge!.receiveAddress : asset === 'FIRO' ? this.firo!.receiveAddress : asset === 'DASH' ? dash.receiveAddress : asset === 'BTC' ? btc.receiveAddress : asset === 'XMR' ? monero.getPrimaryAddress() : asset === 'ETH' || asset === 'USDTE' ? eth.address : tron.address;
+    if (isEvm(asset)) return eth.address;
+    return asset === 'SOL' || asset === 'USDTS' ? this.sol!.receiveAddress : asset === 'DOGE' ? this.doge!.receiveAddress : asset === 'FIRO' ? this.firo!.receiveAddress : asset === 'DASH' ? dash.receiveAddress : asset === 'BTC' ? btc.receiveAddress : asset === 'XMR' ? monero.getPrimaryAddress() : tron.address;
   }
 
   private async openOrder(from: Asset, to: Asset, amount: string, providerId: SwapProviderId, withdrawal: string, refund: string, external: boolean, privacy?: { leg: 'first'; via: string; destination: string } | { leg: 'second'; id: string }) {
@@ -950,8 +976,10 @@ export class WalletService extends EventEmitter {
       if (asset === 'ZEC') return [15_000n, 8, 'ZEC']; // ZIP-317, a typical transfer
       if (asset === 'ZANO') return [ZANO_FEE, 12, 'ZANO'];
       if (asset === 'ARRR') return [10_000n, 8, 'ARRR'];
-      if (asset === 'ETH') return [await eth.typicalFee(21_000n), 18, 'ETH'];
-      if (asset === 'USDTE') return [await eth.typicalFee(65_000n), 18, 'ETH'];
+      if (isEvm(asset)) {
+        const chain = chainOf(asset);
+        return [await this.evm(asset).typicalFee(asset === chain.native ? 21_000n : 65_000n), 18, chain.native];
+      }
       if (asset === 'USDT') return [await tron.typicalUsdtFee(), 6, 'TRX'];
       if (asset === 'TRX') return [(await tron.estimateFee({ asset, to: tron.address, amount: 1n })).feeSun, 6, 'TRX'];
       for (const node of this.moneroNodes()) {
@@ -1203,11 +1231,13 @@ export class WalletService extends EventEmitter {
       const draft = await btc.draft(address, isMax ? 'max' : parseAmount(amountInput, decimals));
       if (draft.fee * 2n > draft.amount) warnings.push('The fee is more than half of the amount being sent.');
       preview = this.storePreview({ asset, to: address, amount: draft.amount, fee: draft.fee, btc: draft });
-    } else if (asset === 'ETH' || asset === 'USDTE') {
+    } else if (isEvm(asset)) {
       if (!isEthAddress(address)) throw new Error('Not an Ethereum address. Only addresses starting with 0x can be used.');
       if (address.toLowerCase() === eth.address.toLowerCase()) throw new Error('You cannot send to your own address.');
-      const draft = await eth.draft(asset, address, isMax ? 'max' : parseAmount(amountInput, decimals));
-      if (asset === 'ETH' && isMax) warnings.push('If the actual fee is lower than expected, a little ETH stays behind.');
+      const chain = chainOf(asset);
+      const draft = await this.evm(asset).draft(asset, address, isMax ? 'max' : parseAmount(amountInput, decimals));
+      if (asset === chain.native && isMax) warnings.push(`If the actual fee is lower than expected, a little ${chain.symbol} stays behind.`);
+      if (chain.id !== 1n) warnings.push(`This sends on ${chain.name}. Make sure the receiver accepts ${chain.name}: the same 0x address on another network won't show it.`);
       preview = this.storePreview({ asset, to: address, amount: draft.amount, fee: draft.expectedFee, eth: draft });
     } else if (asset === 'XMR') {
       if (!(await monero.isValidAddress(address))) throw new Error('Not a Monero address on this network.');
@@ -1245,7 +1275,7 @@ export class WalletService extends EventEmitter {
       id: preview.id, asset, to: address,
       amount: formatAmount(preview.amount, decimals),
       fee: formatAmount(preview.fee, preview.eth ? 18 : asset === 'XMR' ? 12 : asset === 'ZANO' ? 12 : asset === 'SOL' || asset === 'USDTS' ? 9 : asset === 'DOGE' || asset === 'BTC' || asset === 'DASH' || asset === 'FIRO' || asset === 'ZEC' || asset === 'ARRR' ? 8 : 6),
-      feeAsset: preview.eth ? 'ETH' : asset === 'USDTS' ? 'SOL' : asset === 'SOL' || asset === 'DOGE' || asset === 'XMR' || asset === 'BTC' || asset === 'DASH' || asset === 'FIRO' || asset === 'ZEC' || asset === 'ZANO' || asset === 'ARRR' ? asset : 'TRX',
+      feeAsset: preview.eth ? chainOf(preview.eth.asset).native : asset === 'USDTS' ? 'SOL' : asset === 'SOL' || asset === 'DOGE' || asset === 'XMR' || asset === 'BTC' || asset === 'DASH' || asset === 'FIRO' || asset === 'ZEC' || asset === 'ZANO' || asset === 'ARRR' ? asset : 'TRX',
       feeIsEstimate: asset !== 'SOL' && asset !== 'USDTS' && asset !== 'DOGE' && asset !== 'XMR' && asset !== 'BTC' && asset !== 'DASH' && asset !== 'FIRO' && asset !== 'ZEC' && asset !== 'ZANO' && asset !== 'ARRR',
       warnings,
     };
@@ -1292,7 +1322,7 @@ export class WalletService extends EventEmitter {
       return { hashes: [await btc.send(preview.btc, secrets.tronMnemonic)] };
     }
     if (preview.eth) {
-      return { hashes: [await eth.send(preview.eth, deriveEthAccount(secrets.tronMnemonic).wallet)] };
+      return { hashes: [await this.evm(preview.eth.asset).send(preview.eth, deriveEthAccount(secrets.tronMnemonic).wallet)] };
     }
     if (preview.monero) {
       const hashes = await monero.relay(preview.monero);
@@ -1429,9 +1459,9 @@ export class WalletService extends EventEmitter {
   }
 
   explorerUrl(asset: Asset, hash: string): string {
-    if (asset === 'ETH' || asset === 'USDTE') {
+    if (isEvm(asset)) {
       if (!/^0x[0-9a-fA-F]{64}$/.test(hash)) throw new Error('Invalid transaction hash.');
-      return ETH_EXPLORER_TX + hash;
+      return EVM_EXPLORER[String(chainOf(asset).id)] + hash;
     }
     if (!/^[0-9a-fA-F]{64}$/.test(hash)) throw new Error('Invalid transaction hash.');
     const net = NETWORKS[this.settings.network];

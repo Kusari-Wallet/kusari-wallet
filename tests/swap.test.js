@@ -434,3 +434,74 @@ test('wallet: a provider that never answers doesn\'t hold back the ones that did
   assert.equal(list[0].providerId, 'etzswap', 'the one with a quote comes first');
 });
 
+// ---- ChangeNOW ----
+const { ChangeNowClient } = require('../dist/main/swap');
+function cn(override = {}) {
+  const log = [];
+  const server = http.createServer((q, r) => {
+    let b = '';
+    q.on('data', (c) => { b += c; });
+    q.on('end', () => {
+      const u = new URL(q.url, 'http://x');
+      log.push({ method: q.method, path: u.pathname, params: Object.fromEntries(u.searchParams), body: b && JSON.parse(b), headers: q.headers });
+      r.setHeader('content-type', 'application/json');
+      if (q.headers['x-changenow-api-key'] !== 'KEY') { r.statusCode = 401; return r.end('Unauthorized'); }
+      const p = Object.fromEntries(u.searchParams);
+      // Fields as their API answered for a real BTC to XMR quote.
+      if (u.pathname === '/v2/exchange/estimated-amount') {
+        if (Number(p.fromAmount) < 5) { r.statusCode = 400; return r.end(JSON.stringify({ error: 'deposit_too_small', message: 'Out of min amount' })); }
+        return r.end(JSON.stringify({ fromCurrency: p.fromCurrency, fromNetwork: p.fromNetwork, toCurrency: p.toCurrency, toNetwork: p.toNetwork, flow: 'standard', type: 'direct', rateId: null, validUntil: null, transactionSpeedForecast: '10-60', warningMessage: null, depositFee: 0.1, withdrawalFee: 0.009, userId: null, fromAmount: Number(p.fromAmount), toAmount: 1500 }));
+      }
+      if (u.pathname === '/v2/exchange/min-amount') return r.end(JSON.stringify({ ...p, minAmount: 5 }));
+      if (u.pathname === '/v2/exchange' && q.method === 'POST') {
+        const x = JSON.parse(b);
+        return r.end(JSON.stringify({ fromAmount: Number(x.fromAmount), toAmount: 1500, flow: 'standard', type: 'direct', payinAddress: DEPOSIT, payoutAddress: x.address, fromCurrency: x.fromCurrency, toCurrency: x.toCurrency, refundAddress: x.refundAddress, id: '3a2360771439a3', fromNetwork: x.fromNetwork, toNetwork: x.toNetwork, ...override }));
+      }
+      if (u.pathname === '/v2/exchange/by-id') return r.end(JSON.stringify({ id: p.id, status: 'sending', payinHash: 'aa', payoutHash: 'bb' }));
+      r.statusCode = 404; r.end('{}');
+    });
+  });
+  return new Promise((res) => server.listen(0, '127.0.0.1', () => res({ server, log, client: new ChangeNowClient(`http://127.0.0.1:${server.address().port}`, 'KEY') })));
+}
+
+test('ChangeNOW: key header, ticker and network, order, status', async (t) => {
+  const m = await cn(); closing(t, m.server);
+  const q = await m.client.quote('USDT', 'XMR', '10');
+  assert.deepEqual([q.receive, q.rate, q.problem, q.providerId, q.provider], ['1500', '150', null, 'changenow', 'ChangeNOW']);
+  const p = m.log[0].params;
+  assert.deepEqual([p.fromCurrency, p.fromNetwork, p.toCurrency, p.toNetwork, p.flow, p.type, p.fromAmount], ['usdt', 'trx', 'xmr', 'xmr', 'standard', 'direct', '10']);
+  for (const [asset, net] of [['USDTE', 'eth'], ['USDTS', 'sol']]) {
+    await m.client.quote(asset, 'XMR', '10');
+    assert.deepEqual([m.log.at(-1).params.fromCurrency, m.log.at(-1).params.fromNetwork], ['usdt', net]);
+  }
+  const o = await m.client.create('USDT', 'XMR', '10', q.receive, ME_XMR, ME_TRON);
+  assert.deepEqual([o.id, o.depositAddress, o.receive], ['3a2360771439a3', DEPOSIT, '1500']);
+  const post = m.log.find((l) => l.method === 'POST');
+  assert.deepEqual([post.body.address, post.body.refundAddress, post.body.fromAmount, post.body.flow], [ME_XMR, ME_TRON, '10', 'standard']);
+  assert.equal(post.headers['x-forwarded-for'], undefined, 'the user\'s IP is not handed over');
+  assert.deepEqual(await m.client.status(o.id), { status: 'sending', hashIn: 'aa', hashOut: 'bb' });
+});
+
+test('ChangeNOW: minimum, a bad key and coins it lacks are explained', async (t) => {
+  const m = await cn(); closing(t, m.server);
+  assert.match((await m.client.quote('USDT', 'XMR', '1')).problem, /minimum amount is 5 USDT/);
+  const bad = new ChangeNowClient(`http://127.0.0.1:${m.server.address().port}`, 'nope');
+  assert.match((await bad.quote('BTC', 'XMR', '1')).problem, /API key/);
+});
+
+for (const [name, override, pattern] of [
+  ['another receive address', { payoutAddress: 'x' }, /receiving address/],
+  ['another refund address', { refundAddress: 'x' }, /refund address/],
+  ['a different amount', { fromAmount: 11 }, /send amount/],
+  ['less than quoted', { toAmount: 1000 }, /less than quoted/],
+  ['a different coin', { toCurrency: 'btc' }, /received coin/],
+  ['a different network', { fromNetwork: 'eth' }, /sending network/],
+  ['a memo requirement', { payinExtraId: '77' }, /memo/],
+  ['no deposit address', { payinAddress: '' }, /deposit address/],
+  ['a bad order number', { id: '../x' }, /order number/],
+]) {
+  test(`ChangeNOW: refused when it returns ${name}`, async (t) => {
+    const m = await cn(override); closing(t, m.server);
+    await assert.rejects(m.client.create('USDT', 'XMR', '10', '1500', ME_XMR, ME_TRON), pattern);
+  });
+}
