@@ -5,7 +5,7 @@ type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'SOL' | 'USDTS' 
 type Attrs = Record<string, any>;
 type Child = Node | string | null | undefined | false;
 
-const ALL_ASSETS: Asset[] = ['XMR', 'BTC', 'ETH', 'TRX', 'USDTE', 'USDT', 'SOL', 'USDTS', 'DOGE', 'DASH', 'FIRO', 'ZEC', 'ZANO', 'ARRR'];
+const ALL_ASSETS: Asset[] = ['XMR', 'BTC', 'ETH', 'ZEC', 'SOL', 'TRX', 'USDTE', 'USDT', 'USDTS', 'DOGE', 'DASH', 'FIRO', 'ZANO', 'ARRR'];
 // These need their engines, which aren't in every build or on every phone.
 let ASSETS: Asset[] = ALL_ASSETS.filter((a) => a !== 'ZEC' && a !== 'ZANO' && a !== 'ARRR');
 let zecInSession = false;

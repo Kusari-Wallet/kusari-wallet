@@ -118,7 +118,7 @@ const PASSWORD = 'correct horse battery';
   await page.fill('#from', '');
   await page.click('#next');
   await page.locator('#asset-USDT').waitFor({ timeout: 90000 });
-  assert.deepEqual(await page.locator('.asset').evaluateAll((els) => els.map((e) => e.id)), ['asset-XMR', 'asset-BTC', 'asset-ETH', 'asset-TRX', 'asset-USDTE', 'asset-USDT', 'asset-SOL', 'asset-USDTS', 'asset-DOGE', 'asset-DASH', 'asset-FIRO', 'asset-ZEC', 'asset-ZANO', 'asset-ARRR']);
+  assert.deepEqual(await page.locator('.asset').evaluateAll((els) => els.map((e) => e.id)), ['asset-XMR', 'asset-BTC', 'asset-ETH', 'asset-ZEC', 'asset-SOL', 'asset-TRX', 'asset-USDTE', 'asset-USDT', 'asset-USDTS', 'asset-DOGE', 'asset-DASH', 'asset-FIRO', 'asset-ZANO', 'asset-ARRR']);
   assert.match(await page.locator('#asset-USDTE').innerText(), /USDT \(Eth\)/);
   assert.match(await page.locator('#asset-USDT').innerText(), /USDT \(Tron\)/);
   assert.match(await page.locator('#asset-USDTS').innerText(), /USDT \(Sol\)/);
