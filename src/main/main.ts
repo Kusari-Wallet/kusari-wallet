@@ -92,6 +92,7 @@ app.whenReady().then(async () => {
   handle('wallet:zanoInfo', () => service.zanoInfo());
   handle('wallet:zecInfo', () => service.zecInfo());
   handle('wallet:zecShield', (pw: string) => service.zecShield(pw));
+  handle('wallet:prepareScrtPrivate', (kind: 'wrap' | 'unwrap' | 'key', amount: string) => service.prepareScrtPrivate(kind, amount));
   handle('wallet:zecRescan', (date: string, pw: string) => service.zecRescan(date, pw));
   handle('wallet:generateSeeds', () => service.generateSeeds());
   handle('wallet:finishCreate', (pw: string) => service.finishCreate(pw));

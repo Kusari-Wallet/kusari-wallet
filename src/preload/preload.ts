@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
 const call = (name: string) => (...args: unknown[]) => ipcRenderer.invoke(`wallet:${name}`, ...args);
-const methods = ['status', 'generateSeeds', 'finishCreate', 'restore', 'unlock', 'lock', 'overview', 'history', 'zecInfo', 'zanoInfo', 'arrrInfo', 'arrrRescan', 'zecShield', 'zecRescan',
+const methods = ['status', 'generateSeeds', 'finishCreate', 'restore', 'unlock', 'lock', 'overview', 'history', 'zecInfo', 'zanoInfo', 'arrrInfo', 'arrrRescan', 'zecShield', 'prepareScrtPrivate', 'zecRescan',
   'moneroAddresses', 'newSubaddress', 'qr', 'prepareSend', 'cancelSend', 'confirmSend', 'revealSeeds',
   'changePassword', 'getSettings', 'updateSettings', 'deleteWallet', 'openExplorer', 'openBuy', 'activity', 'copy', 'prices', 'paste', 'addresses', 'torInfo', 'installTor', 'connectionLog', 'swapQuote', 'swapPrepare', 'swapConfirm', 'swapRefresh', 'swapList', 'privacyQuote', 'privacyPrepare', 'privacyRefresh', 'privacySecondQuote', 'privacySecond', 'privacyList', 'walletsList', 'walletRename', 'walletSwitch', 'walletBeginAdd', 'walletCancelAdd', 'feeEstimate', 'tornadoInfo', 'tornadoCheck', 'tornadoDepositPrepare', 'tornadoDepositConfirm', 'tornadoExport', 'tornadoWithdrawQuote', 'tornadoWithdraw', 'tornadoRecover'];
 const events = ['monero-state', 'balance-changed', 'tron-tx', 'locked', 'tor-state', 'tor-install', 'tornado-progress'];

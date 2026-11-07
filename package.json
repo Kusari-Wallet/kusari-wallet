@@ -18,6 +18,7 @@
   "author": "Edge",
   "license": "MIT",
   "dependencies": {
+    "@noble/ciphers": "^2.4.0",
     "@noble/curves": "^2.4.0",
     "@scure/base": "^2.4.0",
     "@scure/bip32": "1.4.0",

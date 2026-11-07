@@ -145,6 +145,7 @@ const bioCall = (fn: (id: number) => void) => new Promise<string>((resolve, reje
   zanoInfo: call(() => service.zanoInfo()),
   zecInfo: call(() => service.zecInfo()),
   zecShield: call((pw: string) => service.zecShield(pw)),
+  prepareScrtPrivate: call((kind: any, amt: string) => service.prepareScrtPrivate(kind, amt)),
   zecRescan: call((d: string, pw: string) => service.zecRescan(d, pw)),
   walletsList: call(() => service.walletsList()),
   walletRename: call((i: string, n: string) => service.walletRename(i, n)),

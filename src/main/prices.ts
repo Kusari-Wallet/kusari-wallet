@@ -19,6 +19,8 @@ function all(btc: Row, eth: Row, trx: Row, usdt: Row, xmr: Row, dash?: Row, zec?
   // A smaller coin missing from one source shouldn't cost every other coin its price.
   const extra = Object.fromEntries(Object.entries(more).filter(([, v]) => v));
   // ETH on Arbitrum is the same coin as on Ethereum, and every USDT is a dollar token.
+  // sSCRT is SCRT one for one, only private.
+  if (extra.SCRT) extra.SSCRT = extra.SCRT;
   return { ...extra, BTC: btc, ETH: eth, ETHA: eth, TRX: trx, USDT: usdt, USDTE: usdt, USDTS: usdt, USDTP: usdt, USDTA: usdt, XMR: xmr, ...(sol ? { SOL: sol } : {}), ...(doge ? { DOGE: doge } : {}), ...(dash ? { DASH: dash } : {}), ...(zec ? { ZEC: zec } : {}), ...(zano ? { ZANO: zano } : {}), ...(arrr ? { ARRR: arrr } : {}), ...(firo ? { FIRO: firo } : {}) } as PriceMap;
 }
 
@@ -69,6 +71,7 @@ function exchange(name: string, url: string, read: (json: any, coin: Asset) => {
       }
       if (!Object.keys(prices).length) throw new Error('bad price');
       if (prices.ETH) prices.ETHA = prices.ETH;
+      if (prices.SCRT) prices.SSCRT = prices.SCRT;
       return prices as PriceMap;
     },
   };

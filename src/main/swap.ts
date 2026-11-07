@@ -33,6 +33,7 @@ const COIN: Record<Asset, { coin: string; network: RegExp; fallback: string }> =
   ZANO: { coin: 'ZANO', network: /^zano$/i, fallback: 'ZANO' },
   ARRR: { coin: 'ARRR', network: /^(arrr|pirate)/i, fallback: 'ARRR' },
   SCRT: { coin: 'SCRT', network: /^(scrt|secret)/i, fallback: 'SCRT' },
+  SSCRT: { coin: '', network: /^$/, fallback: '' }, // never offered: see NOT_SWAPPABLE
 };
 
 /** Ethereum addresses differ only in checksum casing, which services often drop. */
@@ -45,6 +46,9 @@ function sameAddress(a: unknown, b: string): boolean {
 }
 
 export interface SwapQuote { from: Asset; to: Asset; amount: string; receive: string; rate: string; min: string | null; max: string | null; problem: string | null; provider: string; providerId: SwapProviderId; approximate: boolean }
+
+/** No provider takes the private form of a coin; it's made from or turned back into the plain one in the wallet. */
+export const NOT_SWAPPABLE: ReadonlySet<Asset> = new Set<Asset>(['SSCRT']);
 
 export type SwapProviderId = 'exolix' | 'simpleswap' | 'ghostswap' | 'etzswap' | 'ccecash' | 'changenow';
 
@@ -192,6 +196,7 @@ const SIMPLE_COIN: Record<Asset, { ticker: string; network: string }> = {
   ZANO: { ticker: 'zano', network: 'zano' },
   ARRR: { ticker: 'arrr', network: 'arrr' },
   SCRT: { ticker: 'scrt', network: 'scrt' },
+  SSCRT: { ticker: '', network: '' },
 };
 
 export class SimpleSwapClient implements SwapProvider {
@@ -266,7 +271,7 @@ const GHOST_LOOKUP: Record<LookedUp, { ticker: RegExp; chain: RegExp; label: str
   ETHA: { ticker: /^eth/i, chain: /^(arb|arbitrum)$/i, label: 'ETH (Arb)' },
   USDTA: { ticker: /^usdt/i, chain: /^(arb|arbitrum)$/i, label: 'USDT (Arb)' },
 };
-const GHOST_TICKER: Record<Exclude<Asset, LookedUp>, string> = { BTC: 'btc', XMR: 'xmr', ETH: 'eth', TRX: 'trx', USDT: 'usdtrx', DASH: 'dash', FIRO: 'firo', SOL: 'sol', BCH: 'bch', LTC: 'ltc', DOGE: 'doge', ZEC: 'zec', ZANO: 'zano', ARRR: 'arrr', SCRT: 'scrt' };
+const GHOST_TICKER: Record<Exclude<Asset, LookedUp>, string> = { BTC: 'btc', XMR: 'xmr', ETH: 'eth', TRX: 'trx', USDT: 'usdtrx', DASH: 'dash', FIRO: 'firo', SOL: 'sol', BCH: 'bch', LTC: 'ltc', DOGE: 'doge', ZEC: 'zec', ZANO: 'zano', ARRR: 'arrr', SCRT: 'scrt', SSCRT: '' };
 
 export class GhostSwapClient implements SwapProvider {
   constructor(private readonly base: string, private readonly bearer: string, private readonly agent?: Agent, private readonly timeoutMs = 30_000) {}
@@ -466,6 +471,7 @@ const CN_COIN: Partial<Record<Asset, { ticker: string; network: string }>> = {
   ZANO: { ticker: 'zano', network: 'zano' },
   ARRR: { ticker: 'arrr', network: 'arrr' },
   SCRT: { ticker: 'scrt', network: 'scrt' },
+  SSCRT: { ticker: '', network: '' },
 };
 
 export class ChangeNowClient implements SwapProvider {
