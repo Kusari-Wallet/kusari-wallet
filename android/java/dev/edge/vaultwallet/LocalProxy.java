@@ -108,7 +108,6 @@ final class LocalProxy {
                 else if ("x-api-timestamp".equals(name)) swap.put("X-Api-Timestamp", value);
                 else if ("x-api-signature".equals(name)) swap.put("X-Api-Signature", value);
                 else if ("ref-code".equals(name)) swap.put("Ref-Code", value);
-                else if ("x-changenow-api-key".equals(name)) swap.put("x-changenow-api-key", value);
                 else if ("content-length".equals(name)) length = Long.parseLong(value);
             }
             if (allowedOrigin != null && origin != null && !allowedOrigin.equals(origin)) { respond(out, 403, null, new byte[0]); return; }
@@ -315,7 +314,7 @@ final class LocalProxy {
         if (origin != null) {
             h.append("Access-Control-Allow-Origin: ").append(origin).append("\r\n");
             h.append("Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n");
-            h.append("Access-Control-Allow-Headers: Content-Type, Accept, Authorization, TRON-PRO-API-KEY, x-api-key, X-API-SECRET-KEY, X-API-KEY-VERSION, X-Api-Nonce, X-Api-Timestamp, X-Api-Signature, Ref-Code, Idempotency-Key, x-changenow-api-key\r\n");
+            h.append("Access-Control-Allow-Headers: Content-Type, Accept, Authorization, TRON-PRO-API-KEY, x-api-key, X-API-SECRET-KEY, X-API-KEY-VERSION, X-Api-Nonce, X-Api-Timestamp, X-Api-Signature, Ref-Code, Idempotency-Key\r\n");
             h.append("Access-Control-Max-Age: 600\r\n");
         }
         h.append(extraHeaders);

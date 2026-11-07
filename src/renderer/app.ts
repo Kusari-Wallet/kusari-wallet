@@ -1020,7 +1020,8 @@ async function renderSwap(from: Asset = selected, to: Asset = selected === 'XMR'
   } });
   const paintOffers = (list: any[]) => {
     const good = list.filter((q) => !q.problem);
-    chosen = good.find((q) => q.providerId === chosen?.providerId) ?? good[0] ?? null;
+    // GhostSwap is the default whenever it has a quote. A provider the person picked stays picked.
+    chosen = good.find((q) => q.providerId === chosen?.providerId) ?? good.find((q) => q.providerId === 'ghostswap') ?? good[0] ?? null;
     next.disabled = !chosen;
     receive.textContent = chosen ? `about ${chosen.receive}` : '0';
     receiveNet.textContent = chosen ? netLine(chosen, chosen.network) : '';
@@ -1390,7 +1391,7 @@ function renderPrivacyStatus(initial: any): void {
     }) }, 'Continue to step 2');
     const paintOffers = (list: any[]) => {
       const good = list.filter((q) => !q.problem);
-      chosen = good.find((q) => q.providerId === chosen?.providerId) ?? good[0] ?? null;
+      chosen = good.find((q) => q.providerId === chosen?.providerId) ?? good.find((q) => q.providerId === 'ghostswap') ?? good[0] ?? null;
       go.disabled = !chosen;
       quote.textContent = chosen ? `about ${chosen.receive} ${coinName(p.to)}. Handled by ${chosen.provider}.` : (list[0]?.problem ?? '');
       setKids(offers, ...list.map((q) => h('button', { type: 'button', class: `swap-offer${q === chosen ? ' on' : ''}`, id: `pv-offer-${q.providerId}`, disabled: Boolean(q.problem), onclick: () => { chosen = q; paintOffers(list); } },
