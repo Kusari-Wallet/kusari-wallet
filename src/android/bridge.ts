@@ -120,6 +120,7 @@ const bioCall = (fn: (id: number) => void) => new Promise<string>((resolve, reje
     native.openExternal(url);
     return { copied: false };
   }),
+  openBuy: call(async (a: any) => { native.openExternal(service.buyUrl(a)); }),
   activity: call(() => undefined),
   prices: call(() => service.prices()),
   paste: call(() => String(native.paste() ?? '').trim().slice(0, 200)),

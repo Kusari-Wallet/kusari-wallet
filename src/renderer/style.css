@@ -182,7 +182,8 @@ label.field > span { display: block; margin-bottom: 6px; font-size: 14px; font-w
 .scan-status { position: absolute; left: 24px; right: 24px; bottom: 72px; text-align: center; font-size: 15px; }
 .scan-close { position: absolute; top: 18px; right: 18px; background: rgba(0,0,0,.6); }
 .scan-close svg.icon { width: 26px; height: 26px; }
-.actions { gap: 28px; }
+.actions { gap: 20px; }
+@media (max-width: 420px) { .actions { gap: 12px; padding-left: 16px; padding-right: 16px; } .action span.box { width: 64px; height: 64px; } }
 .swap-action span.box { border: 1.5px solid transparent; background: linear-gradient(#222, #222) padding-box, linear-gradient(135deg, var(--orange), var(--green)) border-box; }
 .action.swap-action:hover span.box { background: linear-gradient(#303030, #303030) padding-box, linear-gradient(135deg, var(--orange), var(--green)) border-box; }
 .swap-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
@@ -265,3 +266,6 @@ label.field > span { display: block; margin-bottom: 6px; font-size: 14px; font-w
 .skip-backup { width: 100%; margin-top: 10px; }
 .swap-net { text-align: right; font-size: 14px; color: #bff0d3; min-height: 18px; margin-top: 2px; }
 .offer-net { display: block; margin-top: 2px; font-weight: 600; color: #bff0d3; }
+
+.pay-methods { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 8px; }
+.pay-chip { padding: 6px 12px; border-radius: 999px; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.12); font-size: 13px; font-weight: 600; }

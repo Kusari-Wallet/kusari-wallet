@@ -78,6 +78,7 @@ const ICONS = {
   scan: 'M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M4 12h16',
   close: 'M5 5l14 14M19 5L5 19',
   swap: 'M17 3l4 4-4 4M21 7H8a4 4 0 0 0-4 4M7 21l-4-4 4-4M3 17h13a4 4 0 0 0 4-4',
+  buy: 'M3.5 6.5h17a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-17a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1zM2.5 10.5h19M6.5 14.5h4',
   shield: 'M12 3l7.5 3v5.5c0 4.5-3.2 8-7.5 9.5-4.3-1.5-7.5-5-7.5-9.5V6z',
   paste: 'M9 4h6v3H9zM9 5.5H6a1 1 0 0 0-1 1V20a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6.5a1 1 0 0 0-1-1h-3M9 13h6M9 17h4',
 };
@@ -484,7 +485,8 @@ function renderHome(): void {
     h('div', { class: 'actions' },
       h('button', { class: 'action', id: 'go-send', onclick: () => renderSend() }, h('span', { class: 'box' }, icon('send')), 'Send'),
       h('button', { class: 'action', id: 'go-receive', onclick: () => void renderReceive() }, h('span', { class: 'box' }, icon('receive')), 'Receive'),
-      h('button', { class: 'action swap-action', id: 'go-swap', onclick: () => void renderSwap() }, h('span', { class: 'box' }, icon('swap')), 'Swap')),
+      h('button', { class: 'action swap-action', id: 'go-swap', onclick: () => void renderSwap() }, h('span', { class: 'box' }, icon('swap')), 'Swap'),
+      h('button', { class: 'action', id: 'go-buy', onclick: () => void renderBuy() }, h('span', { class: 'box' }, icon('buy')), 'Buy')),
     h('div', { class: 'tabs', role: 'tablist' }, tab('assets', 'Assets'), tab('history', 'History')),
     body,
     bottomNav('home'));
@@ -865,6 +867,50 @@ wallet.on('tron-tx', (t: { txid: string; status: string }) => {
   }
   void refresh();
 });
+
+// ---- buy ----
+
+async function renderBuy(): Promise<void> {
+  const asset = selected;
+  const addressEl = h('div', { class: 'mono', id: 'buy-address' }, 'Loading…');
+  const status = h('span', { class: 'status', role: 'status' });
+  const box = errorBox();
+  let address = '';
+  const copy = h('button', { class: 'icon-btn', id: 'buy-copy', disabled: true, 'aria-label': 'Copy address', title: 'Copy address', onclick: async () => {
+    await wallet.copy(address); status.textContent = 'Copied. It clears from the clipboard in 60 seconds.';
+  } }, icon('copy'));
+  const tor = !!(await wallet.getSettings().catch(() => null))?.torEnabled;
+  const open = h('button', { class: 'primary', id: 'buy-open', onclick: () => busy(open, 'Opening…', box, async () => {
+    await wallet.openBuy(asset);
+    status.textContent = 'ChangeNOW opened in your browser. Paste this address there as the receiving address.';
+  }) }, 'Buy with ChangeNOW');
+  show('send', subBar('Buy', renderHome), h('div', { class: 'scroll' },
+    picker(() => void renderBuy()),
+    h('div', { class: 'panel' },
+      h('span', { class: 'label' }, `Your ${coinName(asset)} receiving address`),
+      h('div', { class: 'addr-box' }, addressEl, copy),
+      status),
+    h('div', { class: 'panel' },
+      h('span', { class: 'label' }, 'Pay with'),
+      h('div', { class: 'pay-methods', id: 'pay-methods' }, ...['Visa', 'Mastercard', 'Google Pay'].map((m) => h('span', { class: 'pay-chip', 'data-no-translate': '' }, m))),
+      h('span', { class: 'small muted' }, 'You choose the method on ChangeNOW\'s page. What is offered depends on your country and the amount.')),
+    h('p', { class: 'small muted' }, 'Copy the address, then paste it on ChangeNOW\'s page as the receiving address. Check that the coin and network there match.'),
+    h('p', { class: 'small muted' }, `Purchases are made on ChangeNOW's page in your browser, by card or another payment method they offer. ChangeNOW and its payment partners ask for identity checks (KYC), set the fees, and may not offer every coin or country. This wallet adds no fee and sends them nothing.`),
+    tor && h('p', { class: 'small muted' }, 'Your browser isn\'t behind Tor, so they can see your IP address.'),
+    box.el,
+    open));
+  try {
+    const list = await wallet.addresses();
+    // ChangeNOW pays Zcash to transparent addresses only.
+    address = asset === 'ZEC' ? list?.ZEC_T ?? '' : list?.[asset] ?? '';
+    if (!address) throw new Error(asset === 'ZEC' ? 'The Zcash wallet is getting ready. See the Zcash engine section in Settings for progress.' : 'Could not load the address. Open this again.');
+    if (!addressEl.isConnected) return;
+    addressEl.textContent = address;
+    copy.disabled = false;
+  } catch (e) {
+    box.show(e);
+  }
+}
 
 // ---- receive ----
 

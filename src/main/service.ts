@@ -4,7 +4,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import QRCode from 'qrcode';
 import { formatAmount, parseAmount } from './amount';
-import { Asset, BTC_APIS, BTC_EXPLORER_TX, DECIMALS, FIRO_APIS, FIRO_EXPLORER_TX, SOL_RPCS, SOL_EXPLORER_TX, DOGE_APIS, DOGE_PUSH_URLS, DOGE_EXPLORER_TX, DASH_APIS, DASH_EXPLORER_TX, DEFAULT_SETTINGS, ARRR_EXPLORER_TX, ARRR_SERVERS, ZANO_EXPLORER_TX, ZANO_NODE, ZEC_EXPLORER_TX, ZEC_SERVERS, ETH_EXPLORER_TX, ETH_RPCS, ETH_SCOUT, ETH_USDT, NETWORKS, NetworkId, Settings, estimateMainnetHeight } from './config';
+import { Asset, BTC_APIS, BTC_EXPLORER_TX, DECIMALS, FIRO_APIS, FIRO_EXPLORER_TX, SOL_RPCS, SOL_EXPLORER_TX, CHANGENOW_BUY_PAGE, CHANGENOW_LINK_ID, DOGE_APIS, DOGE_PUSH_URLS, DOGE_EXPLORER_TX, DASH_APIS, DASH_EXPLORER_TX, DEFAULT_SETTINGS, ARRR_EXPLORER_TX, ARRR_SERVERS, ZANO_EXPLORER_TX, ZANO_NODE, ZEC_EXPLORER_TX, ZEC_SERVERS, ETH_EXPLORER_TX, ETH_RPCS, ETH_SCOUT, ETH_USDT, NETWORKS, NetworkId, Settings, estimateMainnetHeight } from './config';
 import { MIN_PASSWORD, Secrets, Vault } from './vault';
 import { TronClient, TronTransfer, deriveTronAccount, generateTronMnemonic, isTronAddress } from './tron';
 import { socksAgent, getJson, requestJson, newTorRoute } from './request';
@@ -33,6 +33,8 @@ const QUICK_REFUSAL_MS = 15_000;
 const QUOTE_DEADLINE_MS = 20_000;
 const QUOTE_DEADLINE_TOR_MS = 40_000;
 const QUOTE_EXTRAS_MS = 8_000;
+// ChangeNOW's own names, checked against their currency list.
+const BUY_TICKER: Record<Asset, string> = { BTC: 'btc', XMR: 'xmr', ETH: 'eth', ZEC: 'zec', SOL: 'sol', TRX: 'trx', USDTE: 'usdterc20', USDT: 'usdttrc20', USDTS: 'usdtsol', DOGE: 'doge', DASH: 'dash', FIRO: 'firo', ZANO: 'zano', ARRR: 'arrr' };
 const SWAP_NAMES: Record<SwapProviderId, string> = { exolix: 'Exolix', simpleswap: 'SimpleSwap', ghostswap: 'GhostSwap', etzswap: 'ETZ Swap', ccecash: 'CCECash', changenow: 'ChangeNOW' };
 
 function within<T, F>(ms: number, work: Promise<T>, late: F): Promise<T | F> {
@@ -1414,6 +1416,18 @@ export class WalletService extends EventEmitter {
     await this.walletRegistrySave(next);
     this.activate(next.active);
     return id;
+  }
+
+  /**
+   * ChangeNOW's purchase page for one coin, paid by card. The wallet only opens it: payment, KYC and the receiving
+   * address are entered on their page, and nothing about this wallet is put in the link.
+   */
+  buyUrl(asset: Asset, fiat = 'usd'): string {
+    const ticker = BUY_TICKER[asset];
+    if (!ticker) throw new Error('This coin can\'t be bought here.');
+    if (!/^[a-z]{3}$/.test(fiat)) throw new Error('Unknown currency.');
+    const q = new URLSearchParams({ amountFiat: '100', backgroundColor: '111111', darkMode: 'true', from: fiat, fromFiat: fiat, horizontal: 'false', isFiat: '', lang: 'en-US', link_id: CHANGENOW_LINK_ID, locales: 'true', logo: 'true', primaryColor: 'FF6A00', to: ticker, toFiat: ticker, toTheMoon: 'false' });
+    return `${CHANGENOW_BUY_PAGE}?${q}`;
   }
 
   explorerUrl(asset: Asset, hash: string): string {

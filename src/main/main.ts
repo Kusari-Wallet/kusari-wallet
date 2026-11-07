@@ -118,6 +118,8 @@ app.whenReady().then(async () => {
     await shell.openExternal(url);
     return { copied: false };
   });
+  // The purchase page needs a normal browser: card payment pages refuse Tor, and the person signs in there.
+  handle('wallet:openBuy', async (asset) => { await shell.openExternal(service.buyUrl(asset)); });
   handle('wallet:addresses', () => service.addresses());
   handle('wallet:swapQuote', (a, b, c: string) => service.swapQuote(a, b, c));
   handle('wallet:swapPrepare', (a, b, c: string, d, e: string) => service.swapPrepare(a, b, c, d, e));

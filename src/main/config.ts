@@ -9,6 +9,9 @@ export const BTC_EXPLORER_TX = 'https://mempool.space/tx/';
 
 export const SOL_RPCS = ['https://api.mainnet-beta.solana.com', 'https://api.mainnet.solana.com', 'https://solana-rpc.publicnode.com'];
 export const SOL_EXPLORER_TX = 'https://solscan.io/tx/';
+// Card purchases open ChangeNOW's own page in the browser. The link id only credits the partner account.
+export const CHANGENOW_BUY_PAGE = 'https://changenow.io/embeds/exchange-widget/v2/widget.html';
+export const CHANGENOW_LINK_ID = '9183599f3b8ee2';
 export const DOGE_APIS = ['https://api.blockcypher.com/v1/doge/main'];
 // BlockCypher only takes POST with a token, which an app can't keep secret, so it reads and these two send.
 // Sending the same transaction twice is harmless. BlockCypher then confirms it from outside.
