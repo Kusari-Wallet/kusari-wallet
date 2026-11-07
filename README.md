@@ -96,7 +96,7 @@ The app is in English, Korean, Japanese, Simplified Chinese, Vietnamese, Portugu
 
 ## Swaps
 
-The Buy button opens ChangeNOW's purchase page in the system browser for the chosen coin, with the partner link and nothing about the wallet in the URL. The person pastes their receiving address there, which the screen shows with a copy button. Payment (Visa, Mastercard or Google Pay, as ChangeNOW offers them for the person's country) and identity checks happen on ChangeNOW's side, and the browser isn't behind Tor.
+The Buy button opens ChangeNOW's purchase page in the system browser for the chosen coin, with the partner link and nothing about the wallet in the URL. The person pastes their receiving address there, which the screen shows with a copy button. Payment and identity checks happen on ChangeNOW's side, and the browser isn't behind Tor.
 
 Coins can be swapped with each other, and entering a receiving address sends the result to another wallet. ETZ Swap, CCECash and ChangeNOW join when their keys are present at build time (`.swap-keys.json` or `ETZSWAP_KEY`, `ETZSWAP_SECRET`, `CHANGENOW_KEY`, `CCECASH_KEY`, `CCECASH_SECRET`, `CCECASH_REF_CODE`). Those keys can read the account's orders, addresses included, so never distribute a build that holds them. The default provider is Exolix. SimpleSwap uses a partner key that is put in at build time from the `SIMPLESWAP_KEY` environment variable or `.swap-keys.json`, and is not in the source. It can be extracted from the app, so don't treat it as secret. The app adds no fee of its own. Provider support differs per coin.
 

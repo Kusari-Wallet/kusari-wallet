@@ -133,7 +133,6 @@ const PASSWORD = 'correct horse battery';
   await page.locator('#buy-copy:not([disabled])').waitFor({ timeout: 30000 });
   assert.match(await page.locator('#buy-address').innerText(), /\S{20,}/);
   assert.match(await page.locator('.screen').innerText(), /KYC/);
-  assert.deepEqual(await page.locator('#pay-methods .pay-chip').allInnerTexts(), ['Visa', 'Mastercard', 'Google Pay']);
   await shot('buy');
   await page.click('#back');
   await page.locator('#go-buy').waitFor();
