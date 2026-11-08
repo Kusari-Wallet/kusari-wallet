@@ -52,6 +52,8 @@ const service = new WalletService('/data', undefined, {
   polScout: __TEST__ ? testConfig.polScout : undefined,
   arbRpc: __TEST__ ? testConfig.arbRpc : undefined,
   arbScout: __TEST__ ? testConfig.arbScout : undefined,
+  bscRpc: __TEST__ ? testConfig.bscRpc : undefined,
+  bscScout: __TEST__ ? testConfig.bscScout : undefined,
 });
 const ready = service.init();
 

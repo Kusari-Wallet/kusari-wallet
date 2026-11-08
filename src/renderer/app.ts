@@ -1,15 +1,17 @@
 declare const wallet: any;
 declare const jsQR: any;
 
-type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'LINK' | 'WLD' | 'SOL' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA' | 'BCH' | 'LTC' | 'DOGE' | 'DASH' | 'FIRO' | 'ZEC' | 'ZANO' | 'ARRR' | 'SCRT';
+type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'LINK' | 'WLD' | 'SOL' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA' | 'BCH' | 'LTC' | 'DOGE' | 'DASH' | 'FIRO' | 'ZEC' | 'ZANO' | 'ARRR' | 'SCRT' | 'POLE' | 'UNI' | 'PEPE' | 'AAVE' | 'NEARE' | 'BNB' | 'USDTB' | 'ASTER' | 'CAKE' | 'JUP' | 'RAY';
 type Attrs = Record<string, any>;
 type Child = Node | string | null | undefined | false;
 
-const ALL_ASSETS: Asset[] = ['XMR', 'BTC', 'ETH', 'USDTE', 'LINK', 'WLD', 'ZEC', 'SOL', 'USDTS', 'TRX', 'USDT', 'POL', 'USDTP', 'ARB', 'ETHA', 'USDTA', 'BCH', 'LTC', 'SCRT', 'DOGE', 'DASH', 'FIRO', 'ZANO', 'ARRR'];
+const ALL_ASSETS: Asset[] = ['XMR', 'BTC', 'ETH', 'USDTE', 'LINK', 'WLD', 'POLE', 'UNI', 'PEPE', 'AAVE', 'NEARE', 'ZEC', 'SOL', 'USDTS', 'JUP', 'RAY', 'TRX', 'USDT', 'BNB', 'USDTB', 'ASTER', 'CAKE', 'POL', 'USDTP', 'ARB', 'ETHA', 'USDTA', 'BCH', 'LTC', 'SCRT', 'DOGE', 'DASH', 'FIRO', 'ZANO', 'ARRR'];
 /** Tokens shown under the coin of their chain on the home screen, folded until opened. */
-const GROUPS: Partial<Record<Asset, Asset[]>> = { ETH: ['USDTE', 'LINK', 'WLD'], SOL: ['USDTS'], TRX: ['USDT'], POL: ['USDTP'], ARB: ['ETHA', 'USDTA'] };
+const GROUPS: Partial<Record<Asset, Asset[]>> = { ETH: ['USDTE', 'LINK', 'WLD', 'POLE', 'UNI', 'PEPE', 'AAVE', 'NEARE'], SOL: ['USDTS', 'JUP', 'RAY'], TRX: ['USDT'], BNB: ['USDTB', 'ASTER', 'CAKE'], POL: ['USDTP'], ARB: ['ETHA', 'USDTA'] };
 const IN_GROUP = new Set(Object.values(GROUPS).flat());
-const EVM_ASSETS: Asset[] = ['ETH', 'USDTE', 'LINK', 'WLD', 'POL', 'USDTP', 'ARB', 'ETHA', 'USDTA'];
+const EVM_ASSETS: Asset[] = ['ETH', 'USDTE', 'LINK', 'WLD', 'POLE', 'UNI', 'PEPE', 'AAVE', 'NEARE', 'POL', 'USDTP', 'ARB', 'ETHA', 'USDTA', 'BNB', 'USDTB', 'ASTER', 'CAKE'];
+const SPL_ASSETS: Asset[] = ['USDTS', 'JUP', 'RAY'];
+const BSC_ASSETS: Asset[] = ['BNB', 'USDTB', 'ASTER', 'CAKE'];
 // These need their engines, which aren't in every build or on every phone.
 let ASSETS: Asset[] = ALL_ASSETS.filter((a) => a !== 'ZEC' && a !== 'ZANO' && a !== 'ARRR');
 let zecInSession = false;
@@ -39,10 +41,21 @@ const COIN: Record<Asset, { label: string; file: string; note: string }> = {
   ARB: { label: 'ARB', file: 'coins/arb.png', note: 'The ARB token on Arbitrum One. The fee is paid in ETH (Arb).' },
   ETHA: { label: 'ETH (Arb)', file: 'coins/eth.png', note: 'ETH on Arbitrum One. It pays the fees for ARB and USDT (Arb).' },
   USDTA: { label: 'USDT (Arb)', file: 'coins/usdt.png', note: 'Arbitrum One only. ETH (Arb) is needed for the fee. Don\'t send to addresses on other chains.' },
+  POLE: { label: 'POL (Eth)', file: 'coins/pol.png', note: 'POL as a token on Ethereum (ERC-20). It isn\'t POL on Polygon. ETH is needed for the fee.' },
+  UNI: { label: 'UNI', file: 'coins/uni.png', note: 'Uniswap on Ethereum (ERC-20) only. ETH is needed for the fee.' },
+  PEPE: { label: 'PEPE', file: 'coins/pepe.png', note: 'PEPE on Ethereum (ERC-20) only. ETH is needed for the fee.' },
+  AAVE: { label: 'AAVE', file: 'coins/aave.png', note: 'Aave on Ethereum (ERC-20) only. ETH is needed for the fee.' },
+  NEARE: { label: 'NEAR (Eth)', file: 'coins/near.png', note: 'NEAR as a token on Ethereum (ERC-20, Rainbow Bridge). It isn\'t NEAR on the NEAR network. ETH is needed for the fee.' },
+  BNB: { label: 'BNB', file: 'coins/bnb.png', note: 'BNB Smart Chain (BEP-20) only. The fee is paid in BNB.' },
+  USDTB: { label: 'USDT (BNB)', file: 'coins/usdt.png', note: 'BNB Smart Chain (BEP-20) only. BNB is needed for the fee. Don\'t send to addresses on other chains.' },
+  ASTER: { label: 'ASTER', file: 'coins/aster.png', note: 'Aster on BNB Smart Chain (BEP-20) only. BNB is needed for the fee.' },
+  CAKE: { label: 'CAKE', file: 'coins/cake.png', note: 'PancakeSwap on BNB Smart Chain (BEP-20) only. BNB is needed for the fee.' },
+  JUP: { label: 'JUP', file: 'coins/jup.png', note: 'Jupiter on Solana (SPL) only. SOL is needed for the fee.' },
+  RAY: { label: 'RAY', file: 'coins/ray.png', note: 'Raydium on Solana (SPL) only. SOL is needed for the fee.' },
 };
 const coinName = (a: Asset): string => COIN[a]?.label ?? a;
 /** The unit after an amount. The three USDTs are all just USDT there; the screen around them names the chain. */
-const unitOf = (a: Asset): string => (a === 'USDTE' || a === 'USDTS' || a === 'USDTP' || a === 'USDTA' ? 'USDT' : a === 'ETHA' ? 'ETH' : a);
+const unitOf = (a: Asset): string => (a === 'USDTE' || a === 'USDTS' || a === 'USDTP' || a === 'USDTA' || a === 'USDTB' ? 'USDT' : a === 'ETHA' ? 'ETH' : a === 'POLE' ? 'POL' : a === 'NEARE' ? 'NEAR' : a);
 
 const root = document.getElementById('app') as HTMLElement;
 let selected: Asset = 'TRX';
@@ -102,7 +115,7 @@ const ICONS = {
 function coin(asset: Asset): HTMLElement {
   const img = h('img', { class: 'coin', src: COIN[asset].file, alt: '' });
   // Same token on several chains: the badge is what tells them apart at a glance.
-  const badge: Partial<Record<Asset, string>> = { USDT: 'trx', USDTE: 'eth', USDTS: 'sol', USDTP: 'pol', USDTA: 'arb', ETHA: 'arb' };
+  const badge: Partial<Record<Asset, string>> = { USDT: 'trx', USDTE: 'eth', USDTS: 'sol', USDTP: 'pol', USDTA: 'arb', ETHA: 'arb', USDTB: 'bnb', POLE: 'eth', NEARE: 'eth' };
   if (!badge[asset]) return img;
   return h('span', { class: 'coin-wrap' }, img, h('img', { class: 'coin-badge', src: `coins/${badge[asset]}.png`, alt: '' }));
 }
@@ -564,7 +577,7 @@ function assetRow(a: Asset, child = false, toggle?: HTMLElement): HTMLElement {
     ? (moneroBusy() ? syncLabel() : status)
     : p
       ? h('span', {}, usdFormat(p.usd), p.change !== null && h('span', { class: p.change >= 0 ? 'up' : 'down' }, `${p.change >= 0 ? '+' : ''}${p.change.toFixed(2)}%`))
-      : a === 'BTC' ? 'Bitcoin' : a === 'SOL' ? 'Solana' : a === 'DOGE' ? 'Dogecoin' : a === 'BCH' ? 'Bitcoin Cash' : a === 'LTC' ? 'Litecoin' : a === 'SCRT' ? 'Secret' : a === 'DASH' ? 'Dash' : a === 'FIRO' ? 'Firo' : a === 'ZEC' ? 'Zcash' : a === 'ZANO' ? 'Zano' : a === 'ARRR' ? 'Pirate Chain' : a === 'ETH' || a === 'ETHA' ? 'Ethereum' : a === 'POL' ? 'Polygon' : a === 'LINK' ? 'Chainlink' : a === 'WLD' ? 'Worldcoin' : a === 'ARB' ? 'Arbitrum' : a === 'USDT' || a === 'USDTE' || a === 'USDTS' || a === 'USDTP' || a === 'USDTA' ? 'Tether' : a === 'TRX' ? 'Tron' : 'Monero';
+      : a === 'BTC' ? 'Bitcoin' : a === 'SOL' ? 'Solana' : a === 'DOGE' ? 'Dogecoin' : a === 'BCH' ? 'Bitcoin Cash' : a === 'LTC' ? 'Litecoin' : a === 'SCRT' ? 'Secret' : a === 'DASH' ? 'Dash' : a === 'FIRO' ? 'Firo' : a === 'ZEC' ? 'Zcash' : a === 'ZANO' ? 'Zano' : a === 'ARRR' ? 'Pirate Chain' : a === 'ETH' || a === 'ETHA' ? 'Ethereum' : a === 'POL' ? 'Polygon' : a === 'LINK' ? 'Chainlink' : a === 'WLD' ? 'Worldcoin' : a === 'ARB' ? 'Arbitrum' : a === 'UNI' ? 'Uniswap' : a === 'PEPE' ? 'Pepe' : a === 'AAVE' ? 'Aave' : a === 'NEARE' || a === 'POLE' ? 'On Ethereum' : a === 'BNB' ? 'BNB Smart Chain' : a === 'ASTER' ? 'Aster' : a === 'CAKE' ? 'PancakeSwap' : a === 'JUP' ? 'Jupiter' : a === 'RAY' ? 'Raydium' : a === 'USDT' || a === 'USDTE' || a === 'USDTS' || a === 'USDTP' || a === 'USDTA' ? 'Tether' : a === 'TRX' ? 'Tron' : 'Monero';
   const usd = assetUsd(a);
   return h('button', { class: `asset${child ? ' child' : ''}`, id: `asset-${a}`, onclick: () => { selected = a; void renderAsset(); } },
     coin(a),
@@ -775,12 +788,12 @@ function parseScanned(asset: Asset, raw: string): { address: string; amount: str
   const m = text.match(/^(?:(bitcoincash|bitcoin|btc|litecoin|ltc|secret|scrt|solana|sol|dogecoin|doge|dash|firo|zcash|zec|zano|pirate|arrr|ethereum|eth|tron|trx|usdt|monero|xmr)(?::\/\/|:))?([0-9A-Za-z]+)(?:@1)?(?:\?(.*))?$/i);
   if (!m) return null;
   const scheme = (m[1] ?? '').toLowerCase();
-  const family = (a: Asset) => (a === 'BCH' ? ['bitcoincash'] : a === 'LTC' ? ['litecoin', 'ltc'] : a === 'SCRT' ? ['secret', 'scrt'] : a === 'SOL' ? ['solana', 'sol'] : a === 'USDTS' ? ['solana', 'sol', 'usdt'] : a === 'POL' || a === 'USDTP' ? ['ethereum', 'polygon', 'pol', 'matic', 'usdt'] : a === 'ARB' || a === 'ETHA' || a === 'USDTA' ? ['ethereum', 'arbitrum', 'arb', 'eth', 'usdt'] : a === 'DOGE' ? ['dogecoin', 'doge'] : a === 'DASH' ? ['dash'] : a === 'FIRO' ? ['firo'] : a === 'ZEC' ? ['zcash', 'zec'] : a === 'ZANO' ? ['zano'] : a === 'ARRR' ? ['pirate', 'arrr'] : a === 'BTC' ? ['bitcoin', 'btc'] : a === 'XMR' ? ['monero', 'xmr'] : a === 'ETH' || a === 'USDTE' ? ['ethereum', 'eth', 'usdt'] : ['tron', 'trx', 'usdt']);
+  const family = (a: Asset) => (a === 'BCH' ? ['bitcoincash'] : a === 'LTC' ? ['litecoin', 'ltc'] : a === 'SCRT' ? ['secret', 'scrt'] : a === 'SOL' ? ['solana', 'sol'] : SPL_ASSETS.includes(a) ? ['solana', 'sol', 'usdt', 'spl'] : BSC_ASSETS.includes(a) ? ['ethereum', 'bnb', 'bsc', 'usdt'] : a === 'POL' || a === 'USDTP' ? ['ethereum', 'polygon', 'pol', 'matic', 'usdt'] : a === 'ARB' || a === 'ETHA' || a === 'USDTA' ? ['ethereum', 'arbitrum', 'arb', 'eth', 'usdt'] : a === 'DOGE' ? ['dogecoin', 'doge'] : a === 'DASH' ? ['dash'] : a === 'FIRO' ? ['firo'] : a === 'ZEC' ? ['zcash', 'zec'] : a === 'ZANO' ? ['zano'] : a === 'ARRR' ? ['pirate', 'arrr'] : a === 'BTC' ? ['bitcoin', 'btc'] : a === 'XMR' ? ['monero', 'xmr'] : a === 'ETH' || a === 'USDTE' ? ['ethereum', 'eth', 'usdt'] : ['tron', 'trx', 'usdt']);
   if (scheme && !family(asset).includes(scheme)) return null;
   // Bech32 QR codes are often in upper case to make them smaller.
   const address = asset === 'BTC' && /^BC1/.test(m[2]) ? m[2].toLowerCase() : m[2];
   const valid = asset === 'BTC' ? /^(bc1[02-9ac-hj-np-z]{11,87}|[13][1-9A-HJ-NP-Za-km-z]{25,34})$/.test(address)
-    : asset === 'SOL' || asset === 'USDTS' ? /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address)
+    : asset === 'SOL' || SPL_ASSETS.includes(asset) ? /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address)
     : asset === 'DOGE' ? /^[DA9][1-9A-HJ-NP-Za-km-z]{33}$/.test(address)
     : asset === 'BCH' ? /^[qp][02-9ac-hj-np-z]{41}$/i.test(address)
     : asset === 'LTC' ? /^(ltc1[02-9ac-hj-np-z]{8,87}|[LM][1-9A-HJ-NP-Za-km-z]{25,34})$/.test(address)
@@ -860,7 +873,7 @@ async function openScanner(asset: Asset, onFound: (found: { address: string; amo
       if (code?.data) {
         const found = parseScanned(asset, code.data);
         if (found) { close(); onFound(found); return; }
-        status.textContent = `This is not a ${asset === 'XMR' ? 'Monero' : asset === 'SOL' || asset === 'USDTS' ? 'Solana' : asset === 'DOGE' ? 'Dogecoin' : asset === 'BCH' ? 'Bitcoin Cash' : asset === 'LTC' ? 'Litecoin' : asset === 'SCRT' ? 'Secret Network' : asset === 'DASH' ? 'Dash' : asset === 'FIRO' ? 'Firo' : asset === 'ZEC' ? 'Zcash' : asset === 'ZANO' ? 'Zano' : asset === 'ARRR' ? 'Pirate Chain' : asset === 'BTC' ? 'Bitcoin' : EVM_ASSETS.includes(asset) ? 'Ethereum' : 'Tron'} address QR. Try another one.`;
+        status.textContent = `This is not a ${asset === 'XMR' ? 'Monero' : asset === 'SOL' || SPL_ASSETS.includes(asset) ? 'Solana' : asset === 'DOGE' ? 'Dogecoin' : asset === 'BCH' ? 'Bitcoin Cash' : asset === 'LTC' ? 'Litecoin' : asset === 'SCRT' ? 'Secret Network' : asset === 'DASH' ? 'Dash' : asset === 'FIRO' ? 'Firo' : asset === 'ZEC' ? 'Zcash' : asset === 'ZANO' ? 'Zano' : asset === 'ARRR' ? 'Pirate Chain' : asset === 'BTC' ? 'Bitcoin' : EVM_ASSETS.includes(asset) ? 'Ethereum' : 'Tron'} address QR. Try another one.`;
       }
     }
     timer = window.setTimeout(tick, 180);
@@ -1022,6 +1035,12 @@ async function renderReceive(current?: string): Promise<void> {
     : asset === 'ETH' ? 'The same address as USDT (Eth). Receives ETH on Ethereum mainnet only. Coins sent over L2s or other chains won\'t arrive.'
     : asset === 'USDTE' ? 'Receives USDT on the Ethereum network (ERC-20) only. Sending needs ETH at this address for the fee.'
     : asset === 'LINK' ? 'Receives LINK on Ethereum (ERC-20) only. Sending needs ETH at this address for the fee.'
+    : asset === 'UNI' || asset === 'PEPE' || asset === 'AAVE' ? `Receives ${asset} on Ethereum (ERC-20) only. Sending needs ETH at this address for the fee.`
+    : asset === 'POLE' ? 'Receives POL on Ethereum (ERC-20) only. POL sent on Polygon shows under POL instead. Sending needs ETH at this address for the fee.'
+    : asset === 'NEARE' ? 'Receives NEAR as an Ethereum token (ERC-20) only. NEAR sent on the NEAR network won\'t arrive here. Sending needs ETH at this address for the fee.'
+    : asset === 'BNB' ? 'The same 0x address as on Ethereum. Receives BNB on BNB Smart Chain (BEP-20) only. BNB on other chains won\'t show here.'
+    : asset === 'USDTB' || asset === 'ASTER' || asset === 'CAKE' ? `Receives ${asset === 'USDTB' ? 'USDT' : asset} on BNB Smart Chain (BEP-20) only. Sending needs BNB at this address for the fee.`
+    : asset === 'JUP' || asset === 'RAY' ? `Receives ${asset} on Solana (SPL) only. Sending needs a little SOL at this address for the fee.`
     : asset === 'WLD' ? 'Receives WLD on Ethereum (ERC-20) only. Sending needs ETH at this address for the fee.'
     : asset === 'POL' ? 'The same 0x address as on Ethereum and Arbitrum. Receives POL on Polygon only.'
     : asset === 'USDTP' ? 'Receives USDT on Polygon only. Sending needs POL at this address for the fee.'

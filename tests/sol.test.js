@@ -174,7 +174,7 @@ test('USDT: balance from the standard token account only', async (t) => {
 test('USDT: a receiver without an account gets one, and the deposit is in the fee', async (t) => {
   const { c, log } = await usdtClient(t);
   const d = await c.draftUsdt(OTHER, 2_000_000n);
-  assert.deepEqual(d, { to: OTHER, toAccount: tokenAccountOf(OTHER), create: true, amount: 2_000_000n, fee: SOL_FEE + BigInt(RENT) });
+  assert.deepEqual(d, { to: OTHER, toAccount: tokenAccountOf(OTHER), create: true, amount: 2_000_000n, fee: SOL_FEE + BigInt(RENT), asset: 'USDTS' });
   const id = await c.sendUsdt(d, PHRASE);
   const raw = Buffer.from(log.find((l) => l.method === 'sendTransaction').params[0], 'base64');
   assert.equal(base58.encode(raw.subarray(1, 65)), id);

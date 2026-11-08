@@ -30,11 +30,11 @@ function mockNode() {
       if (url.startsWith('/dash/addrs/') && url.endsWith('/txs')) return send({ totalItems: 0, items: [] });
       if (url === '/dash/tx/send') { (state.dashRaw = state.dashRaw ?? []).push(json.rawtx); return send({}); }
       // Polygon and Arbitrum: their own chain ids, and nothing held there.
-      if (url === '/pol/rpc' || url === '/arb/rpc') {
+      if (url === '/pol/rpc' || url === '/arb/rpc' || url === '/bsc/rpc') {
         const ok = (result) => send({ jsonrpc: '2.0', id: json.id, result });
         const m = json.method;
         (state.evmCalls = state.evmCalls ?? []).push(`${url}:${m}`);
-        if (m === 'eth_chainId') return ok(url === '/pol/rpc' ? '0x89' : '0xa4b1');
+        if (m === 'eth_chainId') return ok(url === '/pol/rpc' ? '0x89' : url === '/bsc/rpc' ? '0x38' : '0xa4b1');
         if (m === 'eth_getBalance') return ok('0x0');
         if (m === 'eth_call') return ok('0x' + '0'.repeat(64));
         if (m === 'eth_getBlockByNumber') return ok({ baseFeePerGas: '0x3b9aca00' });

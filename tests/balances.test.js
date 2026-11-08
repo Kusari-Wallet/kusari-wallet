@@ -17,7 +17,7 @@ async function make(t) {
   s.monero = { state: {}, getBalance: async () => ({ total: 1n, unlocked: 1n }), getPrimaryAddress: async () => '4x', close: async () => {} };
   s.btc = { receiveAddress: 'bc1p', getBalance: async () => ({ total: 1n, spendable: 1n }) };
   s.eth = { address: '0x', getEthBalance: async () => 1n, getUsdtBalance: async () => 1n };
-  s.pol = { address: '0x', balanceOf: async () => 1n }; s.arb = { address: '0x', balanceOf: async () => 1n };
+  s.pol = { address: '0x', balanceOf: async () => 1n }; s.arb = { address: '0x', balanceOf: async () => 1n }; s.bsc = { address: '0x', balanceOf: async () => 1n };
   s.dash = { receiveAddress: 'X', getBalance: async () => ({ total: 1n, spendable: 1n }) };
   s.scrt = { address: 'secret1', getBalance: async () => 1n };
   s.firo = { receiveAddress: 'a', getBalance: async () => ({ total: 1n, spendable: 1n }) };

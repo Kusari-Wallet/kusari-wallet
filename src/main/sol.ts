@@ -17,14 +17,21 @@ const TOKEN_PROGRAM = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
 const TOKEN_2022_PROGRAM = 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb';
 const ATA_PROGRAM = 'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL';
 const SYSTEM_ID = '11111111111111111111111111111111';
-const USDT_DECIMALS = 6;
+export type SplAsset = 'USDTS' | 'JUP' | 'RAY';
+export interface SplToken { asset: SplAsset; mint: string; decimals: number; symbol: string; dust: bigint }
+// Classic SPL tokens (the original Token program), each checked against Trust Wallet's and the issuers' own lists.
+export const SPL_TOKENS: Record<SplAsset, SplToken> = {
+  USDTS: { asset: 'USDTS', mint: SOL_USDT_MINT, decimals: 6, symbol: 'USDT', dust: 10_000n },
+  JUP: { asset: 'JUP', mint: 'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN', decimals: 6, symbol: 'JUP', dust: 10_000n },
+  RAY: { asset: 'RAY', mint: '4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R', decimals: 6, symbol: 'RAY', dust: 10_000n },
+};
 const TOKEN_ACCOUNT_SIZE = 165;
 const CACHE_MS = 60_000;
 const HISTORY_LIMIT = 15;
 
 export interface SolDraft { to: string; amount: bigint; fee: bigint }
-/** `create` means the receiver has no USDT account yet, so this transaction opens one and pays its deposit. */
-export interface SolUsdtDraft { to: string; toAccount: string; create: boolean; amount: bigint; fee: bigint }
+/** `create` means the receiver has no account for the token yet, so this transaction opens one and pays its deposit. */
+export interface SolUsdtDraft { to: string; toAccount: string; create: boolean; amount: bigint; fee: bigint; asset?: SplAsset }
 
 /** SLIP-0010: on this curve every step is hardened. */
 function deriveSecret(mnemonic: string): Uint8Array {
@@ -119,11 +126,12 @@ export function signSolTransfer(mnemonic: string, to: string, lamports: bigint, 
   return signMessage(secret, compileMessage(me, [{ program: SYSTEM_ID, accounts: [{ key: me, signer: true, writable: true }, { key: to, signer: false, writable: true }], data }], recentBlockhash));
 }
 
-/** USDT from this wallet's token account, opening the receiver's first when it has none. */
+/** A token from this wallet's token account, opening the receiver's first when it has none. */
 export function signSolUsdtTransfer(mnemonic: string, draft: SolUsdtDraft, recentBlockhash: string): { base64: string; id: string } {
+  const token = SPL_TOKENS[draft.asset ?? 'USDTS'];
   if (!isSolAddress(draft.to)) throw new Error('The receiving address is not a SOL address.');
   if (draft.amount <= 0n) throw new Error('The amount must be more than zero.');
-  if (draft.toAccount !== tokenAccountOf(draft.to)) throw new Error('The receiving token account does not match the address.');
+  if (draft.toAccount !== tokenAccountOf(draft.to, token.mint)) throw new Error('The receiving token account does not match the address.');
   const secret = deriveSecret(mnemonic);
   const me = base58.encode(ed25519.getPublicKey(secret));
   const instructions: Instruction[] = [];
@@ -132,7 +140,7 @@ export function signSolUsdtTransfer(mnemonic: string, draft: SolUsdtDraft, recen
       program: ATA_PROGRAM,
       accounts: [
         { key: me, signer: true, writable: true }, { key: draft.toAccount, signer: false, writable: true }, { key: draft.to, signer: false, writable: false },
-        { key: SOL_USDT_MINT, signer: false, writable: false }, { key: SYSTEM_ID, signer: false, writable: false }, { key: TOKEN_PROGRAM, signer: false, writable: false },
+        { key: token.mint, signer: false, writable: false }, { key: SYSTEM_ID, signer: false, writable: false }, { key: TOKEN_PROGRAM, signer: false, writable: false },
       ],
       data: Uint8Array.from([1]), // CreateIdempotent: does nothing if someone opened it in the meantime
     });
@@ -140,11 +148,11 @@ export function signSolUsdtTransfer(mnemonic: string, draft: SolUsdtDraft, recen
   const data = new Uint8Array(10);
   data[0] = 12; // TransferChecked, which also checks the mint and decimals
   new DataView(data.buffer).setBigUint64(1, draft.amount, true);
-  data[9] = USDT_DECIMALS;
+  data[9] = token.decimals;
   instructions.push({
     program: TOKEN_PROGRAM,
     accounts: [
-      { key: tokenAccountOf(me), signer: false, writable: true }, { key: SOL_USDT_MINT, signer: false, writable: false },
+      { key: tokenAccountOf(me, token.mint), signer: false, writable: true }, { key: token.mint, signer: false, writable: false },
       { key: draft.toAccount, signer: false, writable: true }, { key: me, signer: true, writable: false },
     ],
     data,
@@ -154,7 +162,7 @@ export function signSolUsdtTransfer(mnemonic: string, draft: SolUsdtDraft, recen
 
 export class SolClient {
   private cache: { at: number; lamports: bigint } | null = null;
-  private usdtCache: { at: number; amount: bigint } | null = null;
+  private tokenCache = new Map<SplAsset, { at: number; amount: bigint }>();
   constructor(readonly address: string, private readonly rpcs: string[], private readonly agent?: Agent, private readonly timeoutMs = 30_000) {}
 
   get receiveAddress(): string { return this.address; }
@@ -214,41 +222,45 @@ export class SolClient {
     return id;
   }
 
-  private async usdtIn(account: string): Promise<bigint> {
-    const r = await this.rpc('getTokenAccountsByOwner', [account, { mint: SOL_USDT_MINT }, { encoding: 'jsonParsed', commitment: 'confirmed' }]);
+  private async tokenIn(account: string, token: SplToken): Promise<bigint> {
+    const r = await this.rpc('getTokenAccountsByOwner', [account, { mint: token.mint }, { encoding: 'jsonParsed', commitment: 'confirmed' }]);
     if (!Array.isArray(r?.value)) throw new Error('The SOL server gave an unexpected answer.');
     // Only the standard account is spent from and shown, the one every wallet sends to.
-    const mine = tokenAccountOf(account);
+    const mine = tokenAccountOf(account, token.mint);
     const row = r.value.find((v: any) => v?.pubkey === mine);
     if (!row) return 0n;
     const info = row.account?.data?.parsed?.info;
     const amount = info?.tokenAmount?.amount;
-    if (info?.mint !== SOL_USDT_MINT || info?.owner !== account || typeof amount !== 'string' || !/^\d+$/.test(amount)) throw new Error('The SOL server gave an unexpected answer.');
+    if (info?.mint !== token.mint || info?.owner !== account || typeof amount !== 'string' || !/^\d+$/.test(amount)) throw new Error('The SOL server gave an unexpected answer.');
     return BigInt(amount);
   }
 
-  async getUsdtBalance(): Promise<bigint> {
-    if (!this.usdtCache || Date.now() - this.usdtCache.at > CACHE_MS) this.usdtCache = { at: Date.now(), amount: await this.usdtIn(this.address) };
-    return this.usdtCache.amount;
+  async getUsdtBalance(asset: SplAsset = 'USDTS'): Promise<bigint> {
+    const c = this.tokenCache.get(asset);
+    if (c && Date.now() - c.at <= CACHE_MS) return c.amount;
+    const amount = await this.tokenIn(this.address, SPL_TOKENS[asset]);
+    this.tokenCache.set(asset, { at: Date.now(), amount });
+    return amount;
   }
 
-  async draftUsdt(to: string, amount: bigint | 'max'): Promise<SolUsdtDraft> {
+  async draftUsdt(to: string, amount: bigint | 'max', asset: SplAsset = 'USDTS'): Promise<SolUsdtDraft> {
+    const token = SPL_TOKENS[asset];
     if (!isSolAddress(to)) throw new Error('Not a Solana address.');
-    if (to === this.address || to === tokenAccountOf(this.address)) throw new Error('You cannot send to your own address.');
-    this.usdtCache = null;
+    if (to === this.address || to === tokenAccountOf(this.address, token.mint)) throw new Error('You cannot send to your own address.');
+    this.tokenCache.delete(asset);
     this.cache = null;
-    const [held, sol, target] = await Promise.all([this.getUsdtBalance(), this.getBalance(), this.rpc('getAccountInfo', [to, { encoding: 'base64', commitment: 'confirmed' }])]);
+    const [held, sol, target] = await Promise.all([this.getUsdtBalance(asset), this.getBalance(), this.rpc('getAccountInfo', [to, { encoding: 'base64', commitment: 'confirmed' }])]);
     // Sending to a token account would open another account under it that nobody can ever spend from.
     const owner = target?.value?.owner;
     if (owner === TOKEN_PROGRAM || owner === TOKEN_2022_PROGRAM) throw new Error('This is a token account, not a wallet address. Ask for the Solana wallet address.');
     const value = amount === 'max' ? held : amount;
-    if (value <= 0n) throw new Error('No USDT to send.');
-    if (value > held) throw new Error('Not enough USDT.');
-    const toAccount = tokenAccountOf(to);
+    if (value <= 0n) throw new Error(`No ${token.symbol} to send.`);
+    if (value > held) throw new Error(`Not enough ${token.symbol}.`);
+    const toAccount = tokenAccountOf(to, token.mint);
     const existing = (await this.rpc('getAccountInfo', [toAccount, { encoding: 'jsonParsed', commitment: 'confirmed' }]))?.value;
     if (existing) {
       const info = existing.data?.parsed?.info;
-      if (existing.owner !== TOKEN_PROGRAM || info?.mint !== SOL_USDT_MINT || info?.owner !== to) throw new Error('The receiver\'s USDT account looks wrong. Nothing was sent.');
+      if (existing.owner !== TOKEN_PROGRAM || info?.mint !== token.mint || info?.owner !== to) throw new Error(`The receiver's ${token.symbol} account looks wrong. Nothing was sent.`);
     }
     let fee = SOL_FEE;
     if (!existing) {
@@ -256,13 +268,13 @@ export class SolClient {
       if (!Number.isSafeInteger(rent) || rent <= 0 || rent > 10_000_000) throw new Error('The SOL server gave an unexpected answer.');
       fee += BigInt(rent);
     }
-    if (sol.spendable === 0n) throw new Error('No SOL for the fee. Sending USDT on Solana needs a little SOL at this address.');
+    if (sol.spendable === 0n) throw new Error(`No SOL for the fee. Sending ${token.symbol} on Solana needs a little SOL at this address.`);
     if (sol.spendable < fee) {
-      throw new Error(existing ? `Not enough SOL for the fee. This send needs ${formatAmount(fee, 9)} SOL.` : `Not enough SOL for the fee. This send needs ${formatAmount(fee, 9)} SOL, because the receiver has no USDT account yet and this opens one.`);
+      throw new Error(existing ? `Not enough SOL for the fee. This send needs ${formatAmount(fee, 9)} SOL.` : `Not enough SOL for the fee. This send needs ${formatAmount(fee, 9)} SOL, because the receiver has no ${token.symbol} account yet and this opens one.`);
     }
     const left = sol.spendable - fee;
     if (left > 0n && left < SOL_RENT_MINIMUM) throw new Error(`Solana accounts must keep at least ${formatAmount(SOL_RENT_MINIMUM, 9)} SOL. Add a little SOL first.`);
-    return { to, toAccount, create: !existing, amount: value, fee };
+    return { to, toAccount, create: !existing, amount: value, fee, asset };
   }
 
   async sendUsdt(draft: SolUsdtDraft, mnemonic: string): Promise<string> {
@@ -273,16 +285,17 @@ export class SolClient {
     const answer = await this.rpc('sendTransaction', [base64, { encoding: 'base64', preflightCommitment: 'confirmed' }]);
     if (answer !== id) throw new Error(`The server returned a different transaction ID. Check ${id} on an explorer.`);
     this.cache = null;
-    this.usdtCache = null;
+    this.tokenCache.delete(draft.asset ?? 'USDTS');
     return id;
   }
 
-  async getUsdtHistory() {
-    const account = tokenAccountOf(this.address);
+  async getUsdtHistory(asset: SplAsset = 'USDTS') {
+    const token = SPL_TOKENS[asset];
+    const account = tokenAccountOf(this.address, token.mint);
     const list: any[] = await this.rpc('getSignaturesForAddress', [account, { limit: HISTORY_LIMIT }]);
     const rows = (Array.isArray(list) ? list : []).filter((s) => !s.err && typeof s.signature === 'string');
     const held = (balances: any[] | undefined) => {
-      const b = (balances ?? []).find((x: any) => x?.mint === SOL_USDT_MINT && x?.owner === this.address);
+      const b = (balances ?? []).find((x: any) => x?.mint === token.mint && x?.owner === this.address);
       return BigInt(/^\d+$/.test(String(b?.uiTokenAmount?.amount)) ? b.uiTokenAmount.amount : 0);
     };
     const items = await Promise.all(rows.map(async (s) => {
@@ -291,11 +304,11 @@ export class SolClient {
       const net = held(tx.meta.postTokenBalances) - held(tx.meta.preTokenBalances);
       if (net === 0n) return null;
       return {
-        asset: 'USDTS' as const, hash: String(s.signature), direction: net > 0n ? 'in' as const : 'out' as const,
-        amount: formatAmount(net < 0n ? -net : net, USDT_DECIMALS), counterparty: '',
+        asset, hash: String(s.signature), direction: net > 0n ? 'in' as const : 'out' as const,
+        amount: formatAmount(net < 0n ? -net : net, token.decimals), counterparty: '',
         timestamp: Number(s.blockTime ?? Date.now() / 1000) * 1000,
         status: s.confirmationStatus === 'finalized' || s.confirmationStatus === 'confirmed' ? 'confirmed' as const : 'pending' as const,
-        dust: net > 0n && net < 10_000n,
+        dust: net > 0n && net < token.dust,
       };
     }));
     return items.filter((i): i is NonNullable<typeof i> => i !== null);

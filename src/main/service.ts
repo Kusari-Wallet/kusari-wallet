@@ -4,13 +4,14 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import QRCode from 'qrcode';
 import { formatAmount, parseAmount } from './amount';
-import { Asset, BTC_APIS, BTC_EXPLORER_TX, DECIMALS, FIRO_APIS, FIRO_EXPLORER_TX, SOL_RPCS, SOL_EXPLORER_TX, CHANGENOW_BUY_PAGE, CHANGENOW_LINK_ID, BCH_APIS, BCH_EXPLORER_TX, LTC_APIS, LTC_EXPLORER_TX, SCRT_LCDS, SCRT_EXPLORER_TX, DOGE_APIS, DOGE_PUSH_URLS, POL_RPCS, POL_SCOUT, POL_EXPLORER_TX, ARB_RPCS, ARB_SCOUT, ARB_EXPLORER_TX, DOGE_EXPLORER_TX, DASH_APIS, DASH_EXPLORER_TX, DEFAULT_SETTINGS, ARRR_EXPLORER_TX, ARRR_SERVERS, ZANO_EXPLORER_TX, ZANO_NODE, ZEC_EXPLORER_TX, ZEC_SERVERS, ETH_EXPLORER_TX, ETH_RPCS, ETH_SCOUT, ETH_USDT, NETWORKS, NetworkId, Settings, estimateMainnetHeight } from './config';
+import { Asset, BTC_APIS, BTC_EXPLORER_TX, DECIMALS, FIRO_APIS, FIRO_EXPLORER_TX, SOL_RPCS, SOL_EXPLORER_TX, CHANGENOW_BUY_PAGE, CHANGENOW_LINK_ID, BCH_APIS, BCH_EXPLORER_TX, LTC_APIS, LTC_EXPLORER_TX, SCRT_LCDS, SCRT_EXPLORER_TX, DOGE_APIS, DOGE_PUSH_URLS, POL_RPCS, POL_SCOUT, POL_EXPLORER_TX, ARB_RPCS, ARB_SCOUT, ARB_EXPLORER_TX, BSC_RPCS, BSC_SCOUT, BSC_EXPLORER_TX, DOGE_EXPLORER_TX, DASH_APIS, DASH_EXPLORER_TX, DEFAULT_SETTINGS, ARRR_EXPLORER_TX, ARRR_SERVERS, ZANO_EXPLORER_TX, ZANO_NODE, ZEC_EXPLORER_TX, ZEC_SERVERS, ETH_EXPLORER_TX, ETH_RPCS, ETH_SCOUT, ETH_USDT, NETWORKS, NetworkId, Settings, estimateMainnetHeight } from './config';
 import { MIN_PASSWORD, Secrets, Vault } from './vault';
 import { TronClient, TronTransfer, deriveTronAccount, generateTronMnemonic, isTronAddress } from './tron';
 import { socksAgent, getJson, requestJson, newTorRoute } from './request';
+import { AAVE_MARKETS, aaveCall, readAave } from './aave';
 import { ScrtClient, ScrtDraft, isScrtAddress, scrtPrivacyKeys, scrtPublicKey } from './scrt';
 import { BtcClient, BtcDraft, LITECOIN, btcAccountXpub, estimateVbytes, isBtcAddress, isLtcAddress, ltcAccountXpub } from './btc';
-import { PRICE_SOURCES, PriceMap, PriceSource, coingecko } from './prices';
+import { PRICE_SOURCES, PriceMap, PriceSource, coingecko, mirror } from './prices';
 import { DEPOSIT_GAS, TORNADO_POOLS, TornadoNote, TornadoStore, WITHDRAW_GAS, abi as tornadoAbi, checkRelayerUrl, denomination, noteSecrets, noteText, relayerFee, relayerStatus, relayerSubmit, tornadoEngineCheck } from './tornado';
 import { runTornado } from './tornado-run';
 import { ArrrClient, ArrrDraft, isArrrAddress } from './arrr';
@@ -22,9 +23,9 @@ import { startZecEngine, zecEngineAvailable, zecEngineInfo } from './zec-process
 import { FiroClient, FiroDraft, firoAccountXpub, isFiroAddress, typicalFiroFee } from './firo';
 import { DogeClient, DogeDraft, dogeAccountXpub, isDogeAddress, typicalDogeFee } from './doge';
 import { BchClient, bchAccountXpub, isBchAddress, normalBchAddress, typicalBchFee } from './bch';
-import { SOL_FEE, SolClient, SolDraft, SolUsdtDraft, isSolAddress, solAddress } from './sol';
+import { SOL_FEE, SPL_TOKENS, SolClient, SolDraft, SolUsdtDraft, SplAsset, isSolAddress, solAddress } from './sol';
 import { DashClient, DashDraft, dashAccountXpub, isDashAddress, typicalDashFee } from './dash';
-import { ARBITRUM, EthAsset, EthClient, EthDraft, POLYGON, chainOf, deriveEthAccount, isEthAddress } from './eth';
+import { ARBITRUM, BSC, EthAsset, EthClient, EthDraft, POLYGON, chainOf, deriveEthAccount, isEthAddress } from './eth';
 import { TorManager } from './tor';
 import { BUILTIN_SWAP_KEYS, CCECASH_BASE, CHANGENOW_BASE, CceCashClient, ChangeNowClient, ETZSWAP_BASE, EtzSwapClient, GHOSTSWAP_BASE, GhostSwapClient, NOT_SWAPPABLE, PRIVACY_ASSETS, PrivacySwap, SIMPLESWAP_BASE, SWAP_BASE, SWAP_DEAD, SWAP_DONE, SimpleSwapClient, SwapClient, SwapProvider, SwapProviderId, SwapRecord } from './swap';
 import { MoneroClient, MoneroDraft, MoneroOptions, generateMoneroSeed, validateMoneroSeed } from './monero';
@@ -36,7 +37,7 @@ const QUOTE_DEADLINE_MS = 20_000;
 const QUOTE_DEADLINE_TOR_MS = 40_000;
 const QUOTE_EXTRAS_MS = 8_000;
 // ChangeNOW's own names, checked against their currency list.
-const BUY_TICKER: Record<Asset, string> = { BTC: 'btc', XMR: 'xmr', ETH: 'eth', ZEC: 'zec', SOL: 'sol', TRX: 'trx', USDTE: 'usdterc20', LINK: 'link', WLD: 'wlderc20', USDT: 'usdttrc20', USDTS: 'usdtsol', POL: 'maticmainnet', USDTP: 'usdtmatic', ARB: 'arb', ETHA: 'etharb', USDTA: 'usdtarb', BCH: 'bch', LTC: 'ltc', DOGE: 'doge', DASH: 'dash', FIRO: 'firo', ZANO: 'zano', ARRR: 'arrr', SCRT: '', SSCRT: '' }; // ChangeNOW doesn't sell SCRT
+const BUY_TICKER: Record<Asset, string> = { BTC: 'btc', XMR: 'xmr', ETH: 'eth', ZEC: 'zec', SOL: 'sol', TRX: 'trx', USDTE: 'usdterc20', LINK: 'link', WLD: 'wlderc20', USDT: 'usdttrc20', USDTS: 'usdtsol', POL: 'maticmainnet', USDTP: 'usdtmatic', ARB: 'arb', ETHA: 'etharb', USDTA: 'usdtarb', BCH: 'bch', LTC: 'ltc', DOGE: 'doge', DASH: 'dash', FIRO: 'firo', ZANO: 'zano', ARRR: 'arrr', SCRT: '', SSCRT: '', POLE: 'pol', UNI: 'uni', PEPE: 'pepe', AAVE: 'aave', NEARE: '', BNB: 'bnbbsc', USDTB: 'usdtbsc', ASTER: '', CAKE: 'cake', JUP: 'jup', RAY: 'ray' }; // empty: ChangeNOW doesn't sell it here (no SCRT; its NEAR is the native coin)
 const SWAP_NAMES: Record<SwapProviderId, string> = { exolix: 'Exolix', simpleswap: 'SimpleSwap', ghostswap: 'GhostSwap', etzswap: 'ETZ Swap', ccecash: 'CCECash', changenow: 'ChangeNOW' };
 
 function within<T, F>(ms: number, work: Promise<T>, late: F): Promise<T | F> {
@@ -45,13 +46,17 @@ function within<T, F>(ms: number, work: Promise<T>, late: F): Promise<T | F> {
 }
 /** Which Tor route each balance lookup uses. */
 /** Coins and tokens on an EVM chain. They share one address. */
-const EVM: Asset[] = ['ETH', 'USDTE', 'LINK', 'WLD', 'POL', 'USDTP', 'ARB', 'ETHA', 'USDTA'];
+const EVM: Asset[] = ['ETH', 'USDTE', 'LINK', 'WLD', 'POL', 'USDTP', 'ARB', 'ETHA', 'USDTA', 'POLE', 'UNI', 'PEPE', 'AAVE', 'NEARE', 'BNB', 'USDTB', 'ASTER', 'CAKE'];
+/** Solana tokens. */
+const SPL: Asset[] = ['USDTS', 'JUP', 'RAY'];
+const isSpl = (a: Asset): a is SplAsset => SPL.includes(a);
+const EXTRA_ASSETS: Asset[] = ['POLE', 'UNI', 'PEPE', 'AAVE', 'NEARE', 'BNB', 'USDTB', 'ASTER', 'CAKE', 'JUP', 'RAY'];
 const isEvm = (a: Asset): a is Asset & EthAsset => EVM.includes(a);
-const EVM_EXPLORER: Record<string, string> = { '1': ETH_EXPLORER_TX, '137': POL_EXPLORER_TX, '42161': ARB_EXPLORER_TX };
+const EVM_EXPLORER: Record<string, string> = { '1': ETH_EXPLORER_TX, '137': POL_EXPLORER_TX, '42161': ARB_EXPLORER_TX, '56': BSC_EXPLORER_TX };
 
-const ASSET_LABEL: Partial<Record<Asset, string>> = { USDTE: 'USDT (Eth)', USDT: 'USDT (Tron)', USDTS: 'USDT (Sol)', USDTP: 'USDT (Pol)', USDTA: 'USDT (Arb)', ETHA: 'ETH (Arb)' };
+const ASSET_LABEL: Partial<Record<Asset, string>> = { USDTE: 'USDT (Eth)', USDT: 'USDT (Tron)', USDTS: 'USDT (Sol)', USDTP: 'USDT (Pol)', USDTA: 'USDT (Arb)', ETHA: 'ETH (Arb)', POLE: 'POL (Eth)', NEARE: 'NEAR (Eth)', USDTB: 'USDT (BNB)' };
 
-const LOOKUP_ROUTE: Record<string, string> = { BTC: 'btc', ETH: 'eth', USDTE: 'eth', LINK: 'eth', WLD: 'eth', TRX: 'tron', USDT: 'tron', DASH: 'dash', FIRO: 'firo', SOL: 'sol', USDTS: 'sol', POL: 'pol', USDTP: 'pol', ARB: 'arb', ETHA: 'arb', USDTA: 'arb', BCH: 'bch', LTC: 'ltc', DOGE: 'doge', SCRT: 'scrt' };
+const LOOKUP_ROUTE: Record<string, string> = { BTC: 'btc', ETH: 'eth', USDTE: 'eth', LINK: 'eth', WLD: 'eth', TRX: 'tron', USDT: 'tron', DASH: 'dash', FIRO: 'firo', SOL: 'sol', USDTS: 'sol', POL: 'pol', USDTP: 'pol', ARB: 'arb', ETHA: 'arb', USDTA: 'arb', BCH: 'bch', LTC: 'ltc', DOGE: 'doge', SCRT: 'scrt', POLE: 'eth', UNI: 'eth', PEPE: 'eth', AAVE: 'eth', NEARE: 'eth', BNB: 'bsc', USDTB: 'bsc', ASTER: 'bsc', CAKE: 'bsc', JUP: 'sol', RAY: 'sol' };
 
 /** Waits longer each time, up to five minutes, so a server that's down isn't asked over and over. */
 export function lookupRetryDelay(fails: number): number {
@@ -113,6 +118,7 @@ export class WalletService extends EventEmitter {
   private eth: EthClient | null = null;
   private pol: EthClient | null = null;
   private arb: EthClient | null = null;
+  private bsc: EthClient | null = null;
   private dash: DashClient | null = null;
   private firo: FiroClient | null = null;
   private doge: DogeClient | null = null;
@@ -140,7 +146,7 @@ export class WalletService extends EventEmitter {
   settings: Settings = { ...DEFAULT_SETTINGS };
 
   constructor(private readonly baseDir: string, private readonly kdf?: { N: number; r: number; p: number }, private readonly dev: {
-    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; bchApi?: string; ltcApi?: string; scrtLcd?: string; polRpc?: string; polScout?: string; polUsdt?: string; arbRpc?: string; arbScout?: string; arbUsdt?: string; dashApi?: string; firoApi?: string; solRpc?: string; dogeApi?: string; zecBin?: string; zecServers?: string[]; zanoBin?: string; zanoNode?: string; arrrBin?: string; arrrServers?: string[]; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; etzSwapBase?: string; cceCashBase?: string; changeNowBase?: string; quoteDeadlineMs?: number; btcApi?: string;
+    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; bchApi?: string; ltcApi?: string; scrtLcd?: string; polRpc?: string; polScout?: string; polUsdt?: string; arbRpc?: string; arbScout?: string; arbUsdt?: string; bscRpc?: string; bscScout?: string; dashApi?: string; firoApi?: string; solRpc?: string; dogeApi?: string; zecBin?: string; zecServers?: string[]; zanoBin?: string; zanoNode?: string; arrrBin?: string; arrrServers?: string[]; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; etzSwapBase?: string; cceCashBase?: string; changeNowBase?: string; quoteDeadlineMs?: number; btcApi?: string;
     /** Android: every outside address goes through the app's local forwarder. */
     route?: (url: string) => string;
     moneroStore?: (net: NetworkId, walletId: string) => MoneroOptions['store'];
@@ -363,6 +369,7 @@ export class WalletService extends EventEmitter {
     const evmAddress = deriveEthAccount(secrets.tronMnemonic).address;
     this.pol = new EthClient(this.dev.polRpc ? [this.dev.polRpc] : POL_RPCS, this.dev.polScout ?? POL_SCOUT, this.dev.polUsdt ?? '', evmAddress, this.torRoute('pol'), slow ? 60_000 : 15_000, POLYGON);
     this.arb = new EthClient(this.dev.arbRpc ? [this.dev.arbRpc] : ARB_RPCS, this.dev.arbScout ?? ARB_SCOUT, this.dev.arbUsdt ?? '', evmAddress, this.torRoute('arb'), slow ? 60_000 : 15_000, ARBITRUM);
+    this.bsc = new EthClient(this.dev.bscRpc ? [this.dev.bscRpc] : BSC_RPCS, this.dev.bscScout ?? BSC_SCOUT, '', evmAddress, this.torRoute('bsc'), slow ? 60_000 : 15_000, BSC);
     const monero = new MoneroClient({
       type: net.monero.type,
       dir: this.moneroDir(net.id),
@@ -461,6 +468,7 @@ export class WalletService extends EventEmitter {
     this.eth = null;
     this.pol = null;
     this.arb = null;
+    this.bsc = null;
     this.dash = null;
     this.firo = null;
     this.doge = null;
@@ -616,7 +624,7 @@ export class WalletService extends EventEmitter {
       if (zec?.lastError && !this.torNotReady) return { ok: false, total: '', spendable: '', error: this.friendlyError(new Error(zec.lastError)) };
       return { ok: false, pending: true, total: '', spendable: '' };
     };
-    const [BTC, XMR, ETH, TRX, USDTE, USDT, SOL, USDTS, LINK, WLD, POL, USDTP, ARB, ETHA, USDTA, BCH, LTC, DOGE, DASH, FIRO, SCRT, SSCRT] = await Promise.all([
+    const [BTC, XMR, ETH, TRX, USDTE, USDT, SOL, USDTS, LINK, WLD, POL, USDTP, ARB, ETHA, USDTA, BCH, LTC, DOGE, DASH, FIRO, SCRT, SSCRT, ...EXTRA] = await Promise.all([
       btcSettle(),
       settle('XMR', async () => { const b = await monero.getBalance(); return [b.total, b.unlocked]; }, 12),
       settle('ETH', async () => { const b = await eth.getEthBalance(); return [b, b]; }, 18),
@@ -635,15 +643,17 @@ export class WalletService extends EventEmitter {
       settle('SCRT', async () => { const b = await this.scrt!.getBalance(); return [b, b]; }, 6),
       // Until the viewing key is set on the contract, the private balance can't be read; the sSCRT screen offers to set it.
       settle('SSCRT', async () => { const b = await this.scrt!.getPrivateBalance(); this.sscrtNeedsKey = b === null; return [b ?? 0n, b ?? 0n]; }, 6),
+      // Added later: every further token, on its chain's client. Keep in step with EXTRA_ASSETS.
+      ...EXTRA_ASSETS.map((a) => settle(a, async () => { const b = isSpl(a) ? await this.sol!.getUsdtBalance(a) : await this.evm(a).balanceOf(a as EthAsset); return [b, b]; }, DECIMALS[a])),
     ]);
     return {
       network: this.settings.network,
       tor: this.settings.torEnabled ? this.tor.state : null,
-      balances: { XMR, BTC, ETH, TRX, USDTE, USDT, SOL, USDTS, LINK, WLD, POL, USDTP, ARB, ETHA, USDTA, BCH, LTC, DOGE, DASH, FIRO, SCRT, SSCRT, ...(zec ? { ZEC: zecView() } : {}), ...(zano ? { ZANO: zanoView() } : {}), ...(arrr ? { ARRR: arrrView() } : {}) },
+      balances: { XMR, BTC, ETH, TRX, USDTE, USDT, SOL, USDTS, LINK, WLD, POL, USDTP, ARB, ETHA, USDTA, BCH, LTC, DOGE, DASH, FIRO, SCRT, SSCRT, ...Object.fromEntries(EXTRA_ASSETS.map((a, i) => [a, EXTRA[i]])), ...(zec ? { ZEC: zecView() } : {}), ...(zano ? { ZANO: zanoView() } : {}), ...(arrr ? { ARRR: arrrView() } : {}) },
       sscrt: { needsKey: this.sscrtNeedsKey },
       arrr: arrr ? { scanning: arrr.isScanning, percent: arrr.percent } : null,
       zec: zec ? { ...zec.state(), address: zec.receive?.unified ?? '', transparentAddress: zec.transparentAddress } : null,
-      addresses: { ...Object.fromEntries(EVM.map((a) => [a, eth.address])), BTC: btc.receiveAddress, XMR: await monero.getPrimaryAddress(), ETH: eth.address, TRX: tron.address, USDTE: eth.address, USDT: tron.address, DASH: dash.receiveAddress, FIRO: firo.receiveAddress, SOL: this.sol!.receiveAddress, USDTS: this.sol!.receiveAddress, BCH: this.bch!.receiveAddress, LTC: this.ltc!.receiveAddress, SCRT: this.scrt!.address, SSCRT: this.scrt!.address, DOGE: this.doge!.receiveAddress, ...(zec ? { ZEC: zec.receive?.unified ?? '' } : {}), ...(zano ? { ZANO: zano.receive } : {}), ...(arrr ? { ARRR: arrr.receive } : {}) },
+      addresses: { ...Object.fromEntries(EVM.map((a) => [a, eth.address])), BTC: btc.receiveAddress, XMR: await monero.getPrimaryAddress(), ETH: eth.address, TRX: tron.address, USDTE: eth.address, USDT: tron.address, DASH: dash.receiveAddress, FIRO: firo.receiveAddress, SOL: this.sol!.receiveAddress, USDTS: this.sol!.receiveAddress, JUP: this.sol!.receiveAddress, RAY: this.sol!.receiveAddress, BCH: this.bch!.receiveAddress, LTC: this.ltc!.receiveAddress, SCRT: this.scrt!.address, SSCRT: this.scrt!.address, DOGE: this.doge!.receiveAddress, ...(zec ? { ZEC: zec.receive?.unified ?? '' } : {}), ...(zano ? { ZANO: zano.receive } : {}), ...(arrr ? { ARRR: arrr.receive } : {}) },
       monero: monero.state,
     };
   }
@@ -652,7 +662,7 @@ export class WalletService extends EventEmitter {
   async addresses() {
     const { tron, monero, btc, eth, dash } = this.session();
     // Every Ethereum, Polygon and Arbitrum coin and token lives on the one 0x address.
-    return { ...Object.fromEntries(EVM.map((a) => [a, eth.address])), DASH: dash.receiveAddress, FIRO: this.firo!.receiveAddress, SOL: this.sol!.receiveAddress, USDTS: this.sol!.receiveAddress, BCH: this.bch!.receiveAddress, LTC: this.ltc!.receiveAddress, SCRT: this.scrt!.address, SSCRT: this.scrt!.address, DOGE: this.doge!.receiveAddress, BTC: btc.receiveAddress, XMR: await monero.getPrimaryAddress(), ETH: eth.address, TRX: tron.address, USDTE: eth.address, USDT: tron.address, ...(this.zec ? { ZEC: this.zec.receive?.unified ?? '', ZEC_T: this.zec.transparentAddress } : {}), ...(this.zano ? { ZANO: this.zano.receive } : {}), ...(this.arrr ? { ARRR: this.arrr.receive } : {}) };
+    return { ...Object.fromEntries(EVM.map((a) => [a, eth.address])), DASH: dash.receiveAddress, FIRO: this.firo!.receiveAddress, SOL: this.sol!.receiveAddress, USDTS: this.sol!.receiveAddress, JUP: this.sol!.receiveAddress, RAY: this.sol!.receiveAddress, BCH: this.bch!.receiveAddress, LTC: this.ltc!.receiveAddress, SCRT: this.scrt!.address, SSCRT: this.scrt!.address, DOGE: this.doge!.receiveAddress, BTC: btc.receiveAddress, XMR: await monero.getPrimaryAddress(), ETH: eth.address, TRX: tron.address, USDTE: eth.address, USDT: tron.address, ...(this.zec ? { ZEC: this.zec.receive?.unified ?? '', ZEC_T: this.zec.transparentAddress } : {}), ...(this.zano ? { ZANO: this.zano.receive } : {}), ...(this.arrr ? { ARRR: this.arrr.receive } : {}) };
   }
 
   async torInfo() {
@@ -668,7 +678,7 @@ export class WalletService extends EventEmitter {
     if (asset === 'DASH') return dash.getHistory();
     if (asset === 'FIRO') return this.firo!.getHistory();
     if (asset === 'SOL') return this.sol!.getHistory();
-    if (asset === 'USDTS') return this.sol!.getUsdtHistory();
+    if (isSpl(asset)) return this.sol!.getUsdtHistory(asset);
     if (asset === 'DOGE') return this.doge!.getHistory();
     if (asset === 'BCH') return this.bch!.getHistory();
     if (asset === 'ZEC') return this.zec ? this.zec.getHistory() : [];
@@ -707,7 +717,7 @@ export class WalletService extends EventEmitter {
   /** The client for the chain an EVM coin or token lives on. */
   private evm(asset: Asset): EthClient {
     const id = chainOf(asset as EthAsset).id;
-    const client = id === POLYGON.id ? this.pol : id === ARBITRUM.id ? this.arb : this.session().eth;
+    const client = id === POLYGON.id ? this.pol : id === ARBITRUM.id ? this.arb : id === BSC.id ? this.bsc : this.session().eth;
     if (!client) throw new Error('The wallet is locked.');
     return client;
   }
@@ -760,7 +770,7 @@ export class WalletService extends EventEmitter {
       : asset === 'SCRT' || asset === 'SSCRT' ? isScrtAddress(address)
       : asset === 'DASH' ? isDashAddress(address)
       : asset === 'FIRO' ? isFiroAddress(address)
-      : asset === 'SOL' || asset === 'USDTS' ? isSolAddress(address)
+      : asset === 'SOL' || isSpl(asset) ? isSolAddress(address)
       : asset === 'DOGE' ? isDogeAddress(address)
       : asset === 'BCH' ? isBchAddress(address)
       : asset === 'ZEC' ? isZecAddress(address)
@@ -791,7 +801,7 @@ export class WalletService extends EventEmitter {
     }
     await (asset === 'LTC' ? this.ltc!.refresh().catch(() => undefined) : asset === 'BCH' ? this.bch!.refresh().catch(() => undefined) : asset === 'DOGE' ? this.doge!.refresh().catch(() => undefined) : asset === 'FIRO' ? this.firo!.refresh().catch(() => undefined) : asset === 'DASH' ? dash.refresh().catch(() => undefined) : asset === 'BTC' ? btc.refresh().catch(() => undefined) : undefined);
     if (isEvm(asset)) return eth.address;
-    return asset === 'SOL' || asset === 'USDTS' ? this.sol!.receiveAddress : asset === 'BCH' ? this.bch!.receiveAddress : asset === 'LTC' ? this.ltc!.receiveAddress : asset === 'SCRT' || asset === 'SSCRT' ? this.scrt!.address : asset === 'DOGE' ? this.doge!.receiveAddress : asset === 'FIRO' ? this.firo!.receiveAddress : asset === 'DASH' ? dash.receiveAddress : asset === 'BTC' ? btc.receiveAddress : asset === 'XMR' ? monero.getPrimaryAddress() : tron.address;
+    return asset === 'SOL' || isSpl(asset) ? this.sol!.receiveAddress : asset === 'BCH' ? this.bch!.receiveAddress : asset === 'LTC' ? this.ltc!.receiveAddress : asset === 'SCRT' || asset === 'SSCRT' ? this.scrt!.address : asset === 'DOGE' ? this.doge!.receiveAddress : asset === 'FIRO' ? this.firo!.receiveAddress : asset === 'DASH' ? dash.receiveAddress : asset === 'BTC' ? btc.receiveAddress : asset === 'XMR' ? monero.getPrimaryAddress() : tron.address;
   }
 
   private async openOrder(from: Asset, to: Asset, amount: string, providerId: SwapProviderId, withdrawal: string, refund: string, external: boolean, privacy?: { leg: 'first'; via: string; destination: string } | { leg: 'second'; id: string }) {
@@ -975,10 +985,31 @@ export class WalletService extends EventEmitter {
       const more = await Promise.allSettled(rest.map((source) => ask(source, tor ? 30_000 : 10_000)));
       for (const r of more) if (r.status === 'fulfilled') value = { ...r.value, ...(value ?? {}) } as PriceMap;
     }
+    // Aave's on-chain oracles, through the wallet's own nodes, for whatever is still missing.
+    if (!this.dev.priceSources && !(value && AAVE_MARKETS.every((m) => m.assets.every(([a]) => value![a])))) {
+      const found = await this.aavePrices().catch(() => ({}));
+      if (Object.keys(found).length) {
+        const filled = { ...found, ...(value ?? {}) } as PriceMap;
+        if (filled.USDT) for (const a of ['USDTE', 'USDTS', 'USDTP', 'USDTA', 'USDTB'] as Asset[]) filled[a] ??= filled.USDT;
+        mirror(filled);
+        value = filled;
+      }
+    }
     if (value) this.priceCache = { at: Date.now(), value };
     if (value) return value;
     this.priceRetryAt = Date.now() + 60_000;
     return this.priceCache?.value ?? null;
+  }
+
+  private async aavePrices(): Promise<Partial<PriceMap>> {
+    const client = { eth: this.eth, bsc: this.bsc, arb: this.arb, pol: this.pol };
+    const answers = await Promise.allSettled(AAVE_MARKETS.map(async (m) => {
+      const c = client[m.chain];
+      if (!c) return {};
+      const hex = await within(15_000, c.call(m.oracle, aaveCall(m)), null);
+      return hex ? readAave(m, hex) : {};
+    }));
+    return Object.assign({}, ...answers.map((a) => (a.status === 'fulfilled' ? a.value : {})));
   }
 
   async flush(): Promise<void> { await this.monero?.flush(); }
@@ -1006,7 +1037,7 @@ export class WalletService extends EventEmitter {
       if (asset === 'LTC') return [estimateVbytes(1, 2, LITECOIN.inputVb, LITECOIN.outputVb) * (await this.ltc!.feeRate()), 8, 'LTC'];
       if (asset === 'DASH') return [typicalDashFee(), 8, 'DASH'];
       if (asset === 'FIRO') return [typicalFiroFee(), 8, 'FIRO'];
-      if (asset === 'SOL' || asset === 'USDTS') return [SOL_FEE, 9, 'SOL'];
+      if (asset === 'SOL' || isSpl(asset)) return [SOL_FEE, 9, 'SOL'];
       if (asset === 'DOGE') return [typicalDogeFee(), 8, 'DOGE'];
       if (asset === 'BCH') return [typicalBchFee(), 8, 'BCH'];
       if (asset === 'SCRT') return [25_000n, 6, 'SCRT']; // about 100k gas at 0.25 uscrt
@@ -1243,10 +1274,10 @@ export class WalletService extends EventEmitter {
       if (address === this.sol!.receiveAddress) throw new Error('You cannot send to your own address.');
       const draft = await this.sol!.draft(address, isMax ? 'max' : parseAmount(amountInput, decimals));
       preview = this.storePreview({ asset, to: address, amount: draft.amount, fee: draft.fee, sol: draft });
-    } else if (asset === 'USDTS') {
+    } else if (isSpl(asset)) {
       if (!isSolAddress(address)) throw new Error('Not a Solana address.');
-      const draft = await this.sol!.draftUsdt(address, isMax ? 'max' : parseAmount(amountInput, decimals));
-      if (draft.create) warnings.push('The receiver has no USDT account on Solana yet, so the fee includes a deposit of about 0.002 SOL to open one.');
+      const draft = await this.sol!.draftUsdt(address, isMax ? 'max' : parseAmount(amountInput, decimals), asset);
+      if (draft.create) warnings.push(`The receiver has no ${SPL_TOKENS[asset].symbol} account on Solana yet, so the fee includes a deposit of about 0.002 SOL to open one.`);
       preview = this.storePreview({ asset, to: address, amount: draft.amount, fee: draft.fee, solUsdt: draft });
     } else if (asset === 'BCH') {
       if (!isBchAddress(address)) throw new Error('Not a Bitcoin Cash address. Use the CashAddr form, starting with bitcoincash:q or q. Old-style addresses look like Bitcoin ones, so they are refused.');
@@ -1330,9 +1361,9 @@ export class WalletService extends EventEmitter {
     return {
       id: preview.id, asset, to: address,
       amount: formatAmount(preview.amount, decimals),
-      fee: formatAmount(preview.fee, preview.eth ? 18 : asset === 'XMR' ? 12 : asset === 'ZANO' ? 12 : asset === 'SCRT' || asset === 'SSCRT' ? 6 : asset === 'SOL' || asset === 'USDTS' ? 9 : asset === 'DOGE' || asset === 'BCH' || asset === 'LTC' || asset === 'BTC' || asset === 'DASH' || asset === 'FIRO' || asset === 'ZEC' || asset === 'ARRR' ? 8 : 6),
-      feeAsset: preview.eth ? chainOf(preview.eth.asset).native : asset === 'USDTS' ? 'SOL' : asset === 'SSCRT' ? 'SCRT' : asset === 'SOL' || asset === 'DOGE' || asset === 'BCH' || asset === 'LTC' || asset === 'SCRT' || asset === 'XMR' || asset === 'BTC' || asset === 'DASH' || asset === 'FIRO' || asset === 'ZEC' || asset === 'ZANO' || asset === 'ARRR' ? asset : 'TRX',
-      feeIsEstimate: asset !== 'SOL' && asset !== 'USDTS' && asset !== 'DOGE' && asset !== 'BCH' && asset !== 'LTC' && asset !== 'SCRT' && asset !== 'SSCRT' && asset !== 'XMR' && asset !== 'BTC' && asset !== 'DASH' && asset !== 'FIRO' && asset !== 'ZEC' && asset !== 'ZANO' && asset !== 'ARRR',
+      fee: formatAmount(preview.fee, preview.eth ? 18 : asset === 'XMR' ? 12 : asset === 'ZANO' ? 12 : asset === 'SCRT' || asset === 'SSCRT' ? 6 : asset === 'SOL' || isSpl(asset) ? 9 : asset === 'DOGE' || asset === 'BCH' || asset === 'LTC' || asset === 'BTC' || asset === 'DASH' || asset === 'FIRO' || asset === 'ZEC' || asset === 'ARRR' ? 8 : 6),
+      feeAsset: preview.eth ? chainOf(preview.eth.asset).native : isSpl(asset) ? 'SOL' : asset === 'SSCRT' ? 'SCRT' : asset === 'SOL' || asset === 'DOGE' || asset === 'BCH' || asset === 'LTC' || asset === 'SCRT' || asset === 'XMR' || asset === 'BTC' || asset === 'DASH' || asset === 'FIRO' || asset === 'ZEC' || asset === 'ZANO' || asset === 'ARRR' ? asset : 'TRX',
+      feeIsEstimate: asset !== 'SOL' && !isSpl(asset) && asset !== 'DOGE' && asset !== 'BCH' && asset !== 'LTC' && asset !== 'SCRT' && asset !== 'SSCRT' && asset !== 'XMR' && asset !== 'BTC' && asset !== 'DASH' && asset !== 'FIRO' && asset !== 'ZEC' && asset !== 'ZANO' && asset !== 'ARRR',
       warnings,
     };
   }
@@ -1547,7 +1578,7 @@ export class WalletService extends EventEmitter {
     const net = NETWORKS[this.settings.network];
     if (asset === 'DASH') return DASH_EXPLORER_TX + hash;
     if (asset === 'FIRO') return FIRO_EXPLORER_TX + hash;
-    if (asset === 'SOL' || asset === 'USDTS') return SOL_EXPLORER_TX + hash;
+    if (asset === 'SOL' || isSpl(asset)) return SOL_EXPLORER_TX + hash;
     if (asset === 'DOGE') return DOGE_EXPLORER_TX + hash;
     if (asset === 'BCH') return BCH_EXPLORER_TX + hash;
     if (asset === 'ZEC') return ZEC_EXPLORER_TX + hash;

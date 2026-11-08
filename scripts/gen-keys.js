@@ -14,6 +14,7 @@ const keys = {
   etzswapVersion: process.env.ETZSWAP_KEY_VERSION || String(local.etzswapVersion || '1'),
   ccecashKey: process.env.CCECASH_KEY || local.ccecashKey || '',
   changenow: process.env.CHANGENOW_KEY || local.changenow || '',
+  uniswap: process.env.UNISWAP_KEY || local.uniswap || '',
   ccecashSecret: process.env.CCECASH_SECRET || local.ccecashSecret || '',
   ccecashRefCode: process.env.CCECASH_REF_CODE || local.ccecashRefCode || '',
 };

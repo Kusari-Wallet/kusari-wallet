@@ -13,22 +13,28 @@ function row(usd: unknown, change: unknown): Row {
 
 function optional(read: () => Row): Row | undefined { try { return read(); } catch { return undefined; } }
 
+/** The same coin under another name: sSCRT is SCRT, POL on Ethereum is POL, ETH on Arbitrum is ETH. */
+export function mirror(p: Partial<Record<Asset, Row | undefined>>): void {
+  if (p.SCRT) p.SSCRT = p.SCRT;
+  if (p.POL) p.POLE = p.POL;
+  if (p.ETH) p.ETHA = p.ETH;
+}
+
 function all(btc: Row, eth: Row, trx: Row, usdt: Row, xmr: Row, dash?: Row, zec?: Row, zano?: Row, arrr?: Row, firo?: Row, sol?: Row, doge?: Row, more: Partial<Record<Asset, Row | undefined>> = {}): PriceMap {
   // Stablecoin far from a dollar means the answer can't be trusted, or the market has bigger news than this screen.
   if (usdt.usd < 0.5 || usdt.usd > 1.5) throw new Error('bad price');
   // A smaller coin missing from one source shouldn't cost every other coin its price.
   const extra = Object.fromEntries(Object.entries(more).filter(([, v]) => v));
   // ETH on Arbitrum is the same coin as on Ethereum, and every USDT is a dollar token.
-  // sSCRT is SCRT one for one, only private.
-  if (extra.SCRT) extra.SSCRT = extra.SCRT;
-  return { ...extra, BTC: btc, ETH: eth, ETHA: eth, TRX: trx, USDT: usdt, USDTE: usdt, USDTS: usdt, USDTP: usdt, USDTA: usdt, XMR: xmr, ...(sol ? { SOL: sol } : {}), ...(doge ? { DOGE: doge } : {}), ...(dash ? { DASH: dash } : {}), ...(zec ? { ZEC: zec } : {}), ...(zano ? { ZANO: zano } : {}), ...(arrr ? { ARRR: arrr } : {}), ...(firo ? { FIRO: firo } : {}) } as PriceMap;
+  mirror(extra);
+  return { ...extra, BTC: btc, ETH: eth, ETHA: eth, TRX: trx, USDT: usdt, USDTE: usdt, USDTS: usdt, USDTP: usdt, USDTA: usdt, USDTB: usdt, XMR: xmr, ...(sol ? { SOL: sol } : {}), ...(doge ? { DOGE: doge } : {}), ...(dash ? { DASH: dash } : {}), ...(zec ? { ZEC: zec } : {}), ...(zano ? { ZANO: zano } : {}), ...(arrr ? { ARRR: arrr } : {}), ...(firo ? { FIRO: firo } : {}) } as PriceMap;
 }
 
 export const coingecko = (url: string): PriceSource => ({
   name: 'CoinGecko', url,
   parse: (j) => {
     const r = (id: string) => row(j[id]?.usd, j[id]?.usd_24h_change);
-    return all(r('bitcoin'), r('ethereum'), r('tron'), r('tether'), r('monero'), optional(() => r('dash')), optional(() => r('zcash')), optional(() => r('zano')), optional(() => r('pirate-chain')), optional(() => r('zcoin')), optional(() => r('solana')), optional(() => r('dogecoin')), { LINK: optional(() => r('chainlink')), WLD: optional(() => r('worldcoin-wld')), POL: optional(() => r('polygon-ecosystem-token')), ARB: optional(() => r('arbitrum')), BCH: optional(() => r('bitcoin-cash')), LTC: optional(() => r('litecoin')), SCRT: optional(() => r('secret')) });
+    return all(r('bitcoin'), r('ethereum'), r('tron'), r('tether'), r('monero'), optional(() => r('dash')), optional(() => r('zcash')), optional(() => r('zano')), optional(() => r('pirate-chain')), optional(() => r('zcoin')), optional(() => r('solana')), optional(() => r('dogecoin')), { LINK: optional(() => r('chainlink')), WLD: optional(() => r('worldcoin-wld')), POL: optional(() => r('polygon-ecosystem-token')), ARB: optional(() => r('arbitrum')), BCH: optional(() => r('bitcoin-cash')), LTC: optional(() => r('litecoin')), SCRT: optional(() => r('secret')), UNI: optional(() => r('uniswap')), PEPE: optional(() => r('pepe')), AAVE: optional(() => r('aave')), NEARE: optional(() => r('near')), BNB: optional(() => r('binancecoin')), ASTER: optional(() => r('aster-2')), CAKE: optional(() => r('pancakeswap-token')), JUP: optional(() => r('jupiter-exchange-solana')), RAY: optional(() => r('raydium')) });
   },
 });
 
@@ -50,11 +56,13 @@ export const cryptocompare = (url: string): PriceSource => ({
   name: 'CryptoCompare', url,
   parse: (j) => {
     const r = (s: string) => row(j?.RAW?.[s]?.USD?.PRICE, j?.RAW?.[s]?.USD?.CHANGEPCT24HOUR);
-    return all(r('BTC'), r('ETH'), r('TRX'), r('USDT'), r('XMR'), optional(() => r('DASH')), optional(() => r('ZEC')), optional(() => r('ZANO')), optional(() => r('ARRR')), optional(() => r('FIRO')), optional(() => r('SOL')), optional(() => r('DOGE')), { LINK: optional(() => r('LINK')), WLD: optional(() => r('WLD')), POL: optional(() => r('POL')), ARB: optional(() => r('ARB')), BCH: optional(() => r('BCH')), LTC: optional(() => r('LTC')), SCRT: optional(() => r('SCRT')) });
+    return all(r('BTC'), r('ETH'), r('TRX'), r('USDT'), r('XMR'), optional(() => r('DASH')), optional(() => r('ZEC')), optional(() => r('ZANO')), optional(() => r('ARRR')), optional(() => r('FIRO')), optional(() => r('SOL')), optional(() => r('DOGE')), { LINK: optional(() => r('LINK')), WLD: optional(() => r('WLD')), POL: optional(() => r('POL')), ARB: optional(() => r('ARB')), BCH: optional(() => r('BCH')), LTC: optional(() => r('LTC')), SCRT: optional(() => r('SCRT')), UNI: optional(() => r('UNI')), PEPE: optional(() => r('PEPE')), AAVE: optional(() => r('AAVE')), NEARE: optional(() => r('NEAR')), BNB: optional(() => r('BNB')), ASTER: optional(() => r('ASTER')), CAKE: optional(() => r('CAKE')), JUP: optional(() => r('JUP')), RAY: optional(() => r('RAY')) });
   },
 });
 
-const EXCHANGE_COINS: Asset[] = ['BTC', 'ETH', 'TRX', 'XMR', 'SOL', 'LINK', 'WLD', 'POL', 'ARB', 'BCH', 'LTC', 'DOGE', 'DASH', 'ZEC', 'FIRO', 'ZANO', 'ARRR', 'SCRT'];
+const EXCHANGE_COINS: Asset[] = ['BTC', 'ETH', 'TRX', 'XMR', 'SOL', 'LINK', 'WLD', 'POL', 'ARB', 'BCH', 'LTC', 'DOGE', 'DASH', 'ZEC', 'FIRO', 'ZANO', 'ARRR', 'SCRT', 'UNI', 'PEPE', 'AAVE', 'NEARE', 'BNB', 'ASTER', 'CAKE', 'JUP', 'RAY'];
+// Where the wallet's name for a coin isn't the market's.
+const MARKET_SYMBOL: Partial<Record<Asset, string>> = { NEARE: 'NEAR' };
 
 /**
  * An exchange lists only some of the coins, which is fine: it fills in what the others left out. Its prices are in
@@ -66,12 +74,12 @@ function exchange(name: string, url: string, read: (json: any, coin: Asset) => {
     parse: (j) => {
       const prices: Partial<PriceMap> = {};
       for (const coin of EXCHANGE_COINS) {
-        const got = optional(() => { const t = read(j, coin); return row(t?.last, t?.change); });
+        const got = optional(() => { const t = read(j, (MARKET_SYMBOL[coin] ?? coin) as Asset); return row(t?.last, t?.change); });
         if (got) prices[coin] = got;
       }
       if (!Object.keys(prices).length) throw new Error('bad price');
       if (prices.ETH) prices.ETHA = prices.ETH;
-      if (prices.SCRT) prices.SSCRT = prices.SCRT;
+      mirror(prices);
       return prices as PriceMap;
     },
   };
@@ -112,9 +120,9 @@ export const coinbase = (url: string) => exchange('Coinbase', url, (j, coin) => 
 });
 
 export const PRICE_SOURCES: PriceSource[] = [
-  coingecko('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,tron,tether,monero,dash,zcash,zano,pirate-chain,zcoin,solana,dogecoin,polygon-ecosystem-token,arbitrum,bitcoin-cash,chainlink,worldcoin-wld,litecoin,secret&vs_currencies=usd&include_24hr_change=true'),
+  coingecko('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,tron,tether,monero,dash,zcash,zano,pirate-chain,zcoin,solana,dogecoin,polygon-ecosystem-token,arbitrum,bitcoin-cash,chainlink,worldcoin-wld,litecoin,secret,uniswap,pepe,aave,near,binancecoin,aster-2,pancakeswap-token,jupiter-exchange-solana,raydium&vs_currencies=usd&include_24hr_change=true'),
   kraken('https://api.kraken.com/0/public/Ticker?pair=XBTUSD,ETHUSD,TRXUSD,USDTUSD,XMRUSD'),
-  cryptocompare('https://min-api.cryptocompare.com/data/pricemultifull?fsyms=BTC,ETH,TRX,USDT,XMR,DASH,ZEC,ZANO,ARRR,FIRO,SOL,DOGE,POL,ARB,BCH,LINK,WLD,LTC,SCRT&tsyms=USD'),
+  cryptocompare('https://min-api.cryptocompare.com/data/pricemultifull?fsyms=BTC,ETH,TRX,USDT,XMR,DASH,ZEC,ZANO,ARRR,FIRO,SOL,DOGE,POL,ARB,BCH,LINK,WLD,LTC,SCRT,UNI,PEPE,AAVE,NEAR,BNB,ASTER,CAKE,JUP,RAY&tsyms=USD'),
   mexc('https://api.mexc.com/api/v3/ticker/24hr'),
   gate('https://api.gateio.ws/api/v4/spot/tickers'),
   binance('https://data-api.binance.vision/api/v3/ticker/24hr'),

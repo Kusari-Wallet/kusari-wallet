@@ -7,7 +7,7 @@ export const ETH_PATH = "m/44'/60'/0'/0/0";
 const GWEI = 1_000_000_000n;
 const BALANCE_CACHE_MS = 20_000;
 
-export type EthAsset = 'ETH' | 'USDTE' | 'LINK' | 'WLD' | 'POL' | 'USDTP' | 'ETHA' | 'ARB' | 'USDTA';
+export type EthAsset = 'ETH' | 'USDTE' | 'LINK' | 'WLD' | 'POLE' | 'UNI' | 'PEPE' | 'AAVE' | 'NEARE' | 'POL' | 'USDTP' | 'ETHA' | 'ARB' | 'USDTA' | 'BNB' | 'USDTB' | 'ASTER' | 'CAKE';
 export interface EvmToken { contract: string; decimals: number; symbol: string; label: string; dust: bigint }
 /** One EVM chain. The same key and address serve all of them, so the chain id is what keeps them apart. */
 export interface EvmChain {
@@ -24,6 +24,12 @@ export const ETHEREUM: EvmChain = {
     USDTE: { contract: '0xdAC17F958D2ee523a2206206994597C13D831ec7', decimals: 6, symbol: 'USDT', label: 'USDT (Eth)', dust: 100_000n },
     LINK: { contract: '0x514910771AF9Ca656af840dff83E8264EcF986CA', decimals: 18, symbol: 'LINK', label: 'LINK', dust: 10_000_000_000_000_000n },
     WLD: { contract: '0x163f8C2467924be0ae7B5347228CABF260318753', decimals: 18, symbol: 'WLD', label: 'WLD', dust: 10_000_000_000_000_000n },
+    // Contracts from Uniswap's default token list; NEAR's from MetaMask's contract metadata (Rainbow Bridge, 24 decimals).
+    POLE: { contract: '0x455e53CBB86018Ac2B8092FdCd39d8444aFFC3F6', decimals: 18, symbol: 'POL', label: 'POL (Eth)', dust: 10_000_000_000_000_000n },
+    UNI: { contract: '0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984', decimals: 18, symbol: 'UNI', label: 'UNI', dust: 1_000_000_000_000_000n },
+    PEPE: { contract: '0x6982508145454Ce325dDbE47a25d4ec3d2311933', decimals: 18, symbol: 'PEPE', label: 'PEPE', dust: 10_000_000_000_000_000_000_000n },
+    AAVE: { contract: '0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9', decimals: 18, symbol: 'AAVE', label: 'AAVE', dust: 100_000_000_000_000n },
+    NEARE: { contract: '0x85F17Cf997934a597031b2E18a9aB6ebD4B9f6a4', decimals: 24, symbol: 'NEAR', label: 'NEAR (Eth)', dust: 1_000_000_000_000_000_000_000n },
   },
   maxBaseFee: 500n * GWEI, minTip: GWEI / 10n, defaultTip: GWEI, maxTip: 5n * GWEI, gasToken: 200_000n, gasContract: 300_000n, dust: 100_000_000_000_000n,
 };
@@ -42,7 +48,18 @@ export const ARBITRUM: EvmChain = {
   },
   maxBaseFee: 100n * GWEI, minTip: 0n, defaultTip: 0n, maxTip: GWEI, gasToken: 3_000_000n, gasContract: 3_000_000n, dust: 10_000_000_000_000n,
 };
-export const EVM_CHAINS = [ETHEREUM, POLYGON, ARBITRUM];
+// BNB Smart Chain: no base fee, validators take a small fixed tip. USDT here has 18 decimals, unlike elsewhere.
+// Contracts from PancakeSwap's token list; ASTER's from Trust Wallet's asset list.
+export const BSC: EvmChain = {
+  id: 56n, name: 'BNB Smart Chain', native: 'BNB', symbol: 'BNB', nativeLabel: 'BNB',
+  tokens: {
+    USDTB: { contract: '0x55d398326f99059fF775485246999027B3197955', decimals: 18, symbol: 'USDT', label: 'USDT (BNB)', dust: 100_000_000_000_000_000n },
+    ASTER: { contract: '0x000Ae314E2A2172a039B26378814C252734f556A', decimals: 18, symbol: 'ASTER', label: 'ASTER', dust: 10_000_000_000_000_000n },
+    CAKE: { contract: '0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82', decimals: 18, symbol: 'CAKE', label: 'CAKE', dust: 10_000_000_000_000_000n },
+  },
+  maxBaseFee: 10n * GWEI, minTip: GWEI / 10n, defaultTip: GWEI / 10n, maxTip: 10n * GWEI, gasToken: 200_000n, gasContract: 300_000n, dust: 10_000_000_000_000n,
+};
+export const EVM_CHAINS = [ETHEREUM, POLYGON, ARBITRUM, BSC];
 export const chainOf = (asset: EthAsset): EvmChain => EVM_CHAINS.find((c) => c.native === asset || asset in c.tokens) as EvmChain;
 export interface EthDraft { asset: EthAsset; to: string; amount: bigint; gas: bigint; maxFee: bigint; tip: bigint; expectedFee: bigint; maxCost: bigint; data?: string }
 export interface EthHistoryItem { asset: EthAsset; hash: string; direction: 'in' | 'out' | 'self'; amount: string; counterparty: string; timestamp: number; status: 'confirmed' | 'failed' | 'pending'; dust: boolean }
@@ -233,6 +250,38 @@ export class EthClient {
     return parsed.hash as string;
   }
 
+  /** Etherscan's API shape, as Routescan serves it without a key, for chains Blockscout doesn't run. */
+  private async historyEtherscan(asset: EthAsset, token: EvmToken | undefined, limit: number): Promise<EthHistoryItem[]> {
+    const q = new URLSearchParams({ module: 'account', action: token ? 'tokentx' : 'txlist', address: this.address, page: '1', offset: String(limit * 2), sort: 'desc', ...(token ? { contractaddress: token.contract } : {}) });
+    const body = await getJson(`${this.scout}?${q}`, { agent: this.agent, timeoutMs: this.timeoutMs });
+    // "No transactions found" comes back as status 0 with an empty list.
+    const rows: any[] = Array.isArray(body?.result) ? body.result : [];
+    if (!Array.isArray(body?.result) && !/no transactions/i.test(String(body?.message))) throw new Error('The history server gave an unexpected answer.');
+    const out: EthHistoryItem[] = [];
+    for (const r of rows) {
+      const { hash, from, to } = r ?? {};
+      if (typeof hash !== 'string' || !/^0x[0-9a-fA-F]{64}$/.test(hash) || typeof from !== 'string' || typeof to !== 'string') continue;
+      const mineFrom = same(from, this.address);
+      const mineTo = same(to, this.address);
+      if (!mineFrom && !mineTo) continue;
+      if (token && (typeof r.contractAddress !== 'string' || !same(r.contractAddress, token.contract))) continue; // look-alike tokens are not the real one
+      let value: bigint;
+      try { value = BigInt(r.value); } catch { continue; }
+      if (value === 0n) continue;
+      const direction = mineFrom && mineTo ? 'self' : mineFrom ? 'out' : 'in';
+      out.push({
+        asset, hash, direction,
+        dust: direction === 'in' && value < (token ? token.dust : this.chain.dust),
+        amount: formatAmount(value, token ? token.decimals : 18),
+        counterparty: mineFrom ? to : from,
+        timestamp: Number(r.timeStamp) * 1000 || Date.now(),
+        status: r.isError === '1' || r.txreceipt_status === '0' ? 'failed' : 'confirmed',
+      });
+      if (out.length >= limit) break;
+    }
+    return out;
+  }
+
   /** Blockscout: the one public EVM history API that needs no key. */
   async getHistory(asset: EthAsset, limit = 30): Promise<EthHistoryItem[]> {
     const token = this.token(asset);
@@ -240,6 +289,7 @@ export class EthClient {
     const path = native
       ? `/addresses/${this.address}/transactions`
       : `/addresses/${this.address}/token-transfers?type=ERC-20&token=${token.contract}`;
+    if (this.scout.includes('/etherscan/api')) return this.historyEtherscan(asset, token, limit);
     const body = await getJson(this.scout + path, { agent: this.agent, timeoutMs: this.timeoutMs });
     const rows: any[] = Array.isArray(body?.items) ? body.items : [];
     const out: EthHistoryItem[] = [];
