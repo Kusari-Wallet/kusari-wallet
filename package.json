@@ -12,7 +12,8 @@
     "dist:linux": "npm run build && electron-builder --linux dir",
     "dist:mac": "npm run build && electron-builder --mac",
     "test:ui": "npm run build && xvfb-run -a node tests/ui-e2e.js",
-    "dist:android": "bash scripts/build-android.sh"
+    "dist:android": "bash scripts/build-android.sh",
+    "check:package": "node scripts/check-package.js"
   },
   "keywords": [],
   "author": "Edge",
