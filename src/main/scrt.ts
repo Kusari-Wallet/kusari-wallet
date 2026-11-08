@@ -29,10 +29,11 @@ const HISTORY_LIMIT = 20;
 export interface ScrtExec { kind: 'wrap' | 'unwrap' | 'transfer' | 'key'; msg: Uint8Array; nonce: Uint8Array; funds: bigint }
 export interface ScrtDraft { to: string; amount: bigint; fee: bigint; gas: bigint; accountNumber: bigint; sequence: bigint; exec?: ScrtExec }
 
-// sSCRT, the private (SNIP-20) form of SCRT, run by Secret Network itself. Pinned so that no server can point the
-// wallet at another contract.
+// sSCRT, the private (SNIP-20) form of SCRT, run by Secret Network itself. The address is pinned so that no server can
+// point the wallet at another contract. Its code hash is not: the contract has been upgraded before, so it is asked
+// for. A server that lied about it would only make the call fail, because the enclave checks it against the contract.
 export const SSCRT_CONTRACT = 'secret1k0jntykt7e4g3y88ltc60czgjuqdy4c9e8fzek';
-export const SSCRT_CODE_HASH = 'af74387e276be8874f07bec3a87023ee49b0e7ebe08178c49d0a49c3c98ed60e';
+const CODE_HASH_LENGTH = 64;
 // The enclave's public key on secret-4, as secret.js ships it. Pinned rather than asked for, because a server that
 // handed out its own key could read every private amount and address.
 const CONSENSUS_IO_PUBKEY = Uint8Array.from(Buffer.from('79++5YOHfm0SwhlpUDClv7cuCjq9xBZlWqSjDJWkRG8=', 'base64'));
@@ -138,7 +139,8 @@ function txKey(seed: Uint8Array, nonce: Uint8Array): Uint8Array {
 }
 
 /** What secret.js sends: nonce, our public key, then AES-SIV of the code hash and the JSON. */
-export function encryptForContract(seed: Uint8Array, msg: object, nonce: Uint8Array, codeHash = SSCRT_CODE_HASH): Uint8Array {
+export function encryptForContract(seed: Uint8Array, msg: object, nonce: Uint8Array, codeHash: string): Uint8Array {
+  if (!/^[0-9a-f]{64}$/.test(codeHash)) throw new Error('The contract\'s code hash is not valid.');
   const plain = new TextEncoder().encode(codeHash + JSON.stringify(msg));
   const sealed = aessiv(txKey(seed, nonce), new Uint8Array()).encrypt(plain);
   return join([nonce, x25519.getPublicKey(seed), sealed]);
@@ -151,7 +153,7 @@ export function decryptFromContract(seed: Uint8Array, nonce: Uint8Array, data: U
 /** Adds SNIP-20's padding field so every message has a length in steps of PAD_TO. */
 export function padded(msg: Record<string, Record<string, unknown>>): Record<string, Record<string, unknown>> {
   const [name, inner] = Object.entries(msg)[0];
-  const bare = JSON.stringify({ [name]: { ...inner, padding: '' } }).length + SSCRT_CODE_HASH.length;
+  const bare = JSON.stringify({ [name]: { ...inner, padding: '' } }).length + CODE_HASH_LENGTH;
   return { [name]: { ...inner, padding: ' '.repeat((PAD_TO - (bare % PAD_TO)) % PAD_TO) } };
 }
 
@@ -178,6 +180,7 @@ const uint = (v: unknown): bigint => { if (typeof v !== 'string' || !/^\d+$/.tes
 export class ScrtClient {
   private cache: { at: number; amount: bigint } | null = null;
   private privateCache: { at: number; amount: bigint | null } | null = null;
+  private codeHash: string | null = null;
   readonly address: string;
   constructor(private readonly publicKey: Uint8Array, private readonly lcds: string[], private readonly agent?: Agent, private readonly timeoutMs = 20_000,
     private readonly privacy?: { encryptionSeed: Uint8Array; viewingKey: string }) { this.address = scrtAddressFromKey(publicKey); }
@@ -215,7 +218,14 @@ export class ScrtClient {
   }
 
   private async account(): Promise<{ accountNumber: bigint; sequence: bigint }> {
-    const r = await this.get(`/cosmos/auth/v1beta1/accounts/${this.address}`);
+    let r: any;
+    try {
+      r = await this.get(`/cosmos/auth/v1beta1/accounts/${this.address}`);
+    } catch (e) {
+      // The chain only creates an account once SCRT first arrives at it.
+      if (/not found/i.test(e instanceof Error ? e.message : '')) throw new Error('This address has never received SCRT, so there is nothing to pay the fee with yet.');
+      throw e;
+    }
     const a = r?.account?.base_account ?? r?.account;
     if (a?.address !== this.address) throw new Error(UNEXPECTED);
     return { accountNumber: uint(a.account_number ?? '0'), sequence: uint(a.sequence ?? '0') };
@@ -260,11 +270,21 @@ export class ScrtClient {
     return this.privacy;
   }
 
+  private async sscrtCodeHash(): Promise<string> {
+    if (!this.codeHash) {
+      const r = await this.get(`/compute/v1beta1/code_hash/by_contract_address/${SSCRT_CONTRACT}`);
+      const h = String(r?.code_hash ?? '').toLowerCase();
+      if (!/^[0-9a-f]{64}$/.test(h)) throw new Error(UNEXPECTED);
+      this.codeHash = h;
+    }
+    return this.codeHash;
+  }
+
   /** A private query to sSCRT. The answer is encrypted for us alone. */
   private async query(msg: object): Promise<any> {
     const { encryptionSeed } = this.keys();
     const nonce = randomNonce();
-    const sealed = encryptForContract(encryptionSeed, msg, nonce);
+    const sealed = encryptForContract(encryptionSeed, msg, nonce, await this.sscrtCodeHash());
     let r: any;
     try {
       r = await this.get(`/compute/v1beta1/query/${SSCRT_CONTRACT}?query=${encodeURIComponent(b64(sealed))}`);
@@ -307,7 +327,8 @@ export class ScrtClient {
       : kind === 'transfer' ? { transfer: { recipient: to, amount: want.toString() } }
       : { set_viewing_key: { key: viewingKey } };
     const nonce = randomNonce();
-    const exec = (funds: bigint): ScrtExec => ({ kind, msg: encryptForContract(encryptionSeed, padded(msg), nonce), nonce, funds });
+    const sealed = encryptForContract(encryptionSeed, padded(msg), nonce, await this.sscrtCodeHash());
+    const exec = (funds: bigint): ScrtExec => ({ kind, msg: sealed, nonce, funds });
     const target = kind === 'transfer' ? to : this.address;
     const { gas, fee } = await this.gasFor({ to: target, amount: want, fee: 0n, gas: 0n, ...acct, exec: exec(kind === 'wrap' ? want : 0n) }, nonce);
     let value = want;

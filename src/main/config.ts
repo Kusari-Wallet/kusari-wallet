@@ -20,7 +20,7 @@ export const CHANGENOW_LINK_ID = '9183599f3b8ee2';
 export const LTC_APIS = ['https://litecoinspace.org/api'];
 export const LTC_EXPLORER_TX = 'https://litecoinspace.org/tx/';
 // Public Secret Network REST (LCD) servers, from the project's own list.
-export const SCRT_LCDS = ['https://lcd.mainnet.secretsaturn.net', 'https://secretnetwork-api.lavenderfive.com:443', 'https://rest-secret.01node.com', 'https://secretnetwork-api.highstakes.ch:1317'];
+export const SCRT_LCDS = ['https://secretnetwork-api.lavenderfive.com:443', 'https://rest-secret.01node.com', 'https://secretnetwork-api.highstakes.ch:1317'];
 export const SCRT_EXPLORER_TX = 'https://www.mintscan.io/secret/tx/';
 export const BCH_APIS = ['https://api.bitcore.io/api/BCH/mainnet'];
 export const BCH_EXPLORER_TX = 'https://blockchair.com/bitcoin-cash/transaction/';
