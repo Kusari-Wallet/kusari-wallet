@@ -253,7 +253,25 @@ async function withSplash(message: string, task: () => Promise<void>): Promise<v
   try { await task(); } finally { el.remove(); }
 }
 
+// Chosen before a wallet is made or restored: whether it ever talks to dApps.
+let chosenMode: 'private' | 'walletconnect' | null = null;
+
+function chooseMode(): void {
+  const pick = (m: 'private' | 'walletconnect') => () => { chosenMode = m; welcome(); };
+  const addingBack = h('button', { type: 'button', class: 'ghost', id: 'wallet-add-cancel', hidden: true, onclick: async () => { await wallet.walletCancelAdd(); await boot(); } }, 'Cancel adding a wallet');
+  void wallet.walletsList().then((r: any) => { addingBack.hidden = !r.adding; });
+  entry(
+    entryLogo(),
+    h('h2', {}, 'How will you use this wallet?'),
+    addingBack,
+    h('button', { class: 'choice', id: 'mode-private', onclick: pick('private') },
+      h('strong', {}, 'Maximum privacy'), h('span', { class: 'muted small' }, 'Never connects to dApps. Nothing about this wallet goes to a connection service. Recommended.')),
+    h('button', { class: 'choice', id: 'mode-walletconnect', onclick: pick('walletconnect') },
+      h('strong', {}, 'Use WalletConnect'), h('span', { class: 'muted small' }, 'Connects to dApps such as exchanges and NFT sites. Only the Ethereum, Polygon, Arbitrum and BNB address is shared with them, and connections go through the WalletConnect relay, outside Tor. For dApps, a separate wallet is safer than your main one.')));
+}
+
 function welcome(): void {
+  if (!chosenMode) return chooseMode();
   const addingBack = h('button', { type: 'button', class: 'ghost', id: 'wallet-add-cancel', hidden: true, onclick: async () => { await wallet.walletCancelAdd(); await boot(); } }, 'Cancel adding a wallet');
   void wallet.walletsList().then((r: any) => { addingBack.hidden = !r.adding; });
   entry(
@@ -261,6 +279,7 @@ function welcome(): void {
     h('h2', {}, 'Get started'),
     addingBack,
     h('p', { class: 'lead' }, 'Seeds and keys are stored encrypted on this device only. This is mainnet, with real coins.'),
+    h('p', { class: 'small muted', id: 'mode-chosen' }, chosenMode === 'walletconnect' ? 'Mode: WalletConnect. ' : 'Mode: Maximum privacy. ', h('button', { type: 'button', class: 'link', id: 'mode-change', onclick: () => { chosenMode = null; chooseMode(); } }, 'Change')),
     h('button', { class: 'choice', onclick: createStep1 },
       h('strong', {}, 'Create a new wallet'), h('span', { class: 'muted small' }, 'Generates new seed phrases.')),
     h('button', { class: 'choice', onclick: restoreForm },
@@ -323,6 +342,8 @@ function createSkip(password: string, back: () => void): void {
   const go = h('button', { class: 'danger', id: 'skip-confirm', onclick: () => busy(go, 'Creating the wallet…', box, async () => {
     await withSplash('Creating the wallet…', async () => {
       await wallet.finishCreate(password);
+      await wallet.setWalletMode(chosenMode ?? 'private');
+      chosenMode = null; // the next wallet added asks again
       await enterWallet();
     });
   }) }, 'Skip and create wallet');
@@ -343,6 +364,8 @@ function createStep3(password: string, seeds: { tronMnemonic: string; moneroSeed
     for (const q of qs) if (q.input.value.trim().toLowerCase() !== q.words[q.i]) throw new Error(`${q.label}: word ${q.i + 1} does not match.`);
     await withSplash('Creating the wallet…', async () => {
       await wallet.finishCreate(password);
+      await wallet.setWalletMode(chosenMode ?? 'private');
+      chosenMode = null; // the next wallet added asks again
       await enterWallet();
     });
   }) }, 'Create wallet');
@@ -362,6 +385,8 @@ function restoreForm(): void {
     const pw = f.check();
     await withSplash('Restoring the wallet…', async () => {
       await wallet.restore(pw, tron.value, xmr.value, from.value);
+      await wallet.setWalletMode(chosenMode ?? 'private');
+      chosenMode = null; // the next wallet added asks again
       await enterWallet();
     });
   }) }, 'Restore');
@@ -1363,6 +1388,78 @@ function renderSwapStatus(record: any): void {
   if (!done(record.status)) void poll();
 }
 
+// ---- WalletConnect ----
+
+async function walletConnectSection(): Promise<HTMLElement> {
+  const info = await wallet.wcInfo().catch(() => null);
+  const box = errorBox();
+  const sec = h('div', { class: 'section', id: 'wc-section' }, h('h3', {}, 'WalletConnect'));
+  if (!info || !info.available) { sec.append(h('p', { class: 'small muted' }, 'Not available in this build.')); return sec; }
+  if (info.mode !== 'walletconnect') {
+    const on = h('button', { class: 'secondary', id: 'wc-enable', onclick: () => busy(on, 'Turning on…', box, async () => { await wallet.setWalletMode('walletconnect'); void renderSettings(); }) }, 'Turn on for this wallet');
+    sec.append(box.el, h('p', { class: 'small muted' }, 'This wallet is in maximum privacy mode and never talks to dApps. Turning WalletConnect on shares the Ethereum, Polygon, Arbitrum and BNB address with dApps you connect, through the WalletConnect relay. A separate wallet for dApps is safer.'), on);
+    return sec;
+  }
+  const uri = h('input', { id: 'wc-uri', placeholder: 'wc:…', spellcheck: 'false', autocomplete: 'off' });
+  const go = h('button', { class: 'primary', id: 'wc-connect', onclick: () => busy(go, 'Connecting…', box, async () => { await wallet.wcPair(uri.value); uri.value = ''; }) }, 'Connect');
+  const off = h('button', { class: 'ghost', id: 'wc-disable', onclick: () => busy(off, 'Turning off…', box, async () => { await wallet.setWalletMode('private'); void renderSettings(); }) }, 'Turn off and forget all dApps');
+  const list = h('div', { id: 'wc-sessions' });
+  const paint = (sessions: any[]) => setKids(list, ...(sessions.length ? sessions.map((x: any) => h('div', { class: 'panel wc-session' },
+    h('strong', {}, x.name), h('span', { class: 'small muted mono' }, x.url),
+    h('button', { class: 'secondary', onclick: async () => { try { await wallet.wcDisconnect(x.topic); } catch (e) { box.show(e); } } }, 'Disconnect'))) : [h('p', { class: 'small muted' }, 'No dApps connected.')]));
+  paint(info.sessions);
+  onWcSessions = paint;
+  sec.append(box.el,
+    info.tor ? h('div', { class: 'warn' }, 'Tor is on, so WalletConnect is off: its relay can\'t be reached through Tor.') : h('p', { class: 'small muted' }, 'On the dApp, choose WalletConnect and copy its link (it starts with wc:). Paste it here.'),
+    h('label', { class: 'field' }, h('span', {}, 'Connection link'), uri), go, h('br'), list, off);
+  return sec;
+}
+
+let onWcSessions: ((s: any[]) => void) | null = null;
+wallet.on('wc-sessions', (s: any[]) => onWcSessions?.(s));
+
+/** A dApp asks to connect: who it says it is, what it wants, and whether WalletConnect could check its site. */
+wallet.on('wc-proposal', (p: any) => {
+  const box = errorBox();
+  const back = () => void renderSettings();
+  const yes = h('button', { class: 'primary', id: 'wc-approve', onclick: () => busy(yes, 'Connecting…', box, async () => { await wallet.wcApprove(p.id); back(); }) }, 'Connect');
+  const no = h('button', { class: 'ghost', id: 'wc-reject', onclick: () => { void wallet.wcReject(p.id); back(); } }, 'Reject');
+  const verified = p.scam ? h('div', { class: 'error' }, 'WalletConnect flags this site as a known scam. Reject it.')
+    : p.verified === 'VALID' ? h('p', { class: 'small', id: 'wc-verified' }, 'The site matches the domain this dApp registered.')
+      : h('div', { class: 'warn' }, p.verified === 'INVALID' ? 'The site doesn\'t match the domain this dApp registered. It may be an impostor.' : 'WalletConnect couldn\'t check this site. Make sure you opened the real one.');
+  show('send', subBar('Connect a dApp', () => { void wallet.wcReject(p.id); back(); }), h('div', { class: 'scroll' }, box.el,
+    h('div', { class: 'panel' }, h('h2', { id: 'wc-dapp' }, p.name), h('div', { class: 'mono small' }, p.url), p.description && h('p', { class: 'small muted' }, p.description)),
+    verified,
+    h('p', { class: 'small' }, `It will see this wallet's address on ${p.chains.length ? p.chains.map((c: string) => ({ 'eip155:1': 'Ethereum', 'eip155:137': 'Polygon', 'eip155:42161': 'Arbitrum', 'eip155:56': 'BNB Smart Chain' } as Record<string, string>)[c] ?? c).join(', ') : 'Ethereum'}. Every signature and transaction still needs your approval and password.`),
+    p.unsupported.length ? h('p', { class: 'small muted' }, `Not offered: ${p.unsupported.join(', ')}.`) : null,
+    h('div', { class: 'btn-row' }, no, yes)));
+});
+
+/** A dApp asks for a signature or a transaction. Nothing happens without the password. */
+wallet.on('wc-request', async (q: any) => {
+  const back = () => void renderHome();
+  let info: any;
+  try { info = await wallet.wcRequestInfo(q.id); } catch (e) { void wallet.wcDecline(q.id); return; }
+  const box = errorBox();
+  const pw = h('input', { type: 'password', id: 'wc-pw', autocomplete: 'current-password' });
+  const ok = h('button', { class: 'primary', id: 'wc-confirm', type: 'submit' }, info.kind === 'transaction' ? 'Send' : 'Sign');
+  const rows: [string, string][] = info.kind === 'transaction'
+    ? [['Action', info.action], ['To', info.to], ['Amount', `${info.value} ${info.symbol}`], ['Estimated fee', reviewFee(info.fee, info.symbol)], ['Data', info.data]]
+    : info.kind === 'typed' ? [['Type', info.type], ['For', `${info.domain} ${info.contract}`.trim()], ['Content', info.message]]
+      : [['Message', info.message]];
+  show('send', subBar(info.kind === 'transaction' ? 'Transaction request' : 'Signature request', () => { void wallet.wcDecline(q.id); back(); }), h('div', { class: 'scroll' },
+    h('form', { onsubmit: (e: Event) => {
+      e.preventDefault();
+      busy(ok, info.kind === 'transaction' ? 'Sending…' : 'Signing…', box, async () => { await wallet.wcConfirm(q.id, pw.value); pw.value = ''; back(); void refresh(); });
+    } }, box.el,
+    h('div', { class: 'panel' }, h('strong', { id: 'wc-from' }, info.dapp), h('div', { class: 'mono small' }, info.url), h('div', { class: 'small muted' }, info.network)),
+    ...info.warnings.map((w: string) => h('div', { class: 'warn' }, w)),
+    h('div', { class: 'panel' }, h('table', { class: 'review-table' }, h('tbody', {}, ...rows.map(([k, v]) => h('tr', {}, h('th', {}, k), h('td', { class: k === 'Data' || k === 'To' || k === 'Content' ? 'mono small' : '' }, v)))))),
+    h('label', { class: 'field' }, h('span', {}, 'Password'), pw),
+    h('div', { class: 'btn-row' }, h('button', { type: 'button', class: 'ghost', id: 'wc-decline', onclick: () => { void wallet.wcDecline(q.id); back(); } }, 'Reject'), ok))));
+  pw.focus();
+});
+
 // ---- several wallets ----
 
 function walletButton(): HTMLElement {
@@ -1755,6 +1852,7 @@ async function renderSettings(): Promise<void> {
         h('label', { class: 'field' }, h('span', {}, 'Current password'), curPw),
         h('label', { class: 'field' }, h('span', {}, 'New password (at least 10 characters)'), newPw),
         h('div', { class: 'row' }, chg, chgDone)),
+      await walletConnectSection(),
       h('div', { class: 'section', id: 'support-section' }, h('h3', {}, 'Support'),
         h('button', { class: 'ghost', id: 'support', 'aria-expanded': 'false', onclick: (e: Event) => {
           const note = document.getElementById('support-note');

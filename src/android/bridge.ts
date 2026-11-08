@@ -66,6 +66,7 @@ service.on('tron-tx', (t) => emit('tron-tx', t));
 service.on('locked', () => emit('locked'));
 service.on('tor-state', (s) => emit('tor-state', s));
 service.on('tornado-progress', (m) => emit('tornado-progress', m));
+for (const e of ['wc-proposal', 'wc-request', 'wc-sessions']) service.on(e, (d) => emit(e, d));
 
 let lockTimer: ReturnType<typeof setTimeout> | undefined;
 const bump = () => {
@@ -150,6 +151,16 @@ const bioCall = (fn: (id: number) => void) => new Promise<string>((resolve, reje
   dexQuote: call((f: any, t: any, a: string, b: number) => service.dexQuote(f, t, a, b)),
   dexPrepare: call((f: any, t: any, a: string, id: any, b: number) => service.dexPrepare(f, t, a, id, b)),
   dexConfirm: call((id: string, pw: string) => service.dexConfirm(id, pw)),
+  walletMode: call(() => service.walletMode()),
+  setWalletMode: call((m: any) => service.setWalletMode(m)),
+  wcInfo: call(() => service.wcInfo()),
+  wcPair: call((uri: string) => service.wcPair(uri)),
+  wcApprove: call((id: number) => service.wcApprove(id)),
+  wcReject: call((id: number) => service.wcReject(id)),
+  wcDisconnect: call((topic: string) => service.wcDisconnect(topic)),
+  wcDecline: call((id: number) => service.wcDecline(id)),
+  wcRequestInfo: call((id: number) => service.wcRequestInfo(id)),
+  wcConfirm: call((id: number, pw: string) => service.wcConfirm(id, pw)),
   prepareScrtPrivate: call((kind: any, amt: string) => service.prepareScrtPrivate(kind, amt)),
   zecRescan: call((d: string, pw: string) => service.zecRescan(d, pw)),
   walletsList: call(() => service.walletsList()),

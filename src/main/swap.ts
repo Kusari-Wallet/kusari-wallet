@@ -403,6 +403,13 @@ const ETZ_COIN: Partial<Record<Asset, { coin: string; network: string }>> = {
   DOGE: { coin: 'DOGE', network: 'DOGE' },
   ZEC: { coin: 'ZEC', network: 'ZEC' },
   ZANO: { coin: 'ZANO', network: 'ZANO' },
+  // From ETZ's own coin list (/deposit/public/coins).
+  ARB: { coin: 'ARB', network: 'ARBITRUM' },
+  ETHA: { coin: 'ETH', network: 'ARBITRUM' },
+  USDTA: { coin: 'USDT', network: 'ARBITRUM' },
+  USDTP: { coin: 'USDT', network: 'MATIC' },
+  BNB: { coin: 'BNB', network: 'BSC' },
+  USDTB: { coin: 'USDT', network: 'BSC' },
 };
 
 /** Their errors come as { errors: { someName: { message, args } } }. */
@@ -605,6 +612,14 @@ const CCE_COIN: Partial<Record<Asset, { abbr: string; chain: string }>> = {
   USDTA: { abbr: 'USDT', chain: 'Arbitrum' },
   DOGE: { abbr: 'DOGE', chain: 'Dogecoin' },
   ZEC: { abbr: 'ZEC', chain: 'Zcash' },
+  // Each checked with a live quote from CCECash.
+  UNI: { abbr: 'UNI', chain: 'Ethereum' },
+  PEPE: { abbr: 'PEPE', chain: 'Ethereum' },
+  AAVE: { abbr: 'AAVE', chain: 'Ethereum' },
+  JUP: { abbr: 'JUP', chain: 'Solana' },
+  BNB: { abbr: 'BNB', chain: 'BNB Smart Chain' },
+  USDTB: { abbr: 'USDT', chain: 'BNB Smart Chain' },
+  CAKE: { abbr: 'CAKE', chain: 'BNB Smart Chain' },
 };
 /** Their order states, as the words the rest of the wallet uses. */
 const CCE_STATUS: Record<number, string> = { 1: 'wait', 2: 'confirming', 3: 'exchanging', 4: 'success', 5: 'refunded', 7: 'hold', 8: 'expired', 9: 'failed' };

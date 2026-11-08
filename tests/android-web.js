@@ -169,6 +169,7 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
   await page.goto(origin + '/index.html');
   await page.locator('#splash img').waitFor({ timeout: 900 }).catch(() => {});
   await shot('splash');
+  await page.locator('#mode-private').click({ timeout: 15000 });
   await page.getByText('Get started').waitFor({ timeout: 15000 });
   await page.evaluate((n) => window.wallet.updateSettings({ customMoneroNode: n }), holeUp);
   await page.getByText('Restore from seeds').click();

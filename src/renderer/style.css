@@ -295,3 +295,6 @@ label.field > span { display: block; margin-bottom: 6px; font-size: 14px; font-w
 .offer-tag { margin-left: 8px; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 600; color: #bff0d3; background: rgba(34,197,94,.14); vertical-align: middle; }
 .swap-slippage { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 2px 0 10px; flex-wrap: wrap; }
 .chip.on { background: var(--orange); color: #111; }
+
+button.link { background: none; border: 0; padding: 0; color: var(--orange); text-decoration: underline; cursor: pointer; font: inherit; }
+.wc-session { display: grid; gap: 4px; }

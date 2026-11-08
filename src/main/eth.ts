@@ -219,6 +219,11 @@ export class EthClient {
     return { asset: this.chain.native, to, amount: value, gas, maxFee, tip, expectedFee: gas * (base + tip), maxCost: gas * maxFee };
   }
 
+  /** Gas for a contract call a dApp asked for, padded a little. */
+  async estimateCall(tx: { to: string; data: string; value: bigint }): Promise<bigint> {
+    return this.estimate({ to: tx.to, data: tx.data, value: toHex(tx.value) }, 3_000_000n);
+  }
+
   /** How much of a token a contract may take from this wallet. */
   async allowance(token: string, spender: string): Promise<bigint> {
     const hex = await this.call(token, `0xdd62ed3e${word(this.address.slice(2).toLowerCase())}${word(spender.slice(2).toLowerCase())}`);

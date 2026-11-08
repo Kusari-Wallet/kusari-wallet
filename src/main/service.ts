@@ -9,6 +9,7 @@ import { MIN_PASSWORD, Secrets, Vault } from './vault';
 import { TronClient, TronTransfer, deriveTronAccount, generateTronMnemonic, isTronAddress } from './tron';
 import { socksAgent, getJson, requestJson, newTorRoute } from './request';
 import { AAVE_MARKETS, aaveCall, readAave } from './aave';
+import { WC_CHAINS, WalletConnectManager } from './walletconnect';
 import { DexCall, DexId, DexQuote, NATIVE, UNISWAP_CHAINS, UniswapClient, approvalCalls, narrowPermit, pancakeQuote, pancakeSwapCall } from './dex';
 import { ScrtClient, ScrtDraft, isScrtAddress, scrtPrivacyKeys, scrtPublicKey } from './scrt';
 import { BtcClient, BtcDraft, LITECOIN, btcAccountXpub, estimateVbytes, isBtcAddress, isLtcAddress, ltcAccountXpub } from './btc';
@@ -121,6 +122,7 @@ export class WalletService extends EventEmitter {
   private pol: EthClient | null = null;
   private arb: EthClient | null = null;
   private bsc: EthClient | null = null;
+  private wc: WalletConnectManager | null = null;
   private dash: DashClient | null = null;
   private firo: FiroClient | null = null;
   private doge: DogeClient | null = null;
@@ -148,7 +150,7 @@ export class WalletService extends EventEmitter {
   settings: Settings = { ...DEFAULT_SETTINGS };
 
   constructor(private readonly baseDir: string, private readonly kdf?: { N: number; r: number; p: number }, private readonly dev: {
-    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; bchApi?: string; ltcApi?: string; scrtLcd?: string; polRpc?: string; polScout?: string; polUsdt?: string; arbRpc?: string; arbScout?: string; arbUsdt?: string; bscRpc?: string; bscScout?: string; uniswapKey?: string; uniswapBase?: string; dashApi?: string; firoApi?: string; solRpc?: string; dogeApi?: string; zecBin?: string; zecServers?: string[]; zanoBin?: string; zanoNode?: string; arrrBin?: string; arrrServers?: string[]; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; etzSwapBase?: string; cceCashBase?: string; changeNowBase?: string; quoteDeadlineMs?: number; btcApi?: string;
+    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; bchApi?: string; ltcApi?: string; scrtLcd?: string; polRpc?: string; polScout?: string; polUsdt?: string; arbRpc?: string; arbScout?: string; arbUsdt?: string; bscRpc?: string; bscScout?: string; uniswapKey?: string; uniswapBase?: string; wcProjectId?: string; dashApi?: string; firoApi?: string; solRpc?: string; dogeApi?: string; zecBin?: string; zecServers?: string[]; zanoBin?: string; zanoNode?: string; arrrBin?: string; arrrServers?: string[]; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; etzSwapBase?: string; cceCashBase?: string; changeNowBase?: string; quoteDeadlineMs?: number; btcApi?: string;
     /** Android: every outside address goes through the app's local forwarder. */
     route?: (url: string) => string;
     moneroStore?: (net: NetworkId, walletId: string) => MoneroOptions['store'];
@@ -372,6 +374,7 @@ export class WalletService extends EventEmitter {
     this.pol = new EthClient(this.dev.polRpc ? [this.dev.polRpc] : POL_RPCS, this.dev.polScout ?? POL_SCOUT, this.dev.polUsdt ?? '', evmAddress, this.torRoute('pol'), slow ? 60_000 : 15_000, POLYGON);
     this.arb = new EthClient(this.dev.arbRpc ? [this.dev.arbRpc] : ARB_RPCS, this.dev.arbScout ?? ARB_SCOUT, this.dev.arbUsdt ?? '', evmAddress, this.torRoute('arb'), slow ? 60_000 : 15_000, ARBITRUM);
     this.bsc = new EthClient(this.dev.bscRpc ? [this.dev.bscRpc] : BSC_RPCS, this.dev.bscScout ?? BSC_SCOUT, '', evmAddress, this.torRoute('bsc'), slow ? 60_000 : 15_000, BSC);
+    void this.startWalletConnect(evmAddress);
     const monero = new MoneroClient({
       type: net.monero.type,
       dir: this.moneroDir(net.id),
@@ -471,6 +474,8 @@ export class WalletService extends EventEmitter {
     this.pol = null;
     this.arb = null;
     this.bsc = null;
+    void this.wc?.stop();
+    this.wc = null;
     this.dash = null;
     this.firo = null;
     this.doge = null;
@@ -827,6 +832,124 @@ export class WalletService extends EventEmitter {
     }
     const hashes = await client.sendCalls([...calls, swap], account.wallet, quote.gasUnits + 60_000n);
     return { hashes, explorer: hashes.map((h) => this.explorerUrl(from, h)) };
+  }
+
+  // ---- WalletConnect: only in wallets made for it ----
+
+  private get modePath() { return path.join(this.dir, 'mode.json'); }
+
+  /** 'private' (the default, and every wallet made before this choice existed) or 'walletconnect'. */
+  async walletMode(): Promise<'private' | 'walletconnect'> {
+    try { return JSON.parse(await fs.readFile(this.modePath, 'utf8') as unknown as string).mode === 'walletconnect' ? 'walletconnect' : 'private'; } catch { return 'private'; }
+  }
+
+  async setWalletMode(mode: 'private' | 'walletconnect'): Promise<void> {
+    if (mode !== 'private' && mode !== 'walletconnect') throw new Error('Unknown mode.');
+    await fs.mkdir(this.dir, { recursive: true });
+    await fs.writeFile(this.modePath, JSON.stringify({ mode }), { mode: 0o600 });
+    if (mode === 'private') {
+      await this.wc?.stop();
+      this.wc = null;
+      await fs.rm(path.join(this.dir, 'walletconnect.json'), { force: true }); // the dApp sessions go with it
+    } else if (this.eth) {
+      await this.startWalletConnect(this.eth.address);
+    }
+  }
+
+  private wcProjectId(): string { return this.dev.wcProjectId ?? (BUILTIN_SWAP_KEYS as { walletconnect?: string }).walletconnect ?? ''; }
+
+  private async startWalletConnect(address: string): Promise<void> {
+    if (this.wc || (await this.walletMode()) !== 'walletconnect' || this.settings.torEnabled || !this.wcProjectId()) return;
+    this.wc = new WalletConnectManager(this.wcProjectId(), path.join(this.dir, 'walletconnect.json'), address, (event, data) => this.emit(event, data));
+    await this.wc.resume().catch(() => undefined);
+  }
+
+  private walletConnect(): WalletConnectManager {
+    this.session();
+    if (this.settings.torEnabled) throw new Error('WalletConnect can\'t go through Tor, so it is off while Tor is on.');
+    if (!this.wc) throw new Error(this.wcProjectId() ? 'WalletConnect is only in wallets made for it. Choose it when adding a wallet, or turn it on in Settings.' : 'WalletConnect isn\'t set up in this build.');
+    return this.wc;
+  }
+
+  async wcInfo() {
+    return { mode: await this.walletMode(), tor: this.settings.torEnabled, available: Boolean(this.wcProjectId()), sessions: this.wc?.sessions() ?? [] };
+  }
+  async wcPair(uri: string) { await this.walletConnect().pair(uri); }
+  async wcApprove(id: number) { await this.walletConnect().approve(id); }
+  async wcReject(id: number) { await this.walletConnect().reject(id); }
+  async wcDisconnect(topic: string) { await this.walletConnect().disconnect(topic); }
+  async wcDecline(id: number) { await this.wc?.decline(id); }
+
+  private evmByChain(id: bigint): EthClient {
+    const c = id === POLYGON.id ? this.pol : id === ARBITRUM.id ? this.arb : id === BSC.id ? this.bsc : id === 1n ? this.eth : null;
+    if (!c) throw new Error('This wallet doesn\'t support that network.');
+    return c;
+  }
+
+  /** What a dApp asks for, spelled out: who, which network, and what signing it would do. */
+  async wcRequestInfo(id: number) {
+    const r = this.walletConnect().request(id);
+    const chain = WC_CHAINS.find((c) => c.id === r.chainId)!;
+    const me = this.session().eth.address.toLowerCase();
+    const warnings: string[] = [];
+    const base = { id, dapp: r.dapp, url: r.url, network: chain.name, method: r.method };
+    if (r.method === 'personal_sign') {
+      const [msg, who] = r.params ?? [];
+      if (String(who ?? '').toLowerCase() !== me) warnings.push('The dApp named a different address.');
+      const bytes = /^0x[0-9a-fA-F]*$/.test(String(msg)) ? Buffer.from(String(msg).slice(2), 'hex') : Buffer.from(String(msg), 'utf8');
+      const text = bytes.toString('utf8');
+      return { ...base, kind: 'message', message: /^[\x09\x0a\x0d\x20-\x7e\u00a0-\uffff]*$/.test(text) ? text : `0x${bytes.toString('hex')}`, warnings };
+    }
+    if (r.method.startsWith('eth_signTypedData')) {
+      const [who, json] = r.params ?? [];
+      if (String(who ?? '').toLowerCase() !== me) warnings.push('The dApp named a different address.');
+      const data = typeof json === 'string' ? JSON.parse(json) : json;
+      if (/permit/i.test(String(data?.primaryType))) warnings.push('This is a permit: signing it lets the dApp move your tokens without another confirmation.');
+      if (data?.domain?.chainId !== undefined && BigInt(data.domain.chainId) !== r.chainId) warnings.push('The message names a different network.');
+      return { ...base, kind: 'typed', type: String(data?.primaryType ?? ''), domain: String(data?.domain?.name ?? ''), contract: String(data?.domain?.verifyingContract ?? ''), message: JSON.stringify(data?.message ?? {}, null, 1).slice(0, 2000), warnings };
+    }
+    const tx = r.params?.[0] ?? {};
+    if (String(tx.from ?? '').toLowerCase() !== me) throw new Error('The dApp asked to send from a different address.');
+    const client = this.evmByChain(r.chainId);
+    const value = BigInt(tx.value ?? 0);
+    const data = String(tx.data ?? tx.input ?? '0x');
+    let action = value ? `Send ${formatAmount(value, 18)} ${client.chain.symbol}` : 'Contract call';
+    if (data.startsWith('0x095ea7b3') && data.length >= 138) {
+      const amount = BigInt('0x' + data.slice(74, 138));
+      action = `Allow ${'0x' + data.slice(34, 74)} to spend a token`;
+      if (amount >= 2n ** 255n) warnings.push('This approval has no limit: the contract could take all of this token, now or later.');
+    }
+    const gas = tx.gas ? BigInt(tx.gas) : await client.estimateCall({ to: tx.to, data, value }).catch(() => 300_000n);
+    const cost = await client.costOf([{ value, gas }], gas);
+    return { ...base, kind: 'transaction', to: String(tx.to ?? ''), value: formatAmount(value, 18), symbol: client.chain.symbol, action, data: data.slice(0, 74), fee: formatAmount(cost.likely, 18), warnings };
+  }
+
+  async wcConfirm(id: number, password: string): Promise<{ result: string }> {
+    const wc = this.walletConnect();
+    const r = wc.request(id);
+    const secrets = await this.vault.open(password);
+    const account = deriveEthAccount(secrets.tronMnemonic);
+    let result: string;
+    if (r.method === 'personal_sign') {
+      const msg = String(r.params?.[0] ?? '');
+      result = await account.wallet.signMessage(/^0x[0-9a-fA-F]*$/.test(msg) ? Buffer.from(msg.slice(2), 'hex') : msg);
+    } else if (r.method.startsWith('eth_signTypedData')) {
+      const raw = r.params?.[1];
+      const data = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      const { EIP712Domain: _d, ...types } = data.types ?? {};
+      result = await account.wallet.signTypedData(data.domain ?? {}, types, data.message ?? {});
+    } else {
+      const tx = r.params?.[0] ?? {};
+      const client = this.evmByChain(r.chainId);
+      const value = BigInt(tx.value ?? 0);
+      const data = String(tx.data ?? tx.input ?? '0x');
+      const gas = tx.gas ? BigInt(tx.gas) : await client.estimateCall({ to: tx.to, data, value });
+      if (gas > 3_000_000n) throw new Error('This transaction asks for an abnormal amount of gas, so it was stopped.');
+      [result] = await client.sendCalls([{ to: String(tx.to), data, value, gas }], account.wallet, gas);
+      this.balanceMemo.clear();
+    }
+    await wc.respond(id, result);
+    return { result };
   }
 
   /** The client for the chain an EVM coin or token lives on. */
@@ -1662,7 +1785,7 @@ export class WalletService extends EventEmitter {
     if (id === 'main') {
       // The app's shared files live next to this wallet's, so only its own are removed.
       await fs.rm(path.join(this.dir, 'xmr'), { recursive: true, force: true });
-      for (const f of ['swaps.json', 'privacy-swaps.json', 'tornado.json', 'zec-state.json']) await fs.rm(path.join(this.dir, f), { force: true });
+      for (const f of ['swaps.json', 'privacy-swaps.json', 'tornado.json', 'zec-state.json', 'mode.json', 'walletconnect.json']) await fs.rm(path.join(this.dir, f), { force: true });
     } else {
       await fs.rm(this.dir, { recursive: true, force: true });
     }
