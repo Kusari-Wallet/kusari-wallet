@@ -476,11 +476,25 @@ function balanceText(a: Asset): string {
   const b = overview?.balances?.[a];
   if (hideBalance) return '••••';
   if (!b || b.pending) return '…';
-  return b.ok ? b.total : 'Lookup failed';
+  return b.ok ? shortAmount(b.total) : 'Lookup failed';
+}
+
+/**
+ * A balance short enough to read: 4 decimals from 1 up, 6 below 1, and 4 significant digits for dust smaller than
+ * that. Cut, never rounded up, so it never shows more than is held. The exact amount stays in the tooltip.
+ */
+function shortAmount(text: string): string {
+  const m = /^(\d+)(?:\.(\d+))?$/.exec(String(text).trim());
+  if (!m) return text;
+  const [, whole, frac = ''] = m;
+  let keep = whole !== '0' || /^0*$/.test(frac) ? 4 : 6;
+  if (whole === '0' && /^0*$/.test(frac.slice(0, 6)) && !/^0*$/.test(frac)) keep = frac.search(/[1-9]/) + 4;
+  const cut = frac.slice(0, keep).replace(/0+$/, '');
+  return (cut ? `${Number(whole).toLocaleString('en-US')}.${cut}` : Number(whole).toLocaleString('en-US'));
 }
 
 function usdFormat(n: number): string {
-  const digits = n !== 0 && Math.abs(n) < 0.01 ? 6 : 2;
+  const digits = n !== 0 && Math.abs(n) < 0.01 ? 4 : 2;
   return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: digits });
 }
 
@@ -670,6 +684,7 @@ async function renderAsset(): Promise<void> {
     const b = overview?.balances?.[a];
     const shown = balanceText(a);
     balance.textContent = hideBalance || shown === 'Lookup failed' ? shown : `${shown} ${unitOf(a)}`;
+    balance.title = !hideBalance && b?.ok ? `${b.total} ${unitOf(a)}` : '';
     const v = assetUsd(a);
     usd.textContent = !hideBalance && v !== null ? usdFormat(v) : '';
     setKids(notes,

@@ -490,7 +490,7 @@ const PASSWORD = 'correct horse battery';
   // Zano: the engine here is a stand-in too
   const zanoOther = 'Zx' + 'D'.repeat(95);
   await page.locator('#asset-ZANO').waitFor({ timeout: 20000 });
-  await page.waitForFunction(() => document.querySelector('#asset-ZANO .amt')?.textContent === '20000', null, { timeout: 30000 });
+  await page.waitForFunction(() => document.querySelector('#asset-ZANO .amt')?.textContent === '20,000', null, { timeout: 30000 });
   await page.click('#asset-ZANO');
   await shot('zano-1-detail');
   await page.click('#detail-receive');
