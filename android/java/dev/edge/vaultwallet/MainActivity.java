@@ -121,6 +121,7 @@ public class MainActivity extends Activity {
         // Always a fresh start. When Android had closed the screen in the background, the page has nothing worth
         // restoring (the wallet locks anyway), and restoring it left an empty black screen.
         web.loadUrl(ORIGIN + "/index.html");
+        takeWcLink(getIntent());
     }
 
     private WebResourceResponse asset(String path) {
@@ -152,6 +153,24 @@ public class MainActivity extends Activity {
         zano.stop();
         arrr.stop();
         super.onDestroy();
+    }
+
+    // A wc: link from a dApp, held until the unlocked wallet asks for it.
+    private volatile String pendingWcLink = "";
+
+    private void takeWcLink(Intent intent) {
+        Uri data = intent == null ? null : intent.getData();
+        if (data == null || !"wc".equals(data.getScheme())) return;
+        String link = data.toString();
+        if (link.length() > 1000) return;
+        pendingWcLink = link;
+        if (web != null) web.evaluateJavascript("window.__wcLink && window.__wcLink()", null);
+    }
+
+    @Override protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        takeWcLink(intent);
     }
 
     @Override protected void onPause() {
@@ -215,6 +234,12 @@ public class MainActivity extends Activity {
             if (clip != null && clip.getItemCount() > 0 && text.contentEquals(clip.getItemAt(0).coerceToText(MainActivity.this))) {
                 clipboard().clearPrimaryClip();
             }
+        }
+
+        @JavascriptInterface public String wcTakeLink() {
+            String link = pendingWcLink;
+            pendingWcLink = "";
+            return link;
         }
 
         @JavascriptInterface public String paste() {

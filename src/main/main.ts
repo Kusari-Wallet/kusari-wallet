@@ -1,5 +1,7 @@
 import type { Asset } from './config';
-import { app, BrowserWindow, clipboard, ipcMain, Menu, session, shell } from 'electron';
+import { app, BrowserWindow, clipboard, desktopCapturer, ipcMain, Menu, screen, session, shell } from 'electron';
+import { findWcQr } from './qr-scan';
+import { isWcLink, wcLinkOf } from './wc-link';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { WalletService } from './service';
@@ -23,6 +25,30 @@ let win: BrowserWindow | null = null;
 let service: WalletService;
 let lockTimer: NodeJS.Timeout | null = null;
 let clipboardTimer: NodeJS.Timeout | null = null;
+// A WalletConnect link the system handed over (a dApp's "open wallet"), kept until the unlocked wallet takes it.
+let pendingWcLink = wcLinkOf(process.argv);
+
+function bringToFront(): void {
+  if (!win || win.isDestroyed()) return;
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+}
+
+/** Reads the WalletConnect QR a dApp shows, from the open windows and then the whole screen. Nothing is saved. */
+async function scanScreenForWc(): Promise<string> {
+  const side = Math.min(2400, Math.max(1280, ...screen.getAllDisplays().map((d) => Math.round(Math.max(d.size.width, d.size.height) * d.scaleFactor))));
+  const own = win && !win.isDestroyed() ? win.getMediaSourceId() : '';
+  const sources = await desktopCapturer.getSources({ types: ['window', 'screen'], thumbnailSize: { width: side, height: side }, fetchWindowIcons: false });
+  const ordered = [...sources.filter((s) => s.id.startsWith('window:') && s.id !== own).slice(0, 30), ...sources.filter((s) => s.id.startsWith('screen:'))];
+  for (const s of ordered) {
+    if (s.thumbnail.isEmpty()) continue;
+    const { width, height } = s.thumbnail.getSize();
+    const found = findWcQr(s.thumbnail.toBitmap(), width, height, 'bgra');
+    if (found) return found;
+  }
+  return '';
+}
 
 const emit = (channel: string, payload?: unknown) => {
   if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
@@ -86,7 +112,7 @@ app.whenReady().then(async () => {
   service.on('tor-state', (s) => emit('wallet:tor-state', s));
   service.on('tor-install', (m) => emit('wallet:tor-install', m));
   service.on('tornado-progress', (m) => emit('wallet:tornado-progress', m));
-  for (const e of ['wc-proposal', 'wc-request', 'wc-sessions']) service.on(e, (d) => emit(`wallet:${e}`, d));
+  for (const e of ['wc-proposal', 'wc-request', 'wc-sessions']) service.on(e, (d) => { if (e !== 'wc-sessions') bringToFront(); emit(`wallet:${e}`, d); });
 
   handle('wallet:status', () => service.status());
   handle('wallet:arrrInfo', () => service.arrrInfo());
@@ -98,6 +124,11 @@ app.whenReady().then(async () => {
   handle('wallet:dexPrepare', (from: Asset, to: Asset, amount: string, id: 'uniswap' | 'pancakeswap', bps: number) => service.dexPrepare(from, to, amount, id, bps));
   handle('wallet:dexConfirm', (id: string, pw: string) => service.dexConfirm(id, pw));
   handle('wallet:walletMode', () => service.walletMode());
+  handle('wallet:wcClipboard', async () => { const t = (await clipboard.readText()).trim(); return isWcLink(t) ? t : ''; });
+  handle('wallet:wcScanScreen', () => scanScreenForWc());
+  handle('wallet:wcTakeLink', () => { const l = pendingWcLink; pendingWcLink = ''; return l; });
+  // Links a dApp opens with wc: come to this app, once a wallet uses WalletConnect.
+  handle('wallet:wcRegisterLinks', () => { if (app.isPackaged && !app.isDefaultProtocolClient('wc')) app.setAsDefaultProtocolClient('wc'); });
   handle('wallet:setWalletMode', (m: 'private' | 'walletconnect') => service.setWalletMode(m));
   handle('wallet:wcInfo', () => service.wcInfo());
   handle('wallet:wcPair', (uri: string) => service.wcPair(uri));
@@ -181,7 +212,16 @@ app.whenReady().then(async () => {
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
 
-app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
+app.on('second-instance', (_e, argv) => {
+  const link = wcLinkOf(argv);
+  if (link) { pendingWcLink = link; emit('wallet:wc-link'); }
+  if (win) { if (win.isMinimized()) win.restore(); win.focus(); }
+});
+app.on('open-url', (e, url) => {
+  e.preventDefault();
+  const link = wcLinkOf([url]);
+  if (link) { pendingWcLink = link; emit('wallet:wc-link'); bringToFront(); }
+});
 app.on('window-all-closed', () => app.quit());
 
 let quitting = false;

@@ -17,11 +17,12 @@ const TOKEN_PROGRAM = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
 const TOKEN_2022_PROGRAM = 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb';
 const ATA_PROGRAM = 'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL';
 const SYSTEM_ID = '11111111111111111111111111111111';
-export type SplAsset = 'USDTS' | 'JUP' | 'RAY';
+export type SplAsset = 'USDTS' | 'USDCS' | 'JUP' | 'RAY';
 export interface SplToken { asset: SplAsset; mint: string; decimals: number; symbol: string; dust: bigint }
 // Classic SPL tokens (the original Token program), each checked against Trust Wallet's and the issuers' own lists.
 export const SPL_TOKENS: Record<SplAsset, SplToken> = {
   USDTS: { asset: 'USDTS', mint: SOL_USDT_MINT, decimals: 6, symbol: 'USDT', dust: 10_000n },
+  USDCS: { asset: 'USDCS', mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', decimals: 6, symbol: 'USDC', dust: 10_000n },
   JUP: { asset: 'JUP', mint: 'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN', decimals: 6, symbol: 'JUP', dust: 10_000n },
   RAY: { asset: 'RAY', mint: '4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R', decimals: 6, symbol: 'RAY', dust: 10_000n },
 };

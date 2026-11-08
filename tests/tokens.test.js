@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const http = require('node:http');
 const { AbiCoder } = require('ethers');
-const { BSC, ETHEREUM, POLYGON, chainOf, EthClient } = require('../dist/main/eth');
+const { ARBITRUM, BSC, ETHEREUM, POLYGON, chainOf, EthClient } = require('../dist/main/eth');
 const { SPL_TOKENS, tokenAccountOf, signSolUsdtTransfer, solAddress } = require('../dist/main/sol');
 const { AAVE_MARKETS, aaveCall, readAave } = require('../dist/main/aave');
 const { mirror } = require('../dist/main/prices');
@@ -19,6 +19,12 @@ test('each new token sits on its own chain with the contract and decimals from t
   assert.equal(chainOf('ETHP'), POLYGON);
   for (const a of ['UNI', 'PEPE', 'AAVE']) assert.equal(chainOf(a), ETHEREUM, a);
   assert.equal(SPL_TOKENS.JUP.decimals, 6);
+  // Circle's native USDC on each chain, as the chains report it; BNB Smart Chain's has 18 decimals.
+  assert.equal(chainOf('USDCE'), ETHEREUM); assert.equal(ETHEREUM.tokens.USDCE.contract, '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'); assert.equal(ETHEREUM.tokens.USDCE.decimals, 6);
+  assert.equal(chainOf('USDCB'), BSC); assert.equal(BSC.tokens.USDCB.contract, '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d'); assert.equal(BSC.tokens.USDCB.decimals, 18);
+  assert.equal(chainOf('USDCP'), POLYGON); assert.equal(POLYGON.tokens.USDCP.contract, '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359');
+  assert.equal(chainOf('USDCA'), ARBITRUM); assert.equal(ARBITRUM.tokens.USDCA.contract, '0xaf88d065e77c8cC2239327C5EDb3A432268e5831');
+  assert.equal(SPL_TOKENS.USDCS.mint, 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'); assert.equal(SPL_TOKENS.USDCS.decimals, 6);
   assert.equal(SPL_TOKENS.RAY.mint, '4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R');
 });
 

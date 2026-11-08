@@ -93,6 +93,9 @@ const PASSWORD = 'correct horse battery';
 
   // delete, then restore with a known Tron seed so the mock node recognizes it
   await page.click('#open-settings');
+  await page.locator('#seed-pw').waitFor();
+  assert.equal(await page.locator('#wc-section, #wc-enable').count(), 0, 'a maximum-privacy wallet shows no WalletConnect in settings');
+  assert.equal(await page.locator('#go-dapps').count(), 0);
   await page.fill('#seed-pw', 'wrong password!');
   await page.click('#reveal');
   await page.getByText('Wrong password').waitFor({ timeout: 15000 });
@@ -126,10 +129,11 @@ const PASSWORD = 'correct horse battery';
   const scrolled = await page.evaluate(() => document.querySelector('.scroll').scrollTop);
   await page.click('#fold-ARB'); await page.click('#fold-ARB');
   assert.equal(await page.evaluate(() => document.querySelector('.scroll').scrollTop), scrolled, 'folding keeps the list where it was');
-  assert.deepEqual(await page.locator('.asset').evaluateAll((els) => els.map((e) => e.id)), ['asset-XMR', 'asset-BTC', 'asset-ETH', 'asset-USDTE', 'asset-LINK', 'asset-WLD', 'asset-UNI', 'asset-PEPE', 'asset-AAVE', 'asset-ZEC', 'asset-SOL', 'asset-USDTS', 'asset-JUP', 'asset-RAY', 'asset-TRX', 'asset-USDT', 'asset-BNB', 'asset-USDTB', 'asset-ASTER', 'asset-CAKE', 'asset-POL', 'asset-ETHP', 'asset-USDTP', 'asset-ARB', 'asset-ETHA', 'asset-USDTA', 'asset-BCH', 'asset-LTC', 'asset-NEAR', 'asset-SCRT', 'asset-DOGE', 'asset-DASH', 'asset-FIRO', 'asset-ZANO', 'asset-ARRR']);
+  assert.deepEqual(await page.locator('.asset').evaluateAll((els) => els.map((e) => e.id)), ['asset-XMR', 'asset-BTC', 'asset-ETH', 'asset-USDTE', 'asset-USDCE', 'asset-LINK', 'asset-WLD', 'asset-UNI', 'asset-PEPE', 'asset-AAVE', 'asset-ZEC', 'asset-SOL', 'asset-USDTS', 'asset-USDCS', 'asset-JUP', 'asset-RAY', 'asset-TRX', 'asset-USDT', 'asset-BNB', 'asset-USDTB', 'asset-USDCB', 'asset-ASTER', 'asset-CAKE', 'asset-POL', 'asset-ETHP', 'asset-USDTP', 'asset-USDCP', 'asset-ARB', 'asset-ETHA', 'asset-USDTA', 'asset-USDCA', 'asset-BCH', 'asset-LTC', 'asset-NEAR', 'asset-SCRT', 'asset-DOGE', 'asset-DASH', 'asset-FIRO', 'asset-ZANO', 'asset-ARRR']);
   assert.match(await page.locator('#asset-USDTA').innerText(), /USDT \(Arb\)/);
   assert.match(await page.locator('#asset-ETHA').innerText(), /ETH \(Arb\)/);
   assert.match(await page.locator('#asset-USDTB').innerText(), /USDT \(BNB\)/);
+  for (const [id, label] of [['USDCE', 'USDC (Eth)'], ['USDCB', 'USDC (BNB)'], ['USDCS', 'USDC (Sol)'], ['USDCP', 'USDC (Pol)'], ['USDCA', 'USDC (Arb)']]) assert.ok((await page.locator(`#asset-${id}`).innerText()).includes(label), label);
   assert.doesNotMatch(await page.locator('#asset-NEAR').innerText(), /\(Eth\)/);
   await page.waitForFunction(() => /1\.6/.test(document.querySelector('#asset-NEAR')?.textContent ?? ''), null, { timeout: 30000 }); // native NEAR, read from the NEAR RPC
   assert.match(await page.locator('#asset-ETHP').innerText(), /ETH \(Pol\)/);
@@ -672,6 +676,14 @@ const PASSWORD = 'correct horse battery';
   const secondEth = await page.evaluate(() => window.wallet.addresses().then((a) => a.ETH));
   assert.notEqual(secondEth, firstEth, 'a different wallet');
   assert.equal(await page.evaluate(() => window.wallet.walletMode()), 'walletconnect', 'the choice is kept for that wallet');
+  if ((await page.evaluate(() => window.wallet.wcInfo())).available) {
+    await page.click('#go-dapps'); // home has a dApps button in a WalletConnect wallet
+    await page.locator('#wc-connect', { hasText: 'Connect a dApp' }).waitFor();
+    await page.getByText('No dApps connected.').waitFor();
+    await shot('dapps');
+    await page.click('#back');
+    await page.locator('#go-dapps').waitFor();
+  }
   await page.click('#wallet-switch');
   await shot('wallets');
   assert.equal(await page.locator('.wallet-row').count(), 2);

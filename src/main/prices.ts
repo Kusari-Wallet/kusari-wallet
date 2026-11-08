@@ -18,6 +18,8 @@ export function mirror(p: Partial<Record<Asset, Row | undefined>>): void {
   if (p.SCRT) p.SSCRT = p.SCRT;
   if (p.ETH) p.ETHP = p.ETH;
   if (p.ETH) p.ETHA = p.ETH;
+  // USDC is one coin on every chain.
+  if (p.USDCE) for (const a of ['USDCB', 'USDCS', 'USDCP', 'USDCA'] as const) p[a] = p.USDCE;
 }
 
 function all(btc: Row, eth: Row, trx: Row, usdt: Row, xmr: Row, dash?: Row, zec?: Row, zano?: Row, arrr?: Row, firo?: Row, sol?: Row, doge?: Row, more: Partial<Record<Asset, Row | undefined>> = {}): PriceMap {
@@ -34,7 +36,7 @@ export const coingecko = (url: string): PriceSource => ({
   name: 'CoinGecko', url,
   parse: (j) => {
     const r = (id: string) => row(j[id]?.usd, j[id]?.usd_24h_change);
-    return all(r('bitcoin'), r('ethereum'), r('tron'), r('tether'), r('monero'), optional(() => r('dash')), optional(() => r('zcash')), optional(() => r('zano')), optional(() => r('pirate-chain')), optional(() => r('zcoin')), optional(() => r('solana')), optional(() => r('dogecoin')), { LINK: optional(() => r('chainlink')), WLD: optional(() => r('worldcoin-wld')), POL: optional(() => r('polygon-ecosystem-token')), ARB: optional(() => r('arbitrum')), BCH: optional(() => r('bitcoin-cash')), LTC: optional(() => r('litecoin')), SCRT: optional(() => r('secret')), UNI: optional(() => r('uniswap')), PEPE: optional(() => r('pepe')), AAVE: optional(() => r('aave')), NEAR: optional(() => r('near')), BNB: optional(() => r('binancecoin')), ASTER: optional(() => r('aster-2')), CAKE: optional(() => r('pancakeswap-token')), JUP: optional(() => r('jupiter-exchange-solana')), RAY: optional(() => r('raydium')) });
+    return all(r('bitcoin'), r('ethereum'), r('tron'), r('tether'), r('monero'), optional(() => r('dash')), optional(() => r('zcash')), optional(() => r('zano')), optional(() => r('pirate-chain')), optional(() => r('zcoin')), optional(() => r('solana')), optional(() => r('dogecoin')), { LINK: optional(() => r('chainlink')), WLD: optional(() => r('worldcoin-wld')), POL: optional(() => r('polygon-ecosystem-token')), ARB: optional(() => r('arbitrum')), BCH: optional(() => r('bitcoin-cash')), LTC: optional(() => r('litecoin')), SCRT: optional(() => r('secret')), UNI: optional(() => r('uniswap')), PEPE: optional(() => r('pepe')), AAVE: optional(() => r('aave')), NEAR: optional(() => r('near')), BNB: optional(() => r('binancecoin')), ASTER: optional(() => r('aster-2')), CAKE: optional(() => r('pancakeswap-token')), JUP: optional(() => r('jupiter-exchange-solana')), RAY: optional(() => r('raydium')), USDCE: optional(() => r('usd-coin')) });
   },
 });
 
@@ -60,9 +62,9 @@ export const cryptocompare = (url: string): PriceSource => ({
   },
 });
 
-const EXCHANGE_COINS: Asset[] = ['BTC', 'ETH', 'TRX', 'XMR', 'SOL', 'LINK', 'WLD', 'POL', 'ARB', 'BCH', 'LTC', 'DOGE', 'DASH', 'ZEC', 'FIRO', 'ZANO', 'ARRR', 'SCRT', 'UNI', 'PEPE', 'AAVE', 'BNB', 'ASTER', 'CAKE', 'JUP', 'RAY', 'NEAR'];
+const EXCHANGE_COINS: Asset[] = ['BTC', 'ETH', 'TRX', 'XMR', 'SOL', 'LINK', 'WLD', 'POL', 'ARB', 'BCH', 'LTC', 'DOGE', 'DASH', 'ZEC', 'FIRO', 'ZANO', 'ARRR', 'SCRT', 'UNI', 'PEPE', 'AAVE', 'BNB', 'ASTER', 'CAKE', 'JUP', 'RAY', 'NEAR', 'USDCE'];
 // Where the wallet's name for a coin isn't the market's.
-const MARKET_SYMBOL: Partial<Record<Asset, string>> = {};
+const MARKET_SYMBOL: Partial<Record<Asset, string>> = { USDCE: 'USDC' };
 
 /**
  * An exchange lists only some of the coins, which is fine: it fills in what the others left out. Its prices are in
@@ -120,7 +122,7 @@ export const coinbase = (url: string) => exchange('Coinbase', url, (j, coin) => 
 });
 
 export const PRICE_SOURCES: PriceSource[] = [
-  coingecko('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,tron,tether,monero,dash,zcash,zano,pirate-chain,zcoin,solana,dogecoin,polygon-ecosystem-token,arbitrum,bitcoin-cash,chainlink,worldcoin-wld,litecoin,secret,uniswap,pepe,aave,near,binancecoin,aster-2,pancakeswap-token,jupiter-exchange-solana,raydium&vs_currencies=usd&include_24hr_change=true'),
+  coingecko('https://api.coingecko.com/api/v3/simple/price?ids=usd-coin,bitcoin,ethereum,tron,tether,monero,dash,zcash,zano,pirate-chain,zcoin,solana,dogecoin,polygon-ecosystem-token,arbitrum,bitcoin-cash,chainlink,worldcoin-wld,litecoin,secret,uniswap,pepe,aave,near,binancecoin,aster-2,pancakeswap-token,jupiter-exchange-solana,raydium&vs_currencies=usd&include_24hr_change=true'),
   kraken('https://api.kraken.com/0/public/Ticker?pair=XBTUSD,ETHUSD,TRXUSD,USDTUSD,XMRUSD'),
   // CryptoCompare (now CoinDesk) asks for an API key since 2026, so it's no longer asked.
   mexc('https://api.mexc.com/api/v3/ticker/24hr'),

@@ -5,6 +5,7 @@ import { Buffer } from 'buffer';
 import { WalletService } from '../main/service';
 import { kvDelPrefix, kvGet, kvSet } from './kv';
 import { route } from './request';
+import { isWcLink } from '../main/wc-link';
 
 declare const __TEST__: boolean;
 const native: any = (window as any).VaultNative;
@@ -62,6 +63,7 @@ const ready = service.init();
 const listeners = new Map<string, ((p: unknown) => void)[]>();
 const emit = (name: string, payload?: unknown) => { for (const fn of listeners.get(name) ?? []) fn(payload); };
 if (__TEST__) (window as any).__tornadoRun = runTornado;
+if (__TEST__) (window as any).__emit = emit;
 service.on('monero-state', (s) => emit('monero-state', s));
 service.on('balance-changed', () => emit('balance-changed'));
 service.on('tron-tx', (t) => emit('tron-tx', t));
@@ -69,6 +71,8 @@ service.on('locked', () => emit('locked'));
 service.on('tor-state', (s) => emit('tor-state', s));
 service.on('tornado-progress', (m) => emit('tornado-progress', m));
 for (const e of ['wc-proposal', 'wc-request', 'wc-sessions']) service.on(e, (d) => emit(e, d));
+// MainActivity calls this when a dApp opens a wc: link while the app is running.
+(window as any).__wcLink = () => emit('wc-link');
 
 let lockTimer: ReturnType<typeof setTimeout> | undefined;
 const bump = () => {
@@ -163,6 +167,9 @@ const bioCall = (fn: (id: number) => void) => new Promise<string>((resolve, reje
   wcDecline: call((id: number) => service.wcDecline(id)),
   wcRequestInfo: call((id: number) => service.wcRequestInfo(id)),
   wcConfirm: call((id: number, pw: string) => service.wcConfirm(id, pw)),
+  wcClipboard: call(() => { const t = String(native.paste() ?? '').trim(); return isWcLink(t) ? t : ''; }),
+  wcTakeLink: call(() => { const t = String(native.wcTakeLink?.() ?? '').trim(); return isWcLink(t) ? t : ''; }),
+  wcRegisterLinks: call(() => undefined), // the manifest already sends wc: links here
   prepareScrtPrivate: call((kind: any, amt: string) => service.prepareScrtPrivate(kind, amt)),
   zecRescan: call((d: string, pw: string) => service.zecRescan(d, pw)),
   walletsList: call(() => service.walletsList()),

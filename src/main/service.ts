@@ -42,7 +42,7 @@ const QUOTE_EXTRAS_MS = 8_000;
 // ChangeNOW's own names, checked against their currency list.
 // Shown without its bitcoincash: prefix, as most wallets and exchanges show it; both forms are the same address.
 const bareBch = (a: string) => a.replace(/^bitcoincash:/, '');
-const BUY_TICKER: Record<Asset, string> = { NEAR: 'near', BTC: 'btc', XMR: 'xmr', ETH: 'eth', ZEC: 'zec', SOL: 'sol', TRX: 'trx', USDTE: 'usdterc20', LINK: 'link', WLD: 'wlderc20', USDT: 'usdttrc20', USDTS: 'usdtsol', POL: 'maticmainnet', USDTP: 'usdtmatic', ARB: 'arb', ETHA: 'etharb', USDTA: 'usdtarb', BCH: 'bch', LTC: 'ltc', DOGE: 'doge', DASH: 'dash', FIRO: 'firo', ZANO: 'zano', ARRR: 'arrr', SCRT: '', SSCRT: '', ETHP: 'wethmatic', UNI: 'uni', PEPE: 'pepe', AAVE: '', BNB: 'bnbbsc', USDTB: 'usdtbsc', ASTER: 'asterbsc', CAKE: 'cake', JUP: 'jup', RAY: 'raysol' }; // empty: ChangeNOW doesn't sell it (no SCRT or AAVE; its NEAR is the native coin). Checked against their list.
+const BUY_TICKER: Record<Asset, string> = { NEAR: 'near', BTC: 'btc', XMR: 'xmr', ETH: 'eth', ZEC: 'zec', SOL: 'sol', TRX: 'trx', USDTE: 'usdterc20', LINK: 'link', WLD: 'wlderc20', USDT: 'usdttrc20', USDTS: 'usdtsol', POL: 'maticmainnet', USDTP: 'usdtmatic', ARB: 'arb', ETHA: 'etharb', USDTA: 'usdtarb', BCH: 'bch', LTC: 'ltc', DOGE: 'doge', DASH: 'dash', FIRO: 'firo', ZANO: 'zano', ARRR: 'arrr', SCRT: '', SSCRT: '', ETHP: 'wethmatic', UNI: 'uni', PEPE: 'pepe', AAVE: '', BNB: 'bnbbsc', USDTB: 'usdtbsc', ASTER: 'asterbsc', CAKE: 'cake', JUP: 'jup', RAY: 'raysol', USDCE: 'usdc', USDCB: 'usdcbsc', USDCS: 'usdcsol', USDCP: 'usdcmatic', USDCA: 'usdcarb' }; // empty: ChangeNOW doesn't sell it (no SCRT or AAVE; its NEAR is the native coin). Checked against their list.
 const SWAP_NAMES: Record<SwapProviderId, string> = { exolix: 'Exolix', simpleswap: 'SimpleSwap', ghostswap: 'GhostSwap', etzswap: 'ETZ Swap', ccecash: 'CCECash', changenow: 'ChangeNOW' };
 
 function within<T, F>(ms: number, work: Promise<T>, late: F): Promise<T | F> {
@@ -51,17 +51,17 @@ function within<T, F>(ms: number, work: Promise<T>, late: F): Promise<T | F> {
 }
 /** Which Tor route each balance lookup uses. */
 /** Coins and tokens on an EVM chain. They share one address. */
-const EVM: Asset[] = ['ETH', 'USDTE', 'LINK', 'WLD', 'POL', 'USDTP', 'ARB', 'ETHA', 'USDTA', 'ETHP', 'UNI', 'PEPE', 'AAVE', 'BNB', 'USDTB', 'ASTER', 'CAKE'];
+const EVM: Asset[] = ['ETH', 'USDTE', 'LINK', 'WLD', 'POL', 'USDTP', 'ARB', 'ETHA', 'USDTA', 'ETHP', 'UNI', 'PEPE', 'AAVE', 'BNB', 'USDTB', 'ASTER', 'CAKE', 'USDCE', 'USDCB', 'USDCP', 'USDCA'];
 /** Solana tokens. */
-const SPL: Asset[] = ['USDTS', 'JUP', 'RAY'];
+const SPL: Asset[] = ['USDTS', 'USDCS', 'JUP', 'RAY'];
 const isSpl = (a: Asset): a is SplAsset => SPL.includes(a);
-const EXTRA_ASSETS: Asset[] = ['ETHP', 'UNI', 'PEPE', 'AAVE', 'BNB', 'USDTB', 'ASTER', 'CAKE', 'JUP', 'RAY'];
+const EXTRA_ASSETS: Asset[] = ['ETHP', 'UNI', 'PEPE', 'AAVE', 'BNB', 'USDTB', 'ASTER', 'CAKE', 'JUP', 'RAY', 'USDCE', 'USDCB', 'USDCS', 'USDCP', 'USDCA'];
 const isEvm = (a: Asset): a is Asset & EthAsset => EVM.includes(a);
 const EVM_EXPLORER: Record<string, string> = { '1': ETH_EXPLORER_TX, '137': POL_EXPLORER_TX, '42161': ARB_EXPLORER_TX, '56': BSC_EXPLORER_TX };
 
-const ASSET_LABEL: Partial<Record<Asset, string>> = { USDTE: 'USDT (Eth)', USDT: 'USDT (Tron)', USDTS: 'USDT (Sol)', USDTP: 'USDT (Pol)', USDTA: 'USDT (Arb)', ETHA: 'ETH (Arb)', ETHP: 'ETH (Pol)', USDTB: 'USDT (BNB)' };
+const ASSET_LABEL: Partial<Record<Asset, string>> = { USDTE: 'USDT (Eth)', USDT: 'USDT (Tron)', USDTS: 'USDT (Sol)', USDTP: 'USDT (Pol)', USDTA: 'USDT (Arb)', ETHA: 'ETH (Arb)', ETHP: 'ETH (Pol)', USDTB: 'USDT (BNB)', USDCE: 'USDC (Eth)', USDCB: 'USDC (BNB)', USDCS: 'USDC (Sol)', USDCP: 'USDC (Pol)', USDCA: 'USDC (Arb)' };
 
-const LOOKUP_ROUTE: Record<string, string> = { NEAR: 'near', BTC: 'btc', ETH: 'eth', USDTE: 'eth', LINK: 'eth', WLD: 'eth', TRX: 'tron', USDT: 'tron', DASH: 'dash', FIRO: 'firo', SOL: 'sol', USDTS: 'sol', POL: 'pol', USDTP: 'pol', ARB: 'arb', ETHA: 'arb', USDTA: 'arb', BCH: 'bch', LTC: 'ltc', DOGE: 'doge', SCRT: 'scrt', ETHP: 'pol', UNI: 'eth', PEPE: 'eth', AAVE: 'eth', BNB: 'bsc', USDTB: 'bsc', ASTER: 'bsc', CAKE: 'bsc', JUP: 'sol', RAY: 'sol' };
+const LOOKUP_ROUTE: Record<string, string> = { NEAR: 'near', BTC: 'btc', ETH: 'eth', USDTE: 'eth', LINK: 'eth', WLD: 'eth', TRX: 'tron', USDT: 'tron', DASH: 'dash', FIRO: 'firo', SOL: 'sol', USDTS: 'sol', POL: 'pol', USDTP: 'pol', ARB: 'arb', ETHA: 'arb', USDTA: 'arb', BCH: 'bch', LTC: 'ltc', DOGE: 'doge', SCRT: 'scrt', ETHP: 'pol', UNI: 'eth', PEPE: 'eth', AAVE: 'eth', BNB: 'bsc', USDTB: 'bsc', ASTER: 'bsc', CAKE: 'bsc', JUP: 'sol', RAY: 'sol', USDCE: 'eth', USDCB: 'bsc', USDCS: 'sol', USDCP: 'pol', USDCA: 'arb' };
 
 /** Waits longer each time, up to five minutes, so a server that's down isn't asked over and over. */
 export function lookupRetryDelay(fails: number): number {
@@ -668,7 +668,7 @@ export class WalletService extends EventEmitter {
       sscrt: { needsKey: this.sscrtNeedsKey },
       arrr: arrr ? { scanning: arrr.isScanning, percent: arrr.percent } : null,
       zec: zec ? { ...zec.state(), address: zec.receive?.unified ?? '', transparentAddress: zec.transparentAddress } : null,
-      addresses: { ...Object.fromEntries(EVM.map((a) => [a, eth.address])), BTC: btc.receiveAddress, XMR: await monero.getPrimaryAddress(), ETH: eth.address, TRX: tron.address, USDTE: eth.address, USDT: tron.address, DASH: dash.receiveAddress, FIRO: firo.receiveAddress, SOL: this.sol!.receiveAddress, USDTS: this.sol!.receiveAddress, JUP: this.sol!.receiveAddress, RAY: this.sol!.receiveAddress, BCH: bareBch(this.bch!.receiveAddress), LTC: this.ltc!.receiveAddress, SCRT: this.scrt!.address, SSCRT: this.scrt!.address, NEAR: this.near!.receiveAddress, DOGE: this.doge!.receiveAddress, ...(zec ? { ZEC: zec.receive?.unified ?? '' } : {}), ...(zano ? { ZANO: zano.receive } : {}), ...(arrr ? { ARRR: arrr.receive } : {}) },
+      addresses: { ...Object.fromEntries(EVM.map((a) => [a, eth.address])), BTC: btc.receiveAddress, XMR: await monero.getPrimaryAddress(), ETH: eth.address, TRX: tron.address, USDTE: eth.address, USDT: tron.address, DASH: dash.receiveAddress, FIRO: firo.receiveAddress, SOL: this.sol!.receiveAddress, USDTS: this.sol!.receiveAddress, JUP: this.sol!.receiveAddress, RAY: this.sol!.receiveAddress, USDCS: this.sol!.receiveAddress, BCH: bareBch(this.bch!.receiveAddress), LTC: this.ltc!.receiveAddress, SCRT: this.scrt!.address, SSCRT: this.scrt!.address, NEAR: this.near!.receiveAddress, DOGE: this.doge!.receiveAddress, ...(zec ? { ZEC: zec.receive?.unified ?? '' } : {}), ...(zano ? { ZANO: zano.receive } : {}), ...(arrr ? { ARRR: arrr.receive } : {}) },
       monero: monero.state,
     };
   }
@@ -677,7 +677,7 @@ export class WalletService extends EventEmitter {
   async addresses() {
     const { tron, monero, btc, eth, dash } = this.session();
     // Every Ethereum, Polygon and Arbitrum coin and token lives on the one 0x address.
-    return { ...Object.fromEntries(EVM.map((a) => [a, eth.address])), DASH: dash.receiveAddress, FIRO: this.firo!.receiveAddress, SOL: this.sol!.receiveAddress, USDTS: this.sol!.receiveAddress, JUP: this.sol!.receiveAddress, RAY: this.sol!.receiveAddress, BCH: bareBch(this.bch!.receiveAddress), LTC: this.ltc!.receiveAddress, SCRT: this.scrt!.address, SSCRT: this.scrt!.address, NEAR: this.near!.receiveAddress, DOGE: this.doge!.receiveAddress, BTC: btc.receiveAddress, XMR: await monero.getPrimaryAddress(), ETH: eth.address, TRX: tron.address, USDTE: eth.address, USDT: tron.address, ...(this.zec ? { ZEC: this.zec.receive?.unified ?? '', ZEC_T: this.zec.transparentAddress } : {}), ...(this.zano ? { ZANO: this.zano.receive } : {}), ...(this.arrr ? { ARRR: this.arrr.receive } : {}) };
+    return { ...Object.fromEntries(EVM.map((a) => [a, eth.address])), DASH: dash.receiveAddress, FIRO: this.firo!.receiveAddress, SOL: this.sol!.receiveAddress, USDTS: this.sol!.receiveAddress, JUP: this.sol!.receiveAddress, RAY: this.sol!.receiveAddress, USDCS: this.sol!.receiveAddress, BCH: bareBch(this.bch!.receiveAddress), LTC: this.ltc!.receiveAddress, SCRT: this.scrt!.address, SSCRT: this.scrt!.address, NEAR: this.near!.receiveAddress, DOGE: this.doge!.receiveAddress, BTC: btc.receiveAddress, XMR: await monero.getPrimaryAddress(), ETH: eth.address, TRX: tron.address, USDTE: eth.address, USDT: tron.address, ...(this.zec ? { ZEC: this.zec.receive?.unified ?? '', ZEC_T: this.zec.transparentAddress } : {}), ...(this.zano ? { ZANO: this.zano.receive } : {}), ...(this.arrr ? { ARRR: this.arrr.receive } : {}) };
   }
 
   async torInfo() {
@@ -876,7 +876,7 @@ export class WalletService extends EventEmitter {
   private walletConnect(): WalletConnectManager {
     this.session();
     if (this.settings.torEnabled) throw new Error('WalletConnect can\'t go through Tor, so it is off while Tor is on.');
-    if (!this.wc) throw new Error(this.wcProjectId() ? 'WalletConnect is only in wallets made for it. Choose it when adding a wallet, or turn it on in Settings.' : 'WalletConnect isn\'t set up in this build.');
+    if (!this.wc) throw new Error(this.wcProjectId() ? 'WalletConnect is only in wallets made for it. Choose it when adding a wallet.' : 'WalletConnect isn\'t set up in this build.');
     return this.wc;
   }
 

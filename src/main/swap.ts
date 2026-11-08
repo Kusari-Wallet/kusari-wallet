@@ -26,6 +26,11 @@ const COIN: Record<Asset, { coin: string; network: RegExp; fallback: string }> =
   CAKE: { coin: 'CAKE', network: /^(bsc|bnb|bep-?20|binance.?smart.?chain|bnbsmartchain)$/i, fallback: 'BSC' },
   JUP: { coin: 'JUP', network: /^(sol|solana|spl)$/i, fallback: 'SOL' },
   RAY: { coin: 'RAY', network: /^(sol|solana|spl)$/i, fallback: 'SOL' },
+  USDCE: { coin: 'USDC', network: /^(eth|ethereum|erc-?20)$/i, fallback: 'ETH' },
+  USDCB: { coin: 'USDC', network: /^(bsc|bnb|bep-?20|binance.?smart.?chain|bnbsmartchain)$/i, fallback: 'BSC' },
+  USDCS: { coin: 'USDC', network: /^(sol|solana|spl)$/i, fallback: 'SOL' },
+  USDCP: { coin: 'USDC', network: /^(pol|polygon|matic)$/i, fallback: 'POLYGON' },
+  USDCA: { coin: 'USDC', network: /^(arb|arbitrum|arbitrum one)$/i, fallback: 'ARBITRUM' },
   WLD: { coin: 'WLD', network: /^(eth|ethereum|erc-?20)$/i, fallback: 'ETH' },
   DASH: { coin: 'DASH', network: /^dash$/i, fallback: 'DASH' },
   FIRO: { coin: 'FIRO', network: /^firo$/i, fallback: 'FIRO' },
@@ -73,7 +78,7 @@ export interface SwapOrder { id: string; depositAddress: string; receive: string
 export interface SwapRecord { id: string; from: Asset; to: Asset; amount: string; receive: string; rate: string; createdAt: number; providerId?: SwapProviderId; provider?: string; withdrawalAddress?: string; privacyId?: string; approximate?: boolean; statusKey?: string; status: string; hashIn?: string; hashOut?: string }
 
 /** How an amount's unit reads to a person: the three USDTs are all USDT. */
-const unit = (a: Asset): string => (a === 'USDTE' || a === 'USDTS' || a === 'USDTP' || a === 'USDTA' ? 'USDT' : a === 'ETHA' ? 'ETH' : a);
+const unit = (a: Asset): string => (a.startsWith('USDC') ? 'USDC' : a === 'USDTE' || a === 'USDTS' || a === 'USDTP' || a === 'USDTA' ? 'USDT' : a === 'ETHA' ? 'ETH' : a);
 
 function num(v: unknown): string | null {
   return typeof v === 'number' || (typeof v === 'string' && v !== '') ? String(v) : null;
@@ -200,6 +205,11 @@ const SIMPLE_COIN: Record<Asset, { ticker: string; network: string }> = {
   CAKE: { ticker: 'cake', network: 'bsc' },
   JUP: { ticker: 'jup', network: 'sol' },
   RAY: { ticker: 'ray', network: 'sol' },
+  USDCE: { ticker: 'usdc', network: 'eth' },
+  USDCB: { ticker: 'usdc', network: 'bsc' },
+  USDCS: { ticker: 'usdc', network: 'sol' },
+  USDCP: { ticker: 'usdc', network: 'matic' },
+  USDCA: { ticker: 'usdc', network: 'arbitrum' },
   WLD: { ticker: 'wld', network: 'eth' },
   DASH: { ticker: 'dash', network: 'dash' },
   FIRO: { ticker: 'firo', network: 'firo' },
@@ -284,7 +294,7 @@ export class SimpleSwapClient implements SwapProvider {
 
 export const GHOSTSWAP_BASE = 'https://partners-api.ghostswap.io';
 // Coins whose GhostSwap ticker depends on the chain: read from their list by coin and chain, never guessed.
-type LookedUp = 'USDTE' | 'LINK' | 'WLD' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA' | 'ETHP' | 'UNI' | 'PEPE' | 'AAVE' | 'BNB' | 'USDTB' | 'ASTER' | 'CAKE' | 'JUP' | 'RAY';
+type LookedUp = 'USDTE' | 'LINK' | 'WLD' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA' | 'ETHP' | 'UNI' | 'PEPE' | 'AAVE' | 'BNB' | 'USDTB' | 'ASTER' | 'CAKE' | 'JUP' | 'RAY' | 'USDCE' | 'USDCB' | 'USDCS' | 'USDCP' | 'USDCA';
 const GHOST_LOOKUP: Record<LookedUp, { ticker: RegExp; chain: RegExp; label: string }> = {
   USDTE: { ticker: /^usdt/i, chain: /^(eth|ethereum|erc-?20)$/i, label: 'USDT (Eth)' },
   USDTS: { ticker: /^usdt/i, chain: /^(sol|solana|spl)$/i, label: 'USDT (Sol)' },
@@ -305,6 +315,11 @@ const GHOST_LOOKUP: Record<LookedUp, { ticker: RegExp; chain: RegExp; label: str
   CAKE: { ticker: /^cake(bsc|bep-?20)?$/i, chain: /^(bsc|bnb|bep-?20|binance.?smart.?chain|bnbsmartchain)$/i, label: 'CAKE' },
   JUP: { ticker: /^jup(sol|spl)?$/i, chain: /^(sol|solana|spl)$/i, label: 'JUP' },
   RAY: { ticker: /^ray(sol|spl)?$/i, chain: /^(sol|solana|spl)$/i, label: 'RAY' },
+  USDCE: { ticker: /^usdc(erc-?20|eth)?$/i, chain: /^(eth|ethereum|erc-?20)$/i, label: 'USDC (Eth)' },
+  USDCB: { ticker: /^usdc(bsc|bep-?20)?$/i, chain: /^(bsc|bnb|bep-?20|binance.?smart.?chain|bnbsmartchain)$/i, label: 'USDC (BNB)' },
+  USDCS: { ticker: /^usdc(sol|spl)?$/i, chain: /^(sol|solana|spl)$/i, label: 'USDC (Sol)' },
+  USDCP: { ticker: /^usdc(matic|pol|polygon)?$/i, chain: /^(pol|polygon|matic)$/i, label: 'USDC (Pol)' },
+  USDCA: { ticker: /^usdc(arb|arbitrum)?$/i, chain: /^(arb|arbitrum)$/i, label: 'USDC (Arb)' },
 };
 const GHOST_TICKER: Record<Exclude<Asset, LookedUp>, string> = { NEAR: 'near', BTC: 'btc', XMR: 'xmr', ETH: 'eth', TRX: 'trx', USDT: 'usdtrx', DASH: 'dash', FIRO: 'firo', SOL: 'sol', BCH: 'bch', LTC: 'ltc', DOGE: 'doge', ZEC: 'zec', ZANO: 'zano', ARRR: 'arrr', SCRT: 'scrt', SSCRT: '' };
 
@@ -410,6 +425,11 @@ const ETZ_COIN: Partial<Record<Asset, { coin: string; network: string }>> = {
   BNB: { coin: 'BNB', network: 'BSC' },
   USDTB: { coin: 'USDT', network: 'BSC' },
   NEAR: { coin: 'NEAR', network: 'NEAR' },
+  USDCE: { coin: 'USDC', network: 'ETH' },
+  USDCB: { coin: 'USDC', network: 'BSC' },
+  USDCS: { coin: 'USDC', network: 'SOL' },
+  USDCP: { coin: 'USDC', network: 'MATIC' },
+  USDCA: { coin: 'USDC', network: 'ARBITRUM' },
 };
 
 /** Their errors come as { errors: { someName: { message, args } } }. */
@@ -506,6 +526,11 @@ const CN_COIN: Partial<Record<Asset, { ticker: string; network: string }>> = {
   RAY: { ticker: 'ray', network: 'sol' },
   WLD: { ticker: 'wld', network: 'eth' },
   USDTS: { ticker: 'usdt', network: 'sol' },
+  USDCE: { ticker: 'usdc', network: 'eth' },
+  USDCB: { ticker: 'usdc', network: 'bsc' },
+  USDCS: { ticker: 'usdc', network: 'sol' },
+  USDCP: { ticker: 'usdc', network: 'matic' },
+  USDCA: { ticker: 'usdc', network: 'arbitrum' },
   // Names as their currency list has them; one they don't recognize gets no quote, and orders are checked anyway.
   POL: { ticker: 'matic', network: 'matic' }, // ChangeNOW's 'pol' is the Ethereum token; Polygon's own coin is still 'matic'
   USDTP: { ticker: 'usdt', network: 'matic' },
@@ -621,6 +646,11 @@ const CCE_COIN: Partial<Record<Asset, { abbr: string; chain: string }>> = {
   BNB: { abbr: 'BNB', chain: 'BNB Smart Chain' },
   USDTB: { abbr: 'USDT', chain: 'BNB Smart Chain' },
   CAKE: { abbr: 'CAKE', chain: 'BNB Smart Chain' },
+  USDCE: { abbr: 'USDC', chain: 'Ethereum' },
+  USDCB: { abbr: 'USDC', chain: 'BNB Smart Chain' },
+  USDCS: { abbr: 'USDC', chain: 'Solana' },
+  USDCP: { abbr: 'USDC', chain: 'Polygon' },
+  USDCA: { abbr: 'USDC', chain: 'Arbitrum' },
 };
 /** Their order states, as the words the rest of the wallet uses. */
 const CCE_STATUS: Record<number, string> = { 1: 'wait', 2: 'confirming', 3: 'exchanging', 4: 'success', 5: 'refunded', 7: 'hold', 8: 'expired', 9: 'failed' };

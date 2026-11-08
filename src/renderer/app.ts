@@ -1,17 +1,17 @@
 declare const wallet: any;
 declare const jsQR: any;
 
-type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'LINK' | 'WLD' | 'SOL' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA' | 'BCH' | 'LTC' | 'DOGE' | 'DASH' | 'FIRO' | 'ZEC' | 'ZANO' | 'ARRR' | 'SCRT' | 'ETHP' | 'UNI' | 'PEPE' | 'AAVE' | 'BNB' | 'USDTB' | 'ASTER' | 'CAKE' | 'JUP' | 'RAY' | 'NEAR';
+type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'LINK' | 'WLD' | 'SOL' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA' | 'BCH' | 'LTC' | 'DOGE' | 'DASH' | 'FIRO' | 'ZEC' | 'ZANO' | 'ARRR' | 'SCRT' | 'ETHP' | 'UNI' | 'PEPE' | 'AAVE' | 'BNB' | 'USDTB' | 'ASTER' | 'CAKE' | 'JUP' | 'RAY' | 'NEAR' | 'USDCE' | 'USDCB' | 'USDCS' | 'USDCP' | 'USDCA';
 type Attrs = Record<string, any>;
 type Child = Node | string | null | undefined | false;
 
-const ALL_ASSETS: Asset[] = ['XMR', 'BTC', 'ETH', 'USDTE', 'LINK', 'WLD', 'UNI', 'PEPE', 'AAVE', 'ZEC', 'SOL', 'USDTS', 'JUP', 'RAY', 'TRX', 'USDT', 'BNB', 'USDTB', 'ASTER', 'CAKE', 'POL', 'ETHP', 'USDTP', 'ARB', 'ETHA', 'USDTA', 'BCH', 'LTC', 'NEAR', 'SCRT', 'DOGE', 'DASH', 'FIRO', 'ZANO', 'ARRR'];
+const ALL_ASSETS: Asset[] = ['XMR', 'BTC', 'ETH', 'USDTE', 'USDCE', 'LINK', 'WLD', 'UNI', 'PEPE', 'AAVE', 'ZEC', 'SOL', 'USDTS', 'USDCS', 'JUP', 'RAY', 'TRX', 'USDT', 'BNB', 'USDTB', 'USDCB', 'ASTER', 'CAKE', 'POL', 'ETHP', 'USDTP', 'USDCP', 'ARB', 'ETHA', 'USDTA', 'USDCA', 'BCH', 'LTC', 'NEAR', 'SCRT', 'DOGE', 'DASH', 'FIRO', 'ZANO', 'ARRR'];
 /** Tokens shown under the coin of their chain on the home screen, folded until opened. */
-const GROUPS: Partial<Record<Asset, Asset[]>> = { ETH: ['USDTE', 'LINK', 'WLD', 'UNI', 'PEPE', 'AAVE'], SOL: ['USDTS', 'JUP', 'RAY'], TRX: ['USDT'], BNB: ['USDTB', 'ASTER', 'CAKE'], POL: ['ETHP', 'USDTP'], ARB: ['ETHA', 'USDTA'] };
+const GROUPS: Partial<Record<Asset, Asset[]>> = { ETH: ['USDTE', 'USDCE', 'LINK', 'WLD', 'UNI', 'PEPE', 'AAVE'], SOL: ['USDTS', 'USDCS', 'JUP', 'RAY'], TRX: ['USDT'], BNB: ['USDTB', 'USDCB', 'ASTER', 'CAKE'], POL: ['ETHP', 'USDTP', 'USDCP'], ARB: ['ETHA', 'USDTA', 'USDCA'] };
 const IN_GROUP = new Set(Object.values(GROUPS).flat());
-const EVM_ASSETS: Asset[] = ['ETH', 'USDTE', 'LINK', 'WLD', 'ETHP', 'UNI', 'PEPE', 'AAVE', 'POL', 'USDTP', 'ARB', 'ETHA', 'USDTA', 'BNB', 'USDTB', 'ASTER', 'CAKE'];
-const SPL_ASSETS: Asset[] = ['USDTS', 'JUP', 'RAY'];
-const BSC_ASSETS: Asset[] = ['BNB', 'USDTB', 'ASTER', 'CAKE'];
+const EVM_ASSETS: Asset[] = ['ETH', 'USDTE', 'USDCE', 'LINK', 'WLD', 'ETHP', 'UNI', 'PEPE', 'AAVE', 'POL', 'USDTP', 'ARB', 'ETHA', 'USDTA', 'BNB', 'USDTB', 'ASTER', 'CAKE', 'USDCB', 'USDCP', 'USDCA'];
+const SPL_ASSETS: Asset[] = ['USDTS', 'USDCS', 'JUP', 'RAY'];
+const BSC_ASSETS: Asset[] = ['BNB', 'USDTB', 'USDCB', 'ASTER', 'CAKE'];
 // These need their engines, which aren't in every build or on every phone.
 let ASSETS: Asset[] = ALL_ASSETS.filter((a) => a !== 'ZEC' && a !== 'ZANO' && a !== 'ARRR');
 let zecInSession = false;
@@ -51,11 +51,16 @@ const COIN: Record<Asset, { label: string; file: string; note: string }> = {
   ASTER: { label: 'ASTER', file: 'coins/aster.png', note: 'Aster on BNB Smart Chain (BEP-20) only. BNB is needed for the fee. No free service lists BNB Smart Chain history, so past transfers show on bscscan.com, not here.' },
   CAKE: { label: 'CAKE', file: 'coins/cake.png', note: 'PancakeSwap on BNB Smart Chain (BEP-20) only. BNB is needed for the fee. No free service lists BNB Smart Chain history, so past transfers show on bscscan.com, not here.' },
   JUP: { label: 'JUP', file: 'coins/jup.png', note: 'Jupiter on Solana (SPL) only. SOL is needed for the fee.' },
+  USDCE: { label: 'USDC (Eth)', file: 'coins/usdc.png', note: 'Ethereum network only (ERC-20). ETH is needed for the fee. Don\'t send to addresses on other chains.' },
+  USDCB: { label: 'USDC (BNB)', file: 'coins/usdc.png', note: 'BNB Smart Chain (BEP-20) only. BNB is needed for the fee. No free service lists BNB Smart Chain history, so past transfers show on bscscan.com, not here.' },
+  USDCS: { label: 'USDC (Sol)', file: 'coins/usdc.png', note: 'Solana (SPL) only. SOL is needed for the fee.' },
+  USDCP: { label: 'USDC (Pol)', file: 'coins/usdc.png', note: 'Polygon network only (native USDC, not USDC.e). POL is needed for the fee.' },
+  USDCA: { label: 'USDC (Arb)', file: 'coins/usdc.png', note: 'Arbitrum One only (native USDC, not USDC.e). ETH (Arb) is needed for the fee.' },
   RAY: { label: 'RAY', file: 'coins/ray.png', note: 'Raydium on Solana (SPL) only. SOL is needed for the fee.' },
 };
 const coinName = (a: Asset): string => COIN[a]?.label ?? a;
 /** The unit after an amount. The three USDTs are all just USDT there; the screen around them names the chain. */
-const unitOf = (a: Asset): string => (a === 'USDTE' || a === 'USDTS' || a === 'USDTP' || a === 'USDTA' || a === 'USDTB' ? 'USDT' : a === 'ETHA' || a === 'ETHP' ? 'ETH' : a);
+const unitOf = (a: Asset): string => (a.startsWith('USDC') ? 'USDC' : a === 'USDTE' || a === 'USDTS' || a === 'USDTP' || a === 'USDTA' || a === 'USDTB' ? 'USDT' : a === 'ETHA' || a === 'ETHP' ? 'ETH' : a);
 
 const root = document.getElementById('app') as HTMLElement;
 let selected: Asset = 'TRX';
@@ -93,6 +98,7 @@ function icon(name: keyof typeof ICONS): SVGElement {
 }
 
 const ICONS = {
+  wallet: 'M4 7.5A2.5 2.5 0 0 1 6.5 5h11A2.5 2.5 0 0 1 20 7.5v9a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5zM15 12h5',
   send: 'M6 18 18 6M8 6h10v10',
   receive: 'M12 4v15M5 12l7 7 7-7',
   back: 'M20 12H4M11 5l-7 7 7 7',
@@ -115,7 +121,7 @@ const ICONS = {
 function coin(asset: Asset): HTMLElement {
   const img = h('img', { class: 'coin', src: COIN[asset].file, alt: '' });
   // Same token on several chains: the badge is what tells them apart at a glance.
-  const badge: Partial<Record<Asset, string>> = { USDT: 'trx', USDTE: 'eth', USDTS: 'sol', USDTP: 'pol', USDTA: 'arb', ETHA: 'arb', USDTB: 'bnb', ETHP: 'pol' };
+  const badge: Partial<Record<Asset, string>> = { USDT: 'trx', USDTE: 'eth', USDTS: 'sol', USDTP: 'pol', USDTA: 'arb', ETHA: 'arb', USDTB: 'bnb', ETHP: 'pol', USDCE: 'eth', USDCB: 'bnb', USDCS: 'sol', USDCP: 'pol', USDCA: 'arb' };
   if (!badge[asset]) return img;
   return h('span', { class: 'coin-wrap' }, img, h('img', { class: 'coin-badge', src: `coins/${badge[asset]}.png`, alt: '' }));
 }
@@ -536,6 +542,8 @@ function renderHome(): void {
     onclick: () => { homeTab = id; renderHome(); paint(); },
   }, label);
   const list = h('div', { class: 'list', id: 'asset-list' });
+  const dappSlot = h('div', { class: 'row', id: 'dapp-slot' });
+  void paintDappsChip(dappSlot);
 
   function paint(): void {
     const t = totalUsd();
@@ -552,7 +560,7 @@ function renderHome(): void {
   }
 
   show('home',
-    h('div', { class: 'top' }, h('div', { class: 'acct' }, walletButton(), torChip), h('div', { class: 'row' })),
+    h('div', { class: 'top' }, h('div', { class: 'acct' }, walletButton(), torChip), dappSlot),
     h('div', { class: 'total' }, totalValue, spin, eye),
     note,
     h('div', { class: 'actions' },
@@ -845,7 +853,8 @@ function parseScanned(asset: Asset, raw: string): { address: string; amount: str
 
 let closeScanner: (() => void) | null = null;
 
-async function openScanner(asset: Asset, onFound: (found: { address: string; amount: string }) => void): Promise<void> {
+/** custom reads something other than an address (a WalletConnect link): parse returns it, or null with the wrong message. */
+async function openScanner(asset: Asset, onFound: (found: { address: string; amount: string }) => void, custom?: { parse: (text: string) => string | null; wrong: string; onText: (text: string) => void }): Promise<void> {
   closeScanner?.();
   const video = h('video', { playsinline: 'true', muted: 'true', autoplay: 'true', 'aria-label': 'Camera view' });
   const status = h('p', { class: 'scan-status', id: 'scan-status', role: 'status' }, 'Turning on the camera…');
@@ -902,6 +911,13 @@ async function openScanner(asset: Asset, onFound: (found: { address: string; amo
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       const code = jsQR(ctx.getImageData(0, 0, canvas.width, canvas.height).data, canvas.width, canvas.height, { inversionAttempts: 'attemptBoth' });
       if (code?.data) {
+        if (custom) {
+          const text = custom.parse(code.data);
+          if (text) { close(); custom.onText(text); return; }
+          status.textContent = custom.wrong;
+          timer = window.setTimeout(tick, 180);
+          return;
+        }
         const found = parseScanned(asset, code.data);
         if (found) { close(); onFound(found); return; }
         status.textContent = `This is not a ${asset === 'XMR' ? 'Monero' : asset === 'SOL' || SPL_ASSETS.includes(asset) ? 'Solana' : asset === 'DOGE' ? 'Dogecoin' : asset === 'BCH' ? 'Bitcoin Cash' : asset === 'LTC' ? 'Litecoin' : asset === 'SCRT' ? 'Secret Network' : asset === 'NEAR' ? 'NEAR' : asset === 'DASH' ? 'Dash' : asset === 'FIRO' ? 'Firo' : asset === 'ZEC' ? 'Zcash' : asset === 'ZANO' ? 'Zano' : asset === 'ARRR' ? 'Pirate Chain' : asset === 'BTC' ? 'Bitcoin' : EVM_ASSETS.includes(asset) ? 'Ethereum' : 'Tron'} address QR. Try another one.`;
@@ -1115,6 +1131,11 @@ async function renderReceive(current?: string): Promise<void> {
     : asset === 'ARB' ? 'Receives the ARB token on Arbitrum One only. Sending needs ETH (Arb) at this address for the fee.'
     : asset === 'ETHA' ? 'Receives ETH on Arbitrum One only. ETH sent on Ethereum mainnet won\'t show here.'
     : asset === 'USDTA' ? 'Receives USDT on Arbitrum One only. Sending needs ETH (Arb) at this address for the fee.'
+    : asset === 'USDCE' ? 'Receives USDC on the Ethereum network (ERC-20) only. Sending needs ETH at this address for the fee.'
+    : asset === 'USDCB' ? 'Receives USDC on BNB Smart Chain (BEP-20) only. Sending needs BNB at this address for the fee.'
+    : asset === 'USDCS' ? 'Receives USDC on Solana (SPL) only. Sending needs a little SOL at this address for the fee.'
+    : asset === 'USDCP' ? 'Receives native USDC on Polygon only. Bridged USDC.e won\'t show here. Sending needs POL at this address for the fee.'
+    : asset === 'USDCA' ? 'Receives native USDC on Arbitrum One only. Bridged USDC.e won\'t show here. Sending needs ETH (Arb) at this address for the fee.'
     : asset === 'USDT' ? 'Receives USDT on the Tron network (TRC-20) only. Coins sent from other chains won\'t arrive.'
     : asset === 'TRX' ? 'The same address as USDT. Sending USDT needs TRX at this address for the fee.'
       : 'Received XMR can be used after 10 confirmations (about 20 minutes). A new address for each sender is better for privacy.';
@@ -1391,73 +1412,206 @@ function renderSwapStatus(record: any): void {
 
 // ---- WalletConnect ----
 
-async function walletConnectSection(): Promise<HTMLElement> {
+/** A small window over whatever is on screen, the way other wallets ask for a confirmation. */
+function modal(id: string, ...kids: Child[]): { el: HTMLElement; close: () => void } {
+  document.getElementById(id)?.remove();
+  const card = h('div', { class: 'modal-card', role: 'dialog', 'aria-modal': 'true' }, ...kids);
+  const el = h('div', { class: 'modal', id }, card);
+  (document.querySelector('.screen') ?? document.body).append(el);
+  return { el, close: () => el.remove() };
+}
+
+/** Other wallets' networks a dApp may ask for, by their CAIP-2 name: solana:… → Solana, eip155:10 → network 10. */
+const chainLabel = (caip: string): string => {
+  const [ns, ref] = caip.split(':');
+  const known: Record<string, string> = { solana: 'Solana', bip122: 'Bitcoin', cosmos: 'Cosmos', polkadot: 'Polkadot', tron: 'Tron', near: 'NEAR', stellar: 'Stellar', sui: 'Sui', ton: 'TON' };
+  return ns === 'eip155' ? (WC_NETWORK[caip] ?? `EVM network ${ref}`) : known[ns] ?? ns;
+};
+const WC_NETWORK: Record<string, string> = { 'eip155:1': 'Ethereum', 'eip155:137': 'Polygon', 'eip155:42161': 'Arbitrum', 'eip155:56': 'BNB Smart Chain' };
+let wcOn = false; // this unlocked wallet uses WalletConnect, and Tor is off
+let wcSeen = '';  // the last link taken from the clipboard, so the same one isn't used twice
+let onWcSessions: ((s: any[]) => void) | null = null;
+
+/** Opens a pairing; the dApp's connection request then shows up as its own window. */
+async function wcPairNow(uri: string): Promise<void> {
+  wcSeen = uri;
+  await wallet.wcPair(uri);
+  toast('Connecting to the dApp…');
+}
+
+/**
+ * One button: a wc: link already copied is used; otherwise the computer's screen is read for the dApp's QR code;
+ * on a phone the camera opens. Typing the link is only the last resort.
+ */
+async function connectDapp(box: ReturnType<typeof errorBox>): Promise<void> {
+  const copied = String(await wallet.wcClipboard?.().catch(() => '') ?? '');
+  if (copied && copied !== wcSeen) return wcPairNow(copied);
+  if (wallet.wcScanScreen) {
+    const found = String(await wallet.wcScanScreen().catch(() => '') ?? '');
+    if (found) return wcPairNow(found);
+  }
+  wcHelp(box);
+}
+
+function wcHelp(box: ReturnType<typeof errorBox>): void {
+  const uri = h('input', { id: 'wc-uri', placeholder: 'wc:…', spellcheck: 'false', autocomplete: 'off' });
+  const local = errorBox();
+  const go = h('button', { class: 'secondary', id: 'wc-connect-link', onclick: () => busy(go, 'Connecting…', local, async () => { await wcPairNow(uri.value.trim()); m.close(); }) }, 'Connect');
+  const cam = h('button', { class: 'primary', id: 'wc-camera', onclick: () => {
+    m.close();
+    void openScanner('ETH', () => undefined, { parse: (t) => (/^wc:[0-9a-f]{64}@2\?/i.test(t.trim()) ? t.trim() : null), wrong: 'This is not a WalletConnect QR code. Try the one the dApp shows.', onText: (t) => { wcPairNow(t).catch((e) => box.show(e)); } });
+  } }, icon('scan'), 'Scan with the camera');
+  const m = modal('wc-help',
+    h('h3', {}, 'Connect a dApp'),
+    h('p', { class: 'small muted' }, wallet.wcScanScreen
+      ? 'No WalletConnect QR code was found on the screen. Open the dApp, press its Connect Wallet button and choose WalletConnect, so the QR code is visible, then press Connect again.'
+      : 'On the dApp, press Connect Wallet and choose WalletConnect. Scan the QR code it shows, or on this phone pick Kusari Wallet when the dApp offers to open a wallet.'),
+    local.el, cam,
+    h('details', { class: 'fold-more' }, h('summary', {}, 'Paste a link instead'), h('label', { class: 'field' }, h('span', {}, 'Connection link'), uri), go),
+    h('button', { class: 'ghost', id: 'wc-help-close', onclick: () => m.close() }, 'Close'));
+}
+
+/** The connected dApps, each with Disconnect, plus Connect and the switch for WalletConnect itself. */
+async function walletConnectSection(after: () => void = () => void renderSettings()): Promise<HTMLElement | null> {
   const info = await wallet.wcInfo().catch(() => null);
   const box = errorBox();
   const sec = h('div', { class: 'section', id: 'wc-section' }, h('h3', {}, 'WalletConnect'));
-  if (!info || !info.available) { sec.append(h('p', { class: 'small muted' }, 'Not available in this build.')); return sec; }
-  if (info.mode !== 'walletconnect') {
-    const on = h('button', { class: 'secondary', id: 'wc-enable', onclick: () => busy(on, 'Turning on…', box, async () => { await wallet.setWalletMode('walletconnect'); void renderSettings(); }) }, 'Turn on for this wallet');
-    sec.append(box.el, h('p', { class: 'small muted' }, 'This wallet is in maximum privacy mode and never talks to dApps. Turning WalletConnect on shares the Ethereum, Polygon, Arbitrum and BNB address with dApps you connect, through the WalletConnect relay. A separate wallet for dApps is safer.'), on);
-    return sec;
-  }
-  const uri = h('input', { id: 'wc-uri', placeholder: 'wc:…', spellcheck: 'false', autocomplete: 'off' });
-  const go = h('button', { class: 'primary', id: 'wc-connect', onclick: () => busy(go, 'Connecting…', box, async () => { await wallet.wcPair(uri.value); uri.value = ''; }) }, 'Connect');
-  const off = h('button', { class: 'ghost', id: 'wc-disable', onclick: () => busy(off, 'Turning off…', box, async () => { await wallet.setWalletMode('private'); void renderSettings(); }) }, 'Turn off and forget all dApps');
+  if (!info || !info.available) return null;
+  // A maximum-privacy wallet doesn't offer WalletConnect at all; a wallet for dApps is made with "Add wallet".
+  if (info.mode !== 'walletconnect') return null;
+  void wallet.wcRegisterLinks?.().catch(() => undefined);
+  const go = h('button', { class: 'primary', id: 'wc-connect', onclick: () => busy(go, 'Looking for the QR code…', box, () => connectDapp(box)) }, 'Connect a dApp');
+  const off = h('button', { class: 'ghost', id: 'wc-disable', onclick: () => busy(off, 'Turning off…', box, async () => { await wallet.setWalletMode('private'); wcOn = false; after(); }) }, 'Turn off and forget all dApps');
   const list = h('div', { id: 'wc-sessions' });
-  const paint = (sessions: any[]) => setKids(list, ...(sessions.length ? sessions.map((x: any) => h('div', { class: 'panel wc-session' },
-    h('strong', {}, x.name), h('span', { class: 'small muted mono' }, x.url),
-    h('button', { class: 'secondary', onclick: async () => { try { await wallet.wcDisconnect(x.topic); } catch (e) { box.show(e); } } }, 'Disconnect'))) : [h('p', { class: 'small muted' }, 'No dApps connected.')]));
+  const paint = (sessions: any[]) => setKids(list, ...(sessions.length ? sessions.map((x: any) => {
+    const cut: HTMLButtonElement = h('button', { class: 'secondary wc-disconnect', onclick: () => busy(cut, 'Disconnecting…', box, () => wallet.wcDisconnect(x.topic)) }, 'Disconnect');
+    return h('div', { class: 'panel wc-session' }, h('div', { class: 'wc-session-name' }, h('strong', {}, x.name), h('span', { class: 'small muted mono' }, x.url)), cut);
+  }) : [h('p', { class: 'small muted' }, 'No dApps connected.')]));
   paint(info.sessions);
   onWcSessions = paint;
   sec.append(box.el,
-    info.tor ? h('div', { class: 'warn' }, 'Tor is on, so WalletConnect is off: its relay can\'t be reached through Tor.') : h('p', { class: 'small muted' }, 'On the dApp, choose WalletConnect and copy its link (it starts with wc:). Paste it here.'),
-    h('label', { class: 'field' }, h('span', {}, 'Connection link'), uri), go, h('br'), list, off);
+    info.tor ? h('div', { class: 'warn' }, 'Tor is on, so WalletConnect is off: its relay can\'t be reached through Tor.')
+      : h('p', { class: 'small muted' }, wallet.wcScanScreen
+        ? 'Open the dApp, press its Connect Wallet button and choose WalletConnect. Then press Connect a dApp: the wallet reads the QR code from the screen. A copied wc: link works too.'
+        : 'Press Connect a dApp and scan the dApp\'s QR code, or in this phone\'s browser choose WalletConnect and pick Kusari Wallet.'),
+    info.tor ? null : go, h('h4', {}, 'Connected dApps'), list, off);
   return sec;
 }
 
-let onWcSessions: ((s: any[]) => void) | null = null;
-wallet.on('wc-sessions', (s: any[]) => onWcSessions?.(s));
+async function renderDapps(): Promise<void> {
+  const sec = await walletConnectSection(() => void renderHome());
+  show('send', subBar('dApps', () => renderHome()), h('div', { class: 'scroll' }, sec));
+}
 
-/** A dApp asks to connect: who it says it is, what it wants, and whether WalletConnect could check its site. */
+/** Home shows a dApps button in wallets that use WalletConnect, with how many are connected. */
+async function paintDappsChip(slot: HTMLElement): Promise<void> {
+  const info = await wallet.wcInfo().catch(() => null);
+  wcOn = Boolean(info?.available && info.mode === 'walletconnect' && !info.tor);
+  if (!info?.available || info.mode !== 'walletconnect') return;
+  void wallet.wcRegisterLinks?.().catch(() => undefined);
+  const n = info.sessions.length;
+  setKids(slot, h('button', { class: 'chip dapps', id: 'go-dapps', onclick: () => void renderDapps() }, n ? `dApps · ${n}` : 'dApps'));
+  void takeWcLink();
+}
+
+/** A wc: link the system handed over (a dApp's "open in wallet"). */
+async function takeWcLink(): Promise<void> {
+  if (!wcOn) return;
+  const link = String(await wallet.wcTakeLink?.().catch(() => '') ?? '');
+  if (link) await wcPairNow(link).catch((e) => toast(errMsg(e)));
+}
+wallet.on('wc-link', () => void takeWcLink());
+
+// On a computer, coming back to the wallet with a wc: link copied connects it right away, no pasting.
+window.addEventListener('focus', () => {
+  if (!wcOn || !wallet.wcScanScreen) return;
+  void (async () => {
+    const copied = String(await wallet.wcClipboard?.().catch(() => '') ?? '');
+    if (copied && copied !== wcSeen) await wcPairNow(copied).catch(() => undefined);
+  })();
+});
+
+wallet.on('wc-sessions', (s: any[]) => {
+  onWcSessions?.(s);
+  const chip = document.getElementById('go-dapps');
+  if (chip) chip.textContent = s.length ? `dApps · ${s.length}` : 'dApps';
+});
+
+/** The site's host name, as the person will recognize it in the browser. */
+function dappHost(url: string, name: string): string {
+  try { return new URL(url).host || name; } catch { return name; }
+}
+
+/** A letter badge instead of the dApp's own icon: loading that picture would tell its server this wallet's IP. */
+function dappHead(p: { name: string; url: string }, line: string): HTMLElement {
+  const host = dappHost(p.url, p.name);
+  const letter = (p.name.trim()[0] ?? host[0] ?? '?').toUpperCase();
+  let hue = 0;
+  for (const c of host) hue = (hue * 31 + c.charCodeAt(0)) % 360;
+  const badge = h('div', { class: 'dapp-badge', 'aria-hidden': 'true' }, letter);
+  badge.style.setProperty('--hue', String(hue)); // set through the DOM: the page's rules allow no inline styles
+  return h('div', { class: 'dapp-head' },
+    badge,
+    h('h3', { id: 'wc-dapp' }, host), h('p', { class: 'small muted' }, line));
+}
+
+/** A dApp asks to connect: who it says it is, which account it gets, and what that allows. */
 wallet.on('wc-proposal', (p: any) => {
   const box = errorBox();
-  const back = () => void renderSettings();
-  const yes = h('button', { class: 'primary', id: 'wc-approve', onclick: () => busy(yes, 'Connecting…', box, async () => { await wallet.wcApprove(p.id); back(); }) }, 'Connect');
-  const no = h('button', { class: 'ghost', id: 'wc-reject', onclick: () => { void wallet.wcReject(p.id); back(); } }, 'Reject');
-  const verified = p.scam ? h('div', { class: 'error' }, 'WalletConnect flags this site as a known scam. Reject it.')
-    : p.verified === 'VALID' ? h('p', { class: 'small', id: 'wc-verified' }, 'The site matches the domain this dApp registered.')
-      : h('div', { class: 'warn' }, p.verified === 'INVALID' ? 'The site doesn\'t match the domain this dApp registered. It may be an impostor.' : 'WalletConnect couldn\'t check this site. Make sure you opened the real one.');
-  show('send', subBar('Connect a dApp', () => { void wallet.wcReject(p.id); back(); }), h('div', { class: 'scroll' }, box.el,
-    h('div', { class: 'panel' }, h('h2', { id: 'wc-dapp' }, p.name), h('div', { class: 'mono small' }, p.url), p.description && h('p', { class: 'small muted' }, p.description)),
-    verified,
-    h('p', { class: 'small' }, `It will see this wallet's address on ${p.chains.length ? p.chains.map((c: string) => ({ 'eip155:1': 'Ethereum', 'eip155:137': 'Polygon', 'eip155:42161': 'Arbitrum', 'eip155:56': 'BNB Smart Chain' } as Record<string, string>)[c] ?? c).join(', ') : 'Ethereum'}. Every signature and transaction still needs your approval and password.`),
-    p.unsupported.length ? h('p', { class: 'small muted' }, `Not offered: ${p.unsupported.join(', ')}.`) : null,
-    h('div', { class: 'btn-row' }, no, yes)));
+  const yes = h('button', { class: 'pill pill-light', id: 'wc-approve', onclick: () => busy(yes, 'Connecting…', box, async () => { await wallet.wcApprove(p.id); m.close(); toast(`Connected to ${dappHost(p.url, p.name)}.`); }) }, 'Connect');
+  const no = h('button', { class: 'pill pill-dark', id: 'wc-reject', onclick: () => { void wallet.wcReject(p.id).catch(() => undefined); m.close(); } }, 'Cancel');
+  const badge = p.scam ? h('span', { class: 'verify bad' }, icon('close'), 'Known scam')
+    : p.verified === 'VALID' ? h('span', { class: 'verify ok', id: 'wc-verified' }, icon('shield'), 'Verified')
+      : p.verified === 'INVALID' ? h('span', { class: 'verify bad' }, icon('close'), 'Domain mismatch')
+        : h('span', { class: 'verify unknown' }, icon('shield'), 'Not verified');
+  const warning = p.scam ? h('div', { class: 'error' }, 'WalletConnect flags this site as a known scam. Reject it.')
+    : p.verified === 'INVALID' ? h('div', { class: 'warn' }, 'The site doesn\'t match the domain this dApp registered. It may be an impostor.')
+      : p.verified === 'VALID' ? null : h('div', { class: 'warn' }, 'WalletConnect couldn\'t check this site. Make sure you opened the real one.');
+  const nets = p.chains.length ? p.chains.map((c: string) => WC_NETWORK[c] ?? c).join(', ') : 'Ethereum';
+  const acctName = h('strong', {}, 'My wallet');
+  void wallet.walletsList().then((r: any) => { acctName.textContent = r.list.find((w: any) => w.id === r.active)?.name ?? 'My wallet'; }).catch(() => undefined);
+  const perm = (ok: boolean, text: string) => h('li', { class: ok ? 'yes' : 'no' }, h('span', { class: 'perm-mark', 'aria-hidden': 'true' }, ok ? '✓' : '✕'), text);
+  const m = modal('wc-proposal',
+    dappHead(p, 'This site is asking for:'),
+    h('div', { class: 'verify-row' }, badge),
+    warning,
+    h('div', { class: 'modal-section' }, h('span', { class: 'modal-label' }, 'Account'),
+      h('div', { class: 'acct-card' }, h('span', { class: 'acct-icon' }, icon('wallet')), h('div', { class: 'acct-text' }, acctName, h('span', { class: 'small muted' }, totalUsd().value)))),
+    h('div', { class: 'modal-section' }, h('span', { class: 'modal-label' }, 'Permissions'),
+      h('ul', { class: 'perms' },
+        perm(true, `See your address, balance and activity on ${nets}`),
+        perm(true, 'Send transaction and signature requests'),
+        perm(false, 'Can\'t move funds without your approval'))),
+    p.unsupported.length ? h('p', { class: 'small muted' }, `Not offered: ${[...new Set(p.unsupported.map(chainLabel))].join(', ')}.`) : null,
+    box.el,
+    h('div', { class: 'pill-row' }, no, yes));
+  void m;
 });
 
 /** A dApp asks for a signature or a transaction. Nothing happens without the password. */
 wallet.on('wc-request', async (q: any) => {
-  const back = () => void renderHome();
   let info: any;
-  try { info = await wallet.wcRequestInfo(q.id); } catch (e) { void wallet.wcDecline(q.id); return; }
+  try { info = await wallet.wcRequestInfo(q.id); } catch { void wallet.wcDecline(q.id).catch(() => undefined); return; }
   const box = errorBox();
-  const pw = h('input', { type: 'password', id: 'wc-pw', autocomplete: 'current-password' });
-  const ok = h('button', { class: 'primary', id: 'wc-confirm', type: 'submit' }, info.kind === 'transaction' ? 'Send' : 'Sign');
-  const rows: [string, string][] = info.kind === 'transaction'
-    ? [['Action', info.action], ['To', info.to], ['Amount', `${info.value} ${info.symbol}`], ['Estimated fee', reviewFee(info.fee, info.symbol)], ['Data', info.data]]
-    : info.kind === 'typed' ? [['Type', info.type], ['For', `${info.domain} ${info.contract}`.trim()], ['Content', info.message]]
+  const tx = info.kind === 'transaction';
+  const pw = h('input', { type: 'password', id: 'wc-pw', autocomplete: 'current-password', placeholder: 'Password' });
+  const ok = h('button', { class: 'pill pill-light', id: 'wc-confirm', type: 'submit' }, tx ? 'Confirm' : 'Sign');
+  const rows: [string, string][] = tx
+    ? [['Action', info.action], ['To', info.to], ['Amount', `${info.value} ${info.symbol}`], ['Estimated fee', reviewFee(info.fee, info.symbol)]]
+    : info.kind === 'typed' ? [['Type', info.type], ['For', `${info.domain} ${info.contract}`.trim()]]
       : [['Message', info.message]];
-  show('send', subBar(info.kind === 'transaction' ? 'Transaction request' : 'Signature request', () => { void wallet.wcDecline(q.id); back(); }), h('div', { class: 'scroll' },
-    h('form', { onsubmit: (e: Event) => {
-      e.preventDefault();
-      busy(ok, info.kind === 'transaction' ? 'Sending…' : 'Signing…', box, async () => { await wallet.wcConfirm(q.id, pw.value); pw.value = ''; back(); void refresh(); });
-    } }, box.el,
-    h('div', { class: 'panel' }, h('strong', { id: 'wc-from' }, info.dapp), h('div', { class: 'mono small' }, info.url), h('div', { class: 'small muted' }, info.network)),
-    ...info.warnings.map((w: string) => h('div', { class: 'warn' }, w)),
-    h('div', { class: 'panel' }, h('table', { class: 'review-table' }, h('tbody', {}, ...rows.map(([k, v]) => h('tr', {}, h('th', {}, k), h('td', { class: k === 'Data' || k === 'To' || k === 'Content' ? 'mono small' : '' }, v)))))),
-    h('label', { class: 'field' }, h('span', {}, 'Password'), pw),
-    h('div', { class: 'btn-row' }, h('button', { type: 'button', class: 'ghost', id: 'wc-decline', onclick: () => { void wallet.wcDecline(q.id); back(); } }, 'Reject'), ok))));
+  const detail = tx ? info.data : info.kind === 'typed' ? info.message : '';
+  const decline = () => { void wallet.wcDecline(q.id).catch(() => undefined); m.close(); };
+  const m = modal('wc-request', h('form', { onsubmit: (e: Event) => {
+    e.preventDefault();
+    busy(ok, tx ? 'Sending…' : 'Signing…', box, async () => { await wallet.wcConfirm(q.id, pw.value); pw.value = ''; m.close(); toast(tx ? 'Sent.' : 'Signed.'); void refresh(); });
+  } },
+  dappHead({ name: info.dapp, url: info.url }, `${tx ? 'Transaction request' : 'Signature request'} · ${info.network}`),
+  ...info.warnings.map((w: string) => h('div', { class: 'warn' }, w)),
+  h('table', { class: 'review-table' }, h('tbody', {}, ...rows.map(([k, v]) => h('tr', {}, h('th', {}, k), h('td', { class: k === 'To' || k === 'Message' ? 'mono small' : '' }, v))))),
+  detail ? h('details', { class: 'fold-more' }, h('summary', {}, 'Details'), h('div', { class: 'mono small wc-detail' }, detail)) : null,
+  box.el, pw,
+  h('div', { class: 'pill-row' }, h('button', { type: 'button', class: 'pill pill-dark', id: 'wc-decline', onclick: decline }, 'Reject'), ok)));
   pw.focus();
 });
 
@@ -1886,6 +2040,8 @@ wallet.on('monero-state', (m: any) => {
 wallet.on('balance-changed', () => void refresh());
 wallet.on('locked', () => {
   closeScanner?.();
+  wcOn = false;
+  document.querySelectorAll('.modal').forEach((m) => m.remove());
   window.clearInterval(pollTimer);
   overview = null;
   addresses = null;
