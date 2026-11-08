@@ -120,19 +120,24 @@ function coin(asset: Asset): HTMLElement {
   return h('span', { class: 'coin-wrap' }, img, h('img', { class: 'coin-badge', src: `coins/${badge[asset]}.png`, alt: '' }));
 }
 
+const tiny = (usd: number) => usd > 0 && usd < 0.01;
 function usdFee(usd: number): string {
-  return usd > 0 && usd < 0.01 ? '$0.01 or less' : usdFormat(Math.max(usd, 0));
+  return tiny(usd) ? 'under $0.01' : usdFormat(Math.max(usd, 0));
+}
+/** "about $1.20", or "under $0.01" on its own: "about under" reads badly in every language. */
+function aboutUsd(usd: number): string {
+  return tiny(usd) ? 'under $0.01' : `about ${usdFormat(Math.max(usd, 0))}`;
 }
 
 /** Fees read in dollars. Without a price, the coin amount is all there is to show. */
 function feeText(f: any): string {
-  return typeof f.usd === 'number' ? `about ${usdFee(f.usd)}` : `about ${f.fee} ${f.asset}`;
+  return typeof f.usd === 'number' ? aboutUsd(f.usd) : `about ${f.fee} ${f.asset}`;
 }
 
 /** On a review screen the exact coin amount stays beside the dollars. */
 function reviewFee(fee: string, asset: string): string {
   const price = prices?.[asset]?.usd;
-  return typeof price === 'number' ? `about ${usdFee(Number(fee) * price)} (${fee} ${asset})` : `${fee} ${asset}`;
+  return typeof price === 'number' ? `${aboutUsd(Number(fee) * price)} (${fee} ${asset})` : `${fee} ${asset}`;
 }
 
 /** pct percent of a decimal amount, less an optional fee, without floating-point rounding. Never below zero. */
@@ -176,8 +181,8 @@ function offerFee(q: any): { total: string; detail: string } {
   if (!q.cost) return { total: 'Fee not available', detail: 'Shown in USD once the price server connects.' };
   const provider = Math.max(q.cost.usd, 0);
   const network = typeof q.network?.usd === 'number' ? q.network.usd : null;
-  if (network === null) return { total: `Fee about ${usdFee(provider)}`, detail: `Provider ${usdFee(provider)} (${q.cost.percent.toFixed(2)}%), network extra` };
-  return { total: `Fee about ${usdFee(provider + network)}`, detail: `Provider ${usdFee(provider)} (${Math.max(q.cost.percent, 0).toFixed(2)}%) + network ${usdFee(network)}` };
+  if (network === null) return { total: tiny(provider) ? 'Fee under $0.01' : `Fee about ${usdFee(provider)}`, detail: `Provider ${usdFee(provider)} (${q.cost.percent.toFixed(2)}%), network extra` };
+  return { total: tiny(provider + network) ? 'Fee under $0.01' : `Fee about ${usdFee(provider + network)}`, detail: `Provider ${usdFee(provider)} (${Math.max(q.cost.percent, 0).toFixed(2)}%) + network ${usdFee(network)}` };
 }
 
 function errMsg(e: unknown): string {
