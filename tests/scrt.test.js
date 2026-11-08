@@ -26,7 +26,7 @@ test('signed bytes match CosmJS exactly', () => {
   assert.throws(() => signScrtTransfer(M, { to: OTHER, amount: 0n, fee: 1n, gas: 1n, accountNumber: 0n, sequence: 0n }));
 });
 
-async function lcd(tt, handler) {
+async function lcd(tt, handler, chain = 'secret-4') {
   const seen = [];
   const server = http.createServer((q, r) => {
     let body = '';
@@ -34,6 +34,7 @@ async function lcd(tt, handler) {
     q.on('end', () => {
       seen.push({ url: q.url, method: q.method, body: body ? JSON.parse(body) : null });
       r.setHeader('content-type', 'application/json');
+      if (q.url === '/cosmos/base/tendermint/v1beta1/node_info') return r.end(JSON.stringify({ default_node_info: { network: chain } }));
       const out = handler(q.url, body ? JSON.parse(body) : null);
       r.statusCode = out.status ?? 200;
       r.end(JSON.stringify(out.body ?? out));
@@ -114,4 +115,13 @@ test('history: sent and received, merged, with falls back to the older search fo
   });
   const h = await new ScrtClient(scrtPublicKey(M), [base]).getHistory();
   assert.deepEqual(h.map((i) => [i.hash[0], i.direction, i.amount]), [['B', 'in', '2'], ['A', 'out', '1.5']]);
+});
+
+test('a server on another chain is never used', async (tt) => {
+  let asked = 0;
+  const wrong = await lcd(tt, () => { asked++; return { balances: [{ denom: 'uscrt', amount: '999' }] }; }, 'axone-1');
+  const right = await lcd(tt, () => ({ balances: [{ denom: 'uscrt', amount: '5' }] }));
+  assert.equal(await new ScrtClient(scrtPublicKey(M), [wrong.base, right.base]).getBalance(), 5n);
+  assert.equal(asked, 0);
+  await assert.rejects(new ScrtClient(scrtPublicKey(M), [wrong.base]).getBalance(), /Could not reach/);
 });

@@ -187,9 +187,29 @@ export class ScrtClient {
 
   get receiveAddress(): string { return this.address; }
 
+  /** Only servers on secret-4 are used. One public server answered for a different chain, with the same paths. */
+  private checked = new Map<string, Promise<boolean>>();
+  private onChain(base: string): Promise<boolean> {
+    let p = this.checked.get(base);
+    if (!p) {
+      p = getJson(`${base}/cosmos/base/tendermint/v1beta1/node_info`, { agent: this.agent, timeoutMs: this.timeoutMs, headers: { Accept: 'application/json' } })
+        .then((r: any) => r?.default_node_info?.network === SCRT_CHAIN_ID);
+      p.then((ok) => { if (!ok) setTimeout(() => this.checked.delete(base), 10 * 60_000); }, () => this.checked.delete(base));
+      this.checked.set(base, p);
+    }
+    return p;
+  }
+
+  private async servers(): Promise<string[]> {
+    const ok = await Promise.all(this.lcds.map((b) => this.onChain(b).catch(() => false)));
+    const live = this.lcds.filter((_, i) => ok[i]);
+    if (!live.length) throw new Error('Could not reach a Secret Network server.');
+    return live;
+  }
+
   private async get(path: string): Promise<any> {
     let last: unknown;
-    for (const base of this.lcds) {
+    for (const base of await this.servers()) {
       try { return await getJson(base + path, { agent: this.agent, timeoutMs: this.timeoutMs, headers: { Accept: 'application/json' } }); } catch (e) { last = e; }
     }
     throw last instanceof Error ? last : new Error('Could not reach a Secret Network server.');
@@ -197,7 +217,7 @@ export class ScrtClient {
 
   private async post(path: string, body: unknown): Promise<any> {
     let last: unknown;
-    for (const base of this.lcds) {
+    for (const base of await this.servers()) {
       try {
         const res = await requestJson(base + path, { method: 'POST', body, agent: this.agent, timeoutMs: this.timeoutMs });
         if (res.status >= 500) throw new Error(`Server error (${res.status})`);

@@ -19,8 +19,8 @@ export const CHANGENOW_LINK_ID = '9183599f3b8ee2';
 // The Litecoin project's mempool site, the same API as mempool.space.
 export const LTC_APIS = ['https://litecoinspace.org/api'];
 export const LTC_EXPLORER_TX = 'https://litecoinspace.org/tx/';
-// Public Secret Network REST (LCD) servers, from the project's own list.
-export const SCRT_LCDS = ['https://secretnetwork-api.lavenderfive.com:443', 'https://rest-secret.01node.com', 'https://secretnetwork-api.highstakes.ch:1317'];
+// Public Secret Network REST (LCD) servers, from the Cosmos chain registry. Each is checked to be on secret-4 before use.
+export const SCRT_LCDS = ['https://secretnetwork-api.lavenderfive.com:443', 'https://rest.lavenderfive.com:443/secretnetwork', 'https://1rpc.io/scrt-lcd', 'https://public.stakewolle.com/cosmos/secretnetwork/rest', 'https://rest-secret.01node.com'];
 export const SCRT_EXPLORER_TX = 'https://www.mintscan.io/secret/tx/';
 export const BCH_APIS = ['https://api.bitcore.io/api/BCH/mainnet'];
 export const BCH_EXPLORER_TX = 'https://blockchair.com/bitcoin-cash/transaction/';

@@ -470,8 +470,7 @@ const CN_COIN: Partial<Record<Asset, { ticker: string; network: string }>> = {
   ZEC: { ticker: 'zec', network: 'zec' },
   ZANO: { ticker: 'zano', network: 'zano' },
   ARRR: { ticker: 'arrr', network: 'arrr' },
-  SCRT: { ticker: 'scrt', network: 'scrt' },
-  SSCRT: { ticker: '', network: '' },
+  // No SCRT: ChangeNOW doesn't list it.
 };
 
 export class ChangeNowClient implements SwapProvider {

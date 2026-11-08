@@ -935,6 +935,8 @@ async function renderBuy(): Promise<void> {
     await wallet.openBuy(asset);
     status.textContent = 'ChangeNOW opened in your browser. Paste this address there as the receiving address.';
   }) }, 'Buy with ChangeNOW');
+  // ChangeNOW doesn't sell these.
+  if (asset === 'SCRT') { (open as HTMLButtonElement).disabled = true; status.textContent = 'ChangeNOW doesn\'t sell SCRT. Buy it on an exchange and send it to this address.'; }
   show('send', subBar('Buy', renderHome), h('div', { class: 'scroll' },
     picker(() => void renderBuy()),
     h('div', { class: 'panel' },
