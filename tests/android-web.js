@@ -180,7 +180,7 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
   await page.click('#next');
   await page.locator('#loading').waitFor({ timeout: 5000 });
   await shot('loading');
-  await page.locator('#asset-TRX .amt', { hasText: '50' }).waitFor({ timeout: 60000 });
+  await page.locator('#asset-TRX .amt', { hasText: '50' }).waitFor({ timeout: 60000 }).catch(async (e) => { await shot('no-balance'); console.log('page errors:', errors); throw e; });
   console.log('ok vault and wallet created in the WebView bundle in', Date.now() - t0, 'ms; balance arrived through the Java forwarder');
 
   // Zcash row, shown only when the phone has the engine

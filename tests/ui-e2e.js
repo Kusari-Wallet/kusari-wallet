@@ -278,6 +278,14 @@ const PASSWORD = 'correct horse battery';
   await page.click('#swap-from-USDT');
   await page.click('#swap-to');
   await page.click('#swap-to-XMR');
+  // The share buttons fill in part of the balance, exactly.
+  const held = (await page.locator('#swap-balance').innerText()).split(' ')[0];
+  await page.click('#swap-pct-50');
+  const half = await page.inputValue('#swap-amount');
+  assert.ok(Math.abs(Number(half) - Number(held) / 2) < 1e-6, `50% of ${held} is ${half}`);
+  await page.click('#swap-pct-25');
+  const quarter = await page.inputValue('#swap-amount');
+  assert.ok(Math.abs(Number(quarter) - Number(held) / 4) < 1e-6, `25% of ${held} is ${quarter}`);
   await page.fill('#swap-amount', '2');
   await page.locator('#swap-receive', { hasText: '0.01' }).waitFor({ timeout: 10000 });
   await page.locator('#swap-next:not([disabled])').waitFor({ timeout: 5000 });

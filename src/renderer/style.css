@@ -187,16 +187,10 @@ label.field > span { display: block; margin-bottom: 6px; font-size: 14px; font-w
 .swap-action span.box { border: 1.5px solid transparent; background: linear-gradient(#222, #222) padding-box, linear-gradient(135deg, var(--orange), var(--green)) border-box; }
 .action.swap-action:hover span.box { background: linear-gradient(#303030, #303030) padding-box, linear-gradient(135deg, var(--orange), var(--green)) border-box; }
 .swap-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
-.swap-row { display: flex; align-items: center; gap: 10px; }
-.swap-row .amount-input { flex: 1; min-width: 0; text-align: right; background: none; border: 0; font-size: 26px; padding: 8px 2px; }
-.swap-receive { flex: 1; min-width: 0; text-align: right; font-size: 26px; font-weight: 600; padding: 8px 2px; overflow-wrap: anywhere; }
 .coin-select { position: relative; flex: none; }
-.coin-select-btn { display: flex; align-items: center; gap: 8px; padding: 8px 10px; }
 .coin-select-btn .coin { width: 28px; height: 28px; }
 .coin-select-btn svg.icon { width: 16px; height: 16px; color: var(--muted); }
 .coin-select .menu { top: calc(100% + 4px); left: 0; }
-.swap-flip { display: flex; justify-content: center; margin: -10px 0 8px; }
-.swap-flip button { background: #1a1a1a; transform: rotate(90deg); }
 .swap-privacy { display: flex; gap: 10px; align-items: flex-start; margin: 4px 0 14px; cursor: pointer; }
 .swap-privacy input { width: 20px; height: 20px; flex: none; margin-top: 2px; accent-color: var(--orange); }
 .swap-privacy span span { display: block; margin-top: 2px; }
@@ -264,7 +258,6 @@ label.field > span { display: block; margin-bottom: 6px; font-size: 14px; font-w
 #go-tornado { margin-top: 2px; }
 .wallet-hint { margin-bottom: 12px; }
 .skip-backup { width: 100%; margin-top: 10px; }
-.swap-net { text-align: right; font-size: 14px; color: #bff0d3; min-height: 18px; margin-top: 2px; }
 .offer-net { display: block; margin-top: 2px; font-weight: 600; color: #bff0d3; }
 
 
@@ -274,3 +267,27 @@ label.field > span { display: block; margin-bottom: 6px; font-size: 14px; font-w
 .fold.open svg.icon { transform: rotate(180deg); }
 .asset.child { padding-left: 34px; }
 .asset.child .coin, .asset.child .coin-wrap { width: 40px; height: 40px; }
+
+/* Swap: two cards with the direction button sitting on the seam between them. */
+.swap-cards { position: relative; display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; }
+.swap-card { background: #1c1c1c; border-radius: 22px; padding: 16px 18px 14px; }
+.swap-card .label { display: block; font-size: 15px; color: var(--muted); margin-bottom: 6px; }
+.swap-row { display: flex; align-items: center; gap: 12px; }
+.swap-amount, .swap-receive { flex: 1; min-width: 0; font-size: 30px; font-weight: 600; padding: 4px 0; background: none; border: 0; color: var(--text); text-align: left; }
+.swap-amount::placeholder { color: #5f5f5f; }
+.swap-amount:focus { outline: none; box-shadow: none; }
+.swap-receive { overflow-wrap: anywhere; }
+.swap-card .coin-select-btn { display: flex; align-items: center; gap: 8px; padding: 6px 12px 6px 6px; border-radius: 999px; background: #2b2b2b; border: 0; font-weight: 600; }
+.swap-card .coin-select-btn .coin { width: 34px; height: 34px; }
+.swap-card .coin-select .menu { left: auto; right: 0; }
+.swap-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; min-height: 28px; flex-wrap: wrap; }
+.swap-foot.end { justify-content: flex-end; }
+#swap-balance { color: var(--muted); font-size: 14px; }
+.swap-chips { display: flex; gap: 6px; margin-left: auto; }
+.chip { padding: 4px 10px; border-radius: 999px; background: #333; border: 0; color: #d6d6d2; font-size: 13px; font-weight: 600; }
+.chip:hover { background: #3d3d3d; color: var(--text); }
+.swap-flip { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 2; }
+.swap-flip button { width: 42px; height: 42px; display: grid; place-items: center; padding: 0; border-radius: 50%; border: 4px solid var(--bg); color: #fff; background: linear-gradient(135deg, var(--orange), var(--green)); }
+.swap-flip button svg.icon { transform: rotate(90deg); width: 18px; height: 18px; }
+.swap-flip button:hover { filter: brightness(1.1); }
+.swap-net { font-size: 14px; color: #bff0d3; }

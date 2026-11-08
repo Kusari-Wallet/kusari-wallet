@@ -130,7 +130,7 @@ export function signScrtTransfer(mnemonic: string, draft: ScrtDraft): { bytes: U
 export function scrtPrivacyKeys(mnemonic: string): { encryptionSeed: Uint8Array; viewingKey: string } {
   const k = key(mnemonic).privateKey as Uint8Array;
   const derive = (label: string) => hmac(sha256Bytes, k, new TextEncoder().encode(label));
-  return { encryptionSeed: derive('kusari-scrt-tx-encryption'), viewingKey: 'api_key_' + Buffer.from(derive('kusari-sscrt-viewing-key')).toString('base64url') };
+  return { encryptionSeed: derive('kusari-scrt-tx-encryption'), viewingKey: 'api_key_' + Buffer.from(derive('kusari-sscrt-viewing-key')).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '') /* base64url by hand: Android's Buffer has no such encoding */ };
 }
 
 function txKey(seed: Uint8Array, nonce: Uint8Array): Uint8Array {

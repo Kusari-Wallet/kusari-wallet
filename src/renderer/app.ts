@@ -122,6 +122,19 @@ function reviewFee(fee: string, asset: string): string {
   return typeof price === 'number' ? `about ${usdFee(Number(fee) * price)} (${fee} ${asset})` : `${fee} ${asset}`;
 }
 
+/** pct percent of a decimal amount, less an optional fee, without floating-point rounding. Never below zero. */
+function shareOf(amount: string, pct: number, minus = '0'): string {
+  // Two more places than the inputs have, which is exactly enough for a whole percentage.
+  const digits = Math.max((amount.split('.')[1] ?? '').length, (minus.split('.')[1] ?? '').length) + 2;
+  const units = (v: string) => { const [w, f = ''] = v.split('.'); return BigInt(w || '0') * 10n ** BigInt(digits) + BigInt((f + '0'.repeat(digits)).slice(0, digits) || '0'); };
+  if (!/^\d+(\.\d+)?$/.test(amount) || !/^\d+(\.\d+)?$/.test(minus)) return '0';
+  let v = (units(amount) * BigInt(pct)) / 100n - units(minus);
+  if (v < 0n) v = 0n;
+  const scale = 10n ** BigInt(digits);
+  const frac = digits ? (v % scale).toString().padStart(digits, '0').replace(/0+$/, '') : '';
+  return `${v / scale}${frac ? `.${frac}` : ''}`;
+}
+
 /** Filled in after the screen is up, so a slow server never holds it back. */
 function feeLine(asset: Asset, id: string, write: (f: any) => string): HTMLElement {
   const el = h('p', { class: 'small muted fee-line', id }, 'Checking the estimated fee…');
@@ -1083,7 +1096,7 @@ const PRIVACY_ASSETS: Asset[] = ['BTC', 'ETH', 'USDTE'];
 async function renderSwap(from: Asset = selected, to: Asset = selected === 'XMR' ? 'BTC' : 'XMR', keep = '', privacy = false): Promise<void> {
   if (privacy && !(PRIVACY_ASSETS.includes(from) && PRIVACY_ASSETS.includes(to))) privacy = false;
   if (!privacy && from === to) to = from === 'XMR' ? 'BTC' : 'XMR';
-  const amount = numbersOnly(h('input', { id: 'swap-amount', class: 'amount-input', inputmode: 'decimal', autocomplete: 'off', placeholder: '0.00', value: keep }) as HTMLInputElement);
+  const amount = numbersOnly(h('input', { id: 'swap-amount', class: 'swap-amount', inputmode: 'decimal', autocomplete: 'off', placeholder: '0', 'aria-label': 'Amount to send', value: keep }) as HTMLInputElement);
   const receive = h('div', { class: 'swap-receive', id: 'swap-receive' }, '0');
   const receiveNet = h('div', { class: 'swap-net', id: 'swap-net' });
   const info = h('div', { class: 'small muted swap-info', id: 'swap-info' });
@@ -1155,15 +1168,33 @@ async function renderSwap(from: Asset = selected, to: Asset = selected === 'XMR'
   const change = (nf: Asset, nt: Asset) => { void renderSwap(nf, nt, amount.value, privacy); };
   const paintBalance = () => {
     const b = overview?.balances?.[from];
-    balance.textContent = b?.ok ? `Balance ${b.spendable} ${coinName(from)}` : '';
+    balance.textContent = b?.ok ? `${b.spendable} ${coinName(from)}` : '';
   };
+  // A share of the balance. At 100% the network fee is held back when it's paid in the same coin.
+  const portion = (pct: number) => async () => {
+    const b = overview?.balances?.[from];
+    if (!b?.ok) return;
+    let fee = '0';
+    if (pct === 100) {
+      const f = await wallet.feeEstimate(from).catch(() => null);
+      if (f && (f.asset === from || (from === 'ETHA' && f.asset === 'ETH'))) fee = f.fee;
+    }
+    const value = shareOf(b.spendable, pct, fee);
+    amount.value = value === '0' ? '' : value;
+    refreshQuote();
+  };
+  const chips = h('div', { class: 'swap-chips' }, ...([[25, '25%'], [50, '50%'], [75, '75%'], [100, 'Max']] as const).map(([pct, label]) =>
+    h('button', { type: 'button', class: 'chip', id: `swap-pct-${pct}`, onclick: () => void portion(pct)() }, label)));
   const list = h('div', { id: 'swap-list' });
   show('send', subBar('Swap', renderHome), h('div', { class: 'scroll' }, box.el,
-    h('div', { class: 'panel' }, h('div', { class: 'swap-head' }, h('span', { class: 'label' }, 'Send'), balance),
-      h('div', { class: 'swap-row' }, coinSelect('swap-from', from, (a) => change(a, a === to && !privacy ? from : to)), amount)),
-    h('div', { class: 'swap-flip' }, h('button', { type: 'button', class: 'icon-btn', id: 'swap-flip', 'aria-label': 'Swap direction', onclick: () => change(to, from) }, icon('swap'))),
-    h('div', { class: 'panel' }, h('span', { class: 'label' }, 'Receive'),
-      h('div', { class: 'swap-row' }, coinSelect('swap-to', to, (a) => change(a === from && !privacy ? to : from, a)), receive), receiveNet),
+    h('div', { class: 'swap-cards' },
+      h('div', { class: 'swap-card' }, h('span', { class: 'label' }, 'Send'),
+        h('div', { class: 'swap-row' }, amount, coinSelect('swap-from', from, (a) => change(a, a === to && !privacy ? from : to))),
+        h('div', { class: 'swap-foot' }, balance, chips)),
+      h('div', { class: 'swap-flip' }, h('button', { type: 'button', id: 'swap-flip', 'aria-label': 'Swap direction', onclick: () => change(to, from) }, icon('swap'))),
+      h('div', { class: 'swap-card' }, h('span', { class: 'label' }, 'Receive'),
+        h('div', { class: 'swap-row' }, receive, coinSelect('swap-to', to, (a) => change(a === from && !privacy ? to : from, a))),
+        h('div', { class: 'swap-foot end' }, receiveNet))),
     h('div', { class: 'panel' }, h('div', { class: 'swap-head' }, h('span', { class: 'label' }, 'Receiving address'),
       h('button', { type: 'button', class: 'icon-btn', id: 'swap-scan', 'aria-label': 'Scan QR code', title: 'Scan QR code', onclick: () => void openScanner(to, (f) => { dest.value = f.address; }) }, icon('scan'))), dest),
     to === 'ZEC' && h('p', { class: 'small muted', id: 'zec-swap-note' }, 'The provider pays a transparent address. Shield it on the ZEC screen after it arrives to make it private and sendable.'),
