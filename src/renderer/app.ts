@@ -117,6 +117,7 @@ const ICONS = {
   swap: 'M17 3l4 4-4 4M21 7H8a4 4 0 0 0-4 4M7 21l-4-4 4-4M3 17h13a4 4 0 0 0 4-4',
   buy: 'M3.5 6.5h17a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-17a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1zM2.5 10.5h19M6.5 14.5h4',
   shield: 'M12 3l7.5 3v5.5c0 4.5-3.2 8-7.5 9.5-4.3-1.5-7.5-5-7.5-9.5V6z',
+  chart: 'M4 19h16M6 15l4-5 3 3 5-7M15 6h3v3',
   paste: 'M9 4h6v3H9zM9 5.5H6a1 1 0 0 0-1 1V20a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6.5a1 1 0 0 0-1-1h-3M9 13h6M9 17h4',
 };
 
@@ -681,9 +682,11 @@ function assetRow(a: Asset, child = false, toggle?: HTMLElement): HTMLElement {
       h('div', { class: 'sub' }, hideBalance || usd === null ? '' : usdFormat(usd), overview?.balances?.[a]?.stale && !hideBalance ? ' · recent value' : '')));
 }
 
-function bottomNav(on: 'home' | 'settings'): HTMLElement {
+function bottomNav(on: 'home' | 'settings' | 'perps'): HTMLElement {
   return h('nav', { class: 'nav' },
     h('button', { class: on === 'home' ? 'on' : undefined, id: 'nav-home', onclick: () => { homeTab = 'assets'; renderHome(); } }, icon('home'), 'Home'),
+    // Perps (Aster futures) are in WalletConnect wallets only.
+    h('button', { class: on === 'perps' ? 'on' : undefined, id: 'nav-perps', hidden: !wcOn, onclick: () => void renderPerps() }, icon('chart'), 'Perps'),
     h('button', { class: on === 'settings' ? 'on' : undefined, id: 'open-settings', onclick: () => void renderSettings() }, icon('gear'), 'Settings'),
     h('button', { id: 'lock', onclick: () => wallet.lock() }, icon('lock'), 'Lock'));
 }
@@ -1692,6 +1695,8 @@ async function renderDapps(): Promise<void> {
 async function paintDappsChip(slot: HTMLElement): Promise<void> {
   const info = await wallet.wcInfo().catch(() => null);
   wcOn = Boolean(info?.available && info.mode === 'walletconnect');
+  const perps = document.getElementById('nav-perps');
+  if (perps) perps.hidden = !wcOn;
   if (!info?.available || info.mode !== 'walletconnect') return;
   void wallet.wcRegisterLinks?.().catch(() => undefined);
   const n = info.sessions.length;
@@ -2306,3 +2311,305 @@ async function boot(first = false): Promise<void> {
   else unlockScreen();
 }
 if (location.hash === '#wc-popup') void runRequestWindow(); else void boot(true);
+
+// ---- Aster perps: WalletConnect wallets only ----
+
+const PERP_ASSETS: Asset[] = ['USDTB', 'USDCB', 'USDTA', 'USDCA', 'USDTE', 'USDCE'];
+const PERP_CHAIN_NAME: Record<number, string> = { 56: 'BNB Chain', 42161: 'Arbitrum', 1: 'Ethereum' };
+let perpSearch = '';
+
+/** Money in USDT, two decimals, or hidden like every other balance. */
+function usdt(n: number, sign = false): string {
+  if (hideBalance) return '••••';
+  const s = Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `${sign ? (n > 0 ? '+' : n < 0 ? '-' : '') : n < 0 ? '-' : ''}${s} USDT`;
+}
+/** A price with as many decimals as it needs. */
+function px(n: number): string {
+  if (!Number.isFinite(n) || n <= 0) return '—';
+  const d = n >= 1000 ? 2 : n >= 1 ? 4 : n >= 0.01 ? 6 : 8;
+  return n.toLocaleString('en-US', { minimumFractionDigits: Math.min(2, d), maximumFractionDigits: d });
+}
+const pct = (rate: number, digits = 3) => `${(rate * 100).toFixed(digits).replace(/0+$/, '').replace(/\.$/, '')}%`;
+
+async function renderPerps(): Promise<void> {
+  const body = h('div', { class: 'scroll', id: 'perps' }, h('p', { class: 'empty' }, 'Loading…'));
+  show('home', h('div', { class: 'bar' }, h('span', {}), h('h2', {}, 'Perps'), h('span', {})), body, bottomNav('perps'));
+  let info: any;
+  try { info = await wallet.perpsInfo(); } catch (e) { setKids(body, h('div', { class: 'error' }, errMsg(e))); return; }
+  const top: Child[] = [];
+  if (!info.ready) {
+    const pw = h('input', { type: 'password', id: 'perps-pw', autocomplete: 'current-password' });
+    const box = errorBox();
+    const go = h('button', { class: 'primary', id: 'perps-enable', type: 'submit' }, info.expires ? 'Turn trading back on' : 'Turn on trading');
+    top.push(h('div', { class: 'panel', id: 'perps-setup' },
+      h('h3', {}, 'Trade futures on Aster'),
+      h('p', { class: 'small muted' }, 'Long or short with leverage, from this wallet. Your coins stay in your own Aster account, which only this wallet controls.'),
+      h('ol', { class: 'small steps' },
+        h('li', {}, 'Deposit USDT or USDC into your Aster account (BNB Chain, Arbitrum or Ethereum).'),
+        h('li', {}, `Turn on trading. This approves a trading key made from your seed. It can open and close trades for ${info.days} days but can never withdraw.`)),
+      h('p', { class: 'small muted', id: 'perps-fee-note' }, `Kusari fee: ${pct(info.fee.maker)} on post-only orders, ${pct(info.fee.taker)} on all other orders, on top of Aster's own trading fee. Turning on trading also approves this fee.`),
+      h('div', { class: 'row' }, h('button', { id: 'perps-deposit', onclick: () => void renderPerpDeposit() }, 'Deposit')),
+      h('form', { onsubmit: (e: Event) => {
+        e.preventDefault();
+        busy(go, 'Approving…', box, async () => {
+          await wallet.perpsEnable(pw.value);
+          pw.value = '';
+          toast('Trading is on.');
+          await renderPerps();
+        });
+      } }, box.el, h('label', { class: 'field' }, h('span', {}, 'Password'), pw), go)));
+  } else {
+    const acctEl = h('div', { class: 'panel', id: 'perps-account' }, h('p', { class: 'empty' }, 'Loading…'));
+    top.push(acctEl);
+    void (async () => {
+      let a: any;
+      try { a = await wallet.perpsAccount(); } catch (e) { setKids(acctEl, h('div', { class: 'error' }, errMsg(e)), h('div', { class: 'row' }, h('button', { id: 'perps-deposit', onclick: () => void renderPerpDeposit() }, 'Deposit'))); return; }
+      setKids(acctEl,
+        h('span', { class: 'label' }, 'Futures account'),
+        h('div', { class: 'big-amount', id: 'perps-equity' }, usdt(a.margin)),
+        h('div', { class: 'small muted' }, 'Free: ', h('span', { id: 'perps-free' }, usdt(a.available)), ' · Open P&L: ', h('span', { class: a.pnl >= 0 ? 'up' : 'down', id: 'perps-pnl' }, usdt(a.pnl, true))),
+        h('div', { class: 'row' },
+          h('button', { id: 'perps-deposit', onclick: () => void renderPerpDeposit() }, 'Deposit'),
+          h('button', { id: 'perps-withdraw', onclick: () => void renderPerpWithdraw(a.available) }, 'Withdraw')));
+      const extra: HTMLElement[] = [];
+      if (a.positions.length) {
+        extra.push(h('h3', { class: 'perp-head' }, 'Positions'));
+        for (const p of a.positions) {
+          extra.push(h('div', { class: 'panel perp-pos', id: `pos-${p.symbol}` },
+            h('div', { class: 'row spread' }, h('strong', { 'data-no-translate': '' }, p.symbol), h('span', { class: `perp-tag ${p.side === 'long' ? 'up' : 'down'}` }, p.side === 'long' ? 'Long' : 'Short'), h('span', { class: 'muted small' }, `${p.leverage}x`)),
+            h('table', { class: 'review-table' }, h('tbody', {},
+              h('tr', {}, h('th', {}, 'Size'), h('td', {}, `${p.size} (${usdt(p.notional)})`)),
+              h('tr', {}, h('th', {}, 'Entry / mark'), h('td', {}, `${px(p.entry)} / ${px(p.mark)}`)),
+              h('tr', {}, h('th', {}, 'P&L'), h('td', { class: p.pnl >= 0 ? 'up' : 'down' }, usdt(p.pnl, true))),
+              h('tr', {}, h('th', {}, 'Liquidation price'), h('td', { class: 'warn-text' }, px(p.liquidation))),
+              h('tr', {}, h('th', {}, 'Margin'), h('td', {}, `${usdt(p.margin)}${p.isolated ? ' · isolated' : ' · cross'}`)))),
+            h('div', { class: 'row' },
+              h('button', { onclick: () => void renderPerpMarket(p.symbol) }, 'Trade'),
+              h('button', { class: 'danger', id: `close-${p.symbol}`, onclick: () => void renderPerpClose(p.symbol) }, 'Close'))));
+        }
+      }
+      if (a.orders.length) {
+        extra.push(h('h3', { class: 'perp-head' }, 'Open orders'));
+        for (const o of a.orders) {
+          const cancel = h('button', { id: `cancel-${o.orderId}` }, 'Cancel');
+          cancel.onclick = () => { cancel.disabled = true; void wallet.perpsCancel(o.symbol, o.orderId).then(() => { toast('Order cancelled.'); void renderPerps(); }, (e: unknown) => { cancel.disabled = false; toast(errMsg(e)); }); };
+          extra.push(h('div', { class: 'hist-row perp-order', id: `order-${o.orderId}` },
+            h('div', {}, h('div', {}, h('span', { 'data-no-translate': '' }, o.symbol), ' ', h('span', { class: o.side === 'BUY' ? 'up' : 'down' }, o.side === 'BUY' ? (o.reduceOnly ? 'Close short' : 'Buy') : (o.reduceOnly ? 'Close long' : 'Sell'))),
+              h('div', { class: 'small muted' }, `${o.qty} at ${px(Number(o.price))}${o.postOnly ? ' · post-only' : ''}`)),
+            cancel));
+        }
+      }
+      acctEl.after(...extra);
+    })();
+  }
+  const list = h('div', { class: 'list', id: 'perp-markets' }, h('p', { class: 'empty' }, 'Loading markets…'));
+  const search = h('input', { type: 'search', id: 'perp-search', placeholder: 'Search markets', value: perpSearch, autocomplete: 'off' });
+  let markets: any[] = [];
+  const paintMarkets = () => {
+    const q = perpSearch.trim().toUpperCase();
+    const shown = (q ? markets.filter((m) => m.symbol.includes(q)) : markets).slice(0, q ? 60 : 30);
+    setKids(list, ...(shown.length ? shown.map((m) => h('button', { class: 'asset perp-market', id: `mkt-${m.symbol}`, onclick: () => void renderPerpMarket(m.symbol) },
+      h('div', {}, h('div', { class: 'name', 'data-no-translate': '' }, m.base, h('span', { class: 'muted small' }, ` /${m.quote}`)), h('div', { class: 'sub' }, `Vol ${compact(m.volume)}`)),
+      h('div', { class: 'right' }, h('div', { class: 'amt' }, px(m.price)), h('div', { class: `sub ${m.change >= 0 ? 'up' : 'down'}` }, `${m.change >= 0 ? '+' : ''}${m.change.toFixed(2)}%`)))) : [h('p', { class: 'empty' }, 'No market matches.')]));
+  };
+  search.addEventListener('input', () => { perpSearch = search.value; paintMarkets(); });
+  setKids(body, ...top, h('h3', { class: 'perp-head' }, 'Markets'), search, list,
+    h('p', { class: 'small muted' }, 'Prices and trading by Aster (asterdex.com). Futures with leverage can lose all the margin put in.'));
+  try { markets = await wallet.perpsMarkets(); paintMarkets(); } catch (e) { setKids(list, h('div', { class: 'error' }, errMsg(e))); }
+}
+
+function compact(n: number): string {
+  return n >= 1e9 ? `${(n / 1e9).toFixed(2)}B` : n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}K` : n.toFixed(0);
+}
+
+async function renderPerpMarket(symbol: string, keep?: { side: 'long' | 'short'; type: 'MARKET' | 'LIMIT'; margin: string; leverage: number; price: string; postOnly: boolean }): Promise<void> {
+  const body = h('div', { class: 'scroll', id: 'perp-trade' }, h('p', { class: 'empty' }, 'Loading…'));
+  show('send', subBar(symbol, () => void renderPerps()), body);
+  let info: any; let ready = false;
+  try { [info, ready] = await Promise.all([wallet.perpsMarket(symbol), wallet.perpsInfo().then((i: any) => i.ready)]); } catch (e) { setKids(body, h('div', { class: 'error' }, errMsg(e))); return; }
+  const m = info.market;
+  const st = keep ?? { side: 'long' as const, type: 'MARKET' as const, margin: '', leverage: Math.min(5, info.maxLeverage || 5), price: '', postOnly: true };
+  const maxLev = info.maxLeverage || 20;
+  const sideBtns = (['long', 'short'] as const).map((s) => h('button', { type: 'button', id: `side-${s}`, class: `seg ${s === 'long' ? 'up' : 'down'}`, 'aria-pressed': String(st.side === s), onclick: () => { st.side = s; paint(); } }, s === 'long' ? 'Long' : 'Short'));
+  const typeBtns = (['MARKET', 'LIMIT'] as const).map((t) => h('button', { type: 'button', id: `type-${t.toLowerCase()}`, class: 'seg', 'aria-pressed': String(st.type === t), onclick: () => { st.type = t; paint(); } }, t === 'MARKET' ? 'Market' : 'Limit'));
+  const price = h('input', { id: 'perp-price', inputmode: 'decimal', autocomplete: 'off', value: st.price, placeholder: px(info.mark).replace(/,/g, '') });
+  const post = h('input', { type: 'checkbox', id: 'perp-post' }); post.checked = st.postOnly;
+  const margin = h('input', { id: 'perp-margin', inputmode: 'decimal', autocomplete: 'off', value: st.margin, placeholder: '0.00' });
+  const lev = h('input', { type: 'range', id: 'perp-lev', min: '1', max: String(maxLev), step: '1', value: String(Math.min(st.leverage, maxLev)) });
+  const levText = h('strong', { id: 'perp-lev-text' });
+  const sizeText = h('div', { class: 'small muted', id: 'perp-size' });
+  const feeText = h('div', { class: 'small muted', id: 'perp-fees' });
+  const priceRow = h('label', { class: 'field' }, h('span', {}, 'Limit price (USDT)'), price);
+  const postRow = h('label', { class: 'check' }, post, h('span', {}, `Post-only (maker): Kusari fee ${pct(info.kusariFee.maker)} instead of ${pct(info.kusariFee.taker)}`));
+  const box = errorBox();
+  const go = h('button', { class: 'primary', id: 'perp-review', type: 'submit', disabled: !ready }, 'Review order');
+  function paint(): void {
+    st.price = price.value; st.margin = margin.value; st.leverage = Number(lev.value); st.postOnly = post.checked;
+    sideBtns.forEach((b, i) => b.setAttribute('aria-pressed', String(['long', 'short'][i] === st.side)));
+    typeBtns.forEach((b, i) => b.setAttribute('aria-pressed', String(['MARKET', 'LIMIT'][i] === st.type)));
+    priceRow.hidden = st.type !== 'LIMIT';
+    postRow.hidden = st.type !== 'LIMIT';
+    levText.textContent = `${st.leverage}x`;
+    const size = Number(st.margin) * st.leverage;
+    sizeText.textContent = size > 0 ? `Position size about ${usdt(size)}` : '';
+    const maker = st.type === 'LIMIT' && st.postOnly;
+    const k = maker ? info.kusariFee.maker : info.kusariFee.taker;
+    const a = info.asterFee ? (maker ? info.asterFee.maker : info.asterFee.taker) : null;
+    feeText.textContent = `Fees: Aster ${a === null ? 'fee' : pct(a)} + Kusari ${pct(k)} of the position size`;
+    go.textContent = st.side === 'long' ? 'Review long' : 'Review short';
+  }
+  for (const el of [price, margin, lev, post]) el.addEventListener('input', paint);
+  const form = h('form', { onsubmit: (e: Event) => {
+    e.preventDefault();
+    busy(go, 'Checking…', box, async () => {
+      const p = await wallet.perpsPrepareOrder({ symbol, side: st.side, type: st.type, margin: st.margin, leverage: st.leverage, price: st.price, postOnly: st.postOnly });
+      renderPerpReview(p, () => void renderPerpMarket(symbol, st));
+    });
+  } },
+  h('div', { class: 'panel' },
+    h('div', { class: 'big-amount', id: 'perp-mark' }, px(info.mark)),
+    h('div', { class: 'small muted' }, h('span', { class: m.change >= 0 ? 'up' : 'down' }, `${m.change >= 0 ? '+' : ''}${m.change.toFixed(2)}% 24h`), ` · Funding ${pct(info.funding, 4)} · Max ${maxLev}x`)),
+  !ready && h('div', { class: 'warn', id: 'perp-not-ready' }, 'Turn on trading on the Perps screen first.', h('br'), h('button', { type: 'button', class: 'link', onclick: () => void renderPerps() }, 'Go to Perps')),
+  h('div', { class: 'segs' }, ...sideBtns),
+  h('div', { class: 'segs' }, ...typeBtns),
+  priceRow, postRow,
+  h('label', { class: 'field' }, h('span', {}, 'Margin (USDT)'), margin),
+  h('label', { class: 'field' }, h('span', {}, 'Leverage ', levText), lev),
+  sizeText, feeText, box.el, go,
+  h('p', { class: 'small muted' }, 'Positions use isolated margin: if one is liquidated, only the margin in it is lost.'));
+  setKids(body, form);
+  paint();
+}
+
+function renderPerpReview(p: any, back: () => void): void {
+  const box = errorBox();
+  const go = h('button', { class: `primary ${p.side === 'long' ? '' : 'danger'}`, id: 'perp-place' }, p.side === 'long' ? 'Open long' : 'Open short');
+  go.onclick = () => busy(go, 'Placing…', box, async () => {
+    const r = await wallet.perpsPlace(p.id);
+    toast(r.status === 'FILLED' ? 'Order filled.' : 'Order placed.');
+    await renderPerps();
+  });
+  show('send', subBar('Review order', back), h('div', { class: 'scroll' },
+    ...p.warnings.map((w: string) => h('div', { class: 'warn' }, w)),
+    h('div', { class: 'panel' }, h('table', { class: 'review-table', id: 'perp-review-table' }, h('tbody', {},
+      h('tr', {}, h('th', {}, 'Market'), h('td', { 'data-no-translate': '' }, p.symbol)),
+      h('tr', {}, h('th', {}, 'Side'), h('td', { class: p.side === 'long' ? 'up' : 'down' }, `${p.side === 'long' ? 'Long' : 'Short'} ${p.leverage}x`)),
+      h('tr', {}, h('th', {}, 'Order'), h('td', {}, p.type === 'MARKET' ? 'Market' : p.postOnly ? 'Limit, post-only' : 'Limit')),
+      h('tr', {}, h('th', {}, 'Size'), h('td', { id: 'perp-r-size' }, `${p.quantity} ${p.base} (${usdt(p.notional)})`)),
+      h('tr', {}, h('th', {}, p.type === 'MARKET' ? 'Price now' : 'Price'), h('td', {}, px(p.price))),
+      h('tr', {}, h('th', {}, 'Margin'), h('td', { id: 'perp-r-margin' }, usdt(p.margin))),
+      h('tr', {}, h('th', {}, 'Liquidation price'), h('td', { class: 'warn-text', id: 'perp-r-liq' }, p.liquidation ? `about ${px(p.liquidation)}` : 'Shown once the position is open')),
+      h('tr', {}, h('th', {}, 'Aster fee'), h('td', { id: 'perp-r-aster' }, p.asterFee === null ? 'Aster\'s rate' : `${usdt(p.asterFee)} (${pct(p.asterRate)})`)),
+      h('tr', {}, h('th', {}, 'Kusari fee'), h('td', { id: 'perp-r-kusari' }, `${usdt(p.kusariFee)} (${pct(p.kusariRate)})`))))),
+    box.el, go));
+}
+
+async function renderPerpClose(symbol: string): Promise<void> {
+  let p: any;
+  try { p = await wallet.perpsPrepareClose(symbol); } catch (e) { toast(errMsg(e)); return; }
+  const box = errorBox();
+  const go = h('button', { class: 'primary danger', id: 'perp-close-confirm' }, 'Close position');
+  go.onclick = () => busy(go, 'Closing…', box, async () => {
+    await wallet.perpsPlace(p.id);
+    toast('Position closed.');
+    await renderPerps();
+  });
+  show('send', subBar(`Close ${symbol}`, () => void renderPerps()), h('div', { class: 'scroll' },
+    h('div', { class: 'warn' }, 'Closes the whole position at the market price.'),
+    h('div', { class: 'panel' }, h('table', { class: 'review-table' }, h('tbody', {},
+      h('tr', {}, h('th', {}, 'Position'), h('td', {}, `${p.side === 'long' ? 'Long' : 'Short'} ${p.quantity} ${p.base}`)),
+      h('tr', {}, h('th', {}, 'Price now'), h('td', {}, px(p.price))),
+      h('tr', {}, h('th', {}, 'P&L now'), h('td', { class: p.pnl >= 0 ? 'up' : 'down' }, usdt(p.pnl, true))),
+      h('tr', {}, h('th', {}, 'Aster fee'), h('td', {}, p.asterFee === null ? 'Aster\'s rate' : `${usdt(p.asterFee)} (${pct(p.asterRate)})`)),
+      h('tr', {}, h('th', {}, 'Kusari fee'), h('td', {}, `${usdt(p.kusariFee)} (${pct(p.kusariRate)})`))))),
+    box.el, go));
+}
+
+async function renderPerpDeposit(asset: Asset = 'USDTB'): Promise<void> {
+  const amount = h('input', { id: 'perp-dep-amount', inputmode: 'decimal', autocomplete: 'off', placeholder: '0.00' });
+  const box = errorBox();
+  const go = h('button', { class: 'primary', id: 'perp-dep-review', type: 'submit' }, 'Review deposit');
+  const picker = h('div', { class: 'list', id: 'perp-dep-assets' }, ...PERP_ASSETS.map((a) => h('button', { type: 'button', class: `asset${a === asset ? ' on' : ''}`, id: `dep-${a}`, 'aria-pressed': String(a === asset), onclick: () => void renderPerpDeposit(a) },
+    coin(a), h('div', {}, h('div', { class: 'name' }, coinName(a))), h('div', { class: 'right' }, h('div', { class: 'amt' }, balanceText(a))))));
+  const form = h('form', { onsubmit: (e: Event) => {
+    e.preventDefault();
+    busy(go, 'Checking…', box, async () => renderPerpDepositReview(await wallet.perpsDepositPrepare(asset, amount.value)));
+  } },
+  h('p', { class: 'small muted' }, 'Coins go from this wallet to Aster\'s deposit contract and arrive in your Aster futures account, usually within a few minutes. Pick the coin and network:'),
+  picker,
+  h('label', { class: 'field' }, h('span', {}, `Amount (${coinName(asset)})`), amount),
+  h('button', { type: 'button', class: 'link', id: 'perp-dep-max', onclick: () => { amount.value = String(overview?.balances?.[asset]?.spendable ?? '').replace(/,/g, ''); } }, 'Use all'),
+  box.el, go);
+  show('send', subBar('Deposit to Aster', () => void renderPerps()), h('div', { class: 'scroll' }, form));
+}
+
+function renderPerpDepositReview(p: any): void {
+  const pw = h('input', { type: 'password', id: 'perp-dep-pw', autocomplete: 'current-password' });
+  const box = errorBox();
+  const go = h('button', { class: 'primary', id: 'perp-dep-confirm', type: 'submit' }, p.steps > 1 ? `Approve and deposit (${p.steps} transactions)` : 'Deposit');
+  const form = h('form', { onsubmit: (e: Event) => {
+    e.preventDefault();
+    busy(go, 'Sending…', box, async () => {
+      const r = await wallet.perpsDepositConfirm(p.id, pw.value);
+      pw.value = '';
+      show('receive', subBar('Deposit sent', () => void renderPerps()), h('div', { class: 'scroll' },
+        h('h2', { id: 'perp-dep-sent' }, `${p.amount} ${coinName(p.asset)} → Aster`),
+        h('p', { class: 'muted' }, 'Sent to the network. It shows in your Aster account once the network confirms it.'),
+        ...r.hashes.map((hash: string) => h('div', { class: 'panel' }, h('div', { class: 'mono' }, hash), h('br'),
+          h('div', { class: 'row' }, h('button', { onclick: () => wallet.copy(hash) }, 'Copy'), h('button', { onclick: () => void openExplorer(p.asset, hash) }, 'View in explorer')))),
+        h('button', { class: 'primary', onclick: () => void renderPerps() }, 'Back to Perps')));
+      void refresh();
+    });
+  } },
+  h('div', { class: 'panel' }, h('table', { class: 'review-table' }, h('tbody', {},
+    h('tr', {}, h('th', {}, 'Deposit'), h('td', { id: 'perp-dep-r-amount' }, `${p.amount} ${coinName(p.asset)}`)),
+    h('tr', {}, h('th', {}, 'To'), h('td', {}, 'Your Aster futures account')),
+    h('tr', {}, h('th', {}, 'Network fee'), h('td', {}, reviewFee(p.fee, p.feeAsset)))))),
+  p.steps > 1 && h('div', { class: 'warn' }, `${coinName(p.asset)} needs a one-time permission for this exact amount first, so two transactions are sent.`),
+  box.el, h('label', { class: 'field' }, h('span', {}, 'Password'), pw), go);
+  show('send', subBar('Review deposit', () => { void wallet.cancelSend(p.id); void renderPerpDeposit(p.asset); }), h('div', { class: 'scroll' }, form));
+  pw.focus();
+}
+
+function renderPerpWithdraw(available: number, chain = 56, token: 'USDT' | 'USDC' = 'USDT'): void {
+  const amount = h('input', { id: 'perp-wd-amount', inputmode: 'decimal', autocomplete: 'off', placeholder: '0.00' });
+  const box = errorBox();
+  const go = h('button', { class: 'primary', id: 'perp-wd-review', type: 'submit' }, 'Review withdrawal');
+  const chains = h('div', { class: 'segs' }, ...[56, 42161, 1].map((c) => h('button', { type: 'button', class: 'seg', id: `wd-chain-${c}`, 'aria-pressed': String(c === chain), onclick: () => renderPerpWithdraw(available, c, token) }, PERP_CHAIN_NAME[c])));
+  const tokens = h('div', { class: 'segs' }, ...(['USDT', 'USDC'] as const).map((t) => h('button', { type: 'button', class: 'seg', id: `wd-token-${t}`, 'aria-pressed': String(t === token), onclick: () => renderPerpWithdraw(available, chain, t) }, t)));
+  const form = h('form', { onsubmit: (e: Event) => {
+    e.preventDefault();
+    busy(go, 'Checking…', box, async () => renderPerpWithdrawReview(await wallet.perpsWithdrawPrepare(chain, token, amount.value), available));
+  } },
+  h('p', { class: 'small muted' }, `Free to withdraw: ${usdt(available)}. It goes to this wallet's own address.`),
+  chains, tokens,
+  h('label', { class: 'field' }, h('span', {}, `Amount (${token})`), amount),
+  h('button', { type: 'button', class: 'link', id: 'perp-wd-max', onclick: () => { amount.value = String(Math.floor(available * 100) / 100); } }, 'Use all'),
+  box.el, go);
+  show('send', subBar('Withdraw from Aster', () => void renderPerps()), h('div', { class: 'scroll' }, form));
+}
+
+function renderPerpWithdrawReview(p: any, available: number): void {
+  const pw = h('input', { type: 'password', id: 'perp-wd-pw', autocomplete: 'current-password' });
+  const box = errorBox();
+  const go = h('button', { class: 'primary', id: 'perp-wd-confirm', type: 'submit' }, 'Withdraw');
+  const form = h('form', { onsubmit: (e: Event) => {
+    e.preventDefault();
+    busy(go, 'Sending…', box, async () => {
+      await wallet.perpsWithdrawConfirm(p.id, pw.value);
+      pw.value = '';
+      toast('Withdrawal requested. It usually arrives within minutes.');
+      await renderPerps();
+    });
+  } },
+  h('div', { class: 'panel' }, h('table', { class: 'review-table' }, h('tbody', {},
+    h('tr', {}, h('th', {}, 'Withdraw'), h('td', {}, `${p.amount} ${p.token}`)),
+    h('tr', {}, h('th', {}, 'Network'), h('td', {}, PERP_CHAIN_NAME[p.chainId])),
+    h('tr', {}, h('th', {}, 'Aster withdrawal fee'), h('td', {}, `${p.fee} ${p.token}`)),
+    h('tr', {}, h('th', {}, 'You receive'), h('td', { id: 'perp-wd-receive' }, `${p.receive} ${p.token}`)),
+    h('tr', {}, h('th', {}, 'To'), h('td', { class: 'mono' }, p.to))))),
+  box.el, h('label', { class: 'field' }, h('span', {}, 'Password'), pw), go);
+  show('send', subBar('Review withdrawal', () => renderPerpWithdraw(available, p.chainId, p.token)), h('div', { class: 'scroll' }, form));
+  pw.focus();
+}

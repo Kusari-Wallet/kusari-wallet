@@ -114,7 +114,8 @@ final class LocalProxy {
             if (allowedOrigin != null && origin != null && !allowedOrigin.equals(origin)) { respond(out, 403, null, new byte[0]); return; }
             if (length < 0 || length > MAX_BODY) { respond(out, 413, origin, new byte[0]); return; }
             if ("OPTIONS".equals(request[0])) { respond(out, 204, origin, new byte[0]); return; }
-            if (!"GET".equals(request[0]) && !"POST".equals(request[0])) { respond(out, 405, origin, new byte[0]); return; }
+            // DELETE carries its parameters in the URL (Aster cancels orders this way), never a body.
+            if (!"GET".equals(request[0]) && !"POST".equals(request[0]) && !"DELETE".equals(request[0])) { respond(out, 405, origin, new byte[0]); return; }
 
             byte[] body = readBody(in, (int) length);
             forward(out, upstream + request[1], request[0], contentType, apiKey, swap, body, origin);
@@ -314,7 +315,7 @@ final class LocalProxy {
         StringBuilder h = new StringBuilder("HTTP/1.1 ").append(status).append(" X\r\n");
         if (origin != null) {
             h.append("Access-Control-Allow-Origin: ").append(origin).append("\r\n");
-            h.append("Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n");
+            h.append("Access-Control-Allow-Methods: GET, POST, DELETE, OPTIONS\r\n");
             h.append("Access-Control-Allow-Headers: Content-Type, Accept, Authorization, TRON-PRO-API-KEY, x-api-key, X-API-SECRET-KEY, X-API-KEY-VERSION, X-Api-Nonce, X-Api-Timestamp, X-Api-Signature, Ref-Code, Idempotency-Key, x-changenow-api-key\r\n");
             h.append("Access-Control-Max-Age: 600\r\n");
         }

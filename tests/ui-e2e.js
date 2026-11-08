@@ -43,7 +43,7 @@ const PASSWORD = 'correct horse battery';
   const data = fs.mkdtempSync(path.join(os.tmpdir(), 'vw-ui-'));
   const launch = () => _electron.launch({
     args: ['--no-sandbox', '--use-fake-device-for-media-stream', `--use-file-for-fake-video-capture=${camVideo}`, path.join(__dirname, '..')],
-    env: { ...process.env, VAULT_WALLET_DATA: data, VAULT_DEV_TRON_HOST: `http://127.0.0.1:${server.address().port}`, VAULT_DEV_SOCKS: socks.uri, VAULT_DEV_BTC_API: `http://127.0.0.1:${server.address().port}/btc`, VAULT_DEV_TORNADO: JSON.stringify({ 0.1: '0x12D66f87A04A9E220743712cE6d9bB1B5616B8Fc', 1: '0x47CE0C6eD5B0Ce3d3A51fdb1C52DC66a7c3c2936' }), VAULT_DEV_DASH_API: `http://127.0.0.1:${server.address().port}/dash`, VAULT_DEV_SOL_RPC: `http://127.0.0.1:${server.address().port}/sol`, VAULT_DEV_DOGE_API: `http://127.0.0.1:${server.address().port}/doge`, VAULT_DEV_FIRO_API: `http://127.0.0.1:${server.address().port}/dash-firo`, VAULT_DEV_ZEC_BIN: path.join(__dirname, 'fake-zec-engine.js'), VAULT_DEV_ZANO_BIN: path.join(__dirname, 'fake-zano-engine.js'), VAULT_DEV_ARRR_BIN: path.join(__dirname, 'fake-arrr-engine.js'), VAULT_DEV_MWEB_BIN: path.join(__dirname, 'fake-mweb-engine.js'), VAULT_DEV_ETH_RPC: `http://127.0.0.1:${server.address().port}/eth/rpc`, VAULT_DEV_ETH_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_LTC_API: `http://127.0.0.1:${server.address().port}/btc`, VAULT_DEV_BCH_API: `http://127.0.0.1:${server.address().port}/bch`, VAULT_DEV_SCRT_LCD: `http://127.0.0.1:${server.address().port}/scrt,http://localhost:${server.address().port}/scrt`, VAULT_DEV_NEAR_RPC: `http://127.0.0.1:${server.address().port}/near/rpc`, VAULT_DEV_NEAR_HISTORY: `http://127.0.0.1:${server.address().port}/near/history`, VAULT_DEV_POL_RPC: `http://127.0.0.1:${server.address().port}/pol/rpc`, VAULT_DEV_POL_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_ARB_RPC: `http://127.0.0.1:${server.address().port}/arb/rpc`, VAULT_DEV_ARB_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_BSC_RPC: `http://127.0.0.1:${server.address().port}/bsc/rpc`, VAULT_DEV_UNISWAP_BASE: `http://127.0.0.1:${server.address().port}/uniswap`, VAULT_DEV_UNISWAP_KEY: 'test-key', VAULT_DEV_BSC_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_SIMPLESWAP_BASE: `http://127.0.0.1:${server.address().port}/simple`, VAULT_DEV_GHOSTSWAP_BASE: `http://127.0.0.1:${server.address().port}/ghost`, VAULT_DEV_SWAP_BASE: `http://127.0.0.1:${server.address().port}/swap`, VAULT_DEV_PRICE_URL: `http://127.0.0.1:${server.address().port}/simple/price`, NO_PROXY: '*' },
+    env: { ...process.env, VAULT_WALLET_DATA: data, VAULT_DEV_TRON_HOST: `http://127.0.0.1:${server.address().port}`, VAULT_DEV_SOCKS: socks.uri, VAULT_DEV_BTC_API: `http://127.0.0.1:${server.address().port}/btc`, VAULT_DEV_TORNADO: JSON.stringify({ 0.1: '0x12D66f87A04A9E220743712cE6d9bB1B5616B8Fc', 1: '0x47CE0C6eD5B0Ce3d3A51fdb1C52DC66a7c3c2936' }), VAULT_DEV_DASH_API: `http://127.0.0.1:${server.address().port}/dash`, VAULT_DEV_SOL_RPC: `http://127.0.0.1:${server.address().port}/sol`, VAULT_DEV_DOGE_API: `http://127.0.0.1:${server.address().port}/doge`, VAULT_DEV_FIRO_API: `http://127.0.0.1:${server.address().port}/dash-firo`, VAULT_DEV_ZEC_BIN: path.join(__dirname, 'fake-zec-engine.js'), VAULT_DEV_ZANO_BIN: path.join(__dirname, 'fake-zano-engine.js'), VAULT_DEV_ARRR_BIN: path.join(__dirname, 'fake-arrr-engine.js'), VAULT_DEV_MWEB_BIN: path.join(__dirname, 'fake-mweb-engine.js'), VAULT_DEV_ETH_RPC: `http://127.0.0.1:${server.address().port}/eth/rpc`, VAULT_DEV_ETH_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_LTC_API: `http://127.0.0.1:${server.address().port}/btc`, VAULT_DEV_BCH_API: `http://127.0.0.1:${server.address().port}/bch`, VAULT_DEV_SCRT_LCD: `http://127.0.0.1:${server.address().port}/scrt,http://localhost:${server.address().port}/scrt`, VAULT_DEV_NEAR_RPC: `http://127.0.0.1:${server.address().port}/near/rpc`, VAULT_DEV_ASTER_API: `http://127.0.0.1:${server.address().port}/aster`, VAULT_DEV_ASTER_BAPI: `http://127.0.0.1:${server.address().port}/aster`, VAULT_DEV_NEAR_HISTORY: `http://127.0.0.1:${server.address().port}/near/history`, VAULT_DEV_POL_RPC: `http://127.0.0.1:${server.address().port}/pol/rpc`, VAULT_DEV_POL_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_ARB_RPC: `http://127.0.0.1:${server.address().port}/arb/rpc`, VAULT_DEV_ARB_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_BSC_RPC: `http://127.0.0.1:${server.address().port}/bsc/rpc`, VAULT_DEV_UNISWAP_BASE: `http://127.0.0.1:${server.address().port}/uniswap`, VAULT_DEV_UNISWAP_KEY: 'test-key', VAULT_DEV_BSC_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_SIMPLESWAP_BASE: `http://127.0.0.1:${server.address().port}/simple`, VAULT_DEV_GHOSTSWAP_BASE: `http://127.0.0.1:${server.address().port}/ghost`, VAULT_DEV_SWAP_BASE: `http://127.0.0.1:${server.address().port}/swap`, VAULT_DEV_PRICE_URL: `http://127.0.0.1:${server.address().port}/simple/price`, NO_PROXY: '*' },
   });
   let app = await launch();
   let page = await app.firstWindow();
@@ -766,6 +766,79 @@ const PASSWORD = 'correct horse battery';
     await closed; // answered, so the window goes away
     console.log('ok dApp request in its own window');
   }
+  // Perps: Aster futures, in WalletConnect wallets only. Every order carries the Kusari builder fee.
+  await page.click('#nav-perps');
+  await page.locator('#perps-setup').waitFor();
+  await page.locator('#mkt-BTCUSDT').waitFor({ timeout: 20000 });
+  assert.match(await page.locator('#perps-fee-note').innerText(), /0\.01%.*0\.035%/);
+  await shot('perps-setup');
+  await page.fill('#perps-pw', 'wrong password');
+  await page.click('#perps-enable');
+  await page.locator('#perps-setup .error').waitFor();
+  await page.fill('#perps-pw', 'second wallet password');
+  await page.click('#perps-enable');
+  await page.locator('#perps-equity', { hasText: '262.50' }).waitFor({ timeout: 20000 });
+  assert.equal(state.aster.builder, '0.00035', 'the Kusari fee cap was approved');
+  await shot('perps-home');
+  await page.fill('#perp-search', 'eth');
+  await page.locator('#mkt-ETHUSDT').waitFor();
+  assert.equal(await page.locator('#mkt-BTCUSDT').count(), 0);
+  await page.fill('#perp-search', '');
+  await page.click('#mkt-BTCUSDT');
+  await page.locator('#perp-mark', { hasText: '60,000' }).waitFor();
+  await page.fill('#perp-margin', '10');
+  await page.locator('#perp-lev').fill('10');
+  await page.locator('#perp-size', { hasText: '100.00' }).waitFor();
+  await shot('perps-trade');
+  await page.click('#perp-review');
+  await page.locator('#perp-review-table').waitFor();
+  assert.match(await page.locator('#perp-r-size').innerText(), /0\.001 BTC/);
+  assert.match(await page.locator('#perp-r-kusari').innerText(), /0\.035%/);
+  assert.match(await page.locator('#perp-r-liq').innerText(), /about 54,/);
+  await shot('perps-review');
+  await page.click('#perp-place');
+  await page.locator('#pos-BTCUSDT').waitFor({ timeout: 20000 });
+  let placed = state.aster.placed.at(-1);
+  assert.deepEqual([placed.type, placed.side, placed.quantity, placed.builder, placed.feeRate], ['MARKET', 'BUY', '0.001', '0xDb0f1c2d5f3713051d1d5AB70D7359E6Daa6f87E', '0.00035']);
+  // A post-only limit order pays the lower Kusari fee, and can be cancelled.
+  await page.click('#mkt-BTCUSDT');
+  await page.click('#type-limit');
+  await page.fill('#perp-price', '59000');
+  await page.fill('#perp-margin', '1');
+  await page.locator('#perp-lev').fill('10');
+  await page.click('#perp-review');
+  await page.getByText('Too small').waitFor(); // 10 USDT of position is under one lot here
+  await page.fill('#perp-margin', '10');
+  await page.click('#perp-review');
+  await page.locator('#perp-r-kusari', { hasText: '0.01%' }).waitFor();
+  await page.click('#perp-place');
+  await page.locator('#order-9').waitFor({ timeout: 20000 });
+  placed = state.aster.placed.at(-1);
+  assert.deepEqual([placed.type, placed.timeInForce, placed.price, placed.feeRate], ['LIMIT', 'GTX', '59000', '0.0001']);
+  await page.click('#cancel-9');
+  await page.locator('#order-9').waitFor({ state: 'detached', timeout: 20000 });
+  await page.click('#close-BTCUSDT');
+  await page.click('#perp-close-confirm');
+  await page.locator('#pos-BTCUSDT').waitFor({ state: 'detached', timeout: 20000 });
+  placed = state.aster.placed.at(-1);
+  assert.deepEqual([placed.side, placed.reduceOnly, placed.feeRate], ['SELL', 'true', '0.00035']);
+  await page.click('#perps-withdraw');
+  await page.fill('#perp-wd-amount', '5');
+  await page.click('#perp-wd-review');
+  await page.locator('#perp-wd-receive', { hasText: '4.7 USDT' }).waitFor();
+  await page.fill('#perp-wd-pw', 'second wallet password');
+  await page.click('#perp-wd-confirm');
+  await page.locator('#perps-equity').waitFor({ timeout: 20000 });
+  assert.equal(state.aster.withdrawals[0].receiver, secondEth, 'paid out only to this wallet');
+  await page.click('#perps-deposit');
+  await page.click('#dep-USDCA');
+  await page.fill('#perp-dep-amount', '5');
+  await page.click('#perp-dep-review');
+  await page.getByText('Not enough USDC (Arb)').waitFor();
+  await shot('perps-deposit');
+  await page.click('#back');
+  console.log('ok perps: turn on trading, market and post-only orders with the Kusari fee, cancel, close, withdraw');
+
   // A WalletConnect wallet has no Tor, and its mode can't be switched afterwards.
   await page.click('#open-settings');
   await page.locator('#copy-connection-log').waitFor();
@@ -786,6 +859,8 @@ const PASSWORD = 'correct horse battery';
   await page.click('#unlock');
   await page.locator('#wallet-name', { hasText: 'Savings' }).waitFor({ timeout: 90000 });
   assert.equal(await page.evaluate(() => window.wallet.addresses().then((a) => a.ETH)), firstEth);
+  await page.locator('#nav-perps').waitFor({ state: 'hidden' }); // no Perps in a maximum-privacy wallet
+  await assert.rejects(page.evaluate(() => window.wallet.perpsInfo()), /only in WalletConnect wallets/);
   console.log('ok wallets: rename, cancel, add, switch, each with its own password and addresses');
 
   // Skipping the seed backup: warned once, wallet made, seed still readable later

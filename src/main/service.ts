@@ -10,6 +10,8 @@ import { TronClient, TronTransfer, deriveTronAccount, generateTronMnemonic, isTr
 import { socksAgent, getJson, requestJson, newTorRoute } from './request';
 import { AAVE_MARKETS, aaveCall, readAave } from './aave';
 import { WC_CHAINS, WalletConnectManager } from './walletconnect';
+import { AGENT_DAYS, ASTER_VAULTS, AsterBracket, AsterClient, AsterMarket, KUSARI_FEE, OrderInput, asterAgent, bracketFor, builderFee, encodeDeposit, floorToStep, liquidationPrice, plain, roundToStep } from './aster';
+import type { Wallet as EvmWallet } from 'ethers';
 import { DexCall, DexId, DexQuote, NATIVE, UNISWAP_CHAINS, UniswapClient, approvalCalls, narrowPermit, pancakeQuote, pancakeSwapCall } from './dex';
 import { NearClient, NearDraft, isNearAccount, nearPublicKey } from './near';
 import { ScrtClient, ScrtDraft, isScrtAddress, scrtPrivacyKeys, scrtPublicKey } from './scrt';
@@ -110,6 +112,7 @@ interface Preview {
   zano?: ZanoDraft;
   arrr?: ArrrDraft;
   dex?: { quote: DexQuote; from: Asset; to: Asset; calls: DexCall[] };
+  perpDeposit?: { calls: DexCall[] };
 }
 
 export interface BalanceView { ok: boolean; stale?: boolean; pending?: boolean; total: string; spendable: string; error?: string }
@@ -122,6 +125,13 @@ export function swapCost(amount: string, receive: string, fromUsd?: number, toUs
   const usd = inUsd - receiveUsd;
   return Number.isFinite(usd) && inUsd > 0 ? { usd, percent: (usd / inUsd) * 100, receiveUsd } : null;
 }
+
+/** Where Aster takes deposits and pays out, and which of this wallet's coins go there. */
+export const PERP_CHAINS: { chainId: number; assets: Asset[] }[] = [
+  { chainId: 56, assets: ['USDTB', 'USDCB'] },
+  { chainId: 42161, assets: ['USDTA', 'USDCA'] },
+  { chainId: 1, assets: ['USDTE', 'USDCE'] },
+];
 
 function withTimeoutValue<T>(work: Promise<T>, ms: number): Promise<T> {
   return Promise.race([work, new Promise<T>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))]);
@@ -144,6 +154,12 @@ export class WalletService extends EventEmitter {
   private arb: EthClient | null = null;
   private bsc: EthClient | null = null;
   private wc: WalletConnectManager | null = null;
+  /** Aster perps, in WalletConnect wallets: the client and the trading key, which can trade but never withdraw. */
+  private aster: AsterClient | null = null;
+  private asterKey: EvmWallet | null = null;
+  private perpMarkets: { at: number; list: AsterMarket[] } | null = null;
+  private readonly perpBrackets = new Map<string, AsterBracket[]>();
+  private readonly perpPreviews = new Map<string, { order?: OrderInput; leverage?: number; withdraw?: { chainId: number; token: string; amount: string; fee: string }; expires: number }>();
   /** Whether this session goes through Tor: the Tor setting is on and this is a maximum-privacy wallet. */
   private torActive = false;
   get torOn(): boolean { return this.torActive; }
@@ -175,7 +191,7 @@ export class WalletService extends EventEmitter {
   settings: Settings = { ...DEFAULT_SETTINGS };
 
   constructor(private readonly baseDir: string, private readonly kdf?: { N: number; r: number; p: number }, private readonly dev: {
-    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; bchApi?: string; ltcApi?: string; scrtLcd?: string; nearRpc?: string; nearHistory?: string; polRpc?: string; polScout?: string; polUsdt?: string; arbRpc?: string; arbScout?: string; arbUsdt?: string; bscRpc?: string; bscScout?: string; uniswapKey?: string; uniswapBase?: string; wcProjectId?: string; dashApi?: string; firoApi?: string; solRpc?: string; dogeApi?: string; zecBin?: string; zecServers?: string[]; zanoBin?: string; zanoNode?: string; arrrBin?: string; arrrServers?: string[]; mwebBin?: string; mwebConnect?: string; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; etzSwapBase?: string; cceCashBase?: string; changeNowBase?: string; quoteDeadlineMs?: number; btcApi?: string;
+    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; bchApi?: string; ltcApi?: string; scrtLcd?: string; nearRpc?: string; nearHistory?: string; polRpc?: string; polScout?: string; polUsdt?: string; arbRpc?: string; arbScout?: string; arbUsdt?: string; bscRpc?: string; bscScout?: string; uniswapKey?: string; uniswapBase?: string; wcProjectId?: string; dashApi?: string; firoApi?: string; solRpc?: string; dogeApi?: string; zecBin?: string; asterApi?: string; asterBapi?: string; zecServers?: string[]; zanoBin?: string; zanoNode?: string; arrrBin?: string; arrrServers?: string[]; mwebBin?: string; mwebConnect?: string; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; etzSwapBase?: string; cceCashBase?: string; changeNowBase?: string; quoteDeadlineMs?: number; btcApi?: string;
     /** Android: every outside address goes through the app's local forwarder. */
     route?: (url: string) => string;
     moneroStore?: (net: NetworkId, walletId: string) => MoneroOptions['store'];
@@ -403,6 +419,10 @@ export class WalletService extends EventEmitter {
     this.arb = new EthClient(this.dev.arbRpc ? [this.dev.arbRpc] : ARB_RPCS, this.dev.arbScout ?? ARB_SCOUT, this.dev.arbUsdt ?? '', evmAddress, this.torRoute('arb'), slow ? 60_000 : 15_000, ARBITRUM);
     this.bsc = new EthClient(this.dev.bscRpc ? [this.dev.bscRpc] : BSC_RPCS, this.dev.bscScout ?? BSC_SCOUT, '', evmAddress, this.torRoute('bsc'), slow ? 60_000 : 15_000, BSC);
     void this.startWalletConnect(evmAddress);
+    if ((await this.walletMode()) === 'walletconnect') {
+      this.aster = new AsterClient(evmAddress, { api: this.dev.asterApi ? route(this.dev.asterApi) : route('https://fapi.asterdex.com'), bapi: this.dev.asterBapi ? route(this.dev.asterBapi) : route('https://www.asterdex.com') });
+      this.asterKey = asterAgent(deriveEthAccount(secrets.tronMnemonic).wallet.privateKey);
+    }
     const monero = new MoneroClient({
       type: net.monero.type,
       dir: this.moneroDir(net.id),
@@ -524,6 +544,10 @@ export class WalletService extends EventEmitter {
     this.bsc = null;
     void this.wc?.stop();
     this.wc = null;
+    this.aster = null;
+    this.asterKey = null;
+    this.perpPreviews.clear();
+    this.perpBrackets.clear();
     this.dash = null;
     this.firo = null;
     this.doge = null;
@@ -891,6 +915,212 @@ export class WalletService extends EventEmitter {
     }
     const hashes = await client.sendCalls([...calls, swap], account.wallet, quote.gasUnits + 60_000n);
     return { hashes, explorer: hashes.map((h) => this.explorerUrl(from, h)) };
+  }
+
+  // ---- Aster perpetual futures: WalletConnect wallets only ----
+
+  private perps() {
+    if (!this.aster || !this.asterKey) throw new Error('Perps are only in WalletConnect wallets.');
+    return { aster: this.aster, agent: this.asterKey };
+  }
+
+  private get asterPath() { return path.join(this.dir, 'aster.json'); }
+
+  private async asterReady(): Promise<{ ready: boolean; expires: number }> {
+    const { agent } = this.perps();
+    try {
+      const st = JSON.parse(await fs.readFile(this.asterPath, 'utf8') as unknown as string);
+      const ok = st.agent === agent.address && Number(st.expires) > Date.now() + 86_400_000;
+      return { ready: ok, expires: Number(st.expires) || 0 };
+    } catch { return { ready: false, expires: 0 }; }
+  }
+
+  private async needTrading() {
+    const p = this.perps();
+    if (!(await this.asterReady()).ready) throw new Error('Turn on trading first.');
+    return p;
+  }
+
+  async perpsInfo() {
+    const { aster } = this.perps();
+    const st = await this.asterReady();
+    return { ...st, address: aster.user, fee: { maker: Number(KUSARI_FEE.maker), taker: Number(KUSARI_FEE.taker) }, days: AGENT_DAYS, chains: PERP_CHAINS.map((c) => c.chainId) };
+  }
+
+  async perpsMarkets(): Promise<AsterMarket[]> {
+    const { aster } = this.perps();
+    if (this.perpMarkets && Date.now() - this.perpMarkets.at < 15_000) return this.perpMarkets.list;
+    const list = await aster.markets();
+    this.perpMarkets = { at: Date.now(), list };
+    return list;
+  }
+
+  async perpsAccount() {
+    const { aster, agent } = await this.needTrading();
+    return aster.account(agent);
+  }
+
+  /** Everything the trade screen shows for one market. Leverage limits and Aster's own fee need trading turned on. */
+  async perpsMarket(symbol: string) {
+    const { aster, agent } = this.perps();
+    const m = (await this.perpsMarkets()).find((x) => x.symbol === symbol);
+    if (!m) throw new Error('Aster does not list this market.');
+    const { ready } = await this.asterReady();
+    const [mark, brackets, fees] = await Promise.all([
+      aster.mark(symbol),
+      ready ? aster.brackets(symbol, agent).catch(() => []) : Promise.resolve([] as AsterBracket[]),
+      ready ? aster.commission(symbol, agent).catch(() => null) : Promise.resolve(null),
+    ]);
+    this.perpBrackets.set(symbol, brackets);
+    return { market: m, ...mark, maxLeverage: brackets[0]?.initialLeverage ?? 0, asterFee: fees, kusariFee: { maker: Number(KUSARI_FEE.maker), taker: Number(KUSARI_FEE.taker) } };
+  }
+
+  /** Approves the trading key and the Kusari fee cap, both signed by this wallet's own key. */
+  async perpsEnable(password: string) {
+    const { aster, agent } = this.perps();
+    const secrets = await this.vault.open(password);
+    const main = deriveEthAccount(secrets.tronMnemonic).wallet;
+    const expires = Date.now() + AGENT_DAYS * 86_400_000;
+    await aster.registerAgent(main, agent, expires);
+    await aster.approveBuilder(main);
+    await fs.mkdir(this.dir, { recursive: true });
+    await fs.writeFile(this.asterPath, JSON.stringify({ agent: agent.address, expires }), { mode: 0o600 });
+    return { expires };
+  }
+
+  /**
+   * A new position: margin in USDT times leverage gives its size. Isolated margin, so a loss stops at that margin.
+   * Returns what the order will be, for review; nothing is sent yet.
+   */
+  async perpsPrepareOrder(input: { symbol: string; side: 'long' | 'short'; type: 'MARKET' | 'LIMIT'; margin: string; leverage: number; price?: string; postOnly?: boolean }) {
+    const { aster, agent } = await this.needTrading();
+    const info = await this.perpsMarket(input.symbol);
+    const m = info.market;
+    const margin = Number(input.margin);
+    if (!(margin > 0)) throw new Error('Enter how much USDT to put in.');
+    const lev = Math.floor(Number(input.leverage));
+    const maxLev = info.maxLeverage || 20;
+    if (!(lev >= 1 && lev <= maxLev)) throw new Error(`Leverage can be 1x to ${maxLev}x on this market.`);
+    const limit = input.type === 'LIMIT';
+    const price = limit ? Number(roundToStep(String(input.price ?? ''), m.tickSize)) : info.mark;
+    if (!(price > 0)) throw new Error(limit ? 'Enter a price.' : 'No price for this market right now.');
+    if (limit && input.postOnly && ((input.side === 'long' && price >= info.mark) || (input.side === 'short' && price <= info.mark))) {
+      throw new Error(input.side === 'long'
+        ? 'A post-only buy must be below the current price, or it would trade at once and be cancelled.'
+        : 'A post-only sell must be above the current price, or it would trade at once and be cancelled.');
+    }
+    const qty = floorToStep(plain((margin * lev) / price, 12), limit ? m.stepSize : m.marketStep);
+    const minQty = Number(limit ? m.minQty : m.marketMinQty);
+    const notional = Number(qty) * price;
+    if (!(Number(qty) > 0) || Number(qty) < minQty || notional < Number(m.minNotional)) throw new Error(`Too small. The smallest order here is about ${Math.max(Number(m.minNotional), minQty * price).toFixed(2)} USDT of position (margin × leverage).`);
+    if (!limit && Number(m.marketMaxQty) > 0 && Number(qty) > Number(m.marketMaxQty)) throw new Error('Too large for one market order here.');
+    const brackets = this.perpBrackets.get(m.symbol) ?? [];
+    const b = bracketFor(brackets, notional);
+    if (b && lev > b.initialLeverage) throw new Error(`A position this large allows at most ${b.initialLeverage}x.`);
+    const maker = limit && input.postOnly;
+    const kusariRate = Number(builderFee({ type: input.type, postOnly: input.postOnly }));
+    const asterRate = info.asterFee ? (maker ? info.asterFee.maker : info.asterFee.taker) : null;
+    const acct = await aster.account(agent);
+    const fees = notional * (kusariRate + (asterRate ?? 0));
+    if (margin + fees > acct.available + 1e-9) throw new Error(`Not enough in your futures account: ${acct.available.toFixed(2)} USDT is free. Deposit more or use less.`);
+    const realMargin = notional / lev;
+    const order: OrderInput = { symbol: m.symbol, side: input.side === 'long' ? 'BUY' : 'SELL', type: input.type, quantity: qty, ...(limit ? { price: plain(price), postOnly: Boolean(input.postOnly) } : {}) };
+    const id = randomUUID();
+    this.perpPreviews.set(id, { order, leverage: lev, expires: Date.now() + 60_000 });
+    return {
+      id, symbol: m.symbol, base: m.base, side: input.side, type: input.type, postOnly: Boolean(maker), quantity: qty, price, notional, margin: realMargin, leverage: lev,
+      liquidation: liquidationPrice(input.side, price, Number(qty), realMargin, b),
+      asterFee: asterRate === null ? null : notional * asterRate, asterRate, kusariFee: notional * kusariRate, kusariRate,
+      warnings: [
+        'Leverage multiplies losses as much as gains. If the price reaches the liquidation price, the margin in this position is lost.',
+        ...(limit ? [] : ['A market order fills at the best price available, which can differ a little from the price shown.']),
+        ...(info.funding ? [info.funding > 0
+          ? `Funding: ${(info.funding * 100).toFixed(4)}% every funding period, paid by longs to shorts.`
+          : `Funding: ${(Math.abs(info.funding) * 100).toFixed(4)}% every funding period, paid by shorts to longs.`] : []),
+      ],
+    };
+  }
+
+  /** Closing a whole position: a market order the other way that can only reduce it. */
+  async perpsPrepareClose(symbol: string) {
+    const { aster, agent } = await this.needTrading();
+    const acct = await aster.account(agent);
+    const p = acct.positions.find((x) => x.symbol === symbol);
+    if (!p) throw new Error('There is no open position on this market.');
+    const kusariRate = Number(KUSARI_FEE.taker);
+    const info = await this.perpsMarket(symbol);
+    const asterRate = info.asterFee?.taker ?? null;
+    const notional = Number(p.size) * info.mark;
+    const id = randomUUID();
+    this.perpPreviews.set(id, { order: { symbol, side: p.side === 'long' ? 'SELL' : 'BUY', type: 'MARKET', quantity: p.size, reduceOnly: true }, leverage: 0, expires: Date.now() + 60_000 });
+    return { id, symbol, base: info.market.base, side: p.side, quantity: p.size, price: info.mark, notional, pnl: p.pnl, asterFee: asterRate === null ? null : notional * asterRate, asterRate, kusariFee: notional * kusariRate, kusariRate };
+  }
+
+  async perpsPlace(id: string) {
+    const { aster, agent } = await this.needTrading();
+    const p = this.perpPreviews.get(id);
+    this.perpPreviews.delete(id);
+    if (!p?.order || p.expires < Date.now()) throw new Error('Prices moved on. Review the order again.');
+    if (p.leverage) await aster.prepareSymbol(p.order.symbol, p.leverage, agent);
+    return aster.order(p.order, agent);
+  }
+
+  async perpsCancel(symbol: string, orderId: number) {
+    const { aster, agent } = await this.needTrading();
+    await aster.cancel(symbol, orderId, agent);
+  }
+
+  /** Moves USDT or USDC from this wallet into the Aster futures account, through Aster's vault on that chain. */
+  async perpsDepositPrepare(asset: Asset, amountInput: string) {
+    const { aster } = this.perps();
+    const chain = PERP_CHAINS.find((c) => c.assets.includes(asset));
+    if (!chain) throw new Error('Aster takes USDT and USDC on Ethereum, BNB Chain and Arbitrum.');
+    const client = this.evm(asset);
+    const token = chainOf(asset as EthAsset).tokens[asset as EthAsset]!;
+    const amount = parseAmount(amountInput, DECIMALS[asset]);
+    if (amount <= 0n) throw new Error('Enter an amount.');
+    if (amount > (await client.balanceOf(asset as EthAsset, true))) throw new Error(`Not enough ${ASSET_LABEL[asset] ?? asset}.`);
+    const vault = ASTER_VAULTS[String(chain.chainId)].vault;
+    const calls: DexCall[] = [...approvalCalls(token.contract, vault, amount, await client.allowance(token.contract, vault)), { label: 'swap', to: vault, data: encodeDeposit(token.contract, aster.user, amount), value: 0n, gas: 200_000n }];
+    const cost = await client.costOf(calls, 200_000n);
+    const native = chainOf(asset as EthAsset).native;
+    if (cost.most > (await client.balanceOf(native, true))) throw new Error(`Not enough ${chainOf(asset as EthAsset).symbol} for the network fee. Up to ${formatAmount(cost.most, 18)} is needed.`);
+    const preview = this.storePreview({ asset, to: vault, amount, fee: cost.likely, perpDeposit: { calls } });
+    return { id: preview.id, asset, amount: formatAmount(amount, DECIMALS[asset]), fee: formatAmount(cost.likely, 18), feeAsset: chainOf(asset as EthAsset).symbol, steps: calls.length };
+  }
+
+  async perpsDepositConfirm(id: string, password: string) {
+    const preview = this.previews.get(id);
+    if (!preview?.perpDeposit || preview.expires < Date.now()) { this.previews.delete(id); throw new Error('The review expired. Try again.'); }
+    const secrets = await this.vault.open(password);
+    this.previews.delete(id);
+    this.balanceMemo.clear();
+    const hashes = await this.evm(preview.asset).sendCalls(preview.perpDeposit.calls, deriveEthAccount(secrets.tronMnemonic).wallet, 200_000n);
+    return { hashes, explorer: hashes.map((h) => this.explorerUrl(preview.asset, h)) };
+  }
+
+  /** Back to this wallet's own address: Aster only pays out to the account's address. */
+  async perpsWithdrawPrepare(chainId: number, token: 'USDT' | 'USDC', amountInput: string) {
+    const { aster, agent } = await this.needTrading();
+    if (!PERP_CHAINS.some((c) => c.chainId === chainId)) throw new Error('Aster pays out on Ethereum, BNB Chain and Arbitrum.');
+    const amount = Number(amountInput);
+    if (!(amount > 0)) throw new Error('Enter an amount.');
+    const [fee, acct] = await Promise.all([aster.withdrawFee(chainId, token), aster.account(agent)]);
+    if (amount > acct.available) throw new Error(`Only ${acct.available.toFixed(2)} USDT can be taken out right now. Margin in open positions and orders stays until they close.`);
+    if (amount <= Number(fee)) throw new Error(`The amount must be more than Aster's withdrawal fee of ${fee} ${token}.`);
+    const id = randomUUID();
+    const w = { chainId, token, amount: plain(amount, 6), fee };
+    this.perpPreviews.set(id, { withdraw: w, expires: Date.now() + 5 * 60_000 });
+    return { id, ...w, receive: plain(amount - Number(fee), 6), to: aster.user };
+  }
+
+  async perpsWithdrawConfirm(id: string, password: string) {
+    const { aster, agent } = await this.needTrading();
+    const p = this.perpPreviews.get(id);
+    if (!p?.withdraw || p.expires < Date.now()) { this.perpPreviews.delete(id); throw new Error('The review expired. Try again.'); }
+    const secrets = await this.vault.open(password);
+    this.perpPreviews.delete(id);
+    return aster.withdraw(deriveEthAccount(secrets.tronMnemonic).wallet, agent, p.withdraw);
   }
 
   // ---- WalletConnect: only in wallets made for it ----
