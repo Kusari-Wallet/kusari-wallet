@@ -20,7 +20,6 @@ const COIN: Record<Asset, { coin: string; network: RegExp; fallback: string }> =
   UNI: { coin: 'UNI', network: /^(eth|ethereum|erc-?20)$/i, fallback: 'ETH' },
   PEPE: { coin: 'PEPE', network: /^(eth|ethereum|erc-?20)$/i, fallback: 'ETH' },
   AAVE: { coin: 'AAVE', network: /^(eth|ethereum|erc-?20)$/i, fallback: 'ETH' },
-  NEARE: { coin: 'NEAR', network: /^(eth|ethereum|erc-?20)$/i, fallback: 'ETH' },
   BNB: { coin: 'BNB', network: /^(bsc|bnb|bep-?20|binance.?smart.?chain|bnbsmartchain)$/i, fallback: 'BSC' },
   USDTB: { coin: 'USDT', network: /^(bsc|bnb|bep-?20|binance.?smart.?chain|bnbsmartchain)$/i, fallback: 'BSC' },
   ASTER: { coin: 'ASTER', network: /^(bsc|bnb|bep-?20|binance.?smart.?chain|bnbsmartchain)$/i, fallback: 'BSC' },
@@ -44,6 +43,7 @@ const COIN: Record<Asset, { coin: string; network: RegExp; fallback: string }> =
   ZANO: { coin: 'ZANO', network: /^zano$/i, fallback: 'ZANO' },
   ARRR: { coin: 'ARRR', network: /^(arrr|pirate)/i, fallback: 'ARRR' },
   SCRT: { coin: 'SCRT', network: /^(scrt|secret)/i, fallback: 'SCRT' },
+  NEAR: { coin: 'NEAR', network: /^near$/i, fallback: 'NEAR' },
   SSCRT: { coin: '', network: /^$/, fallback: '' }, // never offered: see NOT_SWAPPABLE
 };
 
@@ -194,7 +194,6 @@ const SIMPLE_COIN: Record<Asset, { ticker: string; network: string }> = {
   UNI: { ticker: 'uni', network: 'eth' },
   PEPE: { ticker: 'pepe', network: 'eth' },
   AAVE: { ticker: 'aave', network: 'eth' },
-  NEARE: { ticker: '', network: '' }, // not listed: only NEAR's own chain and BSC
   BNB: { ticker: 'bnb-bsc', network: 'bsc' },
   USDTB: { ticker: 'usdt', network: 'bsc' },
   ASTER: { ticker: 'aster', network: 'bsc' },
@@ -218,6 +217,7 @@ const SIMPLE_COIN: Record<Asset, { ticker: string; network: string }> = {
   ZANO: { ticker: 'zano', network: 'zano' },
   ARRR: { ticker: 'arrr', network: 'arrr' },
   SCRT: { ticker: 'scrt', network: 'scrt' },
+  NEAR: { ticker: 'near', network: 'near' },
   SSCRT: { ticker: '', network: '' },
 };
 
@@ -284,7 +284,7 @@ export class SimpleSwapClient implements SwapProvider {
 
 export const GHOSTSWAP_BASE = 'https://partners-api.ghostswap.io';
 // Coins whose GhostSwap ticker depends on the chain: read from their list by coin and chain, never guessed.
-type LookedUp = 'USDTE' | 'LINK' | 'WLD' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA' | 'ETHP' | 'UNI' | 'PEPE' | 'AAVE' | 'NEARE' | 'BNB' | 'USDTB' | 'ASTER' | 'CAKE' | 'JUP' | 'RAY';
+type LookedUp = 'USDTE' | 'LINK' | 'WLD' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA' | 'ETHP' | 'UNI' | 'PEPE' | 'AAVE' | 'BNB' | 'USDTB' | 'ASTER' | 'CAKE' | 'JUP' | 'RAY';
 const GHOST_LOOKUP: Record<LookedUp, { ticker: RegExp; chain: RegExp; label: string }> = {
   USDTE: { ticker: /^usdt/i, chain: /^(eth|ethereum|erc-?20)$/i, label: 'USDT (Eth)' },
   USDTS: { ticker: /^usdt/i, chain: /^(sol|solana|spl)$/i, label: 'USDT (Sol)' },
@@ -299,7 +299,6 @@ const GHOST_LOOKUP: Record<LookedUp, { ticker: RegExp; chain: RegExp; label: str
   UNI: { ticker: /^uni(erc-?20|eth)?$/i, chain: /^(eth|ethereum|erc-?20)$/i, label: 'UNI' },
   PEPE: { ticker: /^pepe(erc-?20|eth)?$/i, chain: /^(eth|ethereum|erc-?20)$/i, label: 'PEPE' },
   AAVE: { ticker: /^aave(erc-?20|eth)?$/i, chain: /^(eth|ethereum|erc-?20)$/i, label: 'AAVE' },
-  NEARE: { ticker: /^near(erc-?20|eth)?$/i, chain: /^(eth|ethereum|erc-?20)$/i, label: 'NEAR (Eth)' },
   BNB: { ticker: /^bnb(bsc|bep-?20)?$/i, chain: /^(bsc|bnb|bep-?20|binance.?smart.?chain|bnbsmartchain)$/i, label: 'BNB' },
   USDTB: { ticker: /^usdt(bsc|bep-?20)?$/i, chain: /^(bsc|bnb|bep-?20|binance.?smart.?chain|bnbsmartchain)$/i, label: 'USDT (BNB)' },
   ASTER: { ticker: /^aster(bsc|bep-?20)?$/i, chain: /^(bsc|bnb|bep-?20|binance.?smart.?chain|bnbsmartchain)$/i, label: 'ASTER' },
@@ -307,7 +306,7 @@ const GHOST_LOOKUP: Record<LookedUp, { ticker: RegExp; chain: RegExp; label: str
   JUP: { ticker: /^jup(sol|spl)?$/i, chain: /^(sol|solana|spl)$/i, label: 'JUP' },
   RAY: { ticker: /^ray(sol|spl)?$/i, chain: /^(sol|solana|spl)$/i, label: 'RAY' },
 };
-const GHOST_TICKER: Record<Exclude<Asset, LookedUp>, string> = { BTC: 'btc', XMR: 'xmr', ETH: 'eth', TRX: 'trx', USDT: 'usdtrx', DASH: 'dash', FIRO: 'firo', SOL: 'sol', BCH: 'bch', LTC: 'ltc', DOGE: 'doge', ZEC: 'zec', ZANO: 'zano', ARRR: 'arrr', SCRT: 'scrt', SSCRT: '' };
+const GHOST_TICKER: Record<Exclude<Asset, LookedUp>, string> = { NEAR: 'near', BTC: 'btc', XMR: 'xmr', ETH: 'eth', TRX: 'trx', USDT: 'usdtrx', DASH: 'dash', FIRO: 'firo', SOL: 'sol', BCH: 'bch', LTC: 'ltc', DOGE: 'doge', ZEC: 'zec', ZANO: 'zano', ARRR: 'arrr', SCRT: 'scrt', SSCRT: '' };
 
 export class GhostSwapClient implements SwapProvider {
   constructor(private readonly base: string, private readonly bearer: string, private readonly agent?: Agent, private readonly timeoutMs = 30_000) {}
@@ -410,6 +409,7 @@ const ETZ_COIN: Partial<Record<Asset, { coin: string; network: string }>> = {
   USDTP: { coin: 'USDT', network: 'MATIC' },
   BNB: { coin: 'BNB', network: 'BSC' },
   USDTB: { coin: 'USDT', network: 'BSC' },
+  NEAR: { coin: 'NEAR', network: 'NEAR' },
 };
 
 /** Their errors come as { errors: { someName: { message, args } } }. */
@@ -522,6 +522,7 @@ const CN_COIN: Partial<Record<Asset, { ticker: string; network: string }>> = {
   ZANO: { ticker: 'zano', network: 'zano' },
   ARRR: { ticker: 'arrr', network: 'arrr' },
   ETHP: { ticker: 'weth', network: 'matic' }, // WETH (Polygon) in their list, the same contract
+  NEAR: { ticker: 'near', network: 'near' },
   // No SCRT: ChangeNOW doesn't list it.
 };
 

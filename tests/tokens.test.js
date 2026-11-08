@@ -14,10 +14,10 @@ test('each new token sits on its own chain with the contract and decimals from t
   assert.equal(chainOf('BNB'), BSC);
   assert.equal(BSC.id, 56n);
   assert.equal(BSC.tokens.USDTB.decimals, 18, 'USDT on BNB Smart Chain has 18 decimals');
-  assert.equal(ETHEREUM.tokens.NEARE.decimals, 24);
+  assert.equal(ETHEREUM.tokens.NEARE, undefined, 'NEAR is native now, not the Ethereum token');
   assert.equal(POLYGON.tokens.ETHP.contract, '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619', 'ETH on Polygon');
   assert.equal(chainOf('ETHP'), POLYGON);
-  for (const a of ['UNI', 'PEPE', 'AAVE', 'NEARE']) assert.equal(chainOf(a), ETHEREUM, a);
+  for (const a of ['UNI', 'PEPE', 'AAVE']) assert.equal(chainOf(a), ETHEREUM, a);
   assert.equal(SPL_TOKENS.JUP.decimals, 6);
   assert.equal(SPL_TOKENS.RAY.mint, '4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R');
 });

@@ -48,6 +48,8 @@ const service = new WalletService('/data', undefined, {
   bchApi: __TEST__ ? testConfig.bchApi : undefined,
   ltcApi: __TEST__ ? testConfig.ltcApi : undefined,
   scrtLcd: __TEST__ ? testConfig.scrtLcd : undefined,
+  nearRpc: __TEST__ ? testConfig.nearRpc : undefined,
+  nearHistory: __TEST__ ? testConfig.nearHistory : undefined,
   polRpc: __TEST__ ? testConfig.polRpc : undefined,
   polScout: __TEST__ ? testConfig.polScout : undefined,
   arbRpc: __TEST__ ? testConfig.arbRpc : undefined,
