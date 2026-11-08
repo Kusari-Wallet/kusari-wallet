@@ -42,6 +42,18 @@ const QUOTE_EXTRAS_MS = 8_000;
 // ChangeNOW's own names, checked against their currency list.
 // Shown without its bitcoincash: prefix, as most wallets and exchanges show it; both forms are the same address.
 const bareBch = (a: string) => a.replace(/^bitcoincash:/, '');
+/** Typed-data requests come as [address, data]; some dApps send them the other way round, and the data as text. */
+function typedRequest(params: any): { who: string; data: any } {
+  const [a, b] = Array.isArray(params) ? params : [];
+  const isAddr = (x: unknown) => typeof x === 'string' && /^0x[0-9a-fA-F]{40}$/.test(x);
+  const [who, raw] = isAddr(a) ? [a, b] : isAddr(b) ? [b, a] : ['', b];
+  if (Array.isArray(raw)) throw new Error('The dApp asked for an old kind of signature this wallet doesn\'t make.');
+  let data: any;
+  try { data = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch { throw new Error('The dApp sent a message this wallet can\'t read.'); }
+  if (!data || typeof data !== 'object' || !data.types || !data.primaryType) throw new Error('The dApp sent a message this wallet can\'t read.');
+  return { who: String(who), data };
+}
+
 const BUY_TICKER: Record<Asset, string> = { NEAR: 'near', BTC: 'btc', XMR: 'xmr', ETH: 'eth', ZEC: 'zec', SOL: 'sol', TRX: 'trx', USDTE: 'usdterc20', LINK: 'link', WLD: 'wlderc20', USDT: 'usdttrc20', USDTS: 'usdtsol', POL: 'maticmainnet', USDTP: 'usdtmatic', ARB: 'arb', ETHA: 'etharb', USDTA: 'usdtarb', BCH: 'bch', LTC: 'ltc', DOGE: 'doge', DASH: 'dash', FIRO: 'firo', ZANO: 'zano', ARRR: 'arrr', SCRT: '', SSCRT: '', ETHP: 'wethmatic', UNI: 'uni', PEPE: 'pepe', AAVE: '', BNB: 'bnbbsc', USDTB: 'usdtbsc', ASTER: 'asterbsc', CAKE: 'cake', JUP: 'jup', RAY: 'raysol', USDCE: 'usdc', USDCB: 'usdcbsc', USDCS: 'usdcsol', USDCP: 'usdcmatic', USDCA: 'usdcarb' }; // empty: ChangeNOW doesn't sell it (no SCRT or AAVE; its NEAR is the native coin). Checked against their list.
 const SWAP_NAMES: Record<SwapProviderId, string> = { exolix: 'Exolix', simpleswap: 'SimpleSwap', ghostswap: 'GhostSwap', etzswap: 'ETZ Swap', ccecash: 'CCECash', changenow: 'ChangeNOW' };
 
@@ -924,9 +936,8 @@ export class WalletService extends EventEmitter {
       return { ...base, kind: 'message', message: /^[\x09\x0a\x0d\x20-\x7e\u00a0-\uffff]*$/.test(text) ? text : `0x${bytes.toString('hex')}`, warnings };
     }
     if (r.method.startsWith('eth_signTypedData')) {
-      const [who, json] = r.params ?? [];
-      if (String(who ?? '').toLowerCase() !== me) warnings.push('The dApp named a different address.');
-      const data = typeof json === 'string' ? JSON.parse(json) : json;
+      const { who, data } = typedRequest(r.params);
+      if (who.toLowerCase() !== me) warnings.push('The dApp named a different address.');
       if (/permit/i.test(String(data?.primaryType))) warnings.push('This is a permit: signing it lets the dApp move your tokens without another confirmation.');
       if (data?.domain?.chainId !== undefined && BigInt(data.domain.chainId) !== r.chainId) warnings.push('The message names a different network.');
       return { ...base, kind: 'typed', type: String(data?.primaryType ?? ''), domain: String(data?.domain?.name ?? ''), contract: String(data?.domain?.verifyingContract ?? ''), message: JSON.stringify(data?.message ?? {}, null, 1).slice(0, 2000), warnings };
@@ -957,8 +968,7 @@ export class WalletService extends EventEmitter {
       const msg = String(r.params?.[0] ?? '');
       result = await account.wallet.signMessage(/^0x[0-9a-fA-F]*$/.test(msg) ? Buffer.from(msg.slice(2), 'hex') : msg);
     } else if (r.method.startsWith('eth_signTypedData')) {
-      const raw = r.params?.[1];
-      const data = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      const { data } = typedRequest(r.params);
       const { EIP712Domain: _d, ...types } = data.types ?? {};
       result = await account.wallet.signTypedData(data.domain ?? {}, types, data.message ?? {});
     } else {

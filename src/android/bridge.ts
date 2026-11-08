@@ -70,7 +70,7 @@ service.on('tron-tx', (t) => emit('tron-tx', t));
 service.on('locked', () => emit('locked'));
 service.on('tor-state', (s) => emit('tor-state', s));
 service.on('tornado-progress', (m) => emit('tornado-progress', m));
-for (const e of ['wc-proposal', 'wc-request', 'wc-sessions']) service.on(e, (d) => emit(e, d));
+for (const e of ['wc-proposal', 'wc-request', 'wc-sessions', 'wc-refused']) service.on(e, (d) => emit(e, d));
 // MainActivity calls this when a dApp opens a wc: link while the app is running.
 (window as any).__wcLink = () => emit('wc-link');
 

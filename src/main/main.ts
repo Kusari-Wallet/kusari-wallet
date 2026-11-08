@@ -1,5 +1,5 @@
 import type { Asset } from './config';
-import { app, BrowserWindow, clipboard, desktopCapturer, ipcMain, Menu, screen, session, shell } from 'electron';
+import { app, BrowserWindow, clipboard, desktopCapturer, ipcMain, Menu, Notification, screen, session, shell } from 'electron';
 import { findWcQr } from './qr-scan';
 import { isWcLink, wcLinkOf } from './wc-link';
 import { existsSync } from 'node:fs';
@@ -32,7 +32,60 @@ function bringToFront(): void {
   if (!win || win.isDestroyed()) return;
   if (win.isMinimized()) win.restore();
   win.show();
+  // Windows won't let a background app take focus, so the dApp's browser would stay on top and hide the request:
+  // stay on top for a moment, take the focus, and flash in the taskbar.
+  win.setAlwaysOnTop(true);
   win.focus();
+  app.focus({ steal: true });
+  setTimeout(() => { if (win && !win.isDestroyed()) win.setAlwaysOnTop(false); }, 1500);
+  if (!win.isFocused()) win.flashFrame(true);
+}
+
+// dApp requests waiting for the request window, and the ones it is showing (answered or not when it closes).
+const popupQueue: { e: string; d: any }[] = [];
+const popupShown = new Map<number, string>();
+let popup: BrowserWindow | null = null;
+
+/** A small window just for a dApp's request, on top of the browser, like other wallets' confirmation windows. */
+function openPopup(e: string, d: any): void {
+  popupQueue.push({ e, d });
+  if (popup && !popup.isDestroyed()) {
+    popup.webContents.send('wallet:wc-popup-more');
+    popup.show(); popup.focus();
+    return;
+  }
+  const area = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
+  popup = new BrowserWindow({
+    width: 400, height: 640, x: area.x + area.width - 420, y: area.y + 20, resizable: true, minimizable: false, maximizable: false,
+    alwaysOnTop: true, title: 'Kusari Wallet', backgroundColor: '#070707', show: false,
+    icon: path.join(__dirname, '../renderer/icon.png'),
+    webPreferences: { preload: path.join(__dirname, '../preload/preload.js'), contextIsolation: true, sandbox: true, nodeIntegration: false, webviewTag: false, devTools: !app.isPackaged },
+  });
+  popup.setMenuBarVisibility(false);
+  popup.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  popup.webContents.on('will-navigate', (ev) => ev.preventDefault());
+  popup.once('ready-to-show', () => { popup?.show(); popup?.focus(); app.focus({ steal: true }); });
+  popup.on('closed', () => {
+    // Closing the window without answering turns the request down, so the dApp isn't left waiting.
+    for (const [id, kind] of popupShown) {
+      if (kind === 'wc-proposal') void service.wcReject(id).catch(() => undefined);
+      if (kind === 'wc-request') void service.wcDecline(id).catch(() => undefined);
+    }
+    popupShown.clear();
+    popupQueue.length = 0;
+    popup = null;
+  });
+  notifyRequest(e, d);
+  void popup.loadFile(path.join(__dirname, '../renderer/index.html'), { hash: 'wc-popup' });
+}
+
+/** A request from a dApp, said on the desktop too, in case the wallet is behind other windows. */
+function notifyRequest(e: string, d: any): void {
+  if (!Notification.isSupported() || (win && !win.isDestroyed() && win.isFocused())) return;
+  const what = e === 'wc-proposal' ? 'wants to connect' : e === 'wc-refused' ? 'asked for something this wallet doesn\'t do' : 'asks for your approval';
+  const n = new Notification({ title: 'Kusari Wallet', body: `${String(d?.name ?? d?.dapp ?? 'A dApp').slice(0, 60)} ${what}.`, silent: false });
+  n.on('click', bringToFront);
+  n.show();
 }
 
 /** dApp features answer only in an unlocked WalletConnect wallet; a maximum-privacy wallet never reads the screen or clipboard for them. */
@@ -83,7 +136,7 @@ function createWindow(): void {
 function handle(channel: string, fn: (...args: any[]) => unknown): void {
   ipcMain.handle(channel, async (event, ...args) => {
     const url = event.senderFrame?.url ?? '';
-    if (!url.startsWith('file://') || !url.endsWith('/renderer/index.html')) throw new Error('This call is not allowed.');
+    if (!url.startsWith('file://') || !url.replace(/#wc-popup$/, '').endsWith('/renderer/index.html')) throw new Error('This call is not allowed.');
     if (channel !== 'wallet:status') bumpAutoLock();
     return fn(...args);
   });
@@ -111,11 +164,19 @@ app.whenReady().then(async () => {
   service.on('monero-state', (s) => emit('wallet:monero-state', s));
   service.on('balance-changed', () => emit('wallet:balance-changed'));
   service.on('tron-tx', (t) => emit('wallet:tron-tx', t));
-  service.on('locked', () => emit('wallet:locked'));
+  service.on('locked', () => { emit('wallet:locked'); if (popup && !popup.isDestroyed()) popup.close(); });
   service.on('tor-state', (s) => emit('wallet:tor-state', s));
   service.on('tor-install', (m) => emit('wallet:tor-install', m));
   service.on('tornado-progress', (m) => emit('wallet:tornado-progress', m));
-  for (const e of ['wc-proposal', 'wc-request', 'wc-sessions']) service.on(e, (d) => { if (e !== 'wc-sessions') bringToFront(); emit(`wallet:${e}`, d); });
+  for (const e of ['wc-proposal', 'wc-request', 'wc-sessions', 'wc-refused']) service.on(e, (d) => {
+    // The wallet in front: the request opens over its screen. Otherwise (the person is in the dApp's browser) it opens
+    // in its own small window on top, as other wallets do.
+    if (e !== 'wc-sessions' && !(win && !win.isDestroyed() && win.isFocused() && win.isVisible())) { openPopup(e, d); return; }
+    emit(`wallet:${e}`, d);
+  });
+  // Development builds only: puts a made-up dApp request into the request window, for the UI test.
+  if (!app.isPackaged) handle('wallet:devWcPopup', (e: string, d: unknown) => openPopup(e, d));
+  handle('wallet:wcPopupTake', () => { const next = popupQueue.shift() ?? null; if (next) popupShown.set(next.d?.id, next.e); return next; });
 
   handle('wallet:status', () => service.status());
   handle('wallet:arrrInfo', () => service.arrrInfo());

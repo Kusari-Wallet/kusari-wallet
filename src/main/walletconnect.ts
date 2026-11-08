@@ -14,7 +14,7 @@ export const WC_CHAINS: { id: bigint; name: string }[] = [
 ];
 /** Requests the wallet answers itself, and the ones that need the person and their password. */
 const SILENT = ['eth_accounts', 'eth_requestAccounts', 'eth_chainId', 'wallet_switchEthereumChain'];
-export const NEEDS_APPROVAL = ['personal_sign', 'eth_signTypedData', 'eth_signTypedData_v4', 'eth_sendTransaction'];
+export const NEEDS_APPROVAL = ['personal_sign', 'eth_signTypedData', 'eth_signTypedData_v3', 'eth_signTypedData_v4', 'eth_sendTransaction'];
 const EVENTS = ['accountsChanged', 'chainChanged'];
 
 /** WalletConnect's key-value store, kept as one JSON file in the wallet's own folder. */
@@ -147,15 +147,26 @@ export class WalletConnectManager {
     if (method === 'eth_chainId') return void answer(`0x${chainId.toString(16)}`);
     if (method === 'wallet_switchEthereumChain') {
       const want = BigInt(params?.[0]?.chainId ?? 0);
-      return void (WC_CHAINS.some((c) => c.id === want) ? answer(null) : refuse('This wallet doesn\'t support that network.', 4902));
+      if (WC_CHAINS.some((c) => c.id === want)) return void answer(null);
+      this.tellRefused(topic, method, `network ${want}`);
+      return void refuse('This wallet doesn\'t support that network.', 4902);
     }
-    if (!NEEDS_APPROVAL.includes(method) || !WC_CHAINS.some((c) => c.id === chainId)) return void refuse(`This wallet doesn't do ${method || 'that'}.`, 4200);
+    if (!NEEDS_APPROVAL.includes(method) || !WC_CHAINS.some((c) => c.id === chainId)) {
+      // Never turned down silently: the person sees what the dApp asked for and why nothing popped up.
+      this.tellRefused(topic, method, WC_CHAINS.some((c) => c.id === chainId) ? '' : `network ${chainId}`);
+      return void refuse(`This wallet doesn't do ${method || 'that'}.`, 4200);
+    }
     const session = this.kit!.getActiveSessions()[topic];
     const meta = session?.peer?.metadata ?? {};
     const request: WcRequest = { id, topic, dapp: String(meta.name ?? 'dApp'), url: String(meta.url ?? ''), chainId, method, params };
     this.requests.set(id, request);
     // Only what the screen needs, as plain values: the details are read with wcRequestInfo.
     this.emit('wc-request', { id, dapp: request.dapp, url: request.url, chainId: String(chainId), method });
+  }
+
+  private tellRefused(topic: string, method: string, network: string): void {
+    const meta = this.kit?.getActiveSessions()?.[topic]?.peer?.metadata ?? {};
+    this.emit('wc-refused', { dapp: String(meta.name ?? 'dApp').slice(0, 80), url: String(meta.url ?? '').slice(0, 200), method: method.slice(0, 60), network });
   }
 
   request(id: number): WcRequest {

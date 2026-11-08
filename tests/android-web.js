@@ -15,6 +15,11 @@ const { NETWORKS } = require('../dist/main/config');
 const { mockSocks } = require('./mock-socks');
 const https = require('node:https');
 
+/** Opens a coin menu's token group unless it is already open. */
+async function openFold(page, sel) {
+  if ((await page.getAttribute(sel, 'aria-expanded')) !== 'true') await page.click(sel);
+}
+
 
 const QRCode = require('qrcode');
 /** A short Y4M video showing one QR code, for Chromium's fake camera. */
@@ -272,6 +277,7 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
   // swap through the Java forwarder
   await page.click('#go-swap');
   await page.click('#swap-from');
+  await openFold(page, '#swap-from-fold-TRX'); // tokens fold under their network
   await page.click('#swap-from-USDT');
   await page.click('#swap-to');
   await page.click('#swap-to-XMR');

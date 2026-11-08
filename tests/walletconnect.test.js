@@ -87,3 +87,36 @@ test('the WalletConnect store keeps its entries in one file', async (t) => {
   assert.deepEqual(await b.getEntries(), [['x', { y: 1 }]]);
   assert.equal((fs.statSync(f).mode & 0o777).toString(8), '600');
 });
+
+test('typed data the way perp DEXes send it: another network in the domain, data as an object, or in the other order', async (t) => {
+  // An "enable trading" approval: signed for chain 1337 while the session is on Arbitrum.
+  const data = {
+    types: { EIP712Domain: [{ name: 'name', type: 'string' }, { name: 'chainId', type: 'uint256' }], Agent: [{ name: 'source', type: 'string' }, { name: 'connectionId', type: 'bytes32' }] },
+    domain: { name: 'Exchange', chainId: 1337 }, primaryType: 'Agent', message: { source: 'a', connectionId: '0x' + '11'.repeat(32) },
+  };
+  for (const params of [[ME, data], [JSON.stringify(data), ME]]) {
+    const { s, answered } = setup(t, { id: 5, dapp: 'Perp', url: '', chainId: 42161n, method: 'eth_signTypedData_v4', params });
+    const info = await s.wcRequestInfo(5);
+    assert.equal(info.kind, 'typed');
+    assert.match(info.warnings.join(' '), /different network/, 'shown, with a warning, not refused');
+    await s.wcConfirm(5, 'right password');
+    assert.equal(verifyTypedData(data.domain, { Agent: data.types.Agent }, data.message, answered[0]), ME);
+  }
+  const old = setup(t, { id: 6, dapp: 'D', url: '', chainId: 1n, method: 'eth_signTypedData', params: [[{ type: 'string', name: 'x', value: 'y' }], ME] });
+  await assert.rejects(old.s.wcRequestInfo(6), /old kind of signature/);
+});
+
+test('a request the wallet can\'t do is answered with an error and shown, never dropped silently', async () => {
+  const { WalletConnectManager } = require('../dist/main/walletconnect');
+  const events = [];
+  const answers = [];
+  const m = new WalletConnectManager('p', '/nonexistent', ME, (e, d) => events.push([e, d]));
+  m.kit = { respondSessionRequest: async (r) => answers.push(r.response), getActiveSessions: () => ({ t1: { peer: { metadata: { name: 'Perp', url: 'https://perp.example' } } } }) };
+  await m.onRequest({ topic: 't1', id: 9, params: { chainId: 'eip155:42161', request: { method: 'eth_sign', params: [] } } });
+  await m.onRequest({ topic: 't1', id: 10, params: { chainId: 'eip155:999', request: { method: 'personal_sign', params: [] } } });
+  assert.equal(answers.length, 2);
+  assert.ok(answers.every((a) => a.error));
+  assert.deepEqual(events.map(([e]) => e), ['wc-refused', 'wc-refused']);
+  assert.equal(events[0][1].method, 'eth_sign');
+  assert.equal(events[1][1].network, 'network 999');
+});

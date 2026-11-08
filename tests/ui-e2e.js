@@ -8,6 +8,11 @@ const { mockNode, MNEMONIC, RECIPIENT, me } = require('./mock-tron');
 const { TronWeb } = require('tronweb');
 const { mockSocks } = require('./mock-socks');
 
+/** Opens a coin menu's token group unless it is already open. */
+async function openFold(page, sel) {
+  if ((await page.getAttribute(sel, 'aria-expanded')) !== 'true') await page.click(sel);
+}
+
 
 const QRCode = require('qrcode');
 /** A short Y4M video showing one QR code, for Chromium's fake camera. */
@@ -73,6 +78,16 @@ const PASSWORD = 'correct horse battery';
   assert.ok(await page.locator('#next').isDisabled(), 'cannot continue before ticking the box');
   const tronSeed = (await page.locator('.seed').nth(0).locator('li').allInnerTexts()).map((t) => t.split('\n').pop().trim());
   const xmrSeed = (await page.locator('.seed').nth(1).locator('li').allInnerTexts()).map((t) => t.split('\n').pop().trim());
+  await page.click('#seed-qr-show'); // both seeds as one QR code, hidden until asked for
+  const seedQr = await page.locator('#seed-qr-img').evaluate(async (img) => {
+    await img.decode();
+    const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight;
+    const x = c.getContext('2d'); x.drawImage(img, 0, 0);
+    return jsQR(x.getImageData(0, 0, c.width, c.height).data, c.width, c.height)?.data ?? '';
+  });
+  assert.match(seedQr, /^kusari-seeds:1\?b=[a-z]+(-[a-z]+){11}&m=[a-z]+(-[a-z]+){24}$/, 'the QR holds both seeds');
+  await page.click('#seed-qr-show');
+  assert.equal(await page.locator('#seed-qr-img').count(), 0);
   await page.check('#saved');
   await page.click('#next');
   // wrong quiz answer is refused
@@ -254,6 +269,7 @@ const PASSWORD = 'correct horse battery';
   await page.click('#send-again');
   await page.click('#coin-picker');
   await shot('picker');
+  await openFold(page, '#pick-fold-TRX'); // tokens fold under their network
   await page.click('#pick-USDT');
   await page.fill('#to', RECIPIENT);
   await page.fill('#amount', '2');
@@ -314,6 +330,7 @@ const PASSWORD = 'correct horse battery';
   await shot('swap-empty');
   assert.ok(await page.locator('#swap-next').isDisabled());
   await page.click('#swap-from');
+  await openFold(page, '#swap-from-fold-TRX'); // tokens fold under their network
   await page.click('#swap-from-USDT');
   await page.click('#swap-to');
   await page.click('#swap-to-XMR');
@@ -359,6 +376,7 @@ const PASSWORD = 'correct horse battery';
   await page.click('#nav-home');
   await page.click('#go-swap');
   await page.click('#swap-from');
+  await openFold(page, '#swap-from-fold-TRX'); // tokens fold under their network
   await page.click('#swap-from-USDT');
   await page.click('#swap-to');
   await page.click('#swap-to-XMR');
@@ -419,6 +437,7 @@ const PASSWORD = 'correct horse battery';
   assert.equal(ethTx.nonce, 7);
   await page.click('#send-again');
   await page.click('#coin-picker');
+  await openFold(page, '#pick-fold-ETH'); // tokens fold under their network
   await page.click('#pick-USDTE');
   await page.fill('#to', ETH_TO);
   await page.fill('#amount', '2');
@@ -574,7 +593,8 @@ const PASSWORD = 'correct horse battery';
   await page.click('#nav-home');
   await page.click('#go-swap');
   await page.click('#swap-from'); await page.click('#swap-from-ETH');
-  await page.click('#swap-to'); await page.click('#swap-to-USDTE');
+  await page.click('#swap-to'); await openFold(page, '#swap-to-fold-ETH'); // tokens fold under their network
+  await page.click('#swap-to-USDTE');
   await page.fill('#swap-amount', '0.01');
   await page.locator('#offer-uniswap').waitFor({ timeout: 20000 });
   assert.match(await page.locator('#offer-uniswap').innerText(), /on-chain/);
@@ -712,6 +732,20 @@ const PASSWORD = 'correct horse battery';
     await shot('dapps');
     await page.click('#back');
     await page.locator('#go-dapps').waitFor();
+  }
+  // Outside the wallet, a dApp's request opens in its own small window on top, like other wallets' confirmations.
+  if ((await page.evaluate(() => window.wallet.wcInfo())).available) {
+    const opened = app.waitForEvent('window');
+    await page.evaluate(() => window.wallet.devWcPopup('wc-proposal', { id: 77, name: 'Example DEX', url: 'https://dex.example', description: '', chains: ['eip155:1', 'eip155:42161'], unsupported: [], verified: 'VALID', scam: false }));
+    const pop = await opened;
+    await pop.locator('#wc-proposal #wc-dapp', { hasText: 'dex.example' }).waitFor({ timeout: 20000 });
+    assert.match(await pop.locator('#wc-proposal').innerText(), /Ethereum, Arbitrum/);
+    await pop.waitForTimeout(400);
+    await pop.screenshot({ path: path.join(shots, 'wc-popup.png') });
+    const closed = pop.waitForEvent('close');
+    await pop.click('#wc-reject');
+    await closed; // answered, so the window goes away
+    console.log('ok dApp request in its own window');
   }
   // A WalletConnect wallet has no Tor, and its mode can't be switched afterwards.
   await page.click('#open-settings');

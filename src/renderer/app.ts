@@ -9,6 +9,7 @@ const ALL_ASSETS: Asset[] = ['XMR', 'BTC', 'ETH', 'USDTE', 'USDCE', 'LINK', 'WLD
 /** Tokens shown under the coin of their chain on the home screen, folded until opened. */
 const GROUPS: Partial<Record<Asset, Asset[]>> = { ETH: ['USDTE', 'USDCE', 'LINK', 'WLD', 'UNI', 'PEPE', 'AAVE'], SOL: ['USDTS', 'USDCS', 'JUP', 'RAY'], TRX: ['USDT'], BNB: ['USDTB', 'USDCB', 'ASTER', 'CAKE'], POL: ['ETHP', 'USDTP', 'USDCP'], ARB: ['ETHA', 'USDTA', 'USDCA'], SCRT: ['SSCRT'] };
 const IN_GROUP = new Set(Object.values(GROUPS).flat());
+const GROUP_OF: Partial<Record<Asset, Asset>> = Object.fromEntries(Object.entries(GROUPS).flatMap(([parent, kids]) => (kids ?? []).map((k) => [k, parent])));
 const EVM_ASSETS: Asset[] = ['ETH', 'USDTE', 'USDCE', 'LINK', 'WLD', 'ETHP', 'UNI', 'PEPE', 'AAVE', 'POL', 'USDTP', 'ARB', 'ETHA', 'USDTA', 'BNB', 'USDTB', 'ASTER', 'CAKE', 'USDCB', 'USDCP', 'USDCA'];
 const SPL_ASSETS: Asset[] = ['USDTS', 'USDCS', 'JUP', 'RAY'];
 const BSC_ASSETS: Asset[] = ['BNB', 'USDTB', 'USDCB', 'ASTER', 'CAKE'];
@@ -327,6 +328,35 @@ function seedCard(title: string, note: string, phrase: string): HTMLElement {
     h('ol', { class: 'words' }, ...phrase.split(' ').map((w, i) => h('li', {}, h('i', {}, String(i + 1)), w))));
 }
 
+/** Both seeds in one QR code, which this wallet's restore screen reads: kusari-seeds:1?b=<12 words>&m=<25 words>. */
+const seedQrText = (seeds: { tronMnemonic: string; moneroSeed: string }) => `kusari-seeds:1?b=${seeds.tronMnemonic.trim().split(/\s+/).join('-')}&m=${seeds.moneroSeed.trim().split(/\s+/).join('-')}`;
+
+/** Reads a seed QR: this wallet's own (both seeds), or a plain list of 12/24 words (BIP39) or 25 words (Monero). */
+function parseSeedQr(text: string): { bip39?: string; monero?: string } | null {
+  const t = text.trim();
+  const own = /^kusari-seeds:1\?b=([a-z-]+)&m=([a-z-]+)$/.exec(t);
+  if (own) return { bip39: own[1].split('-').join(' '), monero: own[2].split('-').join(' ') };
+  const words = t.toLowerCase().split(/\s+/);
+  if (!words.every((w) => /^[a-z]+$/.test(w))) return null;
+  if (words.length === 12 || words.length === 24) return { bip39: words.join(' ') };
+  if (words.length === 25) return { monero: words.join(' ') };
+  return null;
+}
+
+/** The seeds as a QR code, hidden until asked for: a picture of it is as good as the seeds themselves. */
+function seedQrCard(seeds: { tronMnemonic: string; moneroSeed: string }): HTMLElement {
+  const holder = h('div', { class: 'seed-qr', id: 'seed-qr' });
+  const show: HTMLButtonElement = h('button', { type: 'button', class: 'secondary', id: 'seed-qr-show', onclick: async () => {
+    if (holder.childElementCount) { setKids(holder); show.textContent = 'Show as QR code'; return; }
+    const src = await wallet.qr(seedQrText(seeds));
+    setKids(holder, h('img', { src, alt: 'Seed QR code', id: 'seed-qr-img' }));
+    show.textContent = 'Hide QR code';
+  } }, 'Show as QR code');
+  return h('div', { class: 'seed' }, h('h3', {}, 'Both seeds as a QR code'),
+    h('p', { class: 'muted small' }, 'For restoring this wallet by scanning instead of typing. Anyone who sees or photographs this code can take all your coins: show it only to restore, and keep the written words as the backup.'),
+    show, holder);
+}
+
 function createStep2(password: string, seeds: { tronMnemonic: string; moneroSeed: string }): void {
   const ok = h('input', { type: 'checkbox', id: 'saved' });
   const go = h('button', { class: 'primary', id: 'next', disabled: true, onclick: () => createStep3(password, seeds) }, 'Continue to backup check');
@@ -336,6 +366,7 @@ function createStep2(password: string, seeds: { tronMnemonic: string; moneroSeed
     h('p', { class: 'lead' }, 'Anyone with these seeds can take all your coins. Don\'t save them in photos, cloud storage or messengers.'),
     seedCard('BTC·ETH·Tron·SOL·DOGE·DASH seed, 12 words', 'For BTC, ETH, TRX, USDT, SOL, DOGE, DASH, FIRO, ZEC, ZANO, ARRR. Restores in BIP39 wallets such as Sparrow, MetaMask, TronLink and Phantom.', seeds.tronMnemonic),
     seedCard('Monero seed, 25 words', 'For XMR. Works with Monero GUI and Cake Wallet.', seeds.moneroSeed),
+    seedQrCard(seeds),
     h('label', { class: 'check' }, ok, h('span', {}, 'I wrote down both seeds.')),
     h('div', { class: 'btn-row' }, h('button', { class: 'ghost', onclick: welcome }, 'Cancel'), go),
     skipBackupButton(password, seeds, () => createStep2(password, seeds)));
@@ -398,7 +429,17 @@ function restoreForm(): void {
       await enterWallet();
     });
   }) }, 'Restore');
-  entry(h('h2', {}, 'Restore from seeds'), h('br'), box.el,
+  const scan = h('button', { type: 'button', class: 'secondary', id: 'seed-scan', onclick: () => void openScanner('XMR', () => undefined, {
+    parse: (t) => (parseSeedQr(t) ? t : null),
+    wrong: 'This is not a seed QR code.',
+    onText: (t) => {
+      const got = parseSeedQr(t)!;
+      if (got.bip39) tron.value = got.bip39;
+      if (got.monero) xmr.value = got.monero;
+      toast(got.bip39 && got.monero ? 'Both seeds filled in.' : 'Seed filled in. Add the other one.');
+    },
+  }) }, icon('scan'), 'Scan seed QR code');
+  entry(h('h2', {}, 'Restore from seeds'), h('p', { class: 'small muted' }, 'Type the words, or scan the QR code this wallet shows for your seeds.'), scan, h('br'), box.el,
     h('label', { class: 'field' }, h('span', {}, 'BTC·ETH·Tron seed (BIP39)'), tron),
     h('label', { class: 'field' }, h('span', {}, 'Monero seed (25 words)'), xmr),
     h('label', { class: 'field' }, h('span', {}, 'When Monero was first used'), from,
@@ -836,10 +877,33 @@ function renderZecRescan(coin: 'ZEC' | 'ARRR' = 'ZEC'): void {
 
 // ---- coin picker ----
 
+/**
+ * A coin list with each network's tokens folded under its own coin, as on the home screen: the arrow beside a coin
+ * shows its tokens. The group holding the current coin starts open.
+ */
+function coinMenu(prefix: string, assets: Asset[], current: Asset, onPick: (a: Asset) => void): HTMLElement[] {
+  const rows: HTMLElement[] = [];
+  for (const a of assets) {
+    if (IN_GROUP.has(a) && assets.includes(GROUP_OF[a] as Asset)) continue;
+    const pick = h('button', { type: 'button', id: `${prefix}-${a}`, onclick: () => onPick(a) }, coin(a), COIN[a].label);
+    const kids = (GROUPS[a] ?? []).filter((k) => assets.includes(k));
+    if (!kids.length) { rows.push(pick); continue; }
+    const open = kids.includes(current);
+    const sub = h('div', { class: 'menu-sub', id: `${prefix}-tokens-${a}`, hidden: !open },
+      ...kids.map((k) => h('button', { type: 'button', class: 'menu-token', id: `${prefix}-${k}`, onclick: () => onPick(k) }, coin(k), COIN[k].label)));
+    const fold: HTMLButtonElement = h('button', { type: 'button', class: 'menu-fold', id: `${prefix}-fold-${a}`, 'aria-expanded': String(open), 'aria-controls': `${prefix}-tokens-${a}`, 'aria-label': `${COIN[a].label} tokens`, onclick: (e: Event) => {
+      e.stopPropagation();
+      sub.hidden = !sub.hidden;
+      fold.setAttribute('aria-expanded', String(!sub.hidden));
+    } }, icon('down'));
+    rows.push(h('div', { class: 'menu-group' }, h('div', { class: 'menu-row' }, pick, fold), sub));
+  }
+  return rows;
+}
+
 function picker(onPick: () => void): HTMLElement {
   const wrap = h('div', { class: 'picker' });
-  const menu = h('div', { class: 'menu', hidden: true, id: 'coin-menu' },
-    ...ASSETS.map((a) => h('button', { type: 'button', id: `pick-${a}`, onclick: () => { selected = a; onPick(); } }, coin(a), COIN[a].label)));
+  const menu = h('div', { class: 'menu', hidden: true, id: 'coin-menu' }, ...coinMenu('pick', ASSETS, selected, (a) => { selected = a; onPick(); }));
   const btn = h('button', { type: 'button', class: 'picker-btn', id: 'coin-picker', 'aria-haspopup': 'true', 'aria-label': `Choose a coin, currently ${selected}`, onclick: () => { menu.hidden = !menu.hidden; } },
     coin(selected), h('span', { class: 'picker-label' }, COIN[selected].label, icon('down')));
   wrap.append(btn, menu);
@@ -1269,7 +1333,7 @@ const SWAP_STATUS: Record<string, string> = {
 };
 
 function coinSelect(id: string, current: Asset, onPick: (a: Asset) => void): HTMLElement {
-  const menu = h('div', { class: 'menu', hidden: true, id: `${id}-menu` }, ...ASSETS.filter((a) => a !== 'SSCRT').map((a) => h('button', { type: 'button', id: `${id}-${a}`, onclick: () => onPick(a) }, coin(a), COIN[a].label)));
+  const menu = h('div', { class: 'menu', hidden: true, id: `${id}-menu` }, ...coinMenu(id, ASSETS.filter((a) => a !== 'SSCRT'), current, onPick));
   return h('div', { class: 'coin-select' },
     h('button', { type: 'button', id, class: 'coin-select-btn', 'aria-label': `Choose a coin, currently ${coinName(current)}`, onclick: () => { menu.hidden = !menu.hidden; } }, coin(current), h('span', {}, coinName(current)), icon('down')),
     menu);
@@ -1603,7 +1667,7 @@ wallet.on('wc-link', () => void takeWcLink());
 
 // On a computer, coming back to the wallet with a wc: link copied connects it right away, no pasting.
 window.addEventListener('focus', () => {
-  if (!wcOn || !wallet.wcScanScreen) return;
+  if (!wcOn || !wallet.wcScanScreen || location.hash === '#wc-popup') return;
   void (async () => {
     const copied = String(await wallet.wcClipboard?.().catch(() => '') ?? '');
     if (copied && copied !== wcSeen) await wcPairNow(copied).catch(() => undefined);
@@ -1643,7 +1707,8 @@ async function inWcWallet(): Promise<boolean> {
   return wcOn;
 }
 
-wallet.on('wc-proposal', async (p: any) => {
+async function showProposal(p: any): Promise<void> {
+  if (!overview) await refresh(); // the account's value, in the request window too
   if (!(await inWcWallet())) { void wallet.wcReject(p.id).catch(() => undefined); return; }
   const box = errorBox();
   const yes = h('button', { class: 'pill pill-light', id: 'wc-approve', onclick: () => busy(yes, 'Connecting…', box, async () => { await wallet.wcApprove(p.id); m.close(); toast(`Connected to ${dappHost(p.url, p.name)}.`); }) }, 'Connect');
@@ -1674,13 +1739,32 @@ wallet.on('wc-proposal', async (p: any) => {
     box.el,
     h('div', { class: 'pill-row' }, no, yes));
   void m;
-});
+}
+wallet.on('wc-proposal', (p: any) => void showProposal(p));
+
+/** Something a dApp asked for was turned down: said in a small window, never silently. */
+function wcNotice(dapp: string, url: string, text: string): void {
+  const m = modal('wc-notice', dappHead({ name: dapp, url }, 'Request turned down'), h('div', { class: 'warn', id: 'wc-notice-text' }, text),
+    h('button', { class: 'pill pill-light', id: 'wc-notice-ok', onclick: () => m.close() }, 'OK'));
+}
+
+async function showRefused(r: any): Promise<void> {
+  if (!(await inWcWallet())) return;
+  wcNotice(r.dapp, r.url, r.network
+    ? `${r.dapp} asked to use ${r.network}, which this wallet doesn't connect to dApps. Only Ethereum, Polygon, Arbitrum and BNB Smart Chain are offered.`
+    : `${r.dapp} asked for ${r.method || 'something'}, which this wallet doesn't do.`);
+}
+wallet.on('wc-refused', (r: any) => void showRefused(r));
 
 /** A dApp asks for a signature or a transaction. Nothing happens without the password. */
-wallet.on('wc-request', async (q: any) => {
+async function showRequest(q: any): Promise<void> {
   if (!(await inWcWallet())) { void wallet.wcDecline(q.id).catch(() => undefined); return; }
   let info: any;
-  try { info = await wallet.wcRequestInfo(q.id); } catch { void wallet.wcDecline(q.id).catch(() => undefined); return; }
+  try { info = await wallet.wcRequestInfo(q.id); } catch (e) {
+    void wallet.wcDecline(q.id).catch(() => undefined);
+    wcNotice(q.dapp, q.url, `${q.dapp} sent a request that was turned down: ${errMsg(e)}`);
+    return;
+  }
   const box = errorBox();
   const tx = info.kind === 'transaction';
   const pw = h('input', { type: 'password', id: 'wc-pw', autocomplete: 'current-password', placeholder: 'Password' });
@@ -1702,7 +1786,8 @@ wallet.on('wc-request', async (q: any) => {
   box.el, pw,
   h('div', { class: 'pill-row' }, h('button', { type: 'button', class: 'pill pill-dark', id: 'wc-decline', onclick: decline }, 'Reject'), ok)));
   pw.focus();
-});
+}
+wallet.on('wc-request', (q: any) => void showRequest(q));
 
 // ---- several wallets ----
 
@@ -2020,7 +2105,7 @@ async function renderSettings(): Promise<void> {
   const rev = h('button', { id: 'reveal', onclick: () => busy(rev, 'Opening…', seedBox, async () => {
     const seeds = await wallet.revealSeeds(seedPw.value);
     seedPw.value = '';
-    setKids(seedOut, h('br'), seedCard('BTC·ETH·Tron seed', '', seeds.tronMnemonic), seedCard('Monero seed', '', seeds.moneroSeed),
+    setKids(seedOut, h('br'), seedCard('BTC·ETH·Tron seed', '', seeds.tronMnemonic), seedCard('Monero seed', '', seeds.moneroSeed), seedQrCard(seeds),
       h('button', { class: 'ghost', onclick: () => setKids(seedOut) }, 'Hide'));
   }) }, 'Show seeds');
 
@@ -2147,10 +2232,35 @@ for (const type of ['mousedown', 'keydown']) {
   }, { passive: true });
 }
 
+/**
+ * The request window the desktop app opens over the dApp's browser: it shows one dApp request after another, then
+ * closes. Closing it unanswered turns the request down.
+ */
+async function runRequestWindow(): Promise<void> {
+  show('send', h('div', { class: 'scroll popup-shell' }));
+  wcOn = true;
+  void refresh();
+  let taking = false;
+  const next = async () => {
+    if (taking || document.querySelector('.modal')) return;
+    taking = true;
+    try {
+      const item = await wallet.wcPopupTake();
+      if (!item) { window.close(); return; }
+      if (item.e === 'wc-proposal') await showProposal(item.d);
+      else if (item.e === 'wc-request') await showRequest(item.d);
+      else await showRefused(item.d);
+    } finally { taking = false; }
+  };
+  new MutationObserver(() => { if (!document.querySelector('.modal')) void next(); }).observe(root, { childList: true, subtree: true });
+  wallet.on('wc-popup-more', () => void next());
+  await next();
+}
+
 async function boot(first = false): Promise<void> {
   const [s] = await Promise.all([wallet.status(), first ? new Promise((r) => setTimeout(r, 900)) : null]);
   if (!s.hasWallet) welcome();
   else if (s.unlocked) await enterWallet();
   else unlockScreen();
 }
-void boot(true);
+if (location.hash === '#wc-popup') void runRequestWindow(); else void boot(true);
