@@ -3,9 +3,9 @@ export type NetworkId = 'mainnet' | 'testnet';
  * USDT is the Tron token, USDTE the Ethereum one, USDTS Solana's, USDTP Polygon's and USDTA Arbitrum's.
  * ETHA is ETH on Arbitrum, which pays Arbitrum's fees; ARB is the token.
  */
-export type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'LINK' | 'WLD' | 'SOL' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA' | 'BCH' | 'LTC' | 'DOGE' | 'DASH' | 'FIRO' | 'ZEC' | 'ZANO' | 'ARRR' | 'SCRT' | 'SSCRT' | 'POLE' | 'UNI' | 'PEPE' | 'AAVE' | 'NEARE' | 'BNB' | 'USDTB' | 'ASTER' | 'CAKE' | 'JUP' | 'RAY';
+export type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'LINK' | 'WLD' | 'SOL' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA' | 'BCH' | 'LTC' | 'DOGE' | 'DASH' | 'FIRO' | 'ZEC' | 'ZANO' | 'ARRR' | 'SCRT' | 'SSCRT' | 'ETHP' | 'UNI' | 'PEPE' | 'AAVE' | 'NEARE' | 'BNB' | 'USDTB' | 'ASTER' | 'CAKE' | 'JUP' | 'RAY';
 
-export const DECIMALS: Record<Asset, number> = { BTC: 8, XMR: 12, ETH: 18, TRX: 6, USDT: 6, USDTE: 6, LINK: 18, WLD: 18, SOL: 9, USDTS: 6, POL: 18, USDTP: 6, ARB: 18, ETHA: 18, USDTA: 6, BCH: 8, LTC: 8, DOGE: 8, DASH: 8, FIRO: 8, ZEC: 8, ZANO: 12, ARRR: 8, SCRT: 6, SSCRT: 6, POLE: 18, UNI: 18, PEPE: 18, AAVE: 18, NEARE: 24, BNB: 18, USDTB: 18, ASTER: 18, CAKE: 18, JUP: 6, RAY: 6 };
+export const DECIMALS: Record<Asset, number> = { BTC: 8, XMR: 12, ETH: 18, TRX: 6, USDT: 6, USDTE: 6, LINK: 18, WLD: 18, SOL: 9, USDTS: 6, POL: 18, USDTP: 6, ARB: 18, ETHA: 18, USDTA: 6, BCH: 8, LTC: 8, DOGE: 8, DASH: 8, FIRO: 8, ZEC: 8, ZANO: 12, ARRR: 8, SCRT: 6, SSCRT: 6, ETHP: 18, UNI: 18, PEPE: 18, AAVE: 18, NEARE: 24, BNB: 18, USDTB: 18, ASTER: 18, CAKE: 18, JUP: 6, RAY: 6 };
 
 export const BTC_APIS = ['https://mempool.space/api', 'https://blockstream.info/api'];
 export const BTC_EXPLORER_TX = 'https://mempool.space/tx/';

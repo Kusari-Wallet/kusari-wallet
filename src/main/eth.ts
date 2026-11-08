@@ -7,7 +7,7 @@ export const ETH_PATH = "m/44'/60'/0'/0/0";
 const GWEI = 1_000_000_000n;
 const BALANCE_CACHE_MS = 20_000;
 
-export type EthAsset = 'ETH' | 'USDTE' | 'LINK' | 'WLD' | 'POLE' | 'UNI' | 'PEPE' | 'AAVE' | 'NEARE' | 'POL' | 'USDTP' | 'ETHA' | 'ARB' | 'USDTA' | 'BNB' | 'USDTB' | 'ASTER' | 'CAKE';
+export type EthAsset = 'ETH' | 'USDTE' | 'LINK' | 'WLD' | 'ETHP' | 'UNI' | 'PEPE' | 'AAVE' | 'NEARE' | 'POL' | 'USDTP' | 'ETHA' | 'ARB' | 'USDTA' | 'BNB' | 'USDTB' | 'ASTER' | 'CAKE';
 export interface EvmToken { contract: string; decimals: number; symbol: string; label: string; dust: bigint }
 /** One EVM chain. The same key and address serve all of them, so the chain id is what keeps them apart. */
 export interface EvmChain {
@@ -25,18 +25,21 @@ export const ETHEREUM: EvmChain = {
     LINK: { contract: '0x514910771AF9Ca656af840dff83E8264EcF986CA', decimals: 18, symbol: 'LINK', label: 'LINK', dust: 10_000_000_000_000_000n },
     WLD: { contract: '0x163f8C2467924be0ae7B5347228CABF260318753', decimals: 18, symbol: 'WLD', label: 'WLD', dust: 10_000_000_000_000_000n },
     // Contracts from Uniswap's default token list; NEAR's from MetaMask's contract metadata (Rainbow Bridge, 24 decimals).
-    POLE: { contract: '0x455e53CBB86018Ac2B8092FdCd39d8444aFFC3F6', decimals: 18, symbol: 'POL', label: 'POL (Eth)', dust: 10_000_000_000_000_000n },
     UNI: { contract: '0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984', decimals: 18, symbol: 'UNI', label: 'UNI', dust: 1_000_000_000_000_000n },
     PEPE: { contract: '0x6982508145454Ce325dDbE47a25d4ec3d2311933', decimals: 18, symbol: 'PEPE', label: 'PEPE', dust: 10_000_000_000_000_000_000_000n },
     AAVE: { contract: '0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9', decimals: 18, symbol: 'AAVE', label: 'AAVE', dust: 100_000_000_000_000n },
-    NEARE: { contract: '0x85F17Cf997934a597031b2E18a9aB6ebD4B9f6a4', decimals: 24, symbol: 'NEAR', label: 'NEAR (Eth)', dust: 1_000_000_000_000_000_000_000n },
+    NEARE: { contract: '0x85F17Cf997934a597031b2E18a9aB6ebD4B9f6a4', decimals: 24, symbol: 'NEAR', label: 'NEAR', dust: 1_000_000_000_000_000_000_000n },
   },
   maxBaseFee: 500n * GWEI, minTip: GWEI / 10n, defaultTip: GWEI, maxTip: 5n * GWEI, gasToken: 200_000n, gasContract: 300_000n, dust: 100_000_000_000_000n,
 };
 // Polygon needs a priority fee of about 25 gwei or more, and its base fee can spike far above Ethereum's.
 export const POLYGON: EvmChain = {
   id: 137n, name: 'Polygon', native: 'POL', symbol: 'POL', nativeLabel: 'POL',
-  tokens: { USDTP: { contract: '0xc2132D05D31c914a87C6611C10748AEb04B58e8F', decimals: 6, symbol: 'USDT', label: 'USDT (Pol)', dust: 100_000n } },
+  tokens: {
+    USDTP: { contract: '0xc2132D05D31c914a87C6611C10748AEb04B58e8F', decimals: 6, symbol: 'USDT', label: 'USDT (Pol)', dust: 100_000n },
+    // Bridged ETH (WETH) on Polygon, as Aave's address book lists it.
+    ETHP: { contract: '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619', decimals: 18, symbol: 'ETH', label: 'ETH (Pol)', dust: 10_000_000_000_000n },
+  },
   maxBaseFee: 20_000n * GWEI, minTip: 30n * GWEI, defaultTip: 30n * GWEI, maxTip: 500n * GWEI, gasToken: 200_000n, gasContract: 300_000n, dust: 10_000_000_000_000_000n,
 };
 // Arbitrum pays in ETH, needs no tip, and folds its Ethereum data cost into the gas amount, so limits are higher.

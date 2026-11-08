@@ -13,10 +13,10 @@ function row(usd: unknown, change: unknown): Row {
 
 function optional(read: () => Row): Row | undefined { try { return read(); } catch { return undefined; } }
 
-/** The same coin under another name: sSCRT is SCRT, POL on Ethereum is POL, ETH on Arbitrum is ETH. */
+/** The same coin under another name: sSCRT is SCRT, and ETH on Arbitrum or Polygon is ETH. */
 export function mirror(p: Partial<Record<Asset, Row | undefined>>): void {
   if (p.SCRT) p.SSCRT = p.SCRT;
-  if (p.POL) p.POLE = p.POL;
+  if (p.ETH) p.ETHP = p.ETH;
   if (p.ETH) p.ETHA = p.ETH;
 }
 

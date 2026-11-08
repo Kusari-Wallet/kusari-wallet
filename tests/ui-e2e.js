@@ -124,11 +124,12 @@ const PASSWORD = 'correct horse battery';
   const scrolled = await page.evaluate(() => document.querySelector('.scroll').scrollTop);
   await page.click('#fold-ARB'); await page.click('#fold-ARB');
   assert.equal(await page.evaluate(() => document.querySelector('.scroll').scrollTop), scrolled, 'folding keeps the list where it was');
-  assert.deepEqual(await page.locator('.asset').evaluateAll((els) => els.map((e) => e.id)), ['asset-XMR', 'asset-BTC', 'asset-ETH', 'asset-USDTE', 'asset-LINK', 'asset-WLD', 'asset-POLE', 'asset-UNI', 'asset-PEPE', 'asset-AAVE', 'asset-NEARE', 'asset-ZEC', 'asset-SOL', 'asset-USDTS', 'asset-JUP', 'asset-RAY', 'asset-TRX', 'asset-USDT', 'asset-BNB', 'asset-USDTB', 'asset-ASTER', 'asset-CAKE', 'asset-POL', 'asset-USDTP', 'asset-ARB', 'asset-ETHA', 'asset-USDTA', 'asset-BCH', 'asset-LTC', 'asset-SCRT', 'asset-DOGE', 'asset-DASH', 'asset-FIRO', 'asset-ZANO', 'asset-ARRR']);
+  assert.deepEqual(await page.locator('.asset').evaluateAll((els) => els.map((e) => e.id)), ['asset-XMR', 'asset-BTC', 'asset-ETH', 'asset-USDTE', 'asset-LINK', 'asset-WLD', 'asset-UNI', 'asset-PEPE', 'asset-AAVE', 'asset-NEARE', 'asset-ZEC', 'asset-SOL', 'asset-USDTS', 'asset-JUP', 'asset-RAY', 'asset-TRX', 'asset-USDT', 'asset-BNB', 'asset-USDTB', 'asset-ASTER', 'asset-CAKE', 'asset-POL', 'asset-ETHP', 'asset-USDTP', 'asset-ARB', 'asset-ETHA', 'asset-USDTA', 'asset-BCH', 'asset-LTC', 'asset-SCRT', 'asset-DOGE', 'asset-DASH', 'asset-FIRO', 'asset-ZANO', 'asset-ARRR']);
   assert.match(await page.locator('#asset-USDTA').innerText(), /USDT \(Arb\)/);
   assert.match(await page.locator('#asset-ETHA').innerText(), /ETH \(Arb\)/);
   assert.match(await page.locator('#asset-USDTB').innerText(), /USDT \(BNB\)/);
-  assert.match(await page.locator('#asset-NEARE').innerText(), /NEAR \(Eth\)/);
+  assert.doesNotMatch(await page.locator('#asset-NEARE').innerText(), /\(Eth\)/);
+  assert.match(await page.locator('#asset-ETHP').innerText(), /ETH \(Pol\)/);
   await page.waitForFunction(() => /2\.5/.test(document.querySelector('#asset-SCRT')?.textContent ?? ''), null, { timeout: 30000 }); // the SCRT balance, read from the server
   assert.match(await page.locator('#asset-USDTE').innerText(), /USDT \(Eth\)/);
   assert.match(await page.locator('#asset-USDT').innerText(), /USDT \(Tron\)/);

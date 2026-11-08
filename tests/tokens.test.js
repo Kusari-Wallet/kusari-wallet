@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const http = require('node:http');
 const { AbiCoder } = require('ethers');
-const { BSC, ETHEREUM, chainOf, EthClient } = require('../dist/main/eth');
+const { BSC, ETHEREUM, POLYGON, chainOf, EthClient } = require('../dist/main/eth');
 const { SPL_TOKENS, tokenAccountOf, signSolUsdtTransfer, solAddress } = require('../dist/main/sol');
 const { AAVE_MARKETS, aaveCall, readAave } = require('../dist/main/aave');
 const { mirror } = require('../dist/main/prices');
@@ -15,8 +15,9 @@ test('each new token sits on its own chain with the contract and decimals from t
   assert.equal(BSC.id, 56n);
   assert.equal(BSC.tokens.USDTB.decimals, 18, 'USDT on BNB Smart Chain has 18 decimals');
   assert.equal(ETHEREUM.tokens.NEARE.decimals, 24);
-  assert.equal(ETHEREUM.tokens.POLE.contract, '0x455e53CBB86018Ac2B8092FdCd39d8444aFFC3F6');
-  for (const a of ['POLE', 'UNI', 'PEPE', 'AAVE', 'NEARE']) assert.equal(chainOf(a), ETHEREUM, a);
+  assert.equal(POLYGON.tokens.ETHP.contract, '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619', 'ETH on Polygon');
+  assert.equal(chainOf('ETHP'), POLYGON);
+  for (const a of ['UNI', 'PEPE', 'AAVE', 'NEARE']) assert.equal(chainOf(a), ETHEREUM, a);
   assert.equal(SPL_TOKENS.JUP.decimals, 6);
   assert.equal(SPL_TOKENS.RAY.mint, '4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R');
 });
@@ -71,7 +72,7 @@ test('Aave oracle: the call asks getAssetsPrices for the listed tokens, and answ
 test('the same coin under another name gets the same price', () => {
   const p = { POL: { usd: 0.2, change: 1 }, ETH: { usd: 3000, change: 2 }, SCRT: { usd: 0.3, change: 0 } };
   mirror(p);
-  assert.equal(p.POLE.usd, 0.2);
+  assert.equal(p.ETHP.usd, 3000, 'ETH on Polygon is ETH');
   assert.equal(p.ETHA.usd, 3000);
   assert.equal(p.SSCRT.usd, 0.3);
 });

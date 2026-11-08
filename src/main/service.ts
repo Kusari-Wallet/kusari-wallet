@@ -37,7 +37,7 @@ const QUOTE_DEADLINE_MS = 20_000;
 const QUOTE_DEADLINE_TOR_MS = 40_000;
 const QUOTE_EXTRAS_MS = 8_000;
 // ChangeNOW's own names, checked against their currency list.
-const BUY_TICKER: Record<Asset, string> = { BTC: 'btc', XMR: 'xmr', ETH: 'eth', ZEC: 'zec', SOL: 'sol', TRX: 'trx', USDTE: 'usdterc20', LINK: 'link', WLD: 'wlderc20', USDT: 'usdttrc20', USDTS: 'usdtsol', POL: 'maticmainnet', USDTP: 'usdtmatic', ARB: 'arb', ETHA: 'etharb', USDTA: 'usdtarb', BCH: 'bch', LTC: 'ltc', DOGE: 'doge', DASH: 'dash', FIRO: 'firo', ZANO: 'zano', ARRR: 'arrr', SCRT: '', SSCRT: '', POLE: 'pol', UNI: 'uni', PEPE: 'pepe', AAVE: 'aave', NEARE: '', BNB: 'bnbbsc', USDTB: 'usdtbsc', ASTER: '', CAKE: 'cake', JUP: 'jup', RAY: 'ray' }; // empty: ChangeNOW doesn't sell it here (no SCRT; its NEAR is the native coin)
+const BUY_TICKER: Record<Asset, string> = { BTC: 'btc', XMR: 'xmr', ETH: 'eth', ZEC: 'zec', SOL: 'sol', TRX: 'trx', USDTE: 'usdterc20', LINK: 'link', WLD: 'wlderc20', USDT: 'usdttrc20', USDTS: 'usdtsol', POL: 'maticmainnet', USDTP: 'usdtmatic', ARB: 'arb', ETHA: 'etharb', USDTA: 'usdtarb', BCH: 'bch', LTC: 'ltc', DOGE: 'doge', DASH: 'dash', FIRO: 'firo', ZANO: 'zano', ARRR: 'arrr', SCRT: '', SSCRT: '', ETHP: 'wethmatic', UNI: 'uni', PEPE: 'pepe', AAVE: 'aave', NEARE: '', BNB: 'bnbbsc', USDTB: 'usdtbsc', ASTER: '', CAKE: 'cake', JUP: 'jup', RAY: 'ray' }; // empty: ChangeNOW doesn't sell it here (no SCRT; its NEAR is the native coin)
 const SWAP_NAMES: Record<SwapProviderId, string> = { exolix: 'Exolix', simpleswap: 'SimpleSwap', ghostswap: 'GhostSwap', etzswap: 'ETZ Swap', ccecash: 'CCECash', changenow: 'ChangeNOW' };
 
 function within<T, F>(ms: number, work: Promise<T>, late: F): Promise<T | F> {
@@ -46,17 +46,17 @@ function within<T, F>(ms: number, work: Promise<T>, late: F): Promise<T | F> {
 }
 /** Which Tor route each balance lookup uses. */
 /** Coins and tokens on an EVM chain. They share one address. */
-const EVM: Asset[] = ['ETH', 'USDTE', 'LINK', 'WLD', 'POL', 'USDTP', 'ARB', 'ETHA', 'USDTA', 'POLE', 'UNI', 'PEPE', 'AAVE', 'NEARE', 'BNB', 'USDTB', 'ASTER', 'CAKE'];
+const EVM: Asset[] = ['ETH', 'USDTE', 'LINK', 'WLD', 'POL', 'USDTP', 'ARB', 'ETHA', 'USDTA', 'ETHP', 'UNI', 'PEPE', 'AAVE', 'NEARE', 'BNB', 'USDTB', 'ASTER', 'CAKE'];
 /** Solana tokens. */
 const SPL: Asset[] = ['USDTS', 'JUP', 'RAY'];
 const isSpl = (a: Asset): a is SplAsset => SPL.includes(a);
-const EXTRA_ASSETS: Asset[] = ['POLE', 'UNI', 'PEPE', 'AAVE', 'NEARE', 'BNB', 'USDTB', 'ASTER', 'CAKE', 'JUP', 'RAY'];
+const EXTRA_ASSETS: Asset[] = ['ETHP', 'UNI', 'PEPE', 'AAVE', 'NEARE', 'BNB', 'USDTB', 'ASTER', 'CAKE', 'JUP', 'RAY'];
 const isEvm = (a: Asset): a is Asset & EthAsset => EVM.includes(a);
 const EVM_EXPLORER: Record<string, string> = { '1': ETH_EXPLORER_TX, '137': POL_EXPLORER_TX, '42161': ARB_EXPLORER_TX, '56': BSC_EXPLORER_TX };
 
-const ASSET_LABEL: Partial<Record<Asset, string>> = { USDTE: 'USDT (Eth)', USDT: 'USDT (Tron)', USDTS: 'USDT (Sol)', USDTP: 'USDT (Pol)', USDTA: 'USDT (Arb)', ETHA: 'ETH (Arb)', POLE: 'POL (Eth)', NEARE: 'NEAR (Eth)', USDTB: 'USDT (BNB)' };
+const ASSET_LABEL: Partial<Record<Asset, string>> = { USDTE: 'USDT (Eth)', USDT: 'USDT (Tron)', USDTS: 'USDT (Sol)', USDTP: 'USDT (Pol)', USDTA: 'USDT (Arb)', ETHA: 'ETH (Arb)', ETHP: 'ETH (Pol)', USDTB: 'USDT (BNB)' };
 
-const LOOKUP_ROUTE: Record<string, string> = { BTC: 'btc', ETH: 'eth', USDTE: 'eth', LINK: 'eth', WLD: 'eth', TRX: 'tron', USDT: 'tron', DASH: 'dash', FIRO: 'firo', SOL: 'sol', USDTS: 'sol', POL: 'pol', USDTP: 'pol', ARB: 'arb', ETHA: 'arb', USDTA: 'arb', BCH: 'bch', LTC: 'ltc', DOGE: 'doge', SCRT: 'scrt', POLE: 'eth', UNI: 'eth', PEPE: 'eth', AAVE: 'eth', NEARE: 'eth', BNB: 'bsc', USDTB: 'bsc', ASTER: 'bsc', CAKE: 'bsc', JUP: 'sol', RAY: 'sol' };
+const LOOKUP_ROUTE: Record<string, string> = { BTC: 'btc', ETH: 'eth', USDTE: 'eth', LINK: 'eth', WLD: 'eth', TRX: 'tron', USDT: 'tron', DASH: 'dash', FIRO: 'firo', SOL: 'sol', USDTS: 'sol', POL: 'pol', USDTP: 'pol', ARB: 'arb', ETHA: 'arb', USDTA: 'arb', BCH: 'bch', LTC: 'ltc', DOGE: 'doge', SCRT: 'scrt', ETHP: 'pol', UNI: 'eth', PEPE: 'eth', AAVE: 'eth', NEARE: 'eth', BNB: 'bsc', USDTB: 'bsc', ASTER: 'bsc', CAKE: 'bsc', JUP: 'sol', RAY: 'sol' };
 
 /** Waits longer each time, up to five minutes, so a server that's down isn't asked over and over. */
 export function lookupRetryDelay(fails: number): number {

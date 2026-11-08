@@ -16,7 +16,7 @@ const COIN: Record<Asset, { coin: string; network: RegExp; fallback: string }> =
   ETH: { coin: 'ETH', network: /^(eth|ethereum|erc-?20)$/i, fallback: 'ETH' },
   USDTE: { coin: 'USDT', network: /^(eth|ethereum|erc-?20)$/i, fallback: 'ETH' },
   LINK: { coin: 'LINK', network: /^(eth|ethereum|erc-?20)$/i, fallback: 'ETH' },
-  POLE: { coin: 'POL', network: /^(eth|ethereum|erc-?20)$/i, fallback: 'ETH' },
+  ETHP: { coin: 'ETH', network: /^(pol|polygon|matic)$/i, fallback: 'POLYGON' },
   UNI: { coin: 'UNI', network: /^(eth|ethereum|erc-?20)$/i, fallback: 'ETH' },
   PEPE: { coin: 'PEPE', network: /^(eth|ethereum|erc-?20)$/i, fallback: 'ETH' },
   AAVE: { coin: 'AAVE', network: /^(eth|ethereum|erc-?20)$/i, fallback: 'ETH' },
@@ -190,7 +190,7 @@ const SIMPLE_COIN: Record<Asset, { ticker: string; network: string }> = {
   ETH: { ticker: 'eth', network: 'eth' },
   USDTE: { ticker: 'usdt', network: 'eth' },
   LINK: { ticker: 'link', network: 'eth' },
-  POLE: { ticker: 'pol', network: 'eth' },
+  ETHP: { ticker: 'eth', network: 'matic' },
   UNI: { ticker: 'uni', network: 'eth' },
   PEPE: { ticker: 'pepe', network: 'eth' },
   AAVE: { ticker: 'aave', network: 'eth' },
@@ -281,7 +281,7 @@ export class SimpleSwapClient implements SwapProvider {
 
 export const GHOSTSWAP_BASE = 'https://partners-api.ghostswap.io';
 // Coins whose GhostSwap ticker depends on the chain: read from their list by coin and chain, never guessed.
-type LookedUp = 'USDTE' | 'LINK' | 'WLD' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA' | 'POLE' | 'UNI' | 'PEPE' | 'AAVE' | 'NEARE' | 'BNB' | 'USDTB' | 'ASTER' | 'CAKE' | 'JUP' | 'RAY';
+type LookedUp = 'USDTE' | 'LINK' | 'WLD' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA' | 'ETHP' | 'UNI' | 'PEPE' | 'AAVE' | 'NEARE' | 'BNB' | 'USDTB' | 'ASTER' | 'CAKE' | 'JUP' | 'RAY';
 const GHOST_LOOKUP: Record<LookedUp, { ticker: RegExp; chain: RegExp; label: string }> = {
   USDTE: { ticker: /^usdt/i, chain: /^(eth|ethereum|erc-?20)$/i, label: 'USDT (Eth)' },
   USDTS: { ticker: /^usdt/i, chain: /^(sol|solana|spl)$/i, label: 'USDT (Sol)' },
@@ -292,7 +292,7 @@ const GHOST_LOOKUP: Record<LookedUp, { ticker: RegExp; chain: RegExp; label: str
   ARB: { ticker: /^arb/i, chain: /^(arb|arbitrum)$/i, label: 'ARB' },
   ETHA: { ticker: /^eth/i, chain: /^(arb|arbitrum)$/i, label: 'ETH (Arb)' },
   USDTA: { ticker: /^usdt/i, chain: /^(arb|arbitrum)$/i, label: 'USDT (Arb)' },
-  POLE: { ticker: /^pol(erc-?20|eth)?$/i, chain: /^(eth|ethereum|erc-?20)$/i, label: 'POL (Eth)' },
+  ETHP: { ticker: /^(w?eth)(matic|pol|polygon)?$/i, chain: /^(pol|polygon|matic)$/i, label: 'ETH (Pol)' },
   UNI: { ticker: /^uni(erc-?20|eth)?$/i, chain: /^(eth|ethereum|erc-?20)$/i, label: 'UNI' },
   PEPE: { ticker: /^pepe(erc-?20|eth)?$/i, chain: /^(eth|ethereum|erc-?20)$/i, label: 'PEPE' },
   AAVE: { ticker: /^aave(erc-?20|eth)?$/i, chain: /^(eth|ethereum|erc-?20)$/i, label: 'AAVE' },
@@ -486,7 +486,6 @@ const CN_COIN: Partial<Record<Asset, { ticker: string; network: string }>> = {
   USDT: { ticker: 'usdt', network: 'trx' },
   USDTE: { ticker: 'usdt', network: 'eth' },
   LINK: { ticker: 'link', network: 'eth' },
-  POLE: { ticker: 'pol', network: 'eth' },
   UNI: { ticker: 'uni', network: 'eth' },
   PEPE: { ticker: 'pepe', network: 'eth' },
   AAVE: { ticker: 'aave', network: 'eth' },
