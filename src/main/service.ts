@@ -19,6 +19,8 @@ import { DEPOSIT_GAS, TORNADO_POOLS, TornadoNote, TornadoStore, WITHDRAW_GAS, ab
 import { runTornado } from './tornado-run';
 import { ArrrClient, ArrrDraft, isArrrAddress } from './arrr';
 import { startArrrEngine, arrrEngineAvailable, arrrEngineInfo } from './arrr-process';
+import { startMwebEngine, mwebEngineAvailable } from './mweb-process';
+import { MwebClient, MwebDraft, PeginDraft, isMwebAddress } from './mweb';
 import { ZanoClient, ZanoDraft, isZanoAddress, zanoKeys, ZANO_FEE } from './zano';
 import { startZanoEngine, zanoEngineAvailable, zanoEngineInfo } from './zano-process';
 import { ZecClient, ZecDraft, isZecAddress, zecHeightForDate } from './zec';
@@ -93,6 +95,8 @@ interface Preview {
   monero?: MoneroDraft;
   btc?: BtcDraft;
   ltc?: BtcDraft;
+  mweb?: MwebDraft;
+  pegin?: PeginDraft;
   scrt?: ScrtDraft;
   near?: NearDraft;
   eth?: EthDraft;
@@ -151,6 +155,7 @@ export class WalletService extends EventEmitter {
   private zec: ZecClient | null = null;
   private zano: ZanoClient | null = null;
   private arrr: ArrrClient | null = null;
+  private mweb: MwebClient | null = null;
   private previews = new Map<string, Preview>();
   private privacyTargets = new Map<string, Asset>();
   private pendingSwaps = new Map<string, { id: string; from: Asset; to: Asset; amount: string; receive: string; rate: string; providerId: SwapProviderId; provider: string; approximate: boolean; statusKey?: string; withdrawalAddress: string; privacy?: { leg: 'first'; via: string; destination: string } | { leg: 'second'; id: string } }>();
@@ -170,7 +175,7 @@ export class WalletService extends EventEmitter {
   settings: Settings = { ...DEFAULT_SETTINGS };
 
   constructor(private readonly baseDir: string, private readonly kdf?: { N: number; r: number; p: number }, private readonly dev: {
-    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; bchApi?: string; ltcApi?: string; scrtLcd?: string; nearRpc?: string; nearHistory?: string; polRpc?: string; polScout?: string; polUsdt?: string; arbRpc?: string; arbScout?: string; arbUsdt?: string; bscRpc?: string; bscScout?: string; uniswapKey?: string; uniswapBase?: string; wcProjectId?: string; dashApi?: string; firoApi?: string; solRpc?: string; dogeApi?: string; zecBin?: string; zecServers?: string[]; zanoBin?: string; zanoNode?: string; arrrBin?: string; arrrServers?: string[]; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; etzSwapBase?: string; cceCashBase?: string; changeNowBase?: string; quoteDeadlineMs?: number; btcApi?: string;
+    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; bchApi?: string; ltcApi?: string; scrtLcd?: string; nearRpc?: string; nearHistory?: string; polRpc?: string; polScout?: string; polUsdt?: string; arbRpc?: string; arbScout?: string; arbUsdt?: string; bscRpc?: string; bscScout?: string; uniswapKey?: string; uniswapBase?: string; wcProjectId?: string; dashApi?: string; firoApi?: string; solRpc?: string; dogeApi?: string; zecBin?: string; zecServers?: string[]; zanoBin?: string; zanoNode?: string; arrrBin?: string; arrrServers?: string[]; mwebBin?: string; mwebConnect?: string; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; etzSwapBase?: string; cceCashBase?: string; changeNowBase?: string; quoteDeadlineMs?: number; btcApi?: string;
     /** Android: every outside address goes through the app's local forwarder. */
     route?: (url: string) => string;
     moneroStore?: (net: NetworkId, walletId: string) => MoneroOptions['store'];
@@ -417,6 +422,24 @@ export class WalletService extends EventEmitter {
     await this.startZec(secrets);
     await this.startZano(secrets);
     await this.startArrr(secrets);
+    await this.startMweb(secrets);
+  }
+
+  /** Litecoin MWEB: a light client of its own. Without its engine, LTC simply has no private balance. */
+  private async startMweb(secrets: Secrets): Promise<void> {
+    if (!mwebEngineAvailable(this.dev.mwebBin)) return;
+    const torPort = this.torActive ? Number((await this.tor.allocate()).match(/:(\d+)$/)?.[1]) : undefined;
+    if (this.torActive && !torPort) return; // Never fall back to a direct connection.
+    const client = new MwebClient({
+      engine: () => startMwebEngine(this.dev.mwebBin),
+      dir: this.dir,
+      socks: torPort,
+      connect: this.dev.mwebConnect,
+      canConnect: () => !this.torNotReady,
+      onChange: () => this.emit('balance-changed'),
+    }, secrets.tronMnemonic);
+    this.mweb = client;
+    try { await client.start(); } catch (e) { client.lastError = (e as Error).message; }
   }
 
   private get arrrAvailable(): boolean { return arrrEngineAvailable(this.dev.arrrBin); }
@@ -512,6 +535,8 @@ export class WalletService extends EventEmitter {
     this.zano = null;
     void this.arrr?.stop();
     this.arrr = null;
+    this.mweb?.close();
+    this.mweb = null;
     this.priceCache = null;
     const monero = this.monero;
     this.monero = null;
@@ -668,7 +693,13 @@ export class WalletService extends EventEmitter {
       ...(['LINK', 'WLD'] as const).map((a) => settle(a, async () => { const b = await this.evm(a).balanceOf(a); return [b, b]; }, DECIMALS[a])),
       ...(['POL', 'USDTP', 'ARB', 'ETHA', 'USDTA'] as const).map((a) => settle(a, async () => { const b = await this.evm(a).balanceOf(a); return [b, b]; }, DECIMALS[a])),
       settle('BCH', async () => { const b = await this.bch!.getBalance(); return [b.total, b.spendable]; }, 8),
-      btcSettle(this.ltc!),
+      // LTC is the public coins plus the private (MWEB) ones, once MWEB has synced.
+      btcSettle(this.ltc!).then((view) => {
+        const m = this.mweb?.balance();
+        if (!view.ok || !m) return view;
+        const units = (v: string) => (/^0(\.0*)?$/.test(v) ? 0n : parseAmount(v, 8)); // parseAmount refuses zero
+        return { ...view, total: formatAmount(units(view.total) + m.total, 8), spendable: formatAmount(units(view.spendable) + m.spendable, 8) };
+      }),
       settle('DOGE', async () => { const b = await this.doge!.getBalance(); return [b.total, b.spendable]; }, 8),
       settle('DASH', async () => { const b = await dash.getBalance(); return [b.total, b.spendable]; }, 8),
       settle('FIRO', async () => { const b = await firo.getBalance(); return [b.total, b.spendable]; }, 8),
@@ -684,6 +715,7 @@ export class WalletService extends EventEmitter {
       tor: this.torActive ? this.tor.state : null,
       balances: { XMR, BTC, ETH, TRX, USDTE, USDT, SOL, USDTS, LINK, WLD, POL, USDTP, ARB, ETHA, USDTA, BCH, LTC, DOGE, DASH, FIRO, SCRT, NEAR, SSCRT, ...Object.fromEntries(EXTRA_ASSETS.map((a, i) => [a, EXTRA[i]])), ...(zec ? { ZEC: zecView() } : {}), ...(zano ? { ZANO: zanoView() } : {}), ...(arrr ? { ARRR: arrrView() } : {}) },
       sscrt: { needsKey: this.sscrtNeedsKey },
+      mweb: this.mweb ? { ...this.mweb.info(), balance: this.mweb.balance() ? { total: formatAmount(this.mweb.balance()!.total, 8), spendable: formatAmount(this.mweb.balance()!.spendable, 8) } : null } : null,
       arrr: arrr ? { scanning: arrr.isScanning, percent: arrr.percent } : null,
       zec: zec ? { ...zec.state(), address: zec.receive?.unified ?? '', transparentAddress: zec.transparentAddress } : null,
       addresses: { ...Object.fromEntries(EVM.map((a) => [a, eth.address])), BTC: btc.receiveAddress, XMR: await monero.getPrimaryAddress(), ETH: eth.address, TRX: tron.address, USDTE: eth.address, USDT: tron.address, DASH: dash.receiveAddress, FIRO: firo.receiveAddress, SOL: this.sol!.receiveAddress, USDTS: this.sol!.receiveAddress, JUP: this.sol!.receiveAddress, RAY: this.sol!.receiveAddress, USDCS: this.sol!.receiveAddress, BCH: bareBch(this.bch!.receiveAddress), LTC: this.ltc!.receiveAddress, SCRT: this.scrt!.address, SSCRT: this.scrt!.address, NEAR: this.near!.receiveAddress, DOGE: this.doge!.receiveAddress, ...(zec ? { ZEC: zec.receive?.unified ?? '' } : {}), ...(zano ? { ZANO: zano.receive } : {}), ...(arrr ? { ARRR: arrr.receive } : {}) },
@@ -1037,7 +1069,7 @@ export class WalletService extends EventEmitter {
     const { monero } = this.session();
     const address = input.trim();
     const valid = asset === 'BTC' ? isBtcAddress(address)
-      : asset === 'LTC' ? isLtcAddress(address)
+      : asset === 'LTC' ? isLtcAddress(address) || isMwebAddress(address)
       : asset === 'SCRT' || asset === 'SSCRT' ? isScrtAddress(address)
       : asset === 'NEAR' ? isNearAccount(address)
       : asset === 'DASH' ? isDashAddress(address)
@@ -1586,11 +1618,26 @@ export class WalletService extends EventEmitter {
     } else if (asset === 'SSCRT') {
       const draft = await this.scrt!.draftPrivate('transfer', address, isMax ? 'max' : parseAmount(amountInput, decimals));
       preview = this.storePreview({ asset, to: address, amount: draft.amount, fee: draft.fee, scrt: draft });
+    } else if (asset === 'LTC' && isMwebAddress(address)) {
+      // To an MWEB address: paid from the private balance, so amount and both addresses stay hidden.
+      if (!this.mweb) throw new Error('Private (MWEB) Litecoin isn\'t available on this device.');
+      const draft = await this.mweb.draft(address, isMax ? 'max' : parseAmount(amountInput, decimals), Number(await this.ltc!.feeRate()) * 1000);
+      preview = this.storePreview({ asset, to: address, amount: draft.amount, fee: draft.fee, mweb: draft });
     } else if (asset === 'LTC') {
       if (!isLtcAddress(address)) throw new Error('Not a Litecoin address. Use one starting with ltc1, L or M. Addresses starting with 3 look like Bitcoin ones, so they are refused.');
       if (address === this.ltc!.receiveAddress) throw new Error('You cannot send to your own address.');
-      const draft = await this.ltc!.draft(address, isMax ? 'max' : parseAmount(amountInput, decimals));
-      preview = this.storePreview({ asset, to: address, amount: draft.amount, fee: draft.fee, ltc: draft });
+      const want = isMax ? 'max' as const : parseAmount(amountInput, decimals);
+      const pub = await this.ltc!.getBalance().catch(() => null);
+      const priv = this.mweb?.balance();
+      // Public coins pay first. Only when they can't cover it does the private balance pay, as a peg-out.
+      if (want !== 'max' && pub && pub.spendable < want && priv && priv.spendable >= want) {
+        const draft = await this.mweb!.draft(address, want, Number(await this.ltc!.feeRate()) * 1000);
+        warnings.push('This is paid from your private (MWEB) balance. Sending to an ordinary address makes this amount and the receiving address public.');
+        preview = this.storePreview({ asset, to: address, amount: draft.amount, fee: draft.fee, mweb: draft });
+      } else {
+        const draft = await this.ltc!.draft(address, want);
+        preview = this.storePreview({ asset, to: address, amount: draft.amount, fee: draft.fee, ltc: draft });
+      }
     } else if (asset === 'BTC') {
       if (!isBtcAddress(address)) throw new Error('Not a Bitcoin address.');
       const draft = await btc.draft(address, isMax ? 'max' : parseAmount(amountInput, decimals));
@@ -1687,6 +1734,8 @@ export class WalletService extends EventEmitter {
     if (preview.near) return { hashes: [await this.near!.send(preview.near, secrets.tronMnemonic)] };
     if (preview.scrt) return { hashes: [await this.scrt!.send(preview.scrt, secrets.tronMnemonic)] };
     if (preview.ltc) return { hashes: [await this.ltc!.send(preview.ltc, secrets.tronMnemonic)] };
+    if (preview.mweb) return { hashes: [await this.mweb!.send(preview.mweb, secrets.tronMnemonic)] };
+    if (preview.pegin) return { hashes: [await this.mweb!.pegin(preview.pegin, secrets.tronMnemonic)] };
     if (preview.btc) {
       return { hashes: [await btc.send(preview.btc, secrets.tronMnemonic)] };
     }
@@ -1752,6 +1801,20 @@ export class WalletService extends EventEmitter {
       warnings: kind === 'wrap' ? ['How much you make private is visible on the chain. What you do with sSCRT afterwards is not.']
         : kind === 'unwrap' ? ['How much you make public is visible on the chain.']
         : ['If another wallet set a viewing key for this address, this replaces it there.'],
+    };
+  }
+
+  /** Moves every confirmed public LTC coin into the private (MWEB) balance. Confirmed with confirmSend. */
+  async prepareLtcPrivate() {
+    this.session();
+    if (this.torNotReady) throw new Error('Tor is connecting. Try again once it connects.');
+    if (!this.mweb) throw new Error('Private (MWEB) Litecoin isn\'t available on this device.');
+    const [inputs, rate] = await Promise.all([this.ltc!.confirmedUtxos(), this.ltc!.feeRate()]);
+    const draft = await this.mweb.peginDraft(inputs, Number(rate) * 1000);
+    const preview = this.storePreview({ asset: 'LTC', to: draft.to, amount: draft.amount, fee: draft.fee, pegin: draft });
+    return {
+      id: preview.id, asset: 'LTC' as Asset, to: draft.to, amount: formatAmount(draft.amount, 8), fee: formatAmount(draft.fee, 8), feeAsset: 'LTC', feeIsEstimate: false,
+      warnings: ['How much you make private is visible on the chain. Where it goes from the private balance is not.'],
     };
   }
 

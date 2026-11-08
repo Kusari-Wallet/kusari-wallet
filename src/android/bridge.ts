@@ -171,6 +171,7 @@ const bioCall = (fn: (id: number) => void) => new Promise<string>((resolve, reje
   wcClipboard: call(async () => { if ((await service.walletMode()) !== 'walletconnect') return ''; const t = String(native.paste() ?? '').trim(); return isWcLink(t) ? t : ''; }),
   wcTakeLink: call(async () => { if ((await service.walletMode()) !== 'walletconnect') return ''; const t = String(native.wcTakeLink?.() ?? '').trim(); return isWcLink(t) ? t : ''; }),
   wcRegisterLinks: call(() => undefined), // the manifest already sends wc: links here
+  prepareLtcPrivate: call(() => service.prepareLtcPrivate()),
   prepareScrtPrivate: call((kind: any, amt: string) => service.prepareScrtPrivate(kind, amt)),
   zecRescan: call((d: string, pw: string) => service.zecRescan(d, pw)),
   walletsList: call(() => service.walletsList()),

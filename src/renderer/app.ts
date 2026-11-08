@@ -742,6 +742,11 @@ async function renderAsset(): Promise<void> {
       a === 'ZEC' && overview?.zec?.canShield && h('div', { class: 'panel', id: 'zec-shield-panel' },
         h('p', { class: 'small' }, `You have ${overview.zec.transparent} ZEC in transparent balance. It's public on the chain and can't be sent directly. ZEC received from swaps arrives here too.`), h('br'),
         h('button', { class: 'primary', id: 'zec-shield', onclick: () => renderZecShield() }, 'Shield')),
+      a === 'LTC' && overview?.mweb && h('div', { class: 'panel', id: 'mweb-panel' },
+        overview.mweb.ready && overview.mweb.balance
+          ? h('p', { class: 'small' }, `Private (MWEB): ${shortAmount(overview.mweb.balance.total)} LTC. Its amounts and addresses are hidden on the chain.`)
+          : h('p', { class: 'small', id: 'mweb-sync' }, overview.mweb.error ? `Private (MWEB) balance: ${overview.mweb.error}` : `Syncing the private (MWEB) balance… ${overview.mweb.percent}%`),
+        overview.mweb.ready && h('button', { class: 'secondary', id: 'mweb-pegin', onclick: () => void ltcPrivateStep() }, 'Make public LTC private')),
       a === 'SSCRT' && overview?.sscrt?.needsKey && h('div', { class: 'panel', id: 'sscrt-key-panel' },
         h('p', { class: 'small' }, 'The private balance is encrypted on the chain. Turn it on once so this wallet can read it: it sets a viewing key on the sSCRT contract, which costs a small SCRT fee.'), h('br'),
         h('button', { class: 'primary', id: 'sscrt-key', onclick: () => void scrtPrivateStep('key') }, 'Turn on private balance')),
@@ -819,6 +824,36 @@ async function scrtPrivateStep(kind: 'wrap' | 'unwrap' | 'key', amount = ''): Pr
   ...p.warnings.map((w: string) => h('div', { class: 'warn' }, w)),
   h('div', { class: 'panel' }, h('table', { class: 'review-table' }, h('tbody', {},
     kind !== 'key' && h('tr', {}, h('th', {}, 'Amount'), h('td', {}, h('div', { class: 'big-amount', id: 'review-amount' }, `${p.amount} ${kind === 'wrap' ? 'SCRT → sSCRT' : 'sSCRT → SCRT'}`))),
+    h('tr', {}, h('th', {}, 'Fee'), h('td', { id: 'review-fee' }, reviewFee(p.fee, p.feeAsset)))))),
+  h('label', { class: 'field' }, h('span', {}, 'Password'), pw),
+  go);
+  show('send', subBar('Review', back), h('div', { class: 'scroll' }, form));
+  pw.focus();
+}
+
+/** Peg-in: every confirmed public LTC coin into the private (MWEB) balance, after a review. */
+async function ltcPrivateStep(): Promise<void> {
+  let p: any;
+  try { p = await wallet.prepareLtcPrivate(); } catch (e) { toast(errMsg(e)); return; }
+  const pw = h('input', { type: 'password', id: 'confirm-pw', autocomplete: 'current-password' });
+  const box = errorBox();
+  const go = h('button', { class: 'primary', id: 'confirm-send', type: 'submit' }, `Make ${p.amount} LTC private`);
+  const back = () => { void wallet.cancelSend(p.id); void renderAsset(); };
+  const form = h('form', { onsubmit: (e: Event) => {
+    e.preventDefault();
+    busy(go, 'Sending…', box, async () => {
+      await wallet.confirmSend(p.id, pw.value);
+      pw.value = '';
+      toast('Sent. Balances update once it\'s in a block.');
+      void refresh();
+      void renderAsset();
+    });
+  } },
+  h('p', { class: 'small muted' }, 'Moves all your confirmed public LTC to your private (MWEB) address in this wallet. Nothing comes back as public change.'), h('br'),
+  box.el,
+  ...p.warnings.map((w: string) => h('div', { class: 'warn' }, w)),
+  h('div', { class: 'panel' }, h('table', { class: 'review-table' }, h('tbody', {},
+    h('tr', {}, h('th', {}, 'Amount'), h('td', {}, h('div', { class: 'big-amount', id: 'review-amount' }, `${p.amount} LTC → MWEB`))),
     h('tr', {}, h('th', {}, 'Fee'), h('td', { id: 'review-fee' }, reviewFee(p.fee, p.feeAsset)))))),
   h('label', { class: 'field' }, h('span', {}, 'Password'), pw),
   go);
@@ -972,7 +1007,7 @@ function parseScanned(asset: Asset, raw: string): { address: string; amount: str
     : asset === 'SOL' || SPL_ASSETS.includes(asset) ? /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address)
     : asset === 'DOGE' ? /^[DA9][1-9A-HJ-NP-Za-km-z]{33}$/.test(address)
     : asset === 'BCH' ? /^[qp][02-9ac-hj-np-z]{41}$/i.test(address)
-    : asset === 'LTC' ? /^(ltc1[02-9ac-hj-np-z]{8,87}|[LM][1-9A-HJ-NP-Za-km-z]{25,34})$/.test(address)
+    : asset === 'LTC' ? /^(ltc1[02-9ac-hj-np-z]{8,87}|ltcmweb1[02-9ac-hj-np-z]{100,140}|[LM][1-9A-HJ-NP-Za-km-z]{25,34})$/.test(address)
     : asset === 'SCRT' || asset === 'SSCRT' ? /^secret1[02-9ac-hj-np-z]{38}$/.test(address)
     : asset === 'NEAR' ? /^([0-9a-f]{64}|0x[0-9a-f]{40}|(([a-z\d]+[-_])*[a-z\d]+\.)+([a-z\d]+[-_])*[a-z\d]+)$/.test(address)
     : asset === 'FIRO' ? /^[a3][1-9A-HJ-NP-Za-km-z]{33}$/.test(address)
@@ -1248,6 +1283,7 @@ async function renderReceive(current?: string): Promise<void> {
     : asset === 'ZEC' ? (address.startsWith('t') ? 'This is a transparent address. The amount and address are public on the chain. Coins must be shielded after arrival before they can be sent.' : 'This is a shielded address. The amount and address don\'t show on the chain. Received ZEC can be used after a few confirmations. If a provider can\'t pay this address, use the transparent one.')
     : asset === 'SOL' ? 'The same address as USDT (Sol). Receives SOL on Solana mainnet only. Other Solana tokens aren\'t shown.'
     : asset === 'USDTS' ? 'Receives USDT on the Solana network (SPL) only. Sending needs a little SOL at this address for the fee.'
+    : asset === 'LTC' && address.startsWith('ltcmweb1') ? 'A private (MWEB) Litecoin address. The amount and both addresses stay hidden on the chain. Senders need a wallet with MWEB support, such as Litecoin Core or Cake Wallet.'
     : asset === 'LTC' ? 'A Litecoin address (ltc1q). Coins sent from Bitcoin or other chains won\'t arrive. Once a deposit is seen, a new address appears next time.'
     : asset === 'SSCRT' ? 'The same secret1 address as plain SCRT. sSCRT sent to it arrives privately, and only after the private balance is turned on can this wallet show it.'
     : asset === 'SCRT' ? 'Receives SCRT on Secret Network mainnet only. The amount and address are public on the chain. No memo is needed.'
@@ -1307,6 +1343,12 @@ async function renderReceive(current?: string): Promise<void> {
     return;
   }
 
+  if (asset === 'LTC' && overview?.mweb?.receive) {
+    const priv = address.startsWith('ltcmweb1');
+    const list = await wallet.addresses();
+    setKids(extra, h('button', { class: 'ghost', id: 'ltc-address-kind', onclick: () => void renderReceive(priv ? list.LTC : overview.mweb.receive) }, priv ? 'Show public address' : 'Show private (MWEB) address'));
+    return;
+  }
   if (asset === 'ZEC') {
     const list = await wallet.addresses();
     const shieldedOn = address === list.ZEC;

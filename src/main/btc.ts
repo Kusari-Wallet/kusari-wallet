@@ -200,6 +200,12 @@ export class BtcClient {
     return fee;
   }
 
+  /** Confirmed coins, freshly listed: what a peg-in into MWEB spends. */
+  async confirmedUtxos(): Promise<BtcUtxo[]> {
+    await this.refresh(true);
+    return this.state!.utxos.filter((u) => u.confirmed);
+  }
+
   async draft(to: string, amount: bigint | 'max'): Promise<BtcDraft> {
     await this.refresh(true);
     const state = this.state!;
