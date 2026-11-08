@@ -194,7 +194,7 @@ export class ScrtClient {
     if (!p) {
       p = getJson(`${base}/cosmos/base/tendermint/v1beta1/node_info`, { agent: this.agent, timeoutMs: this.timeoutMs, headers: { Accept: 'application/json' } })
         .then((r: any) => r?.default_node_info?.network === SCRT_CHAIN_ID);
-      p.then((ok) => { if (!ok) setTimeout(() => this.checked.delete(base), 10 * 60_000); }, () => this.checked.delete(base));
+      p.then((ok) => { if (!ok) setTimeout(() => this.checked.delete(base), 10 * 60_000).unref?.(); }, () => this.checked.delete(base));
       this.checked.set(base, p);
     }
     return p;

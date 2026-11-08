@@ -20,14 +20,15 @@ export const CHANGENOW_LINK_ID = '9183599f3b8ee2';
 export const LTC_APIS = ['https://litecoinspace.org/api'];
 export const LTC_EXPLORER_TX = 'https://litecoinspace.org/tx/';
 // Public Secret Network REST (LCD) servers, from the Cosmos chain registry. Each is checked to be on secret-4 before use.
-export const SCRT_LCDS = ['https://secretnetwork-api.lavenderfive.com:443', 'https://rest.lavenderfive.com:443/secretnetwork', 'https://1rpc.io/scrt-lcd', 'https://public.stakewolle.com/cosmos/secretnetwork/rest', 'https://rest-secret.01node.com'];
+export const SCRT_LCDS = ['https://rest.lavenderfive.com:443/secretnetwork', 'https://secretnetwork-api.lavenderfive.com:443', 'https://rest-secret.01node.com'];
 export const SCRT_EXPLORER_TX = 'https://www.mintscan.io/secret/tx/';
 export const BCH_APIS = ['https://api.bitcore.io/api/BCH/mainnet'];
 export const BCH_EXPLORER_TX = 'https://blockchair.com/bitcoin-cash/transaction/';
 export const DOGE_APIS = ['https://api.blockcypher.com/v1/doge/main'];
 // BlockCypher only takes POST with a token, which an app can't keep secret, so it reads and these two send.
 // Sending the same transaction twice is harmless. BlockCypher then confirms it from outside.
-export const DOGE_PUSH_URLS = ['https://dogechain.info/api/v1/pushtx', 'https://api.blockchair.com/dogecoin/push/transaction'];
+// dogechain.info's push answers 404 now. Blockchair's was checked to answer; BlockCypher's is its documented push.
+export const DOGE_PUSH_URLS = ['https://api.blockchair.com/dogecoin/push/transaction', 'https://api.blockcypher.com/v1/doge/main/txs/push'];
 export const DOGE_EXPLORER_TX = 'https://dogechain.info/tx/';
 export const FIRO_APIS = ['https://insight.firo.org/insight-api-zcoin', 'https://explorer.firo.org/insight-api-zcoin'];
 export const FIRO_EXPLORER_TX = 'https://explorer.firo.org/tx/';

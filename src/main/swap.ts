@@ -456,7 +456,7 @@ const CN_COIN: Partial<Record<Asset, { ticker: string; network: string }>> = {
   WLD: { ticker: 'wld', network: 'eth' },
   USDTS: { ticker: 'usdt', network: 'sol' },
   // Names as their currency list has them; one they don't recognize gets no quote, and orders are checked anyway.
-  POL: { ticker: 'pol', network: 'matic' },
+  POL: { ticker: 'matic', network: 'matic' }, // ChangeNOW's 'pol' is the Ethereum token; Polygon's own coin is still 'matic'
   USDTP: { ticker: 'usdt', network: 'matic' },
   ARB: { ticker: 'arb', network: 'arbitrum' },
   ETHA: { ticker: 'eth', network: 'arbitrum' },
