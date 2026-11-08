@@ -219,6 +219,50 @@ export class EthClient {
     return { asset: this.chain.native, to, amount: value, gas, maxFee, tip, expectedFee: gas * (base + tip), maxCost: gas * maxFee };
   }
 
+  /** How much of a token a contract may take from this wallet. */
+  async allowance(token: string, spender: string): Promise<bigint> {
+    const hex = await this.call(token, `0xdd62ed3e${word(this.address.slice(2).toLowerCase())}${word(spender.slice(2).toLowerCase())}`);
+    return quantity(hex === '0x' ? '0x0' : hex, 'allowance');
+  }
+
+  /** What a run of contract calls costs at today's fees: the most it can cost, and what it will likely cost. */
+  async costOf(calls: { value: bigint; gas?: bigint }[], fallbackGas: bigint): Promise<{ maxFee: bigint; tip: bigint; most: bigint; likely: bigint; value: bigint }> {
+    const { maxFee, tip, base } = await this.fees();
+    const gas = calls.reduce((s, c) => s + (c.gas ?? fallbackGas), 0n);
+    return { maxFee, tip, most: gas * maxFee, likely: gas * (base + tip), value: calls.reduce((s, c) => s + c.value, 0n) };
+  }
+
+  /**
+   * Contract calls in order, signed with consecutive nonces and sent one after the other, so an approval is in the
+   * queue before the swap that needs it. Returns each hash.
+   */
+  async sendCalls(calls: { to: string; data: string; value: bigint; gas?: bigint }[], wallet: HDNodeWallet, fallbackGas: bigint): Promise<string[]> {
+    if (wallet.address !== this.address) throw new Error('The wallet address does not match, so this was stopped.');
+    const { maxFee, tip } = await this.fees();
+    const balance = quantity(await this.rpc('eth_getBalance', [this.address, 'latest']), `${this.chain.symbol} balance`);
+    const need = calls.reduce((s, c) => s + c.value + (c.gas ?? fallbackGas) * maxFee, 0n);
+    if (need > balance) throw new Error(`Not enough ${this.chain.symbol} for the amount and fees. Up to ${formatAmount(need, 18)} ${this.chain.symbol} is needed.`);
+    let nonce = quantity(await this.rpc('eth_getTransactionCount', [this.address, 'pending']), 'nonce');
+    const hashes: string[] = [];
+    for (const c of calls) {
+      const tx = { type: 2, chainId: Number(this.chain.id), nonce: Number(nonce), to: c.to, value: c.value, data: c.data, gasLimit: c.gas ?? fallbackGas, maxFeePerGas: maxFee, maxPriorityFeePerGas: tip };
+      const raw = await wallet.signTransaction(tx);
+      const parsed = Transaction.from(raw);
+      if (parsed.chainId !== this.chain.id || parsed.from !== this.address || !same(parsed.to ?? '', c.to) || parsed.value !== c.value || parsed.data !== c.data) {
+        throw new Error('The signed transaction differs from the request, so this was stopped.');
+      }
+      try {
+        await this.rpc('eth_sendRawTransaction', [raw]);
+      } catch (e) {
+        if (!/already known|known transaction/i.test((e as Error).message)) throw new Error(`${hashes.length ? `${hashes.length} of ${calls.length} sent (${hashes.join(', ')}), then: ` : ''}${(e as Error).message}`);
+      }
+      hashes.push(parsed.hash as string);
+      nonce += 1n;
+    }
+    this.balances = null;
+    return hashes;
+  }
+
   async typicalFee(gas: bigint): Promise<bigint> {
     const { base, tip } = await this.fees();
     return gas * (base + tip);
@@ -292,6 +336,7 @@ export class EthClient {
     const path = native
       ? `/addresses/${this.address}/transactions`
       : `/addresses/${this.address}/token-transfers?type=ERC-20&token=${token.contract}`;
+    if (!this.scout) return [];
     if (this.scout.includes('/etherscan/api')) return this.historyEtherscan(asset, token, limit);
     const body = await getJson(this.scout + path, { agent: this.agent, timeoutMs: this.timeoutMs });
     const rows: any[] = Array.isArray(body?.items) ? body.items : [];

@@ -9,6 +9,7 @@ import { MIN_PASSWORD, Secrets, Vault } from './vault';
 import { TronClient, TronTransfer, deriveTronAccount, generateTronMnemonic, isTronAddress } from './tron';
 import { socksAgent, getJson, requestJson, newTorRoute } from './request';
 import { AAVE_MARKETS, aaveCall, readAave } from './aave';
+import { DexCall, DexId, DexQuote, NATIVE, UNISWAP_CHAINS, UniswapClient, approvalCalls, narrowPermit, pancakeQuote, pancakeSwapCall } from './dex';
 import { ScrtClient, ScrtDraft, isScrtAddress, scrtPrivacyKeys, scrtPublicKey } from './scrt';
 import { BtcClient, BtcDraft, LITECOIN, btcAccountXpub, estimateVbytes, isBtcAddress, isLtcAddress, ltcAccountXpub } from './btc';
 import { PRICE_SOURCES, PriceMap, PriceSource, coingecko, mirror } from './prices';
@@ -25,7 +26,7 @@ import { DogeClient, DogeDraft, dogeAccountXpub, isDogeAddress, typicalDogeFee }
 import { BchClient, bchAccountXpub, isBchAddress, normalBchAddress, typicalBchFee } from './bch';
 import { SOL_FEE, SPL_TOKENS, SolClient, SolDraft, SolUsdtDraft, SplAsset, isSolAddress, solAddress } from './sol';
 import { DashClient, DashDraft, dashAccountXpub, isDashAddress, typicalDashFee } from './dash';
-import { ARBITRUM, BSC, EthAsset, EthClient, EthDraft, POLYGON, chainOf, deriveEthAccount, isEthAddress } from './eth';
+import { ARBITRUM, BSC, EvmChain, EthAsset, EthClient, EthDraft, POLYGON, chainOf, deriveEthAccount, isEthAddress } from './eth';
 import { TorManager } from './tor';
 import { BUILTIN_SWAP_KEYS, CCECASH_BASE, CHANGENOW_BASE, CceCashClient, ChangeNowClient, ETZSWAP_BASE, EtzSwapClient, GHOSTSWAP_BASE, GhostSwapClient, NOT_SWAPPABLE, PRIVACY_ASSETS, PrivacySwap, SIMPLESWAP_BASE, SWAP_BASE, SWAP_DEAD, SWAP_DONE, SimpleSwapClient, SwapClient, SwapProvider, SwapProviderId, SwapRecord } from './swap';
 import { MoneroClient, MoneroDraft, MoneroOptions, generateMoneroSeed, validateMoneroSeed } from './monero';
@@ -37,7 +38,7 @@ const QUOTE_DEADLINE_MS = 20_000;
 const QUOTE_DEADLINE_TOR_MS = 40_000;
 const QUOTE_EXTRAS_MS = 8_000;
 // ChangeNOW's own names, checked against their currency list.
-const BUY_TICKER: Record<Asset, string> = { BTC: 'btc', XMR: 'xmr', ETH: 'eth', ZEC: 'zec', SOL: 'sol', TRX: 'trx', USDTE: 'usdterc20', LINK: 'link', WLD: 'wlderc20', USDT: 'usdttrc20', USDTS: 'usdtsol', POL: 'maticmainnet', USDTP: 'usdtmatic', ARB: 'arb', ETHA: 'etharb', USDTA: 'usdtarb', BCH: 'bch', LTC: 'ltc', DOGE: 'doge', DASH: 'dash', FIRO: 'firo', ZANO: 'zano', ARRR: 'arrr', SCRT: '', SSCRT: '', ETHP: 'wethmatic', UNI: 'uni', PEPE: 'pepe', AAVE: 'aave', NEARE: '', BNB: 'bnbbsc', USDTB: 'usdtbsc', ASTER: '', CAKE: 'cake', JUP: 'jup', RAY: 'ray' }; // empty: ChangeNOW doesn't sell it here (no SCRT; its NEAR is the native coin)
+const BUY_TICKER: Record<Asset, string> = { BTC: 'btc', XMR: 'xmr', ETH: 'eth', ZEC: 'zec', SOL: 'sol', TRX: 'trx', USDTE: 'usdterc20', LINK: 'link', WLD: 'wlderc20', USDT: 'usdttrc20', USDTS: 'usdtsol', POL: 'maticmainnet', USDTP: 'usdtmatic', ARB: 'arb', ETHA: 'etharb', USDTA: 'usdtarb', BCH: 'bch', LTC: 'ltc', DOGE: 'doge', DASH: 'dash', FIRO: 'firo', ZANO: 'zano', ARRR: 'arrr', SCRT: '', SSCRT: '', ETHP: 'wethmatic', UNI: 'uni', PEPE: 'pepe', AAVE: '', NEARE: '', BNB: 'bnbbsc', USDTB: 'usdtbsc', ASTER: 'asterbsc', CAKE: 'cake', JUP: 'jup', RAY: 'raysol' }; // empty: ChangeNOW doesn't sell it (no SCRT or AAVE; its NEAR is the native coin). Checked against their list.
 const SWAP_NAMES: Record<SwapProviderId, string> = { exolix: 'Exolix', simpleswap: 'SimpleSwap', ghostswap: 'GhostSwap', etzswap: 'ETZ Swap', ccecash: 'CCECash', changenow: 'ChangeNOW' };
 
 function within<T, F>(ms: number, work: Promise<T>, late: F): Promise<T | F> {
@@ -87,6 +88,7 @@ interface Preview {
   zec?: ZecDraft;
   zano?: ZanoDraft;
   arrr?: ArrrDraft;
+  dex?: { quote: DexQuote; from: Asset; to: Asset; calls: DexCall[] };
 }
 
 export interface BalanceView { ok: boolean; stale?: boolean; pending?: boolean; total: string; spendable: string; error?: string }
@@ -146,7 +148,7 @@ export class WalletService extends EventEmitter {
   settings: Settings = { ...DEFAULT_SETTINGS };
 
   constructor(private readonly baseDir: string, private readonly kdf?: { N: number; r: number; p: number }, private readonly dev: {
-    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; bchApi?: string; ltcApi?: string; scrtLcd?: string; polRpc?: string; polScout?: string; polUsdt?: string; arbRpc?: string; arbScout?: string; arbUsdt?: string; bscRpc?: string; bscScout?: string; dashApi?: string; firoApi?: string; solRpc?: string; dogeApi?: string; zecBin?: string; zecServers?: string[]; zanoBin?: string; zanoNode?: string; arrrBin?: string; arrrServers?: string[]; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; etzSwapBase?: string; cceCashBase?: string; changeNowBase?: string; quoteDeadlineMs?: number; btcApi?: string;
+    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; bchApi?: string; ltcApi?: string; scrtLcd?: string; polRpc?: string; polScout?: string; polUsdt?: string; arbRpc?: string; arbScout?: string; arbUsdt?: string; bscRpc?: string; bscScout?: string; uniswapKey?: string; uniswapBase?: string; dashApi?: string; firoApi?: string; solRpc?: string; dogeApi?: string; zecBin?: string; zecServers?: string[]; zanoBin?: string; zanoNode?: string; arrrBin?: string; arrrServers?: string[]; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; etzSwapBase?: string; cceCashBase?: string; changeNowBase?: string; quoteDeadlineMs?: number; btcApi?: string;
     /** Android: every outside address goes through the app's local forwarder. */
     route?: (url: string) => string;
     moneroStore?: (net: NetworkId, walletId: string) => MoneroOptions['store'];
@@ -714,6 +716,119 @@ export class WalletService extends EventEmitter {
     if (changenow) clients.changenow = new ChangeNowClient(this.dev.changeNowBase ?? CHANGENOW_BASE, changenow, this.priceAgent, timeout);
     return clients;
   }
+  // ---- swaps on the chain itself (Uniswap, PancakeSwap) ----
+
+  /** The chain both coins sit on, or null when a DEX can't swap them. */
+  private dexChain(from: Asset, to: Asset): EvmChain | null {
+    if (from === to || !isEvm(from) || !isEvm(to)) return null;
+    const a = chainOf(from as EthAsset);
+    return a === chainOf(to as EthAsset) ? a : null;
+  }
+
+  private tokenAddress(asset: Asset): string {
+    const chain = chainOf(asset as EthAsset);
+    return asset === chain.native ? NATIVE : chain.tokens[asset as EthAsset]!.contract;
+  }
+
+  private uniswap(): UniswapClient | null {
+    const key = this.dev.uniswapKey ?? BUILTIN_SWAP_KEYS.uniswap;
+    return key ? new UniswapClient(key, this.priceAgent, this.settings.torEnabled ? 40_000 : 20_000, this.dev.uniswapBase) : null;
+  }
+
+  private async dexQuotes(from: Asset, to: Asset, amountIn: bigint, slippageBps: number): Promise<{ id: DexId; quote?: DexQuote; problem?: string }[]> {
+    const chain = this.dexChain(from, to);
+    if (!chain) return [];
+    const client = this.evm(from);
+    const tokenIn = this.tokenAddress(from);
+    const tokenOut = this.tokenAddress(to);
+    const asks: Promise<{ id: DexId; quote?: DexQuote; problem?: string }>[] = [];
+    const uni = this.uniswap();
+    if (uni && UNISWAP_CHAINS.includes(chain.id)) asks.push(uni.quote(chain.id, tokenIn, tokenOut, amountIn, client.address, slippageBps).then((quote) => ({ id: 'uniswap' as const, quote }), (e) => ({ id: 'uniswap' as const, problem: (e as Error).message })));
+    if (chain.id === BSC.id) asks.push(pancakeQuote((to2, data) => client.call(to2, data), tokenIn, tokenOut, amountIn, slippageBps).then((quote) => ({ id: 'pancakeswap' as const, quote }), (e) => ({ id: 'pancakeswap' as const, problem: (e as Error).message })));
+    return Promise.all(asks);
+  }
+
+  /** Same-chain swap quotes, in the shape the swap screen shows. Empty when the two coins aren't on one EVM chain. */
+  async dexQuote(from: Asset, to: Asset, amountInput: string, slippageBps = 50) {
+    this.session();
+    if (!this.dexChain(from, to)) return [];
+    const amountIn = parseAmount(amountInput, DECIMALS[from]);
+    const chain = chainOf(from as EthAsset);
+    const price = (await this.prices().catch(() => null))?.[chain.native as Asset]?.usd;
+    const list = await this.dexQuotes(from, to, amountIn, slippageBps);
+    return Promise.all(list.map(async ({ id, quote, problem }) => {
+      const provider = id === 'uniswap' ? 'Uniswap' : 'PancakeSwap';
+      const base = { from, to, amount: amountInput, provider, providerId: id, dex: true, approximate: false, min: null, max: null };
+      if (!quote) return { ...base, receive: '0', rate: '0', problem: problem ?? 'No quote.' };
+      const needsApproval = quote.tokenIn !== NATIVE && (await this.evm(from).allowance(quote.tokenIn, quote.spender).catch(() => 0n)) < amountIn;
+      const gas = quote.gasUnits + (needsApproval ? 80_000n : 0n);
+      const fee = await this.evm(from).costOf([{ value: 0n, gas }], gas).catch(() => null);
+      const receive = formatAmount(quote.amountOut, DECIMALS[to]);
+      return {
+        ...base, receive, problem: null,
+        rate: (Number(receive) / Number(amountInput)).toPrecision(6),
+        minReceive: formatAmount(quote.minOut, DECIMALS[to]),
+        priceImpact: quote.priceImpact, needsApproval,
+        network: fee ? { fee: formatAmount(fee.likely, 18), asset: chain.symbol, usd: typeof price === 'number' ? Number(formatAmount(fee.likely, 18)) * price : null } : null,
+      };
+    }));
+  }
+
+  async dexPrepare(from: Asset, to: Asset, amountInput: string, providerId: DexId, slippageBps = 50) {
+    this.session();
+    if (this.torNotReady) throw new Error('Tor is connecting. Try again once it connects.');
+    const chain = this.dexChain(from, to);
+    if (!chain) throw new Error('These two coins aren\'t on the same network, so a DEX can\'t swap them.');
+    const client = this.evm(from);
+    const amountIn = parseAmount(amountInput, DECIMALS[from]);
+    const held = await client.balanceOf(from as EthAsset, true);
+    if (amountIn > held) throw new Error(`Not enough ${ASSET_LABEL[from] ?? from}.`);
+    const found = (await this.dexQuotes(from, to, amountIn, slippageBps)).find((q) => q.id === providerId);
+    if (!found?.quote) throw new Error(found?.problem ?? 'No quote from this exchange right now.');
+    const quote = found.quote;
+    const calls: DexCall[] = quote.tokenIn === NATIVE ? [] : approvalCalls(quote.tokenIn, quote.spender, amountIn, await client.allowance(quote.tokenIn, quote.spender));
+    // The swap call itself is made after the password for Uniswap (it needs a signature), so its gas is the estimate.
+    const swapGas = quote.gasUnits + 60_000n;
+    const cost = await client.costOf([...calls, { value: quote.tokenIn === NATIVE ? amountIn : 0n, gas: swapGas }], swapGas);
+    if (cost.value + cost.most > (await client.balanceOf(chain.native, true))) throw new Error(`Not enough ${chain.symbol} for the fee. Up to ${formatAmount(cost.most, 18)} ${chain.symbol} is needed${cost.value ? ' on top of the amount' : ''}.`);
+    const preview = this.storePreview({ asset: from, to: client.address, amount: amountIn, fee: cost.likely, dex: { quote, from, to, calls } });
+    const warnings = [
+      'This swap happens on the public chain. Your address, the coins and the amounts are visible to anyone.',
+      ...(calls.length ? [`${ASSET_LABEL[from] ?? from} needs a one-time permission for this exact amount first, so two transactions are sent.`] : []),
+      ...(quote.priceImpact !== null && quote.priceImpact > 2 ? [`This trade moves the price by about ${quote.priceImpact.toFixed(1)}%. A smaller amount may get a better rate.`] : []),
+    ];
+    return {
+      id: preview.id, from, to, provider: providerId === 'uniswap' ? 'Uniswap' : 'PancakeSwap',
+      amount: formatAmount(amountIn, DECIMALS[from]), receive: formatAmount(quote.amountOut, DECIMALS[to]), minReceive: formatAmount(quote.minOut, DECIMALS[to]),
+      slippage: slippageBps / 100, fee: formatAmount(cost.likely, 18), feeAsset: chain.symbol, steps: calls.length + 1, warnings,
+    };
+  }
+
+  async dexConfirm(id: string, password: string) {
+    this.session();
+    const preview = this.previews.get(id);
+    if (!preview?.dex || preview.expires < Date.now()) { this.previews.delete(id); throw new Error('The review expired. Try again.'); }
+    const secrets = await this.vault.open(password);
+    this.previews.delete(id);
+    this.balanceMemo.clear();
+    const { quote, from, calls } = preview.dex;
+    const client = this.evm(from);
+    const account = deriveEthAccount(secrets.tronMnemonic);
+    const now = Math.floor(Date.now() / 1000);
+    let swap: DexCall;
+    if (quote.provider === 'pancakeswap') {
+      swap = pancakeSwapCall(quote, client.address, now + 1200);
+    } else {
+      const uni = this.uniswap();
+      if (!uni) throw new Error('Uniswap isn\'t set up in this build.');
+      const permit = quote.raw?.permitData ? narrowPermit(quote.raw.permitData, quote, now) : null;
+      const signature = permit ? await account.wallet.signTypedData(permit.domain, { PermitSingle: permit.types.PermitSingle, PermitDetails: permit.types.PermitDetails }, permit.values) : undefined;
+      swap = await uni.swapTx(quote, signature, permit ?? undefined);
+    }
+    const hashes = await client.sendCalls([...calls, swap], account.wallet, quote.gasUnits + 60_000n);
+    return { hashes, explorer: hashes.map((h) => this.explorerUrl(from, h)) };
+  }
+
   /** The client for the chain an EVM coin or token lives on. */
   private evm(asset: Asset): EthClient {
     const id = chainOf(asset as EthAsset).id;

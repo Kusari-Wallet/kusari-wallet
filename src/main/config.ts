@@ -20,7 +20,7 @@ export const CHANGENOW_LINK_ID = '9183599f3b8ee2';
 export const LTC_APIS = ['https://litecoinspace.org/api'];
 export const LTC_EXPLORER_TX = 'https://litecoinspace.org/tx/';
 // Public Secret Network REST (LCD) servers, from the Cosmos chain registry. Each is checked to be on secret-4 before use.
-export const SCRT_LCDS = ['https://rest.lavenderfive.com:443/secretnetwork', 'https://secretnetwork-api.lavenderfive.com:443', 'https://rest-secret.01node.com'];
+export const SCRT_LCDS = ['https://rest.lavenderfive.com:443/secretnetwork', 'https://lcd-secret.keplr.app', 'https://secretnetwork-api.lavenderfive.com:443', 'https://rest-secret.01node.com'];
 export const SCRT_EXPLORER_TX = 'https://www.mintscan.io/secret/tx/';
 export const BCH_APIS = ['https://api.bitcore.io/api/BCH/mainnet'];
 export const BCH_EXPLORER_TX = 'https://blockchair.com/bitcoin-cash/transaction/';
@@ -51,8 +51,9 @@ export const ARB_RPCS = ['https://arbitrum-one-rpc.publicnode.com', 'https://arb
 export const ARB_SCOUT = 'https://arbitrum.blockscout.com/api/v2';
 export const ARB_EXPLORER_TX = 'https://arbiscan.io/tx/';
 export const BSC_RPCS = ['https://bsc-rpc.publicnode.com', 'https://bsc-dataseed.bnbchain.org', 'https://bsc.drpc.org'];
-// No Blockscout runs BNB Smart Chain; Routescan's Etherscan-style API needs no key.
-export const BSC_SCOUT = 'https://api.routescan.io/v2/network/mainnet/evm/56/etherscan/api';
+// No keyless history service covers BNB Smart Chain (checked: Blockscout doesn't run it, Routescan answers 'chain not
+// supported', Etherscan's free tier excludes it, Blockchair blocks without a key). Empty means no history list.
+export const BSC_SCOUT = '';
 export const BSC_EXPLORER_TX = 'https://bscscan.com/tx/';
 
 export interface NetworkConfig {

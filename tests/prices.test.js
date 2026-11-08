@@ -52,7 +52,7 @@ test('exchanges: each one read for the coins it lists, and nothing made up', () 
 });
 
 test('every source is an https address', () => {
-  assert.equal(PRICE_SOURCES.length, 9);
+  assert.equal(PRICE_SOURCES.length, 8);
   for (const s of PRICE_SOURCES) assert.match(s.url, /^https:\/\//);
 });
 

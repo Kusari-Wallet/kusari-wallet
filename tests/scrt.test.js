@@ -125,3 +125,20 @@ test('a server on another chain is never used', async (tt) => {
   assert.equal(asked, 0);
   await assert.rejects(new ScrtClient(scrtPublicKey(M), [wrong.base]).getBalance(), /Could not reach/);
 });
+
+test('sSCRT: the enclave key is used only when two server operators agree on it', async (tt) => {
+  const { scrtPrivacyKeys } = require('../dist/main/scrt');
+  const KEY = Buffer.alloc(32, 7).toString('base64');
+  const other = Buffer.alloc(32, 9).toString('base64');
+  let second = KEY;
+  const answer = (which) => (url) => (url === '/registration/v1beta1/tx-key' ? { key: which() } : url.includes('/code_hash/') ? { code_hash: 'ab'.repeat(32) } : { status: 500, body: { message: 'stop here' } });
+  const a = await lcd(tt, answer(() => KEY));
+  const b = await lcd(tt, answer(() => second));
+  // Two names for the machine stand in for two operators.
+  const hosts = [a.base, b.base.replace('127.0.0.1', 'localhost')];
+  const c = () => new ScrtClient(scrtPublicKey(M), hosts, undefined, 5000, scrtPrivacyKeys(M));
+  await assert.rejects(c().getPrivateBalance(), /Server error \(500\)/, 'agreed, so it went on to ask the contract');
+  second = other;
+  await assert.rejects(c().getPrivateBalance(), /disagree/);
+  await assert.rejects(new ScrtClient(scrtPublicKey(M), [a.base], undefined, 5000, scrtPrivacyKeys(M)).getPrivateBalance(), /two separate servers/);
+});

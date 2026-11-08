@@ -122,7 +122,7 @@ export const coinbase = (url: string) => exchange('Coinbase', url, (j, coin) => 
 export const PRICE_SOURCES: PriceSource[] = [
   coingecko('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,tron,tether,monero,dash,zcash,zano,pirate-chain,zcoin,solana,dogecoin,polygon-ecosystem-token,arbitrum,bitcoin-cash,chainlink,worldcoin-wld,litecoin,secret,uniswap,pepe,aave,near,binancecoin,aster-2,pancakeswap-token,jupiter-exchange-solana,raydium&vs_currencies=usd&include_24hr_change=true'),
   kraken('https://api.kraken.com/0/public/Ticker?pair=XBTUSD,ETHUSD,TRXUSD,USDTUSD,XMRUSD'),
-  cryptocompare('https://min-api.cryptocompare.com/data/pricemultifull?fsyms=BTC,ETH,TRX,USDT,XMR,DASH,ZEC,ZANO,ARRR,FIRO,SOL,DOGE,POL,ARB,BCH,LINK,WLD,LTC,SCRT,UNI,PEPE,AAVE,NEAR,BNB,ASTER,CAKE,JUP,RAY&tsyms=USD'),
+  // CryptoCompare (now CoinDesk) asks for an API key since 2026, so it's no longer asked.
   mexc('https://api.mexc.com/api/v3/ticker/24hr'),
   gate('https://api.gateio.ws/api/v4/spot/tickers'),
   binance('https://data-api.binance.vision/api/v3/ticker/24hr'),

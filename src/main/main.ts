@@ -1,3 +1,4 @@
+import type { Asset } from './config';
 import { app, BrowserWindow, clipboard, ipcMain, Menu, session, shell } from 'electron';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -75,7 +76,7 @@ app.whenReady().then(async () => {
   configureMoneroWorker();
 
   // Unpacked development runs only: a packaged app can't be redirected to another Tron host.
-  const dev = app.isPackaged ? {} : { tronHost: process.env.VAULT_DEV_TRON_HOST, priceUrl: process.env.VAULT_DEV_PRICE_URL, firoApi: process.env.VAULT_DEV_FIRO_API, solRpc: process.env.VAULT_DEV_SOL_RPC, dogeApi: process.env.VAULT_DEV_DOGE_API, dashApi: process.env.VAULT_DEV_DASH_API, zecBin: process.env.VAULT_DEV_ZEC_BIN, arrrBin: process.env.VAULT_DEV_ARRR_BIN, arrrServers: process.env.VAULT_DEV_ARRR_SERVER ? [process.env.VAULT_DEV_ARRR_SERVER] : undefined, zanoBin: process.env.VAULT_DEV_ZANO_BIN, zanoNode: process.env.VAULT_DEV_ZANO_NODE, zecServers: process.env.VAULT_DEV_ZEC_SERVER ? [process.env.VAULT_DEV_ZEC_SERVER] : undefined, ethRpc: process.env.VAULT_DEV_ETH_RPC, tornadoPools: process.env.VAULT_DEV_TORNADO ? JSON.parse(process.env.VAULT_DEV_TORNADO) : undefined, ethScout: process.env.VAULT_DEV_ETH_SCOUT, bchApi: process.env.VAULT_DEV_BCH_API, ltcApi: process.env.VAULT_DEV_LTC_API, scrtLcd: process.env.VAULT_DEV_SCRT_LCD, polRpc: process.env.VAULT_DEV_POL_RPC, polScout: process.env.VAULT_DEV_POL_SCOUT, arbRpc: process.env.VAULT_DEV_ARB_RPC, arbScout: process.env.VAULT_DEV_ARB_SCOUT, bscRpc: process.env.VAULT_DEV_BSC_RPC, bscScout: process.env.VAULT_DEV_BSC_SCOUT, swapBase: process.env.VAULT_DEV_SWAP_BASE, simpleSwapBase: process.env.VAULT_DEV_SIMPLESWAP_BASE, ghostSwapBase: process.env.VAULT_DEV_GHOSTSWAP_BASE, btcApi: process.env.VAULT_DEV_BTC_API, torBin: process.env.VAULT_DEV_TOR_BIN, socks: process.env.VAULT_DEV_SOCKS };
+  const dev = app.isPackaged ? {} : { tronHost: process.env.VAULT_DEV_TRON_HOST, priceUrl: process.env.VAULT_DEV_PRICE_URL, firoApi: process.env.VAULT_DEV_FIRO_API, solRpc: process.env.VAULT_DEV_SOL_RPC, dogeApi: process.env.VAULT_DEV_DOGE_API, dashApi: process.env.VAULT_DEV_DASH_API, zecBin: process.env.VAULT_DEV_ZEC_BIN, arrrBin: process.env.VAULT_DEV_ARRR_BIN, arrrServers: process.env.VAULT_DEV_ARRR_SERVER ? [process.env.VAULT_DEV_ARRR_SERVER] : undefined, zanoBin: process.env.VAULT_DEV_ZANO_BIN, zanoNode: process.env.VAULT_DEV_ZANO_NODE, zecServers: process.env.VAULT_DEV_ZEC_SERVER ? [process.env.VAULT_DEV_ZEC_SERVER] : undefined, ethRpc: process.env.VAULT_DEV_ETH_RPC, tornadoPools: process.env.VAULT_DEV_TORNADO ? JSON.parse(process.env.VAULT_DEV_TORNADO) : undefined, ethScout: process.env.VAULT_DEV_ETH_SCOUT, bchApi: process.env.VAULT_DEV_BCH_API, ltcApi: process.env.VAULT_DEV_LTC_API, scrtLcd: process.env.VAULT_DEV_SCRT_LCD, polRpc: process.env.VAULT_DEV_POL_RPC, polScout: process.env.VAULT_DEV_POL_SCOUT, arbRpc: process.env.VAULT_DEV_ARB_RPC, arbScout: process.env.VAULT_DEV_ARB_SCOUT, bscRpc: process.env.VAULT_DEV_BSC_RPC, uniswapBase: process.env.VAULT_DEV_UNISWAP_BASE, uniswapKey: process.env.VAULT_DEV_UNISWAP_KEY, bscScout: process.env.VAULT_DEV_BSC_SCOUT, swapBase: process.env.VAULT_DEV_SWAP_BASE, simpleSwapBase: process.env.VAULT_DEV_SIMPLESWAP_BASE, ghostSwapBase: process.env.VAULT_DEV_GHOSTSWAP_BASE, btcApi: process.env.VAULT_DEV_BTC_API, torBin: process.env.VAULT_DEV_TOR_BIN, socks: process.env.VAULT_DEV_SOCKS };
   service = new WalletService(app.getPath('userData'), undefined, dev);
   await service.init();
   service.on('monero-state', (s) => emit('wallet:monero-state', s));
@@ -92,6 +93,9 @@ app.whenReady().then(async () => {
   handle('wallet:zanoInfo', () => service.zanoInfo());
   handle('wallet:zecInfo', () => service.zecInfo());
   handle('wallet:zecShield', (pw: string) => service.zecShield(pw));
+  handle('wallet:dexQuote', (from: Asset, to: Asset, amount: string, bps: number) => service.dexQuote(from, to, amount, bps));
+  handle('wallet:dexPrepare', (from: Asset, to: Asset, amount: string, id: 'uniswap' | 'pancakeswap', bps: number) => service.dexPrepare(from, to, amount, id, bps));
+  handle('wallet:dexConfirm', (id: string, pw: string) => service.dexConfirm(id, pw));
   handle('wallet:prepareScrtPrivate', (kind: 'wrap' | 'unwrap' | 'key', amount: string) => service.prepareScrtPrivate(kind, amount));
   handle('wallet:zecRescan', (date: string, pw: string) => service.zecRescan(date, pw));
   handle('wallet:generateSeeds', () => service.generateSeeds());

@@ -41,6 +41,12 @@ function mockNode() {
         if (m === 'eth_maxPriorityFeePerGas') return ok('0x0');
         return send({ jsonrpc: '2.0', id: json.id, error: { message: 'unknown ' + m } });
       }
+      // Uniswap's Trading API: a pool route for whatever was asked, paid to whoever asked.
+      if (url === '/uniswap/quote') {
+        (state.uniswapAsks = state.uniswapAsks ?? []).push(json);
+        const out = (BigInt(json.amount) * 2000n / 10n ** 12n).toString(); // ETH (18 decimals) at $2000 into USDT (6)
+        return send({ routing: 'CLASSIC', permitData: null, quote: { chainId: Number(json.tokenInChainId), swapper: json.swapper, input: { token: json.tokenIn, amount: json.amount }, output: { token: json.tokenOut, amount: out, minimumAmount: (BigInt(out) * 995n / 1000n).toString(), recipient: json.swapper }, priceImpact: 0.05, gasUseEstimate: '120000' } });
+      }
       if (url === '/eth/rpc') {
         const ok = (result) => send({ jsonrpc: '2.0', id: json.id, result });
         const m = json.method;

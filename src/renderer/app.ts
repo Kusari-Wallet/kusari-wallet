@@ -46,10 +46,10 @@ const COIN: Record<Asset, { label: string; file: string; note: string }> = {
   PEPE: { label: 'PEPE', file: 'coins/pepe.png', note: 'PEPE on Ethereum (ERC-20) only. ETH is needed for the fee.' },
   AAVE: { label: 'AAVE', file: 'coins/aave.png', note: 'Aave on Ethereum (ERC-20) only. ETH is needed for the fee.' },
   NEARE: { label: 'NEAR', file: 'coins/near.png', note: 'NEAR as a token on Ethereum (ERC-20, Rainbow Bridge). It isn\'t NEAR on the NEAR network. ETH is needed for the fee.' },
-  BNB: { label: 'BNB', file: 'coins/bnb.png', note: 'BNB Smart Chain (BEP-20) only. The fee is paid in BNB.' },
-  USDTB: { label: 'USDT (BNB)', file: 'coins/usdt.png', note: 'BNB Smart Chain (BEP-20) only. BNB is needed for the fee. Don\'t send to addresses on other chains.' },
-  ASTER: { label: 'ASTER', file: 'coins/aster.png', note: 'Aster on BNB Smart Chain (BEP-20) only. BNB is needed for the fee.' },
-  CAKE: { label: 'CAKE', file: 'coins/cake.png', note: 'PancakeSwap on BNB Smart Chain (BEP-20) only. BNB is needed for the fee.' },
+  BNB: { label: 'BNB', file: 'coins/bnb.png', note: 'BNB Smart Chain (BEP-20) only. The fee is paid in BNB. No free service lists BNB Smart Chain history, so past transfers show on bscscan.com, not here.' },
+  USDTB: { label: 'USDT (BNB)', file: 'coins/usdt.png', note: 'BNB Smart Chain (BEP-20) only. BNB is needed for the fee. Don\'t send to addresses on other chains. No free service lists BNB Smart Chain history, so past transfers show on bscscan.com, not here.' },
+  ASTER: { label: 'ASTER', file: 'coins/aster.png', note: 'Aster on BNB Smart Chain (BEP-20) only. BNB is needed for the fee. No free service lists BNB Smart Chain history, so past transfers show on bscscan.com, not here.' },
+  CAKE: { label: 'CAKE', file: 'coins/cake.png', note: 'PancakeSwap on BNB Smart Chain (BEP-20) only. BNB is needed for the fee. No free service lists BNB Smart Chain history, so past transfers show on bscscan.com, not here.' },
   JUP: { label: 'JUP', file: 'coins/jup.png', note: 'Jupiter on Solana (SPL) only. SOL is needed for the fee.' },
   RAY: { label: 'RAY', file: 'coins/ray.png', note: 'Raydium on Solana (SPL) only. SOL is needed for the fee.' },
 };
@@ -925,6 +925,43 @@ function renderReview(p: any, keep: { to: string; amount: string }): void {
   pw.focus();
 }
 
+/** A Uniswap or PancakeSwap swap: one or two transactions this wallet signs and sends itself. */
+function renderDexReview(p: any, back: () => void): void {
+  const pw = h('input', { type: 'password', id: 'dex-pw', autocomplete: 'current-password' });
+  const box = errorBox();
+  const go = h('button', { class: 'primary', id: 'dex-confirm', type: 'submit' }, p.steps > 1 ? `Approve and swap (${p.steps} transactions)` : 'Swap');
+  const price = prices?.[p.to]?.usd;
+  const form = h('form', { onsubmit: (e: Event) => {
+    e.preventDefault();
+    busy(go, 'Sending…', box, async () => {
+      const res = await wallet.dexConfirm(p.id, pw.value);
+      pw.value = '';
+      show('receive', subBar('Swap sent', renderHome), h('div', { class: 'scroll' },
+        h('h2', { id: 'dex-sent' }, `${p.amount} ${coinName(p.from)} → ${coinName(p.to)}`),
+        h('p', { class: 'muted' }, `Sent to the network through ${p.provider}. The balance updates once it's in a block. If the price moves past your limit before then, the swap fails and only the fee is spent.`),
+        ...res.hashes.map((hash: string, i: number) => h('div', { class: 'panel' },
+          h('span', { class: 'label' }, res.hashes.length > 1 && i < res.hashes.length - 1 ? 'Permission transaction' : 'Swap transaction'),
+          h('div', { class: 'mono' }, hash), h('br'),
+          h('div', { class: 'row' }, h('button', { onclick: () => wallet.copy(hash) }, 'Copy'), h('button', { onclick: () => void openExplorer(p.from, hash) }, 'View in explorer')))),
+        h('button', { class: 'primary', onclick: () => void renderSwap(p.from, p.to) }, 'Swap again')));
+      void refresh();
+    });
+  } },
+  box.el,
+  ...p.warnings.map((w: string) => h('div', { class: 'warn' }, w)),
+  h('div', { class: 'panel' }, h('table', { class: 'review-table' }, h('tbody', {},
+    h('tr', {}, h('th', {}, 'You send'), h('td', { id: 'dex-send' }, `${p.amount} ${coinName(p.from)}`)),
+    h('tr', {}, h('th', {}, 'You receive'), h('td', {}, h('div', { class: 'big-amount', id: 'dex-receive' }, `about ${p.receive} ${coinName(p.to)}`),
+      typeof price === 'number' && h('div', { class: 'small muted' }, `≈ ${usdFormat(Number(p.receive) * price)}`))),
+    h('tr', {}, h('th', {}, 'At least'), h('td', { id: 'dex-min' }, `${p.minReceive} ${coinName(p.to)} (slippage limit ${p.slippage}%)`)),
+    h('tr', {}, h('th', {}, 'Exchange'), h('td', {}, p.provider)),
+    h('tr', {}, h('th', {}, 'Estimated fee'), h('td', { id: 'dex-fee' }, reviewFee(p.fee, p.feeAsset)))))),
+  h('label', { class: 'field' }, h('span', {}, 'Password'), pw),
+  go);
+  show('send', subBar('Review swap', () => { void wallet.cancelSend(p.id); back(); }), h('div', { class: 'scroll' }, form));
+  pw.focus();
+}
+
 function renderSent(p: any, hashes: string[]): void {
   show('receive', subBar('Sent', renderHome), h('div', { class: 'scroll' },
     h('div', { class: 'picker' }, h('div', { class: 'picker-btn' }, coin(p.asset))),
@@ -1128,9 +1165,11 @@ async function renderSwap(from: Asset = selected, to: Asset = selected === 'XMR'
   const balance = h('span', { class: 'small muted', id: 'swap-balance' });
   const box = errorBox();
   let chosen: any = null;
+  let slippage = 50; // basis points, for Uniswap and PancakeSwap
   const offers = h('div', { class: 'swap-offers', id: 'swap-offers' });
-  const next = h('button', { class: 'primary', id: 'swap-next', disabled: true, onclick: () => busy(next, 'Creating the order…', box, async () => {
+  const next = h('button', { class: 'primary', id: 'swap-next', disabled: true, onclick: () => busy(next, chosen?.dex ? 'Checking the route…' : 'Creating the order…', box, async () => {
     const again = () => void renderSwap(from, to, amount.value, privacy);
+    if (chosen?.dex && !privacy) { renderDexReview(await wallet.dexPrepare(from, to, amount.value, chosen.providerId, slippage), again); return; }
     renderSwapReview(privacy
       ? await wallet.privacyPrepare(from, to, amount.value, chosen.providerId, dest.value)
       : await wallet.swapPrepare(from, to, amount.value, chosen.providerId, dest.value), again);
@@ -1151,7 +1190,9 @@ async function renderSwap(from: Asset = selected, to: Asset = selected === 'XMR'
     setKids(offers, h('span', { class: 'label' }, list.length > 1 ? 'Compare providers' : 'Estimated cost'), ...list.map((q) => h('button', {
       type: 'button', class: `swap-offer${q === chosen ? ' on' : ''}`, id: `offer-${q.providerId}`, disabled: Boolean(q.problem),
       onclick: () => { chosen = q; paintOffers(list); },
-    }, h('span', {}, q.provider), h('span', { class: 'offer-right' }, q.problem ? 'No quote' : `about ${q.receive} ${coinName(to)}`, q.problem && h('span', { class: 'small muted offer-cost' }, q.problem), !q.problem && netReceive(q, q.network) && h('span', { class: 'offer-net' }, netLine(q, q.network)), !q.problem && h('span', { class: 'offer-cost' }, offerFee(q).total), !q.problem && h('span', { class: 'small muted offer-cost' }, offerFee(q).detail)))),
+    }, h('span', {}, q.provider, q.dex && h('span', { class: 'offer-tag' }, 'on-chain')), h('span', { class: 'offer-right' }, q.problem ? 'No quote' : `about ${q.receive} ${coinName(to)}`, q.problem && h('span', { class: 'small muted offer-cost' }, q.problem), !q.problem && netReceive(q, q.network) && h('span', { class: 'offer-net' }, netLine(q, q.network)), !q.problem && h('span', { class: 'offer-cost' }, offerFee(q).total), !q.problem && h('span', { class: 'small muted offer-cost' }, offerFee(q).detail)))),
+    list.some((q) => q.dex) && h('div', { class: 'swap-slippage', id: 'swap-slippage' }, h('span', { class: 'small muted' }, 'Slippage limit (Uniswap, PancakeSwap)'),
+      h('div', { class: 'swap-chips' }, ...([[50, '0.5%'], [100, '1%'], [300, '3%']] as const).map(([bps, label]) => h('button', { type: 'button', class: `chip${slippage === bps ? ' on' : ''}`, id: `slip-${bps}`, onclick: () => { slippage = bps as number; refreshQuote(); } }, label)))),
     h('p', { class: 'small muted', id: 'swap-network-fee' }, `The provider fee is included in the rate, so this is an estimate from the gap between the market price and the amount received. The network fee is paid separately from your wallet at deposit.${network && typeof network.usd !== 'number' ? ` About ${network.fee} ${network.asset}.` : ''}`));
   };
   let ticket = 0;
@@ -1182,8 +1223,10 @@ async function renderSwap(from: Asset = selected, to: Asset = selected === 'XMR'
             : (q.problem ?? '');
           return;
         }
-        const list = await wallet.swapQuote(from, to, value);
-        if (mine === ticket) paintOffers(list);
+        // Coins on one EVM chain can also swap on Uniswap or PancakeSwap, straight from the wallet.
+        const [list, dex] = await Promise.all([wallet.swapQuote(from, to, value), wallet.dexQuote(from, to, value, slippage).catch(() => [])]);
+        const onChain = [...dex].sort((a: any, b: any) => Number(Boolean(a.problem)) - Number(Boolean(b.problem)) || Number(b.receive) - Number(a.receive));
+        if (mine === ticket) paintOffers([...onChain, ...list]);
       } catch (e) {
         if (mine === ticket) info.textContent = `Could not get quotes. ${errMsg(e)}`;
       }

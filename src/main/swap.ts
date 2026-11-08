@@ -190,12 +190,12 @@ const SIMPLE_COIN: Record<Asset, { ticker: string; network: string }> = {
   ETH: { ticker: 'eth', network: 'eth' },
   USDTE: { ticker: 'usdt', network: 'eth' },
   LINK: { ticker: 'link', network: 'eth' },
-  ETHP: { ticker: 'eth', network: 'matic' },
+  ETHP: { ticker: '', network: '' }, // not listed
   UNI: { ticker: 'uni', network: 'eth' },
   PEPE: { ticker: 'pepe', network: 'eth' },
   AAVE: { ticker: 'aave', network: 'eth' },
-  NEARE: { ticker: 'near', network: 'eth' },
-  BNB: { ticker: 'bnb', network: 'bsc' },
+  NEARE: { ticker: '', network: '' }, // not listed: only NEAR's own chain and BSC
+  BNB: { ticker: 'bnb-bsc', network: 'bsc' },
   USDTB: { ticker: 'usdt', network: 'bsc' },
   ASTER: { ticker: 'aster', network: 'bsc' },
   CAKE: { ticker: 'cake', network: 'bsc' },
@@ -229,15 +229,18 @@ export class SimpleSwapClient implements SwapProvider {
   }
 
   private pair(from: Asset, to: Asset) {
+    if (!SIMPLE_COIN[from].ticker || !SIMPLE_COIN[to].ticker) return null;
     return { tickerFrom: SIMPLE_COIN[from].ticker, networkFrom: SIMPLE_COIN[from].network, tickerTo: SIMPLE_COIN[to].ticker, networkTo: SIMPLE_COIN[to].network };
   }
 
   async quote(from: Asset, to: Asset, amount: string): Promise<SwapQuote> {
-    const q = new URLSearchParams({ fixed: 'false', ...this.pair(from, to), reverse: 'false', amount });
+    const base = { from, to, amount, min: null, max: null, provider: 'SimpleSwap', providerId: 'simpleswap' as const, approximate: true };
+    const pair = this.pair(from, to);
+    if (!pair) return { ...base, receive: '0', rate: '0', problem: 'SimpleSwap doesn\'t offer this coin.' };
+    const q = new URLSearchParams({ fixed: 'false', ...pair, reverse: 'false', amount });
     const res = await this.call('GET', `/v3/estimates?${q}`);
     const row = res.body?.result ?? res.body ?? {};
     const receive = num(row.estimatedAmount);
-    const base = { from, to, amount, min: null, max: null, provider: 'SimpleSwap', providerId: 'simpleswap' as const, approximate: true };
     if (res.status === 401 || res.status === 403) return { ...base, receive: '0', rate: '0', problem: 'Check the SimpleSwap API key.' };
     if (res.status >= 400 || !receive || Number(receive) <= 0) {
       return { ...base, receive: '0', rate: '0', problem: apiMessage(res.body, 'No quote available for this swap right now. Try a different amount.') };
@@ -247,7 +250,7 @@ export class SimpleSwapClient implements SwapProvider {
 
   async create(from: Asset, to: Asset, amount: string, expectedReceive: string, withdrawalAddress: string, refundAddress: string): Promise<SwapOrder> {
     const res = await this.call('POST', '/v3/exchanges', {
-      fixed: false, ...this.pair(from, to), amount, reverse: false,
+      fixed: false, ...(this.pair(from, to) ?? (() => { throw new Error('SimpleSwap doesn\'t offer this coin.'); })()), amount, reverse: false,
       addressTo: withdrawalAddress, extraIdTo: '', userRefundAddress: refundAddress, userRefundExtraId: '',
     });
     if (res.status >= 400) throw new Error(`Swap order failed: ${apiMessage(res.body, String(res.status))}`);
@@ -488,8 +491,6 @@ const CN_COIN: Partial<Record<Asset, { ticker: string; network: string }>> = {
   LINK: { ticker: 'link', network: 'eth' },
   UNI: { ticker: 'uni', network: 'eth' },
   PEPE: { ticker: 'pepe', network: 'eth' },
-  AAVE: { ticker: 'aave', network: 'eth' },
-  NEARE: { ticker: 'near', network: 'eth' },
   BNB: { ticker: 'bnb', network: 'bsc' },
   USDTB: { ticker: 'usdt', network: 'bsc' },
   ASTER: { ticker: 'aster', network: 'bsc' },
@@ -513,6 +514,7 @@ const CN_COIN: Partial<Record<Asset, { ticker: string; network: string }>> = {
   ZEC: { ticker: 'zec', network: 'zec' },
   ZANO: { ticker: 'zano', network: 'zano' },
   ARRR: { ticker: 'arrr', network: 'arrr' },
+  ETHP: { ticker: 'weth', network: 'matic' }, // WETH (Polygon) in their list, the same contract
   // No SCRT: ChangeNOW doesn't list it.
 };
 

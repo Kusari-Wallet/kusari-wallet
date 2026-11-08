@@ -34,9 +34,10 @@ export interface ScrtDraft { to: string; amount: bigint; fee: bigint; gas: bigin
 // for. A server that lied about it would only make the call fail, because the enclave checks it against the contract.
 export const SSCRT_CONTRACT = 'secret1k0jntykt7e4g3y88ltc60czgjuqdy4c9e8fzek';
 const CODE_HASH_LENGTH = 64;
-// The enclave's public key on secret-4, as secret.js ships it. Pinned rather than asked for, because a server that
-// handed out its own key could read every private amount and address.
-const CONSENSUS_IO_PUBKEY = Uint8Array.from(Buffer.from('79++5YOHfm0SwhlpUDClv7cuCjq9xBZlWqSjDJWkRG8=', 'base64'));
+// The enclave's public key. It changes when the network rotates it (the one secret.js 1.15 ships is already stale), so
+// it is asked for, and only used when two different server operators give the same key: one server handing out its
+// own key could read every private amount and address.
+const KEY_PATH = '/registration/v1beta1/tx-key';
 const HKDF_SALT = Uint8Array.from(Buffer.from('000000000000000000024bead8df69990852c202db0e0097c1a12ea637d7e96d', 'hex'));
 // Every private message is padded to a multiple of this, so its length says nothing about the amount or address.
 const PAD_TO = 256;
@@ -133,21 +134,21 @@ export function scrtPrivacyKeys(mnemonic: string): { encryptionSeed: Uint8Array;
   return { encryptionSeed: derive('kusari-scrt-tx-encryption'), viewingKey: 'api_key_' + Buffer.from(derive('kusari-sscrt-viewing-key')).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '') /* base64url by hand: Android's Buffer has no such encoding */ };
 }
 
-function txKey(seed: Uint8Array, nonce: Uint8Array): Uint8Array {
-  const shared = x25519.getSharedSecret(seed, CONSENSUS_IO_PUBKEY);
+function txKey(seed: Uint8Array, nonce: Uint8Array, ioKey: Uint8Array): Uint8Array {
+  const shared = x25519.getSharedSecret(seed, ioKey);
   return hkdf(sha256Bytes, join([shared, nonce]), HKDF_SALT, new Uint8Array(), 32);
 }
 
 /** What secret.js sends: nonce, our public key, then AES-SIV of the code hash and the JSON. */
-export function encryptForContract(seed: Uint8Array, msg: object, nonce: Uint8Array, codeHash: string): Uint8Array {
+export function encryptForContract(seed: Uint8Array, msg: object, nonce: Uint8Array, codeHash: string, ioKey: Uint8Array): Uint8Array {
   if (!/^[0-9a-f]{64}$/.test(codeHash)) throw new Error('The contract\'s code hash is not valid.');
   const plain = new TextEncoder().encode(codeHash + JSON.stringify(msg));
-  const sealed = aessiv(txKey(seed, nonce), new Uint8Array()).encrypt(plain);
+  const sealed = aessiv(txKey(seed, nonce, ioKey), new Uint8Array()).encrypt(plain);
   return join([nonce, x25519.getPublicKey(seed), sealed]);
 }
 
-export function decryptFromContract(seed: Uint8Array, nonce: Uint8Array, data: Uint8Array): Uint8Array {
-  return aessiv(txKey(seed, nonce), new Uint8Array()).decrypt(data);
+export function decryptFromContract(seed: Uint8Array, nonce: Uint8Array, data: Uint8Array, ioKey: Uint8Array): Uint8Array {
+  return aessiv(txKey(seed, nonce, ioKey), new Uint8Array()).decrypt(data);
 }
 
 /** Adds SNIP-20's padding field so every message has a length in steps of PAD_TO. */
@@ -168,6 +169,8 @@ const sameAddress = (v: unknown, address: string): boolean => {
   if (v === address) return true;
   try { return typeof v === 'string' && Buffer.from(v, 'base64').equals(Buffer.from(addressBytes(address))); } catch { return false; }
 };
+/** Who runs a server: the last two parts of its host name, so api.x.com and rest.x.com are one operator. */
+const operatorOf = (base: string): string => new URL(base).hostname.split('.').slice(-2).join('.');
 const randomNonce = (): Uint8Array => { const n = new Uint8Array(32); crypto.getRandomValues(n); return n; };
 const b64 = (b: Uint8Array) => Buffer.from(b).toString('base64');
 const UNEXPECTED = 'The Secret Network server gave an unexpected answer.';
@@ -181,6 +184,7 @@ export class ScrtClient {
   private cache: { at: number; amount: bigint } | null = null;
   private privateCache: { at: number; amount: bigint | null } | null = null;
   private codeHash: string | null = null;
+  private ioKey: Uint8Array | null = null;
   readonly address: string;
   constructor(private readonly publicKey: Uint8Array, private readonly lcds: string[], private readonly agent?: Agent, private readonly timeoutMs = 20_000,
     private readonly privacy?: { encryptionSeed: Uint8Array; viewingKey: string }) { this.address = scrtAddressFromKey(publicKey); }
@@ -243,7 +247,7 @@ export class ScrtClient {
       r = await this.get(`/cosmos/auth/v1beta1/accounts/${this.address}`);
     } catch (e) {
       // The chain only creates an account once SCRT first arrives at it.
-      if (/not found/i.test(e instanceof Error ? e.message : '')) throw new Error('This address has never received SCRT, so there is nothing to pay the fee with yet.');
+      if (/not found|\(404\)/i.test(e instanceof Error ? e.message : '')) throw new Error('This address has never received SCRT, so there is nothing to pay the fee with yet.');
       throw e;
     }
     const a = r?.account?.base_account ?? r?.account;
@@ -265,8 +269,8 @@ export class ScrtClient {
   private reason(message: unknown, nonce?: Uint8Array): string {
     const text = String(message);
     const m = text.match(/encrypted: ([A-Za-z0-9+/=]+)/);
-    if (m && nonce && this.privacy) {
-      try { return text.replace(m[0], new TextDecoder().decode(decryptFromContract(this.privacy.encryptionSeed, nonce, Uint8Array.from(Buffer.from(m[1], 'base64'))))); } catch { /* not ours */ }
+    if (m && nonce && this.privacy && this.ioKey) {
+      try { return text.replace(m[0], new TextDecoder().decode(decryptFromContract(this.privacy.encryptionSeed, nonce, Uint8Array.from(Buffer.from(m[1], 'base64')), this.ioKey))); } catch { /* not ours */ }
     }
     return text;
   }
@@ -290,6 +294,25 @@ export class ScrtClient {
     return this.privacy;
   }
 
+  /** The enclave key, once two server operators agree on it. Hosts that differ only by name count once. */
+  private async enclaveKey(): Promise<Uint8Array> {
+    if (this.ioKey) return this.ioKey;
+    const servers = await this.servers();
+    const answers = await Promise.all(servers.map((base) => getJson(base + KEY_PATH, { agent: this.agent, timeoutMs: this.timeoutMs, headers: { Accept: 'application/json' } })
+      .then((r: any) => ({ operator: operatorOf(base), key: typeof r?.key === 'string' ? r.key : '' })).catch(() => null)));
+    const votes = new Map<string, Set<string>>();
+    for (const a of answers) {
+      if (!a || !/^[A-Za-z0-9+/]{43}=$/.test(a.key)) continue;
+      if (!votes.has(a.key)) votes.set(a.key, new Set());
+      votes.get(a.key)!.add(a.operator);
+    }
+    const agreed = [...votes].filter(([, who]) => who.size >= 2);
+    if (votes.size > 1) throw new Error('Secret Network servers disagree about the encryption key, so nothing private was sent.');
+    if (!agreed.length) throw new Error('Could not confirm Secret Network\'s encryption key with two separate servers. Try again later.');
+    this.ioKey = Uint8Array.from(Buffer.from(agreed[0][0], 'base64'));
+    return this.ioKey;
+  }
+
   private async sscrtCodeHash(): Promise<string> {
     if (!this.codeHash) {
       const r = await this.get(`/compute/v1beta1/code_hash/by_contract_address/${SSCRT_CONTRACT}`);
@@ -304,7 +327,8 @@ export class ScrtClient {
   private async query(msg: object): Promise<any> {
     const { encryptionSeed } = this.keys();
     const nonce = randomNonce();
-    const sealed = encryptForContract(encryptionSeed, msg, nonce, await this.sscrtCodeHash());
+    const ioKey = await this.enclaveKey();
+    const sealed = encryptForContract(encryptionSeed, msg, nonce, await this.sscrtCodeHash(), ioKey);
     let r: any;
     try {
       r = await this.get(`/compute/v1beta1/query/${SSCRT_CONTRACT}?query=${encodeURIComponent(b64(sealed))}`);
@@ -312,7 +336,7 @@ export class ScrtClient {
       throw new Error(this.reason(e instanceof Error ? e.message : e, nonce).slice(0, 200));
     }
     if (typeof r?.data !== 'string') throw new Error(UNEXPECTED);
-    const plain = new TextDecoder().decode(decryptFromContract(encryptionSeed, nonce, Uint8Array.from(Buffer.from(r.data, 'base64'))));
+    const plain = new TextDecoder().decode(decryptFromContract(encryptionSeed, nonce, Uint8Array.from(Buffer.from(r.data, 'base64')), ioKey));
     try { return JSON.parse(Buffer.from(plain, 'base64').toString('utf8')); } catch { throw new Error(UNEXPECTED); }
   }
 
@@ -347,7 +371,7 @@ export class ScrtClient {
       : kind === 'transfer' ? { transfer: { recipient: to, amount: want.toString() } }
       : { set_viewing_key: { key: viewingKey } };
     const nonce = randomNonce();
-    const sealed = encryptForContract(encryptionSeed, padded(msg), nonce, await this.sscrtCodeHash());
+    const sealed = encryptForContract(encryptionSeed, padded(msg), nonce, await this.sscrtCodeHash(), await this.enclaveKey());
     const exec = (funds: bigint): ScrtExec => ({ kind, msg: sealed, nonce, funds });
     const target = kind === 'transfer' ? to : this.address;
     const { gas, fee } = await this.gasFor({ to: target, amount: want, fee: 0n, gas: 0n, ...acct, exec: exec(kind === 'wrap' ? want : 0n) }, nonce);
