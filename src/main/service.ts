@@ -842,7 +842,7 @@ export class WalletService extends EventEmitter {
   }
 
   private assertPrivacyPair(from: Asset, to: Asset): void {
-    if (!PRIVACY_ASSETS.includes(from) || !PRIVACY_ASSETS.includes(to)) throw new Error('Privacy swaps only work with BTC, ETH and USDT (Eth).');
+    if (!PRIVACY_ASSETS.includes(from) || !PRIVACY_ASSETS.includes(to)) throw new Error('This coin can\'t go through a privacy swap.');
   }
 
   async privacyQuote(from: Asset, to: Asset, amountInput: string) {
@@ -868,8 +868,10 @@ export class WalletService extends EventEmitter {
     if (!destinationInput.trim()) throw new Error('A privacy swap requires a final receiving address.');
     const destination = await this.checkDestination(to, destinationInput);
     const { eth, monero } = this.session();
-    if ((from === 'ETH' || from === 'USDTE') && destination.toLowerCase() === eth.address.toLowerCase()) {
-      throw new Error('Using the same sending and receiving address gives no privacy benefit. Enter a new address.');
+    // Any address of this wallet links both ends again, not only the one that sent.
+    const mine = new Set(Object.values(await this.addresses().catch(() => ({}))).filter((v): v is string => typeof v === 'string').map((v) => v.toLowerCase()));
+    if (mine.has(destination.toLowerCase()) || destination.toLowerCase() === eth.address.toLowerCase()) {
+      throw new Error('This address belongs to this wallet, which gives no privacy benefit. Enter an address from another wallet.');
     }
     const amount = formatAmount(parseAmount(amountInput, DECIMALS[from]), DECIMALS[from]);
     const via = await monero.createSubaddress();

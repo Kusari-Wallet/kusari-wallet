@@ -1110,7 +1110,8 @@ function coinSelect(id: string, current: Asset, onPick: (a: Asset) => void): HTM
     menu);
 }
 
-const PRIVACY_ASSETS: Asset[] = ['BTC', 'ETH', 'USDTE'];
+// Every coin except XMR itself can go out through XMR and come back as another coin.
+const PRIVACY_ASSETS: Asset[] = ALL_ASSETS.filter((a) => a !== 'XMR');
 
 async function renderSwap(from: Asset = selected, to: Asset = selected === 'XMR' ? 'BTC' : 'XMR', keep = '', privacy = false): Promise<void> {
   if (privacy && !(PRIVACY_ASSETS.includes(from) && PRIVACY_ASSETS.includes(to))) privacy = false;

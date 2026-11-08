@@ -704,6 +704,7 @@ export interface PrivacySwap {
   received: string; unlocked: string; secondId?: string; secondProviderId?: SwapProviderId; note?: string; createdAt: number;
 }
 
-export const PRIVACY_ASSETS: Asset[] = ['BTC', 'ETH', 'USDTE'];
+/** Every coin that can go through XMR and out again. XMR itself has nothing to gain, and sSCRT isn't swapped. */
+export const PRIVACY_ASSETS: Asset[] = (Object.keys(DECIMALS) as Asset[]).filter((a) => a !== 'XMR' && !NOT_SWAPPABLE.has(a));
 export const SWAP_DEAD = ['failed', 'refunded', 'refund', 'overdue', 'expired'];
 export const SWAP_DONE = ['success', 'finished'];
