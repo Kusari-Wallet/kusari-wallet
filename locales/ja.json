@@ -46,6 +46,7 @@
 "Aster did not accept the Kusari fee. Turn on trading again to approve it.": "AsterがKusari手数料を受け付けませんでした。取引をもう一度オンにして承認してください。",
 "Aster did not accept the signature. Turn on trading again.": "Asterが署名を受け付けませんでした。取引をもう一度オンにしてください。",
 "Aster did not give a withdrawal fee right now. Try again later.": "Asterから現在の出金手数料を取得できませんでした。後でもう一度お試しください。",
+"Aster did not say how much leverage this market allows. Try again.": "Asterがこのマーケットの最大レバレッジを返しませんでした。もう一度お試しください。",
 "Aster does not list this market.": "このマーケットはAsterにありません。",
 "Aster does not pay out on this network.": "Asterはこのネットワークへの出金に対応していません。",
 "Aster fee": "Aster手数料",

@@ -46,6 +46,7 @@
 "Aster did not accept the Kusari fee. Turn on trading again to approve it.": "Aster не принял комиссию Kusari. Включите торговлю заново, чтобы одобрить её.",
 "Aster did not accept the signature. Turn on trading again.": "Aster не принял подпись. Включите торговлю заново.",
 "Aster did not give a withdrawal fee right now. Try again later.": "Aster сейчас не сообщил комиссию за вывод. Попробуйте позже.",
+"Aster did not say how much leverage this market allows. Try again.": "Aster не сообщил, какое плечо допускает этот рынок. Попробуйте ещё раз.",
 "Aster does not list this market.": "На Aster нет такого рынка.",
 "Aster does not pay out on this network.": "Aster не выводит средства в эту сеть.",
 "Aster fee": "Комиссия Aster",

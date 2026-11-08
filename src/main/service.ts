@@ -159,6 +159,9 @@ export class WalletService extends EventEmitter {
   private asterKey: EvmWallet | null = null;
   private perpMarkets: { at: number; list: AsterMarket[] } | null = null;
   private readonly perpBrackets = new Map<string, AsterBracket[]>();
+  /** Highest leverage per market, learned from brackets or from Aster's public check; kept a day. */
+  private readonly perpMaxLev = new Map<string, { at: number; lev: number }>();
+  private perpBracketsAt = 0;
   private readonly perpPreviews = new Map<string, { order?: OrderInput; leverage?: number; withdraw?: { chainId: number; token: string; amount: string; fee: string }; expires: number }>();
   /** Whether this session goes through Tor: the Tor setting is on and this is a maximum-privacy wallet. */
   private torActive = false;
@@ -951,6 +954,15 @@ export class WalletService extends EventEmitter {
     const { aster } = this.perps();
     if (this.perpMarkets && Date.now() - this.perpMarkets.at < 15_000) return this.perpMarkets.list;
     const list = await aster.markets();
+    // With trading on, one call gives every market's leverage limits.
+    if (Date.now() - this.perpBracketsAt > 3_600_000 && (await this.asterReady()).ready) {
+      try {
+        const all = await aster.allBrackets(this.perps().agent);
+        for (const [sym, b] of all) { this.perpBrackets.set(sym, b); if (b[0]) this.perpMaxLev.set(sym, { at: Date.now(), lev: b[0].initialLeverage }); }
+        this.perpBracketsAt = Date.now();
+      } catch { /* the list still shows; leverage fills in per market */ }
+    }
+    for (const m of list) m.maxLeverage = this.knownMaxLev(m.symbol);
     this.perpMarkets = { at: Date.now(), list };
     return list;
   }
@@ -971,8 +983,19 @@ export class WalletService extends EventEmitter {
       ready ? aster.brackets(symbol, agent).catch(() => []) : Promise.resolve([] as AsterBracket[]),
       ready ? aster.commission(symbol, agent).catch(() => null) : Promise.resolve(null),
     ]);
-    this.perpBrackets.set(symbol, brackets);
-    return { market: m, ...mark, maxLeverage: brackets[0]?.initialLeverage ?? 0, asterFee: fees, kusariFee: { maker: Number(KUSARI_FEE.maker), taker: Number(KUSARI_FEE.taker) } };
+    if (brackets.length) this.perpBrackets.set(symbol, brackets);
+    const maxLeverage = brackets[0]?.initialLeverage || this.knownMaxLev(symbol) || await this.probeMaxLev(symbol);
+    if (maxLeverage) { this.perpMaxLev.set(symbol, { at: Date.now(), lev: maxLeverage }); m.maxLeverage = maxLeverage; }
+    return { market: m, ...mark, maxLeverage, asterFee: fees, kusariFee: { maker: Number(KUSARI_FEE.maker), taker: Number(KUSARI_FEE.taker) } };
+  }
+
+  private knownMaxLev(symbol: string): number {
+    const k = this.perpMaxLev.get(symbol);
+    return k && Date.now() - k.at < 86_400_000 ? k.lev : 0;
+  }
+
+  private async probeMaxLev(symbol: string): Promise<number> {
+    try { return await this.perps().aster.maxLeverage(symbol); } catch { return 0; }
   }
 
   /** Approves the trading key and the Kusari fee cap, both signed by this wallet's own key. */
@@ -985,6 +1008,8 @@ export class WalletService extends EventEmitter {
     await aster.approveBuilder(main);
     await fs.mkdir(this.dir, { recursive: true });
     await fs.writeFile(this.asterPath, JSON.stringify({ agent: agent.address, expires }), { mode: 0o600 });
+    this.perpMarkets = null; // the next list carries every market's leverage
+    this.perpBracketsAt = 0;
     return { expires };
   }
 
@@ -999,7 +1024,8 @@ export class WalletService extends EventEmitter {
     const margin = Number(input.margin);
     if (!(margin > 0)) throw new Error('Enter how much USDT to put in.');
     const lev = Math.floor(Number(input.leverage));
-    const maxLev = info.maxLeverage || 20;
+    const maxLev = info.maxLeverage;
+    if (!maxLev) throw new Error('Aster did not say how much leverage this market allows. Try again.');
     if (!(lev >= 1 && lev <= maxLev)) throw new Error(`Leverage can be 1x to ${maxLev}x on this market.`);
     const limit = input.type === 'LIMIT';
     const price = limit ? Number(roundToStep(String(input.price ?? ''), m.tickSize)) : info.mark;

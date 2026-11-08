@@ -164,3 +164,22 @@ test('a wallet key that is not the account\'s cannot register a trading key', as
   const c = new AsterClient(USER, { api: 'http://127.0.0.1:1' });
   await assert.rejects(c.registerAgent(Wallet.createRandom(), asterAgent(DEMO.privateKey), 1), /does not match/);
 });
+
+test('the highest leverage is found from Aster\'s public check, even an unusual one', async () => {
+  for (const max of [200, 88, 1, 1000]) {
+    const calls = [];
+    const server = http.createServer((req, res) => {
+      const lev = Number(new URL(req.url, 'http://x').searchParams.get('leverage'));
+      calls.push(lev);
+      res.setHeader('content-type', 'application/json');
+      if (lev >= 1 && lev <= max) res.end(JSON.stringify({ remainingOpenableNotionalValue: '1' }));
+      else { res.statusCode = 400; res.end(JSON.stringify({ code: -4028, msg: 'Invalid leverage' })); }
+    });
+    await new Promise((r) => server.listen(0, '127.0.0.1', r));
+    try {
+      const c = new AsterClient(USER, { api: `http://127.0.0.1:${server.address().port}` });
+      assert.equal(await c.maxLeverage('BTCUSDT'), max);
+      assert.ok(calls.length <= 12, `${calls.length} checks for ${max}`);
+    } finally { server.close(); }
+  }
+});

@@ -46,6 +46,7 @@
 "Aster did not accept the Kusari fee. Turn on trading again to approve it.": "Aster 不接受 Kusari 手续费。请重新开启交易以授权。",
 "Aster did not accept the signature. Turn on trading again.": "Aster 不接受签名。请重新开启交易。",
 "Aster did not give a withdrawal fee right now. Try again later.": "Aster 目前没有给出提现手续费。请稍后再试。",
+"Aster did not say how much leverage this market allows. Try again.": "Aster 没有返回此市场允许的最大杠杆。请重试。",
 "Aster does not list this market.": "Aster 没有这个市场。",
 "Aster does not pay out on this network.": "Aster 不支持提现到这个网络。",
 "Aster fee": "Aster 手续费",

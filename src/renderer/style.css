@@ -391,3 +391,9 @@ ol.steps { padding-left: 20px; margin: 8px 0; }
 .asset.on { background: var(--surface-2); }
 .nav button[hidden] { display: none; }
 .field[hidden], .check[hidden] { display: none; }
+.lev-tag { display: inline-block; margin-left: 8px; padding: 1px 6px; border-radius: 6px; background: var(--surface-2); color: var(--muted); font-size: 11.5px; font-weight: 600; vertical-align: 2px; }
+.lev-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.lev-box { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; }
+.lev-num { width: 70px; padding: 6px 8px; text-align: right; }
+.lev-quick { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.lev-quick .seg { flex: 1; min-width: 48px; background: var(--surface); padding: 7px 4px; font-size: 13px; }

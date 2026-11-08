@@ -46,6 +46,7 @@
 "Aster did not accept the Kusari fee. Turn on trading again to approve it.": "Aster가 Kusari 수수료를 받아들이지 않았습니다. 트레이딩을 다시 켜서 승인하세요.",
 "Aster did not accept the signature. Turn on trading again.": "Aster가 서명을 받아들이지 않았습니다. 트레이딩을 다시 켜세요.",
 "Aster did not give a withdrawal fee right now. Try again later.": "Aster가 지금 출금 수수료를 알려주지 않았습니다. 나중에 다시 시도하세요.",
+"Aster did not say how much leverage this market allows. Try again.": "Aster가 이 마켓의 최대 레버리지를 알려주지 않았습니다. 다시 시도하세요.",
 "Aster does not list this market.": "Aster에 없는 마켓입니다.",
 "Aster does not pay out on this network.": "Aster는 이 네트워크로 출금하지 않습니다.",
 "Aster fee": "Aster 수수료",

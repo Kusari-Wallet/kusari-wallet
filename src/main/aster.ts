@@ -116,6 +116,8 @@ export interface AsterMarket {
   symbol: string; base: string; quote: string;
   tickSize: string; stepSize: string; minQty: string; marketStep: string; marketMinQty: string; marketMaxQty: string; minNotional: string;
   price: number; change: number; volume: number;
+  /** Highest leverage on this market, once known (0 before). */
+  maxLeverage?: number;
 }
 
 export interface AsterBracket { initialLeverage: number; notionalCap: number; notionalFloor: number; maintMarginRatio: number; cum: number }
@@ -280,6 +282,38 @@ export class AsterClient {
     const r = await this.signed('GET', '/fapi/v3/leverageBrackets', [['symbol', symbol]], agent);
     const one = Array.isArray(r) ? r.find((x: any) => x.symbol === symbol) ?? r[0] : r;
     return (one?.brackets ?? []).map((b: any) => ({ initialLeverage: Number(b.initialLeverage), notionalCap: Number(b.notionalCap), notionalFloor: Number(b.notionalFloor), maintMarginRatio: Number(b.maintMarginRatio), cum: Number(b.cum ?? 0) }));
+  }
+
+  /** Leverage brackets of every market in one call (needs an account that has deposited). */
+  async allBrackets(agent: BaseWallet): Promise<Map<string, AsterBracket[]>> {
+    const r = await this.signed('GET', '/fapi/v3/leverageBrackets', [], agent);
+    const out = new Map<string, AsterBracket[]>();
+    for (const one of Array.isArray(r) ? r : []) {
+      out.set(String(one.symbol), (one.brackets ?? []).map((b: any) => ({ initialLeverage: Number(b.initialLeverage), notionalCap: Number(b.notionalCap), notionalFloor: Number(b.notionalFloor), maintMarginRatio: Number(b.maintMarginRatio), cum: Number(b.cum ?? 0) })));
+    }
+    return out;
+  }
+
+  /**
+   * A market's highest leverage without an account: Aster answers -4028 for any leverage above it. The usual
+   * values are searched first, then the gap above the best one is narrowed down, in case it is an unusual number.
+   */
+  async maxLeverage(symbol: string): Promise<number> {
+    const ok = async (lev: number) => {
+      try { await this.publicGet('/fapi/v3/remainingOpenableNotionalValue', `symbol=${encodeURIComponent(symbol)}&leverage=${lev}`); return true; } catch (e) {
+        if (e instanceof AsterError && e.code === -4028) return false;
+        throw e;
+      }
+    };
+    // Each check costs 50 of Aster's 2400-per-minute weight, so the usual values are searched, not all tried.
+    const steps = [1, 5, 10, 20, 25, 50, 75, 100, 125, 150, 200, 250, 300, 500, 1000];
+    let a = 0; let b = steps.length - 1;
+    if (!(await ok(steps[0]))) return 0;
+    while (a < b) { const mid = Math.ceil((a + b) / 2); if (await ok(steps[mid])) a = mid; else b = mid - 1; }
+    let lo = steps[a];
+    let hi = a + 1 < steps.length ? steps[a + 1] : steps[a];
+    while (hi - lo > 1) { const mid = Math.floor((lo + hi) / 2); if (await ok(mid)) lo = mid; else hi = mid; }
+    return lo;
   }
 
   async commission(symbol: string, agent: BaseWallet): Promise<{ maker: number; taker: number }> {

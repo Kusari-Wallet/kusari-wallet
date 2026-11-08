@@ -2410,7 +2410,7 @@ async function renderPerps(): Promise<void> {
     const q = perpSearch.trim().toUpperCase();
     const shown = (q ? markets.filter((m) => m.symbol.includes(q)) : markets).slice(0, q ? 60 : 30);
     setKids(list, ...(shown.length ? shown.map((m) => h('button', { class: 'asset perp-market', id: `mkt-${m.symbol}`, onclick: () => void renderPerpMarket(m.symbol) },
-      h('div', {}, h('div', { class: 'name', 'data-no-translate': '' }, m.base, h('span', { class: 'muted small' }, ` /${m.quote}`)), h('div', { class: 'sub' }, `Vol ${compact(m.volume)}`)),
+      h('div', {}, h('div', { class: 'name', 'data-no-translate': '' }, m.base, h('span', { class: 'muted small' }, ` /${m.quote}`), m.maxLeverage ? h('span', { class: 'lev-tag', id: `lev-${m.symbol}` }, `${m.maxLeverage}x`) : null), h('div', { class: 'sub' }, `Vol ${compact(m.volume)}`)),
       h('div', { class: 'right' }, h('div', { class: 'amt' }, px(m.price)), h('div', { class: `sub ${m.change >= 0 ? 'up' : 'down'}` }, `${m.change >= 0 ? '+' : ''}${m.change.toFixed(2)}%`)))) : [h('p', { class: 'empty' }, 'No market matches.')]));
   };
   search.addEventListener('input', () => { perpSearch = search.value; paintMarkets(); });
@@ -2430,27 +2430,34 @@ async function renderPerpMarket(symbol: string, keep?: { side: 'long' | 'short';
   try { [info, ready] = await Promise.all([wallet.perpsMarket(symbol), wallet.perpsInfo().then((i: any) => i.ready)]); } catch (e) { setKids(body, h('div', { class: 'error' }, errMsg(e))); return; }
   const m = info.market;
   const st = keep ?? { side: 'long' as const, type: 'MARKET' as const, margin: '', leverage: Math.min(5, info.maxLeverage || 5), price: '', postOnly: true };
-  const maxLev = info.maxLeverage || 20;
+  const maxLev = info.maxLeverage || 1;
   const sideBtns = (['long', 'short'] as const).map((s) => h('button', { type: 'button', id: `side-${s}`, class: `seg ${s === 'long' ? 'up' : 'down'}`, 'aria-pressed': String(st.side === s), onclick: () => { st.side = s; paint(); } }, s === 'long' ? 'Long' : 'Short'));
   const typeBtns = (['MARKET', 'LIMIT'] as const).map((t) => h('button', { type: 'button', id: `type-${t.toLowerCase()}`, class: 'seg', 'aria-pressed': String(st.type === t), onclick: () => { st.type = t; paint(); } }, t === 'MARKET' ? 'Market' : 'Limit'));
   const price = h('input', { id: 'perp-price', inputmode: 'decimal', autocomplete: 'off', value: st.price, placeholder: px(info.mark).replace(/,/g, '') });
   const post = h('input', { type: 'checkbox', id: 'perp-post' }); post.checked = st.postOnly;
   const margin = h('input', { id: 'perp-margin', inputmode: 'decimal', autocomplete: 'off', value: st.margin, placeholder: '0.00' });
   const lev = h('input', { type: 'range', id: 'perp-lev', min: '1', max: String(maxLev), step: '1', value: String(Math.min(st.leverage, maxLev)) });
-  const levText = h('strong', { id: 'perp-lev-text' });
+  const levText = h('input', { id: 'perp-lev-num', class: 'lev-num', inputmode: 'numeric', autocomplete: 'off', value: String(Math.min(st.leverage, maxLev)), 'aria-label': 'Leverage' });
+  levText.addEventListener('input', () => {
+    const n = Math.floor(Number(levText.value));
+    if (n >= 1) { lev.value = String(Math.min(n, maxLev)); paint(false); }
+  });
+  levText.addEventListener('change', () => { levText.value = lev.value; paint(); });
+  const levQuick = h('div', { class: 'lev-quick' }, ...[...new Set([1, 5, 10, 25, 50, 100, maxLev])].filter((n) => n <= maxLev).sort((a, b) => a - b)
+    .map((n) => h('button', { type: 'button', class: 'seg', id: `lev-pick-${n}`, onclick: () => { lev.value = String(n); paint(); } }, `${n}x`)));
   const sizeText = h('div', { class: 'small muted', id: 'perp-size' });
   const feeText = h('div', { class: 'small muted', id: 'perp-fees' });
   const priceRow = h('label', { class: 'field' }, h('span', {}, 'Limit price (USDT)'), price);
   const postRow = h('label', { class: 'check' }, post, h('span', {}, `Post-only (maker): Kusari fee ${pct(info.kusariFee.maker)} instead of ${pct(info.kusariFee.taker)}`));
   const box = errorBox();
   const go = h('button', { class: 'primary', id: 'perp-review', type: 'submit', disabled: !ready }, 'Review order');
-  function paint(): void {
+  function paint(syncBox = true): void {
     st.price = price.value; st.margin = margin.value; st.leverage = Number(lev.value); st.postOnly = post.checked;
     sideBtns.forEach((b, i) => b.setAttribute('aria-pressed', String(['long', 'short'][i] === st.side)));
     typeBtns.forEach((b, i) => b.setAttribute('aria-pressed', String(['MARKET', 'LIMIT'][i] === st.type)));
     priceRow.hidden = st.type !== 'LIMIT';
     postRow.hidden = st.type !== 'LIMIT';
-    levText.textContent = `${st.leverage}x`;
+    if (syncBox) levText.value = String(st.leverage);
     const size = Number(st.margin) * st.leverage;
     sizeText.textContent = size > 0 ? `Position size about ${usdt(size)}` : '';
     const maker = st.type === 'LIMIT' && st.postOnly;
@@ -2459,7 +2466,7 @@ async function renderPerpMarket(symbol: string, keep?: { side: 'long' | 'short';
     feeText.textContent = `Fees: Aster ${a === null ? 'fee' : pct(a)} + Kusari ${pct(k)} of the position size`;
     go.textContent = st.side === 'long' ? 'Review long' : 'Review short';
   }
-  for (const el of [price, margin, lev, post]) el.addEventListener('input', paint);
+  for (const el of [price, margin, lev, post]) el.addEventListener('input', () => paint());
   const form = h('form', { onsubmit: (e: Event) => {
     e.preventDefault();
     busy(go, 'Checking…', box, async () => {
@@ -2468,14 +2475,14 @@ async function renderPerpMarket(symbol: string, keep?: { side: 'long' | 'short';
     });
   } },
   h('div', { class: 'panel' },
-    h('div', { class: 'big-amount', id: 'perp-mark' }, px(info.mark)),
-    h('div', { class: 'small muted' }, h('span', { class: m.change >= 0 ? 'up' : 'down' }, `${m.change >= 0 ? '+' : ''}${m.change.toFixed(2)}% 24h`), ` · Funding ${pct(info.funding, 4)} · Max ${maxLev}x`)),
+    h('div', { class: 'row' }, h('div', { class: 'big-amount', id: 'perp-mark' }, px(info.mark)), h('span', { class: 'lev-tag', id: 'perp-max-lev' }, `${maxLev}x`)),
+    h('div', { class: 'small muted' }, h('span', { class: m.change >= 0 ? 'up' : 'down' }, `${m.change >= 0 ? '+' : ''}${m.change.toFixed(2)}% 24h`), ` · Funding ${pct(info.funding, 4)}`)),
   !ready && h('div', { class: 'warn', id: 'perp-not-ready' }, 'Turn on trading on the Perps screen first.', h('br'), h('button', { type: 'button', class: 'link', onclick: () => void renderPerps() }, 'Go to Perps')),
   h('div', { class: 'segs' }, ...sideBtns),
   h('div', { class: 'segs' }, ...typeBtns),
   priceRow, postRow,
   h('label', { class: 'field' }, h('span', {}, 'Margin (USDT)'), margin),
-  h('label', { class: 'field' }, h('span', {}, 'Leverage ', levText), lev),
+  h('div', { class: 'field' }, h('span', { class: 'lev-head' }, 'Leverage', h('span', { class: 'lev-box' }, levText, 'x')), lev, levQuick),
   sizeText, feeText, box.el, go,
   h('p', { class: 'small muted' }, 'Positions use isolated margin: if one is liquidated, only the margin in it is lost.'));
   setKids(body, form);
