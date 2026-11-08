@@ -96,6 +96,7 @@ const PASSWORD = 'correct horse battery';
   await page.locator('#seed-pw').waitFor();
   assert.equal(await page.locator('#wc-section, #wc-enable').count(), 0, 'a maximum-privacy wallet shows no WalletConnect in settings');
   assert.equal(await page.locator('#go-dapps').count(), 0);
+  assert.equal(await page.locator('#set-tor').count(), 1, 'a maximum-privacy wallet has the Tor switch');
   await page.fill('#seed-pw', 'wrong password!');
   await page.click('#reveal');
   await page.getByText('Wrong password').waitFor({ timeout: 15000 });
@@ -684,6 +685,14 @@ const PASSWORD = 'correct horse battery';
     await page.click('#back');
     await page.locator('#go-dapps').waitFor();
   }
+  // A WalletConnect wallet has no Tor, and its mode can't be switched afterwards.
+  await page.click('#open-settings');
+  await page.locator('#copy-connection-log').waitFor();
+  assert.equal(await page.locator('#set-tor, #tor-block').count(), 0, 'no Tor in a WalletConnect wallet');
+  await assert.rejects(page.evaluate(() => window.wallet.updateSettings({ torEnabled: true })), /only in maximum-privacy wallets/);
+  await assert.rejects(page.evaluate(() => window.wallet.setWalletMode('private')), /can't be changed/);
+  assert.equal((await page.evaluate(() => window.wallet.torInfo())).enabled, false);
+  await page.click('#nav-home');
   await page.click('#wallet-switch');
   await shot('wallets');
   assert.equal(await page.locator('.wallet-row').count(), 2);

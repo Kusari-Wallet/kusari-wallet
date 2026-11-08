@@ -220,16 +220,12 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
   await shot('home');
   console.log('ok WASM wallet in a worker connected and synced to monerod through the Java forwarder');
 
-  // WalletConnect asks over the current screen, the way other wallets do, and Reject closes it.
-  await page.evaluate(() => window.__emit('wc-proposal', { id: 7, name: 'Example DEX', url: 'https://dex.example', description: '', chains: ['eip155:1', 'eip155:56'], unsupported: ['solana:1'], verified: 'VALID', scam: false }));
-  await page.locator('#wc-proposal #wc-dapp', { hasText: 'dex.example' }).waitFor();
-  assert.match(await page.locator('#wc-proposal').innerText(), /Ethereum, BNB Smart Chain/);
-  assert.ok(await page.locator('#asset-TRX').isVisible(), 'the home screen stays underneath');
-  assert.match(await page.locator('#wc-proposal').innerText(), /Verified[\s\S]*Account[\s\S]*Permissions[\s\S]*Can't move funds without your approval/);
-  await sleep(400); // let the popup finish appearing
-  await shot('wc-proposal');
-  await page.click('#wc-reject');
-  await page.locator('#wc-proposal').waitFor({ state: 'detached' });
+  // A maximum-privacy wallet never shows a dApp's request, even if one reached it.
+  await page.evaluate(() => window.__emit('wc-proposal', { id: 7, name: 'Example DEX', url: 'https://dex.example', description: '', chains: ['eip155:1'], unsupported: [], verified: 'VALID', scam: false }));
+  await page.evaluate(() => window.__emit('wc-request', { id: 8, dapp: 'Example DEX', url: 'https://dex.example', chainId: '1', method: 'personal_sign' }));
+  await sleep(800);
+  assert.equal(await page.locator('#wc-proposal, #wc-request').count(), 0, 'no dApp window in a maximum-privacy wallet');
+  assert.equal(await page.locator('#go-dapps').count(), 0, 'no dApps button in a maximum-privacy wallet');
 
   // receive and persistence
   await page.click('#asset-XMR');

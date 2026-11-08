@@ -20,7 +20,7 @@ function setup(t, request) {
   s.tron = { address: 'T' };
   const evm = (symbol) => ({ address: ME, chain: { symbol }, estimateCall: async () => 50_000n, costOf: async () => ({ likely: 1_000_000_000_000n }), sendCalls: async (calls) => { sent.push(calls); return ['0x' + 'ab'.repeat(32)]; } });
   s.eth = evm('ETH'); s.bsc = evm('BNB'); s.pol = evm('POL'); s.arb = evm('ETH');
-  s.vault = { open: async (pw) => { if (pw !== 'right password') throw new Error('Wrong password'); return { tronMnemonic: M }; } };
+  s.vault = { exists: async () => false, open: async (pw) => { if (pw !== 'right password') throw new Error('Wrong password'); return { tronMnemonic: M }; } };
   s.wc = { request: () => request, respond: async (id, result) => answered.push(result) };
   s.session = () => ({ tron: s.tron, eth: s.eth });
   return { s, answered, sent };
@@ -64,13 +64,15 @@ test('transactions: an open-ended approval is called out; sent on the requested 
   await assert.rejects(other.s.wcRequestInfo(4), /different address/);
 });
 
-test('WalletConnect is refused in a private wallet and under Tor', async (t) => {
+test('WalletConnect is refused in a private wallet, and Tor in a WalletConnect wallet', async (t) => {
   const { s } = setup(t, null);
   s.wc = null;
   await assert.rejects(s.wcPair('wc:' + 'a'.repeat(64) + '@2?relay-protocol=irn&symKey=' + 'b'.repeat(64)), /only in wallets made for it|isn't set up/);
-  s.settings.torEnabled = true;
-  await assert.rejects(s.wcPair('wc:x'), /Tor/);
   assert.equal(await s.walletMode(), 'private', 'a wallet made before the choice is private');
+  // A WalletConnect wallet never gets Tor: the setting is refused there.
+  await s.setWalletMode('walletconnect');
+  await assert.rejects(s.updateSettings({ torEnabled: true }), /only in maximum-privacy wallets/);
+  assert.equal(s.torOn, false);
 });
 
 test('the WalletConnect store keeps its entries in one file', async (t) => {

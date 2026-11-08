@@ -74,9 +74,9 @@ test('with Tor down no old number hides it; locking forgets balances', async (t)
   await s.overview();
   s.balanceMemo.get('TRX').at -= 60_000;
   v.fail = true;
-  s.settings.torEnabled = true;
+  s.settings.torEnabled = true; s.torActive = true;
   assert.equal((await s.overview()).balances.TRX.ok, false);
-  s.settings.torEnabled = false;
+  s.settings.torEnabled = false; s.torActive = false;
   await s.lock();
   assert.equal(s.balanceMemo.size, 0);
 });
@@ -85,7 +85,7 @@ test('while Tor is still starting: no requests, balances wait, sends and quotes 
   const { s, v } = await make(t);
   let btcAsked = 0;
   s.btc.getBalance = async () => { btcAsked++; return { total: 1n, spendable: 1n }; };
-  s.settings.torEnabled = true;
+  s.settings.torEnabled = true; s.torActive = true;
   s.tor.state = { ...s.tor.state, phase: 'starting' };
   const o = await s.overview();
   assert.equal(o.balances.TRX.pending, true);
@@ -103,7 +103,7 @@ test('while Tor is still starting: no requests, balances wait, sends and quotes 
 
 test('a refused local Tor port reads as a Tor problem, not a raw error', async (t) => {
   const { s, v } = await make(t);
-  s.settings.torEnabled = true;
+  s.settings.torEnabled = true; s.torActive = true;
   s.tor.state = { ...s.tor.state, phase: 'ready' };
   s.btc.getBalance = async () => { throw new Error('connect ECONNREFUSED 127.0.0.1:57065'); };
   s.tron.getTrxBalance = async () => { throw new Error('connect ECONNREFUSED 127.0.0.1:57065'); };
@@ -131,7 +131,7 @@ test('the connection log has what went wrong, no addresses or links, and locking
 test('over Tor a quick refusal moves that coin to new routes; its neighbors keep theirs', async (t) => {
   const { socksAgent } = require('../dist/main/request');
   const { s, v } = await make(t);
-  s.settings.torEnabled = true;
+  s.settings.torEnabled = true; s.torActive = true;
   s.tor.state.phase = 'ready';
   s.torProxy = 'socks5h://127.0.0.1:1';
   const tron = s.torRoute('tron');
@@ -154,7 +154,7 @@ test('over Tor a slow timeout isn\'t repeated, repeats slow down, and the reason
   const { lookupRetryDelay } = require('../dist/main/service');
   assert.deepEqual([1, 2, 3, 4, 5, 6, 9].map(lookupRetryDelay), [30000, 60000, 120000, 240000, 300000, 300000, 300000]);
   const { s } = await make(t);
-  s.settings.torEnabled = true;
+  s.settings.torEnabled = true; s.torActive = true;
   s.tor.state.phase = 'ready';
   let calls = 0;
   const realNow = Date.now;

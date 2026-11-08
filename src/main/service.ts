@@ -128,6 +128,9 @@ export class WalletService extends EventEmitter {
   private arb: EthClient | null = null;
   private bsc: EthClient | null = null;
   private wc: WalletConnectManager | null = null;
+  /** Whether this session goes through Tor: the Tor setting is on and this is a maximum-privacy wallet. */
+  private torActive = false;
+  get torOn(): boolean { return this.torActive; }
   private dash: DashClient | null = null;
   private firo: FiroClient | null = null;
   private doge: DogeClient | null = null;
@@ -331,7 +334,7 @@ export class WalletService extends EventEmitter {
     if (custom) return [custom];
     const monero = NETWORKS[this.settings.network].monero;
     // Plain HTTP through a Tor exit could be read or altered there, so Tor mode uses onion nodes only.
-    return this.settings.torEnabled ? monero.onionNodes : monero.nodes;
+    return this.torActive ? monero.onionNodes : monero.nodes;
   }
 
   private async startSession(secrets: Secrets): Promise<void> {
@@ -340,7 +343,9 @@ export class WalletService extends EventEmitter {
     this.torProxy = undefined;
     this.routes.clear();
     let proxyUri: string | undefined;
-    if (this.settings.torEnabled) {
+    // Tor belongs to maximum-privacy wallets only: a WalletConnect wallet never starts or uses it.
+    this.torActive = this.settings.torEnabled && (await this.walletMode()) === 'private';
+    if (this.torActive) {
       const socks = await this.tor.allocate();
       if (!this.dev.nativeTor) {
         proxyUri = socks;
@@ -350,16 +355,16 @@ export class WalletService extends EventEmitter {
     } else {
       this.tor.useDirect();
     }
-    if (this.settings.torEnabled) this.tor.start(); // Before anything tries to use it.
+    if (this.torActive) this.tor.start(); // Before anything tries to use it.
     const net = NETWORKS[this.settings.network];
     const account = deriveTronAccount(secrets.tronMnemonic);
     const route = this.dev.route ?? ((u: string) => u);
     const tronNet = this.dev.tronHost
       ? { ...net.tron, host: route(this.dev.tronHost), usdt: NETWORKS.mainnet.tron.usdt }
       : { ...net.tron, host: route(net.tron.host) };
-    this.tron = new TronClient(tronNet, this.settings.tronApiKey, account.address, this.torRoute('tron'), this.settings.torEnabled);
+    this.tron = new TronClient(tronNet, this.settings.tronApiKey, account.address, this.torRoute('tron'), this.torActive);
 
-    const slow = this.settings.torEnabled;
+    const slow = this.torActive;
     this.btc = new BtcClient(btcAccountXpub(secrets.tronMnemonic), this.dev.btcApi ? [this.dev.btcApi] : BTC_APIS, this.torRoute('btc'), slow ? 60_000 : 30_000);
     if (this.dev.btcApi) this.btc.spacingMs = 0;
     const scanFile = path.join(this.dir, 'btc-scan.json');
@@ -389,7 +394,7 @@ export class WalletService extends EventEmitter {
       restoreHeight: secrets.restoreHeights[net.id],
       nodes: this.moneroNodes().map(route),
       proxyUri,
-      overTor: this.settings.torEnabled,
+      overTor: this.torActive,
       store: this.dev.moneroStore?.(net.id, this.walletId),
       allowFakechain: this.dev.allowFakechain,
     });
@@ -406,8 +411,8 @@ export class WalletService extends EventEmitter {
 
   private async startArrr(secrets: Secrets): Promise<void> {
     if (!this.arrrAvailable) return;
-    const torPort = this.settings.torEnabled ? Number((await this.tor.allocate()).match(/:(\d+)$/)?.[1]) : undefined;
-    if (this.settings.torEnabled && !torPort) return; // Never fall back to a direct connection.
+    const torPort = this.torActive ? Number((await this.tor.allocate()).match(/:(\d+)$/)?.[1]) : undefined;
+    if (this.torActive && !torPort) return; // Never fall back to a direct connection.
     const client = new ArrrClient({
       engine: () => startArrrEngine(this.dev.arrrBin),
       dir: this.dir,
@@ -425,8 +430,8 @@ export class WalletService extends EventEmitter {
 
   private async startZano(secrets: Secrets): Promise<void> {
     if (!this.zanoAvailable) return;
-    const torPort = this.settings.torEnabled ? Number((await this.tor.allocate()).match(/:(\d+)$/)?.[1]) : undefined;
-    if (this.settings.torEnabled && !torPort) return; // Never fall back to a direct connection.
+    const torPort = this.torActive ? Number((await this.tor.allocate()).match(/:(\d+)$/)?.[1]) : undefined;
+    if (this.torActive && !torPort) return; // Never fall back to a direct connection.
     const client = new ZanoClient({
       engine: () => startZanoEngine(this.dev.zanoBin, this.dir),
       node: this.dev.zanoNode ?? ZANO_NODE,
@@ -443,8 +448,8 @@ export class WalletService extends EventEmitter {
   /** Every other coin works without this, so a problem here stays on the Zcash row. */
   private async startZec(secrets: Secrets): Promise<void> {
     if (!this.zecAvailable) return;
-    const torPort = this.settings.torEnabled ? Number((await this.tor.allocate()).match(/:(\d+)$/)?.[1]) : undefined;
-    if (this.settings.torEnabled && !torPort) return; // Never fall back to a direct connection.
+    const torPort = this.torActive ? Number((await this.tor.allocate()).match(/:(\d+)$/)?.[1]) : undefined;
+    if (this.torActive && !torPort) return; // Never fall back to a direct connection.
     const client = new ZecClient({
       engine: () => startZecEngine(this.dev.zecBin),
       dir: this.dir,
@@ -464,6 +469,7 @@ export class WalletService extends EventEmitter {
   }
 
   async lock(): Promise<void> {
+    this.torActive = false;
     this.previews.clear();
     this.pendingSwaps.clear();
     this.balanceMemo.clear();
@@ -512,10 +518,10 @@ export class WalletService extends EventEmitter {
   // ---- reads ----
 
   /** While true, every outside request is bound to fail, so none are made. */
-  private get torNotReady(): boolean { return this.settings.torEnabled && this.tor.state.phase !== 'ready'; }
+  private get torNotReady(): boolean { return this.torActive && this.tor.state.phase !== 'ready'; }
 
   private friendlyError(e: Error): string {
-    return this.settings.torEnabled && /ECONNREFUSED 127\.0\.0\.1|socks/i.test(e.message) ? 'Not connected to Tor. Balances load once it connects.' : e.message;
+    return this.torActive && /ECONNREFUSED 127\.0\.0\.1|socks/i.test(e.message) ? 'Not connected to Tor. Balances load once it connects.' : e.message;
   }
 
   private balanceMemo = new Map<string, { at: number; total: bigint; spendable: bigint; decimals: number }>();
@@ -531,7 +537,7 @@ export class WalletService extends EventEmitter {
     const tor = this.tor.recentLog();
     return [
       `Kusari Wallet connection log, ${new Date().toISOString()}`,
-      `Tor: ${this.settings.torEnabled ? `on, ${this.tor.state.phase} ${this.tor.state.percent}%` : 'off'}`,
+      `Tor: ${this.torActive ? `on, ${this.tor.state.phase} ${this.tor.state.percent}%` : 'off'}`,
       '', 'Failed lookups:',
       ...(this.lookupFailures.length ? this.lookupFailures : ['none']),
       ...(tor.length ? ['', 'Tor messages:', ...tor] : []),
@@ -548,7 +554,7 @@ export class WalletService extends EventEmitter {
   }
 
   private renewTorRoute(key: string): void {
-    if (!this.settings.torEnabled || key === 'XMR') return;
+    if (!this.torActive || key === 'XMR') return;
     newTorRoute(this.routes.get(LOOKUP_ROUTE[key]));
   }
 
@@ -584,7 +590,7 @@ export class WalletService extends EventEmitter {
           failure = e as Error;
           this.noteFailure(key, startedAt, failure);
           this.renewTorRoute(key);
-          if (this.settings.torEnabled && Date.now() - startedAt < QUICK_REFUSAL_MS) tries = 4;
+          if (this.torActive && Date.now() - startedAt < QUICK_REFUSAL_MS) tries = 4;
           if (attempt + 1 < tries) await new Promise((r) => setTimeout(r, this.dev.tronHost ? 50 : 1500));
         }
       }
@@ -593,9 +599,9 @@ export class WalletService extends EventEmitter {
       this.balanceRetryAt.set(key, Date.now() + (this.dev.tronHost ? 0 : lookupRetryDelay(fails)));
     }
     // With Tor down, an old number would hide that the connection is gone.
-    const torDown = this.settings.torEnabled && this.tor.state.phase !== 'ready';
+    const torDown = this.torActive && this.tor.state.phase !== 'ready';
     if (memo && !torDown && Date.now() - memo.at < BALANCE_STALE_MS) return view(memo, true);
-    if (this.settings.torEnabled && (this.balanceFails.get(key) ?? 0) >= 3) return { ok: false, total: '', spendable: '', error: 'This server isn\'t answering over Tor right now. The wallet keeps trying.' };
+    if (this.torActive && (this.balanceFails.get(key) ?? 0) >= 3) return { ok: false, total: '', spendable: '', error: 'This server isn\'t answering over Tor right now. The wallet keeps trying.' };
     return { ok: false, total: '', spendable: '', error: failure ? this.friendlyError(failure) : this.lastLookupError.get(key) ?? 'Retrying shortly.' };
   }
 
@@ -663,7 +669,7 @@ export class WalletService extends EventEmitter {
     ]);
     return {
       network: this.settings.network,
-      tor: this.settings.torEnabled ? this.tor.state : null,
+      tor: this.torActive ? this.tor.state : null,
       balances: { XMR, BTC, ETH, TRX, USDTE, USDT, SOL, USDTS, LINK, WLD, POL, USDTP, ARB, ETHA, USDTA, BCH, LTC, DOGE, DASH, FIRO, SCRT, NEAR, SSCRT, ...Object.fromEntries(EXTRA_ASSETS.map((a, i) => [a, EXTRA[i]])), ...(zec ? { ZEC: zecView() } : {}), ...(zano ? { ZANO: zanoView() } : {}), ...(arrr ? { ARRR: arrrView() } : {}) },
       sscrt: { needsKey: this.sscrtNeedsKey },
       arrr: arrr ? { scanning: arrr.isScanning, percent: arrr.percent } : null,
@@ -681,7 +687,7 @@ export class WalletService extends EventEmitter {
   }
 
   async torInfo() {
-    return { updatable: !this.dev.nativeTor, enabled: this.settings.torEnabled, installed: this.tor.isInstalled(), state: this.tor.state };
+    return { updatable: !this.dev.nativeTor, enabled: this.torActive, setting: this.settings.torEnabled, allowed: (await this.walletMode()) === 'private', installed: this.tor.isInstalled(), state: this.tor.state };
   }
 
   async installTor() {
@@ -712,7 +718,7 @@ export class WalletService extends EventEmitter {
 
   /** Exolix needs no key. The others join once their key is in settings. */
   private swapClients(): Partial<Record<SwapProviderId, SwapProvider>> {
-    const timeout = this.settings.torEnabled ? 60_000 : 30_000;
+    const timeout = this.torActive ? 60_000 : 30_000;
     const clients: Partial<Record<SwapProviderId, SwapProvider>> = {
       exolix: new SwapClient(this.dev.swapBase ?? SWAP_BASE, this.priceAgent, timeout),
     };
@@ -746,7 +752,7 @@ export class WalletService extends EventEmitter {
 
   private uniswap(): UniswapClient | null {
     const key = this.dev.uniswapKey ?? BUILTIN_SWAP_KEYS.uniswap;
-    return key ? new UniswapClient(key, this.priceAgent, this.settings.torEnabled ? 40_000 : 20_000, this.dev.uniswapBase) : null;
+    return key ? new UniswapClient(key, this.priceAgent, this.torActive ? 40_000 : 20_000, this.dev.uniswapBase) : null;
   }
 
   private async dexQuotes(from: Asset, to: Asset, amountIn: bigint, slippageBps: number): Promise<{ id: DexId; quote?: DexQuote; problem?: string }[]> {
@@ -854,6 +860,9 @@ export class WalletService extends EventEmitter {
 
   async setWalletMode(mode: 'private' | 'walletconnect'): Promise<void> {
     if (mode !== 'private' && mode !== 'walletconnect') throw new Error('Unknown mode.');
+    // A wallet's mode is chosen when it is made and never changes: a WalletConnect wallet's address has been shown to
+    // dApps, and a maximum-privacy wallet must never start talking to them.
+    if (await this.vault.exists()) throw new Error('A wallet\'s mode is chosen when it is made and can\'t be changed.');
     await fs.mkdir(this.dir, { recursive: true });
     await fs.writeFile(this.modePath, JSON.stringify({ mode }), { mode: 0o600 });
     if (mode === 'private') {
@@ -868,25 +877,30 @@ export class WalletService extends EventEmitter {
   private wcProjectId(): string { return this.dev.wcProjectId ?? (BUILTIN_SWAP_KEYS as { walletconnect?: string }).walletconnect ?? ''; }
 
   private async startWalletConnect(address: string): Promise<void> {
-    if (this.wc || (await this.walletMode()) !== 'walletconnect' || this.settings.torEnabled || !this.wcProjectId()) return;
+    if (this.wc || (await this.walletMode()) !== 'walletconnect' || this.torActive || !this.wcProjectId()) return;
     this.wc = new WalletConnectManager(this.wcProjectId(), path.join(this.dir, 'walletconnect.json'), address, (event, data) => this.emit(event, data));
     await this.wc.resume().catch(() => undefined);
   }
 
   private walletConnect(): WalletConnectManager {
     this.session();
-    if (this.settings.torEnabled) throw new Error('WalletConnect can\'t go through Tor, so it is off while Tor is on.');
+    if (this.torActive) throw new Error('WalletConnect can\'t go through Tor, so it is off while Tor is on.');
     if (!this.wc) throw new Error(this.wcProjectId() ? 'WalletConnect is only in wallets made for it. Choose it when adding a wallet.' : 'WalletConnect isn\'t set up in this build.');
     return this.wc;
   }
 
   async wcInfo() {
-    return { mode: await this.walletMode(), tor: this.settings.torEnabled, available: Boolean(this.wcProjectId()), sessions: this.wc?.sessions() ?? [] };
+    return { mode: await this.walletMode(), tor: this.torActive, available: Boolean(this.wcProjectId()), sessions: this.wc?.sessions() ?? [] };
   }
   async wcPair(uri: string) { await this.walletConnect().pair(uri); }
   async wcApprove(id: number) { await this.walletConnect().approve(id); }
   async wcReject(id: number) { await this.walletConnect().reject(id); }
   async wcDisconnect(topic: string) { await this.walletConnect().disconnect(topic); }
+  /** Ends every dApp connection; the wallet stays a WalletConnect wallet. */
+  async wcDisconnectAll() {
+    const wc = this.walletConnect();
+    for (const s of wc.sessions()) await wc.disconnect(s.topic).catch(() => undefined);
+  }
   async wcDecline(id: number) { await this.wc?.decline(id); }
 
   private evmByChain(id: bigint): EthClient {
@@ -993,7 +1007,7 @@ export class WalletService extends EventEmitter {
     const amount = formatAmount(parseAmount(amountInput, DECIMALS[from]), DECIMALS[from]);
     const clients = Object.entries(this.swapClients()) as [SwapProviderId, SwapProvider][];
     // The slowest provider mustn't hold up the others, so each gets a deadline and the screen shows whoever answered.
-    const deadline = this.dev.quoteDeadlineMs ?? (this.settings.torEnabled ? QUOTE_DEADLINE_TOR_MS : QUOTE_DEADLINE_MS);
+    const deadline = this.dev.quoteDeadlineMs ?? (this.torActive ? QUOTE_DEADLINE_TOR_MS : QUOTE_DEADLINE_MS);
     const failed = (id: SwapProviderId, problem: string) => ({ from, to, amount, receive: '0', rate: '0', min: null, max: null, approximate: true, providerId: id, provider: SWAP_NAMES[id], problem });
     const results = await Promise.all(clients.map(async ([id, client]) => {
       try { return await within(deadline, client.quote(from, to, amount), failed(id, 'Too slow to answer right now.')); } catch (e) {
@@ -1228,7 +1242,7 @@ export class WalletService extends EventEmitter {
     // Not every source lists every coin, so the rest are only asked when the first left something out, and all at
     // once because a blocked one would otherwise hold up the others. Earlier sources win where they overlap.
     const ask = async (source: PriceSource, timeoutMs: number) => source.parse(await getJson(source.url, { agent: this.priceAgent, timeoutMs, headers: { Accept: 'application/json', 'User-Agent': 'KusariWallet' } }));
-    const tor = this.settings.torEnabled;
+    const tor = this.torActive;
     const [first, ...rest] = sources;
     let value = first ? await ask(first, tor ? 45_000 : 10_000).catch(() => null) : null;
     if (rest.length && !(value && Object.keys(DECIMALS).every((a) => value![a as Asset]))) {
@@ -1304,7 +1318,7 @@ export class WalletService extends EventEmitter {
       if (asset === 'TRX') return [(await tron.estimateFee({ asset, to: tron.address, amount: 1n })).feeSun, 6, 'TRX'];
       for (const node of this.moneroNodes()) {
         try {
-          const res = await requestJson(`${node}/json_rpc`, { method: 'POST', body: { jsonrpc: '2.0', id: '0', method: 'get_fee_estimate' }, agent: this.priceAgent, timeoutMs: this.settings.torEnabled ? 60_000 : 10_000 });
+          const res = await requestJson(`${node}/json_rpc`, { method: 'POST', body: { jsonrpc: '2.0', id: '0', method: 'get_fee_estimate' }, agent: this.priceAgent, timeoutMs: this.torActive ? 60_000 : 10_000 });
           const perByte = res.body?.result?.fee;
           if (Number.isSafeInteger(perByte) && perByte > 0) return [BigInt(perByte) * 2200n, 12, 'XMR'];
         } catch { /* next node */ }
@@ -1772,6 +1786,7 @@ export class WalletService extends EventEmitter {
     if (typeof patch.simpleSwapKey === 'string') next.simpleSwapKey = patch.simpleSwapKey.trim();
     if (typeof patch.ghostSwapKey === 'string') next.ghostSwapKey = patch.ghostSwapKey.trim();
     if (typeof patch.torEnabled === 'boolean') {
+      if (patch.torEnabled !== this.settings.torEnabled && (await this.walletMode()) !== 'private') throw new Error('Tor is only in maximum-privacy wallets.');
       if (patch.torEnabled && !this.tor.isInstalled()) throw new Error('Install Tor first.');
       next.torEnabled = patch.torEnabled;
     }

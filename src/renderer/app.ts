@@ -347,8 +347,8 @@ function createSkip(password: string, back: () => void): void {
   const box = errorBox();
   const go = h('button', { class: 'danger', id: 'skip-confirm', onclick: () => busy(go, 'Creating the wallet…', box, async () => {
     await withSplash('Creating the wallet…', async () => {
+      await wallet.setWalletMode(chosenMode ?? 'private'); // before the wallet exists, so its first session already follows it
       await wallet.finishCreate(password);
-      await wallet.setWalletMode(chosenMode ?? 'private');
       chosenMode = null; // the next wallet added asks again
       await enterWallet();
     });
@@ -369,8 +369,8 @@ function createStep3(password: string, seeds: { tronMnemonic: string; moneroSeed
   const done = h('button', { class: 'primary', id: 'next', onclick: () => busy(done, 'Creating the wallet…', box, async () => {
     for (const q of qs) if (q.input.value.trim().toLowerCase() !== q.words[q.i]) throw new Error(`${q.label}: word ${q.i + 1} does not match.`);
     await withSplash('Creating the wallet…', async () => {
+      await wallet.setWalletMode(chosenMode ?? 'private'); // before the wallet exists, so its first session already follows it
       await wallet.finishCreate(password);
-      await wallet.setWalletMode(chosenMode ?? 'private');
       chosenMode = null; // the next wallet added asks again
       await enterWallet();
     });
@@ -390,8 +390,8 @@ function restoreForm(): void {
   const go = h('button', { class: 'primary', id: 'next', onclick: () => busy(go, 'Restoring…', box, async () => {
     const pw = f.check();
     await withSplash('Restoring the wallet…', async () => {
+      await wallet.setWalletMode(chosenMode ?? 'private'); // before the wallet exists, so its first session already follows it
       await wallet.restore(pw, tron.value, xmr.value, from.value);
-      await wallet.setWalletMode(chosenMode ?? 'private');
       chosenMode = null; // the next wallet added asks again
       await enterWallet();
     });
@@ -1055,7 +1055,7 @@ async function renderBuy(): Promise<void> {
   const copy = h('button', { class: 'icon-btn', id: 'buy-copy', disabled: true, 'aria-label': 'Copy address', title: 'Copy address', onclick: async () => {
     await wallet.copy(address); status.textContent = 'Copied. It clears from the clipboard in 60 seconds.';
   } }, icon('copy'));
-  const tor = !!(await wallet.getSettings().catch(() => null))?.torEnabled;
+  const tor = Boolean((await wallet.torInfo().catch(() => null))?.enabled);
   const open = h('button', { class: 'primary', id: 'buy-open', onclick: () => busy(open, 'Opening…', box, async () => {
     await wallet.openBuy(asset);
     status.textContent = 'ChangeNOW opened in your browser. Paste this address there as the receiving address.';
@@ -1443,7 +1443,7 @@ const chainLabel = (caip: string): string => {
   return ns === 'eip155' ? (WC_NETWORK[caip] ?? `EVM network ${ref}`) : known[ns] ?? ns;
 };
 const WC_NETWORK: Record<string, string> = { 'eip155:1': 'Ethereum', 'eip155:137': 'Polygon', 'eip155:42161': 'Arbitrum', 'eip155:56': 'BNB Smart Chain' };
-let wcOn = false; // this unlocked wallet uses WalletConnect, and Tor is off
+let wcOn = false; // this unlocked wallet is a WalletConnect wallet (they never use Tor)
 let wcSeen = '';  // the last link taken from the clipboard, so the same one isn't used twice
 let onWcSessions: ((s: any[]) => void) | null = null;
 
@@ -1496,7 +1496,7 @@ async function walletConnectSection(after: () => void = () => void renderSetting
   if (info.mode !== 'walletconnect') return null;
   void wallet.wcRegisterLinks?.().catch(() => undefined);
   const go = h('button', { class: 'primary', id: 'wc-connect', onclick: () => busy(go, 'Looking for the QR code…', box, () => connectDapp(box)) }, 'Connect a dApp');
-  const off = h('button', { class: 'ghost', id: 'wc-disable', onclick: () => busy(off, 'Turning off…', box, async () => { await wallet.setWalletMode('private'); wcOn = false; after(); }) }, 'Turn off and forget all dApps');
+  const off = h('button', { class: 'ghost', id: 'wc-disconnect-all', onclick: () => busy(off, 'Disconnecting…', box, async () => { await wallet.wcDisconnectAll(); after(); }) }, 'Disconnect all dApps');
   const list = h('div', { id: 'wc-sessions' });
   const paint = (sessions: any[]) => setKids(list, ...(sessions.length ? sessions.map((x: any) => {
     const cut: HTMLButtonElement = h('button', { class: 'secondary wc-disconnect', onclick: () => busy(cut, 'Disconnecting…', box, () => wallet.wcDisconnect(x.topic)) }, 'Disconnect');
@@ -1521,7 +1521,7 @@ async function renderDapps(): Promise<void> {
 /** Home shows a dApps button in wallets that use WalletConnect, with how many are connected. */
 async function paintDappsChip(slot: HTMLElement): Promise<void> {
   const info = await wallet.wcInfo().catch(() => null);
-  wcOn = Boolean(info?.available && info.mode === 'walletconnect' && !info.tor);
+  wcOn = Boolean(info?.available && info.mode === 'walletconnect');
   if (!info?.available || info.mode !== 'walletconnect') return;
   void wallet.wcRegisterLinks?.().catch(() => undefined);
   const n = info.sessions.length;
@@ -1571,7 +1571,16 @@ function dappHead(p: { name: string; url: string }, line: string): HTMLElement {
 }
 
 /** A dApp asks to connect: who it says it is, which account it gets, and what that allows. */
-wallet.on('wc-proposal', (p: any) => {
+/** dApp windows open only in an unlocked WalletConnect wallet; anything else is turned down unseen. */
+async function inWcWallet(): Promise<boolean> {
+  if (wcOn) return true;
+  const info = await wallet.wcInfo().catch(() => null);
+  wcOn = Boolean(info?.available && info.mode === 'walletconnect');
+  return wcOn;
+}
+
+wallet.on('wc-proposal', async (p: any) => {
+  if (!(await inWcWallet())) { void wallet.wcReject(p.id).catch(() => undefined); return; }
   const box = errorBox();
   const yes = h('button', { class: 'pill pill-light', id: 'wc-approve', onclick: () => busy(yes, 'Connecting…', box, async () => { await wallet.wcApprove(p.id); m.close(); toast(`Connected to ${dappHost(p.url, p.name)}.`); }) }, 'Connect');
   const no = h('button', { class: 'pill pill-dark', id: 'wc-reject', onclick: () => { void wallet.wcReject(p.id).catch(() => undefined); m.close(); } }, 'Cancel');
@@ -1605,6 +1614,7 @@ wallet.on('wc-proposal', (p: any) => {
 
 /** A dApp asks for a signature or a transaction. Nothing happens without the password. */
 wallet.on('wc-request', async (q: any) => {
+  if (!(await inWcWallet())) { void wallet.wcDecline(q.id).catch(() => undefined); return; }
   let info: any;
   try { info = await wallet.wcRequestInfo(q.id); } catch { void wallet.wcDecline(q.id).catch(() => undefined); return; }
   const box = errorBox();
@@ -1897,7 +1907,7 @@ async function renderSettings(): Promise<void> {
   const arrrInfo = await wallet.arrrInfo();
   const tor = await wallet.torInfo();
   const torBox = errorBox();
-  const useTor = h('input', { type: 'checkbox', id: 'set-tor', checked: tor.enabled });
+  const useTor = h('input', { type: 'checkbox', id: 'set-tor', checked: tor.setting ?? tor.enabled });
   const torProgress = h('div', { class: 'tor-status', id: 'tor-status' });
   const paintTor = (info: { enabled: boolean; installed: boolean; state: any }) => {
     const st = info.state;
@@ -1924,11 +1934,11 @@ async function renderSettings(): Promise<void> {
   } }, 'Copy connection log');
   const saved = h('span', { class: 'small muted', role: 'status' });
   const saveBtn = h('button', { id: 'save-settings', onclick: () => busy(saveBtn, 'Saving…', netBox, async () => {
-    if (useTor.checked && !tor.installed) {
+    if (tor.allowed !== false && useTor.checked && !tor.installed) {
       await wallet.installTor();
       tor.installed = true;
     }
-    const relocked = await wallet.updateSettings({ customMoneroNode: node.value, tronApiKey: key.value, autoLockMinutes: Number(auto.value), showPrices: showPrices.checked, torEnabled: useTor.checked });
+    const relocked = await wallet.updateSettings({ customMoneroNode: node.value, tronApiKey: key.value, autoLockMinutes: Number(auto.value), showPrices: showPrices.checked, ...(tor.allowed === false ? {} : { torEnabled: useTor.checked }) });
     if (!relocked) { saved.textContent = 'Saved.'; void refresh(); }
   }) }, 'Save');
 
@@ -1996,14 +2006,15 @@ async function renderSettings(): Promise<void> {
         h('label', { class: 'field' }, h('span', {}, 'TronGrid API key'), key, h('div', { class: 'hint' }, 'Works without one. Add a free key if lookups are often limited.')),
         h('label', { class: 'field' }, h('span', {}, 'Auto-lock (minutes)'), auto),
         h('label', { class: 'check' }, showPrices, h('span', {}, 'Show USD prices', h('div', { class: 'hint' }, 'Prices come from CoinGecko, then from other price services and exchanges if it\'s blocked or a coin is missing. Addresses and balances aren\'t sent, but your IP can be seen.'))),
-        h('div', { class: 'tor-block' },
+        // Tor is only in maximum-privacy wallets; a WalletConnect wallet doesn't show or use it.
+        tor.allowed === false ? copyLog : h('div', { class: 'tor-block', id: 'tor-block' },
           h('h3', {}, 'Tor'), torBox.el, torProgress,
           h('label', { class: 'check' }, useTor, h('span', {}, 'Connect through Tor',
             h('div', { class: 'hint' }, 'Sends node, TronGrid and price connections through Tor to hide your IP. It doesn\'t hide public Tron history, and lookups and sync get slower.'),
             h('div', { class: 'hint' }, tor.updatable === false ? 'If Tor drops, connections stop rather than falling back to the plain internet.' : 'If Tor drops, connections stop rather than falling back to the plain internet. Only the first install uses the plain internet, to download the files.'))),
           updateTor, copyLog),
         h('div', { class: 'row' }, saveBtn, saved),
-        h('p', { class: 'hint' }, 'Changing the node, API key or Tor locks the wallet. It applies when reopened.')),
+        h('p', { class: 'hint' }, tor.allowed === false ? 'Changing the node or API key locks the wallet. It applies when reopened.' : 'Changing the node, API key or Tor locks the wallet. It applies when reopened.')),
       bioSection,
       h('div', { class: 'section', id: 'arrr-info' }, h('h3', {}, 'Pirate Chain engine'),
         h('p', { class: 'small', id: 'arrr-info-state' }, arrrInfo.available ? (arrrInfo.started ? `Running: ${arrrInfo.phase}` : 'Found but not running') : 'Not found'),

@@ -35,6 +35,9 @@ function bringToFront(): void {
   win.focus();
 }
 
+/** dApp features answer only in an unlocked WalletConnect wallet; a maximum-privacy wallet never reads the screen or clipboard for them. */
+const wcWallet = async (): Promise<boolean> => (await service.walletMode()) === 'walletconnect' && Boolean((await service.wcInfo()).available);
+
 /** Reads the WalletConnect QR a dApp shows, from the open windows and then the whole screen. Nothing is saved. */
 async function scanScreenForWc(): Promise<string> {
   const side = Math.min(2400, Math.max(1280, ...screen.getAllDisplays().map((d) => Math.round(Math.max(d.size.width, d.size.height) * d.scaleFactor))));
@@ -124,17 +127,18 @@ app.whenReady().then(async () => {
   handle('wallet:dexPrepare', (from: Asset, to: Asset, amount: string, id: 'uniswap' | 'pancakeswap', bps: number) => service.dexPrepare(from, to, amount, id, bps));
   handle('wallet:dexConfirm', (id: string, pw: string) => service.dexConfirm(id, pw));
   handle('wallet:walletMode', () => service.walletMode());
-  handle('wallet:wcClipboard', async () => { const t = (await clipboard.readText()).trim(); return isWcLink(t) ? t : ''; });
-  handle('wallet:wcScanScreen', () => scanScreenForWc());
-  handle('wallet:wcTakeLink', () => { const l = pendingWcLink; pendingWcLink = ''; return l; });
+  handle('wallet:wcClipboard', async () => { if (!(await wcWallet())) return ''; const t = (await clipboard.readText()).trim(); return isWcLink(t) ? t : ''; });
+  handle('wallet:wcScanScreen', async () => ((await wcWallet()) ? scanScreenForWc() : ''));
+  handle('wallet:wcTakeLink', async () => { if (!(await wcWallet())) return ''; const l = pendingWcLink; pendingWcLink = ''; return l; });
   // Links a dApp opens with wc: come to this app, once a wallet uses WalletConnect.
-  handle('wallet:wcRegisterLinks', () => { if (app.isPackaged && !app.isDefaultProtocolClient('wc')) app.setAsDefaultProtocolClient('wc'); });
+  handle('wallet:wcRegisterLinks', async () => { if (await wcWallet() && app.isPackaged && !app.isDefaultProtocolClient('wc')) app.setAsDefaultProtocolClient('wc'); });
   handle('wallet:setWalletMode', (m: 'private' | 'walletconnect') => service.setWalletMode(m));
   handle('wallet:wcInfo', () => service.wcInfo());
   handle('wallet:wcPair', (uri: string) => service.wcPair(uri));
   handle('wallet:wcApprove', (id: number) => service.wcApprove(id));
   handle('wallet:wcReject', (id: number) => service.wcReject(id));
   handle('wallet:wcDisconnect', (topic: string) => service.wcDisconnect(topic));
+  handle('wallet:wcDisconnectAll', () => service.wcDisconnectAll());
   handle('wallet:wcDecline', (id: number) => service.wcDecline(id));
   handle('wallet:wcRequestInfo', (id: number) => service.wcRequestInfo(id));
   handle('wallet:wcConfirm', (id: number, pw: string) => service.wcConfirm(id, pw));
@@ -161,7 +165,7 @@ app.whenReady().then(async () => {
   handle('wallet:openExplorer', async (asset, hash: string) => {
     const url = service.explorerUrl(asset, hash);
     // The system browser isn't behind Tor, so opening it here would reveal the IP and the transaction together.
-    if (service.settings.torEnabled) { await clipboard.writeText(url); return { copied: true }; }
+    if (service.torOn) { await clipboard.writeText(url); return { copied: true }; }
     await shell.openExternal(url);
     return { copied: false };
   });

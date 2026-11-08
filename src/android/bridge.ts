@@ -132,7 +132,7 @@ const bioCall = (fn: (id: number) => void) => new Promise<string>((resolve, reje
   openExplorer: call(async (a: any, h: string) => {
     const url = service.explorerUrl(a, h);
     // The phone's browser isn't behind Tor, so it would reveal the IP and the transaction together.
-    if (service.settings.torEnabled) { native.copy(url); return { copied: true }; }
+    if (service.torOn) { native.copy(url); return { copied: true }; }
     native.openExternal(url);
     return { copied: false };
   }),
@@ -164,11 +164,12 @@ const bioCall = (fn: (id: number) => void) => new Promise<string>((resolve, reje
   wcApprove: call((id: number) => service.wcApprove(id)),
   wcReject: call((id: number) => service.wcReject(id)),
   wcDisconnect: call((topic: string) => service.wcDisconnect(topic)),
+  wcDisconnectAll: call(() => service.wcDisconnectAll()),
   wcDecline: call((id: number) => service.wcDecline(id)),
   wcRequestInfo: call((id: number) => service.wcRequestInfo(id)),
   wcConfirm: call((id: number, pw: string) => service.wcConfirm(id, pw)),
-  wcClipboard: call(() => { const t = String(native.paste() ?? '').trim(); return isWcLink(t) ? t : ''; }),
-  wcTakeLink: call(() => { const t = String(native.wcTakeLink?.() ?? '').trim(); return isWcLink(t) ? t : ''; }),
+  wcClipboard: call(async () => { if ((await service.walletMode()) !== 'walletconnect') return ''; const t = String(native.paste() ?? '').trim(); return isWcLink(t) ? t : ''; }),
+  wcTakeLink: call(async () => { if ((await service.walletMode()) !== 'walletconnect') return ''; const t = String(native.wcTakeLink?.() ?? '').trim(); return isWcLink(t) ? t : ''; }),
   wcRegisterLinks: call(() => undefined), // the manifest already sends wc: links here
   prepareScrtPrivate: call((kind: any, amt: string) => service.prepareScrtPrivate(kind, amt)),
   zecRescan: call((d: string, pw: string) => service.zecRescan(d, pw)),
