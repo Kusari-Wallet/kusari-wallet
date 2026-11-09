@@ -7,7 +7,7 @@ export const ETH_PATH = "m/44'/60'/0'/0/0";
 const GWEI = 1_000_000_000n;
 const BALANCE_CACHE_MS = 20_000;
 
-export type EthAsset = 'ETH' | 'USDTE' | 'LINK' | 'WLD' | 'ETHP' | 'UNI' | 'PEPE' | 'AAVE' | 'POL' | 'USDTP' | 'ETHA' | 'ARB' | 'USDTA' | 'BNB' | 'USDTB' | 'ASTER' | 'CAKE' | 'USDCE' | 'USDCB' | 'USDCP' | 'USDCA';
+export type EthAsset = 'ETH' | 'USDTE' | 'LINK' | 'WLD' | 'ETHP' | 'UNI' | 'PEPE' | 'AAVE' | 'POL' | 'USDTP' | 'ETHA' | 'ARB' | 'USDTA' | 'BNB' | 'USDTB' | 'ASTER' | 'CAKE' | 'USDCE' | 'USDCB' | 'USDCP' | 'USDCA' | 'HYPE';
 export interface EvmToken { contract: string; decimals: number; symbol: string; label: string; dust: bigint }
 /** One EVM chain. The same key and address serve all of them, so the chain id is what keeps them apart. */
 export interface EvmChain {
@@ -67,7 +67,13 @@ export const BSC: EvmChain = {
   },
   maxBaseFee: 10n * GWEI, minTip: GWEI / 10n, defaultTip: GWEI / 10n, maxTip: 10n * GWEI, gasToken: 200_000n, gasContract: 300_000n, dust: 10_000_000_000_000n,
 };
-export const EVM_CHAINS = [ETHEREUM, POLYGON, ARBITRUM, BSC];
+// HyperEVM: Hyperliquid's EVM chain. HYPE pays the fees; the base fee sits near 0.1 gwei and small blocks hold 3M gas.
+export const HYPEREVM: EvmChain = {
+  id: 999n, name: 'HyperEVM', native: 'HYPE', symbol: 'HYPE', nativeLabel: 'HYPE',
+  tokens: {},
+  maxBaseFee: 50n * GWEI, minTip: 0n, defaultTip: GWEI / 10n, maxTip: 5n * GWEI, gasToken: 200_000n, gasContract: 300_000n, dust: 1_000_000_000_000_000n,
+};
+export const EVM_CHAINS = [ETHEREUM, POLYGON, ARBITRUM, BSC, HYPEREVM];
 export const chainOf = (asset: EthAsset): EvmChain => EVM_CHAINS.find((c) => c.native === asset || asset in c.tokens) as EvmChain;
 export interface EthDraft { asset: EthAsset; to: string; amount: bigint; gas: bigint; maxFee: bigint; tip: bigint; expectedFee: bigint; maxCost: bigint; data?: string }
 export interface EthHistoryItem { asset: EthAsset; hash: string; direction: 'in' | 'out' | 'self'; amount: string; counterparty: string; timestamp: number; status: 'confirmed' | 'failed' | 'pending'; dust: boolean }
@@ -112,9 +118,10 @@ export class EthClient {
     private readonly timeoutMs = 15_000,
     readonly chain: EvmChain = ETHEREUM,
   ) {
-    const usdtAsset = (Object.keys(chain.tokens) as EthAsset[]).find((a) => chain.tokens[a]!.symbol === 'USDT') as EthAsset;
-    this.tokens = { ...chain.tokens, [usdtAsset]: { ...chain.tokens[usdtAsset]!, contract: usdt || chain.tokens[usdtAsset]!.contract } };
-    this.usdt = this.tokens[usdtAsset]!.contract;
+    // A chain without USDT here (HyperEVM) has no contract to swap in for tests.
+    const usdtAsset = (Object.keys(chain.tokens) as EthAsset[]).find((a) => chain.tokens[a]!.symbol === 'USDT');
+    this.tokens = usdtAsset ? { ...chain.tokens, [usdtAsset]: { ...chain.tokens[usdtAsset]!, contract: usdt || chain.tokens[usdtAsset]!.contract } } : { ...chain.tokens };
+    this.usdt = usdtAsset ? this.tokens[usdtAsset]!.contract : '';
   }
 
   private token(asset: EthAsset): EvmToken | undefined { return this.tokens[asset]; }

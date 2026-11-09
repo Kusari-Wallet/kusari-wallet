@@ -113,10 +113,10 @@ test('a request the wallet can\'t do is answered with an error and shown, never 
   const m = new WalletConnectManager('p', '/nonexistent', ME, (e, d) => events.push([e, d]));
   m.kit = { respondSessionRequest: async (r) => answers.push(r.response), getActiveSessions: () => ({ t1: { peer: { metadata: { name: 'Perp', url: 'https://perp.example' } } } }) };
   await m.onRequest({ topic: 't1', id: 9, params: { chainId: 'eip155:42161', request: { method: 'eth_sign', params: [] } } });
-  await m.onRequest({ topic: 't1', id: 10, params: { chainId: 'eip155:999', request: { method: 'personal_sign', params: [] } } });
+  await m.onRequest({ topic: 't1', id: 10, params: { chainId: 'eip155:10', request: { method: 'personal_sign', params: [] } } });
   assert.equal(answers.length, 2);
   assert.ok(answers.every((a) => a.error));
   assert.deepEqual(events.map(([e]) => e), ['wc-refused', 'wc-refused']);
   assert.equal(events[0][1].method, 'eth_sign');
-  assert.equal(events[1][1].network, 'network 999');
+  assert.equal(events[1][1].network, 'network 10');
 });

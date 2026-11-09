@@ -1,16 +1,16 @@
 declare const wallet: any;
 declare const jsQR: any;
 
-type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'LINK' | 'WLD' | 'SOL' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA' | 'BCH' | 'LTC' | 'DOGE' | 'DASH' | 'FIRO' | 'ZEC' | 'ZANO' | 'ARRR' | 'SCRT' | 'ETHP' | 'UNI' | 'PEPE' | 'AAVE' | 'BNB' | 'USDTB' | 'ASTER' | 'CAKE' | 'JUP' | 'RAY' | 'NEAR' | 'USDCE' | 'USDCB' | 'USDCS' | 'USDCP' | 'USDCA' | 'SSCRT';
+type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'LINK' | 'WLD' | 'SOL' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA' | 'BCH' | 'LTC' | 'DOGE' | 'DASH' | 'FIRO' | 'ZEC' | 'ZANO' | 'ARRR' | 'SCRT' | 'ETHP' | 'UNI' | 'PEPE' | 'AAVE' | 'BNB' | 'USDTB' | 'ASTER' | 'CAKE' | 'JUP' | 'RAY' | 'NEAR' | 'USDCE' | 'USDCB' | 'USDCS' | 'USDCP' | 'USDCA' | 'SSCRT' | 'HYPE';
 type Attrs = Record<string, any>;
 type Child = Node | string | null | undefined | false;
 
-const ALL_ASSETS: Asset[] = ['XMR', 'BTC', 'ETH', 'USDTE', 'USDCE', 'LINK', 'WLD', 'UNI', 'PEPE', 'AAVE', 'ZEC', 'SOL', 'USDTS', 'USDCS', 'JUP', 'RAY', 'TRX', 'USDT', 'BNB', 'USDTB', 'USDCB', 'ASTER', 'CAKE', 'POL', 'ETHP', 'USDTP', 'USDCP', 'ARB', 'ETHA', 'USDTA', 'USDCA', 'BCH', 'LTC', 'NEAR', 'SCRT', 'SSCRT', 'DOGE', 'DASH', 'FIRO', 'ZANO', 'ARRR'];
+const ALL_ASSETS: Asset[] = ['XMR', 'BTC', 'ETH', 'USDTE', 'USDCE', 'LINK', 'WLD', 'UNI', 'PEPE', 'AAVE', 'ZEC', 'SOL', 'USDTS', 'USDCS', 'JUP', 'RAY', 'TRX', 'USDT', 'HYPE', 'BNB', 'USDTB', 'USDCB', 'ASTER', 'CAKE', 'POL', 'ETHP', 'USDTP', 'USDCP', 'ARB', 'ETHA', 'USDTA', 'USDCA', 'BCH', 'LTC', 'NEAR', 'SCRT', 'SSCRT', 'DOGE', 'DASH', 'FIRO', 'ZANO', 'ARRR'];
 /** Tokens shown under the coin of their chain on the home screen, folded until opened. */
 const GROUPS: Partial<Record<Asset, Asset[]>> = { ETH: ['USDTE', 'USDCE', 'LINK', 'WLD', 'UNI', 'PEPE', 'AAVE'], SOL: ['USDTS', 'USDCS', 'JUP', 'RAY'], TRX: ['USDT'], BNB: ['USDTB', 'USDCB', 'ASTER', 'CAKE'], POL: ['ETHP', 'USDTP', 'USDCP'], ARB: ['ETHA', 'USDTA', 'USDCA'], SCRT: ['SSCRT'] };
 const IN_GROUP = new Set(Object.values(GROUPS).flat());
 const GROUP_OF: Partial<Record<Asset, Asset>> = Object.fromEntries(Object.entries(GROUPS).flatMap(([parent, kids]) => (kids ?? []).map((k) => [k, parent])));
-const EVM_ASSETS: Asset[] = ['ETH', 'USDTE', 'USDCE', 'LINK', 'WLD', 'ETHP', 'UNI', 'PEPE', 'AAVE', 'POL', 'USDTP', 'ARB', 'ETHA', 'USDTA', 'BNB', 'USDTB', 'ASTER', 'CAKE', 'USDCB', 'USDCP', 'USDCA'];
+const EVM_ASSETS: Asset[] = ['ETH', 'USDTE', 'USDCE', 'LINK', 'WLD', 'ETHP', 'UNI', 'PEPE', 'AAVE', 'POL', 'USDTP', 'ARB', 'ETHA', 'USDTA', 'BNB', 'USDTB', 'ASTER', 'CAKE', 'USDCB', 'USDCP', 'USDCA', 'HYPE'];
 const SPL_ASSETS: Asset[] = ['USDTS', 'USDCS', 'JUP', 'RAY'];
 const BSC_ASSETS: Asset[] = ['BNB', 'USDTB', 'USDCB', 'ASTER', 'CAKE'];
 // These need their engines, which aren't in every build or on every phone.
@@ -58,6 +58,7 @@ const COIN: Record<Asset, { label: string; file: string; note: string }> = {
   USDCS: { label: 'USDC (Sol)', file: 'coins/usdc.png', note: 'Solana (SPL) only. SOL is needed for the fee.' },
   USDCP: { label: 'USDC (Pol)', file: 'coins/usdc.png', note: 'Polygon network only (native USDC, not USDC.e). POL is needed for the fee.' },
   USDCA: { label: 'USDC (Arb)', file: 'coins/usdc.png', note: 'Arbitrum One only (native USDC, not USDC.e). ETH (Arb) is needed for the fee.' },
+  HYPE: { label: 'HYPE', file: 'coins/hype.png', note: 'HYPE on HyperEVM (chain 999) only, not Hyperliquid\'s own trading chain. The fee is paid in HYPE. No free service lists HyperEVM history, so past transfers show on hyperevmscan.io, not here.' },
   RAY: { label: 'RAY', file: 'coins/ray.png', note: 'Raydium on Solana (SPL) only. SOL is needed for the fee.' },
 };
 const coinName = (a: Asset): string => COIN[a]?.label ?? a;
@@ -673,7 +674,7 @@ function assetRow(a: Asset, child = false, toggle?: HTMLElement): HTMLElement {
     ? (moneroBusy() ? syncLabel() : status)
     : p
       ? h('span', {}, usdFormat(p.usd), p.change !== null && h('span', { class: p.change >= 0 ? 'up' : 'down' }, `${p.change >= 0 ? '+' : ''}${p.change.toFixed(2)}%`))
-      : a === 'BTC' ? 'Bitcoin' : a === 'SOL' ? 'Solana' : a === 'DOGE' ? 'Dogecoin' : a === 'BCH' ? 'Bitcoin Cash' : a === 'LTC' ? 'Litecoin' : a === 'SCRT' || a === 'SSCRT' ? 'Secret' : a === 'DASH' ? 'Dash' : a === 'FIRO' ? 'Firo' : a === 'ZEC' ? 'Zcash' : a === 'ZANO' ? 'Zano' : a === 'ARRR' ? 'Pirate Chain' : a === 'ETH' || a === 'ETHA' ? 'Ethereum' : a === 'POL' ? 'Polygon' : a === 'LINK' ? 'Chainlink' : a === 'WLD' ? 'Worldcoin' : a === 'ARB' ? 'Arbitrum' : a === 'UNI' ? 'Uniswap' : a === 'PEPE' ? 'Pepe' : a === 'AAVE' ? 'Aave' : a === 'NEAR' ? 'NEAR Protocol' : a === 'ETHP' ? 'Ethereum' : a === 'BNB' ? 'BNB Smart Chain' : a === 'ASTER' ? 'Aster' : a === 'CAKE' ? 'PancakeSwap' : a === 'JUP' ? 'Jupiter' : a === 'RAY' ? 'Raydium' : a === 'USDT' || a === 'USDTE' || a === 'USDTS' || a === 'USDTP' || a === 'USDTA' ? 'Tether' : a === 'TRX' ? 'Tron' : 'Monero';
+      : a === 'BTC' ? 'Bitcoin' : a === 'HYPE' ? 'Hyperliquid' : a === 'SOL' ? 'Solana' : a === 'DOGE' ? 'Dogecoin' : a === 'BCH' ? 'Bitcoin Cash' : a === 'LTC' ? 'Litecoin' : a === 'SCRT' || a === 'SSCRT' ? 'Secret' : a === 'DASH' ? 'Dash' : a === 'FIRO' ? 'Firo' : a === 'ZEC' ? 'Zcash' : a === 'ZANO' ? 'Zano' : a === 'ARRR' ? 'Pirate Chain' : a === 'ETH' || a === 'ETHA' ? 'Ethereum' : a === 'POL' ? 'Polygon' : a === 'LINK' ? 'Chainlink' : a === 'WLD' ? 'Worldcoin' : a === 'ARB' ? 'Arbitrum' : a === 'UNI' ? 'Uniswap' : a === 'PEPE' ? 'Pepe' : a === 'AAVE' ? 'Aave' : a === 'NEAR' ? 'NEAR Protocol' : a === 'ETHP' ? 'Ethereum' : a === 'BNB' ? 'BNB Smart Chain' : a === 'ASTER' ? 'Aster' : a === 'CAKE' ? 'PancakeSwap' : a === 'JUP' ? 'Jupiter' : a === 'RAY' ? 'Raydium' : a === 'USDT' || a === 'USDTE' || a === 'USDTS' || a === 'USDTP' || a === 'USDTA' ? 'Tether' : a === 'TRX' ? 'Tron' : 'Monero';
   const usd = assetUsd(a);
   return h('button', { class: `asset${child ? ' child' : ''}`, id: `asset-${a}`, onclick: () => { selected = a; void renderAsset(); } },
     coin(a),
@@ -1301,6 +1302,7 @@ async function renderReceive(current?: string): Promise<void> {
     : asset === 'UNI' || asset === 'PEPE' || asset === 'AAVE' ? `Receives ${asset} on Ethereum (ERC-20) only. Sending needs ETH at this address for the fee.`
     : asset === 'ETHP' ? 'Receives ETH on Polygon only (bridged ETH). ETH sent on Ethereum or Arbitrum won\'t show here. Sending needs POL at this address for the fee.'
     : asset === 'NEAR' ? 'Receives NEAR on the NEAR network only. This 64-character account becomes active when the first NEAR arrives. NEAR sent as a token on Ethereum or BNB Chain won\'t arrive.'
+    : asset === 'HYPE' ? 'The same 0x address as on Ethereum. Receives HYPE on HyperEVM only. HYPE sent on Hyperliquid\'s trading chain (HyperCore) or another chain won\'t show here.'
     : asset === 'BNB' ? 'The same 0x address as on Ethereum. Receives BNB on BNB Smart Chain (BEP-20) only. BNB on other chains won\'t show here.'
     : asset === 'USDTB' || asset === 'ASTER' || asset === 'CAKE' ? `Receives ${asset === 'USDTB' ? 'USDT' : asset} on BNB Smart Chain (BEP-20) only. Sending needs BNB at this address for the fee.`
     : asset === 'JUP' || asset === 'RAY' ? `Receives ${asset} on Solana (SPL) only. Sending needs a little SOL at this address for the fee.`
@@ -1378,7 +1380,7 @@ const SWAP_STATUS: Record<string, string> = {
 };
 
 function coinSelect(id: string, current: Asset, onPick: (a: Asset) => void): HTMLElement {
-  const menu = h('div', { class: 'menu', hidden: true, id: `${id}-menu` }, ...coinMenu(id, ASSETS.filter((a) => a !== 'SSCRT'), current, onPick));
+  const menu = h('div', { class: 'menu', hidden: true, id: `${id}-menu` }, ...coinMenu(id, ASSETS.filter((a) => a !== 'SSCRT' && a !== 'HYPE'), current, onPick));
   return h('div', { class: 'coin-select' },
     h('button', { type: 'button', id, class: 'coin-select-btn', 'aria-label': `Choose a coin, currently ${coinName(current)}`, onclick: () => { menu.hidden = !menu.hidden; } }, coin(current), h('span', {}, coinName(current)), icon('down')),
     menu);
@@ -2312,25 +2314,37 @@ async function boot(first = false): Promise<void> {
 }
 if (location.hash === '#wc-popup') void runRequestWindow(); else void boot(true);
 
-// ---- Aster perps: WalletConnect wallets only ----
+// ---- Hyperliquid perps: WalletConnect wallets only ----
 
-const PERP_ASSETS: Asset[] = ['USDTB', 'USDCB', 'USDTA', 'USDCA', 'USDTE', 'USDCE'];
-const PERP_CHAIN_NAME: Record<number, string> = { 56: 'BNB Chain', 42161: 'Arbitrum', 1: 'Ethereum' };
 let perpSearch = '';
+/** Sizes set through the style object: the page's CSP refuses style attributes. */
+function sized<T extends HTMLElement>(el: T, css: Record<string, string>): T { Object.assign(el.style, css); return el; }
+let perpFrame = '1h';
 
-/** Money in USDT, two decimals, or hidden like every other balance. */
-function usdt(n: number, sign = false): string {
+/** Money in USDC, two decimals, or hidden like every other balance. */
+function usdc(n: number, sign = false): string {
   if (hideBalance) return '••••';
   const s = Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return `${sign ? (n > 0 ? '+' : n < 0 ? '-' : '') : n < 0 ? '-' : ''}${s} USDT`;
+  return `${sign ? (n > 0 ? '+' : n < 0 ? '-' : '') : n < 0 ? '-' : ''}$${s}`;
 }
 /** A price with as many decimals as it needs. */
 function px(n: number): string {
   if (!Number.isFinite(n) || n <= 0) return '—';
-  const d = n >= 1000 ? 2 : n >= 1 ? 4 : n >= 0.01 ? 6 : 8;
-  return n.toLocaleString('en-US', { minimumFractionDigits: Math.min(2, d), maximumFractionDigits: d });
+  const d = n >= 1000 ? 1 : n >= 1 ? 4 : n >= 0.01 ? 6 : 8;
+  return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: d });
 }
 const pct = (rate: number, digits = 3) => `${(rate * 100).toFixed(digits).replace(/0+$/, '').replace(/\.$/, '')}%`;
+function compact(n: number): string {
+  return n >= 1e9 ? `${(n / 1e9).toFixed(2)}B` : n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}K` : n.toFixed(0);
+}
+/** Liquidation estimate of an isolated position: maintenance margin is half the initial margin at the highest leverage. */
+function liqEstimate(side: 'long' | 'short', entry: number, size: number, margin: number, maxLev: number): number {
+  if (!(size > 0) || !(entry > 0) || !(maxLev > 0)) return 0;
+  const s = side === 'long' ? 1 : -1;
+  const l = 1 / (2 * maxLev);
+  const p = entry - (s * (margin - size * entry * l)) / size / (1 - l * s);
+  return p > 0 ? p : 0;
+}
 
 async function renderPerps(): Promise<void> {
   const body = h('div', { class: 'scroll', id: 'perps' }, h('p', { class: 'empty' }, 'Loading…'));
@@ -2338,18 +2352,19 @@ async function renderPerps(): Promise<void> {
   let info: any;
   try { info = await wallet.perpsInfo(); } catch (e) { setKids(body, h('div', { class: 'error' }, errMsg(e))); return; }
   const top: Child[] = [];
+  const acctEl = h('div', { class: 'panel', id: 'perps-account' }, h('p', { class: 'empty' }, 'Loading…'));
+  top.push(acctEl);
   if (!info.ready) {
     const pw = h('input', { type: 'password', id: 'perps-pw', autocomplete: 'current-password' });
     const box = errorBox();
-    const go = h('button', { class: 'primary', id: 'perps-enable', type: 'submit' }, info.expires ? 'Turn trading back on' : 'Turn on trading');
+    const go = h('button', { class: 'primary', id: 'perps-enable', type: 'submit' }, info.agent || info.builder ? 'Turn trading back on' : 'Turn on trading');
     top.push(h('div', { class: 'panel', id: 'perps-setup' },
-      h('h3', {}, 'Trade futures on Aster'),
-      h('p', { class: 'small muted' }, 'Long or short with leverage, from this wallet. Your coins stay in your own Aster account, which only this wallet controls.'),
+      h('h3', {}, 'Trade futures on Hyperliquid'),
+      h('p', { class: 'small muted' }, 'Long or short with leverage, from this wallet. Your USDC stays in your own Hyperliquid account, which only this wallet controls.'),
       h('ol', { class: 'small steps' },
-        h('li', {}, 'Deposit USDT or USDC into your Aster account (BNB Chain, Arbitrum or Ethereum).'),
-        h('li', {}, `Turn on trading. This approves a trading key made from your seed. It can open and close trades for ${info.days} days but can never withdraw.`)),
-      h('p', { class: 'small muted', id: 'perps-fee-note' }, `Kusari fee: ${pct(info.fee.maker)} on post-only orders, ${pct(info.fee.taker)} on all other orders, on top of Aster's own trading fee. Turning on trading also approves this fee.`),
-      h('div', { class: 'row' }, h('button', { id: 'perps-deposit', onclick: () => void renderPerpDeposit() }, 'Deposit')),
+        h('li', {}, `Deposit USDC from Arbitrum (at least ${info.minDeposit} USDC; less is never credited).`),
+        h('li', {}, 'Turn on trading. This approves a trading key made from your seed. It can open and close trades but can never withdraw or send your USDC.')),
+      h('p', { class: 'small muted', id: 'perps-fee-note' }, `Kusari fee: ${pct(info.fee.maker)} on post-only orders, ${pct(info.fee.taker)} on all other orders, on top of Hyperliquid's own trading fee. Turning on trading also approves this fee.`),
       h('form', { onsubmit: (e: Event) => {
         e.preventDefault();
         busy(go, 'Approving…', box, async () => {
@@ -2359,134 +2374,219 @@ async function renderPerps(): Promise<void> {
           await renderPerps();
         });
       } }, box.el, h('label', { class: 'field' }, h('span', {}, 'Password'), pw), go)));
-  } else {
-    const acctEl = h('div', { class: 'panel', id: 'perps-account' }, h('p', { class: 'empty' }, 'Loading…'));
-    top.push(acctEl);
-    void (async () => {
-      let a: any;
-      try { a = await wallet.perpsAccount(); } catch (e) { setKids(acctEl, h('div', { class: 'error' }, errMsg(e)), h('div', { class: 'row' }, h('button', { id: 'perps-deposit', onclick: () => void renderPerpDeposit() }, 'Deposit'))); return; }
-      setKids(acctEl,
-        h('span', { class: 'label' }, 'Futures account'),
-        h('div', { class: 'big-amount', id: 'perps-equity' }, usdt(a.margin)),
-        h('div', { class: 'small muted' }, 'Free: ', h('span', { id: 'perps-free' }, usdt(a.available)), ' · Open P&L: ', h('span', { class: a.pnl >= 0 ? 'up' : 'down', id: 'perps-pnl' }, usdt(a.pnl, true))),
-        h('div', { class: 'row' },
-          h('button', { id: 'perps-deposit', onclick: () => void renderPerpDeposit() }, 'Deposit'),
-          h('button', { id: 'perps-withdraw', onclick: () => void renderPerpWithdraw(a.available) }, 'Withdraw')));
-      const extra: HTMLElement[] = [];
-      if (a.positions.length) {
-        extra.push(h('h3', { class: 'perp-head' }, 'Positions'));
-        for (const p of a.positions) {
-          extra.push(h('div', { class: 'panel perp-pos', id: `pos-${p.symbol}` },
-            h('div', { class: 'row spread' }, h('strong', { 'data-no-translate': '' }, p.symbol), h('span', { class: `perp-tag ${p.side === 'long' ? 'up' : 'down'}` }, p.side === 'long' ? 'Long' : 'Short'), h('span', { class: 'muted small' }, `${p.leverage}x`)),
-            h('table', { class: 'review-table' }, h('tbody', {},
-              h('tr', {}, h('th', {}, 'Size'), h('td', {}, `${p.size} (${usdt(p.notional)})`)),
-              h('tr', {}, h('th', {}, 'Entry / mark'), h('td', {}, `${px(p.entry)} / ${px(p.mark)}`)),
-              h('tr', {}, h('th', {}, 'P&L'), h('td', { class: p.pnl >= 0 ? 'up' : 'down' }, usdt(p.pnl, true))),
-              h('tr', {}, h('th', {}, 'Liquidation price'), h('td', { class: 'warn-text' }, px(p.liquidation))),
-              h('tr', {}, h('th', {}, 'Margin'), h('td', {}, `${usdt(p.margin)}${p.isolated ? ' · isolated' : ' · cross'}`)))),
-            h('div', { class: 'row' },
-              h('button', { onclick: () => void renderPerpMarket(p.symbol) }, 'Trade'),
-              h('button', { class: 'danger', id: `close-${p.symbol}`, onclick: () => void renderPerpClose(p.symbol) }, 'Close'))));
-        }
-      }
-      if (a.orders.length) {
-        extra.push(h('h3', { class: 'perp-head' }, 'Open orders'));
-        for (const o of a.orders) {
-          const cancel = h('button', { id: `cancel-${o.orderId}` }, 'Cancel');
-          cancel.onclick = () => { cancel.disabled = true; void wallet.perpsCancel(o.symbol, o.orderId).then(() => { toast('Order cancelled.'); void renderPerps(); }, (e: unknown) => { cancel.disabled = false; toast(errMsg(e)); }); };
-          extra.push(h('div', { class: 'hist-row perp-order', id: `order-${o.orderId}` },
-            h('div', {}, h('div', {}, h('span', { 'data-no-translate': '' }, o.symbol), ' ', h('span', { class: o.side === 'BUY' ? 'up' : 'down' }, o.side === 'BUY' ? (o.reduceOnly ? 'Close short' : 'Buy') : (o.reduceOnly ? 'Close long' : 'Sell'))),
-              h('div', { class: 'small muted' }, `${o.qty} at ${px(Number(o.price))}${o.postOnly ? ' · post-only' : ''}`)),
-            cancel));
-        }
-      }
-      acctEl.after(...extra);
-    })();
   }
+  void (async () => {
+    let a: any;
+    try { a = await wallet.perpsAccount(); } catch (e) { setKids(acctEl, h('div', { class: 'error' }, errMsg(e))); return; }
+    setKids(acctEl,
+      h('span', { class: 'label' }, 'Perps account · Hyperliquid'),
+      h('div', { class: 'big-amount', id: 'perps-equity' }, usdc(a.margin)),
+      h('div', { class: 'small muted' }, 'Free: ', h('span', { id: 'perps-free' }, usdc(a.available)), ' · Open P&L: ', h('span', { class: a.pnl >= 0 ? 'up' : 'down', id: 'perps-pnl' }, usdc(a.pnl, true))),
+      h('div', { class: 'row' },
+        h('button', { id: 'perps-deposit', onclick: () => void renderPerpDeposit() }, 'Deposit'),
+        h('button', { id: 'perps-withdraw', onclick: () => renderPerpWithdraw(a.available) }, 'Withdraw')));
+    const extra: HTMLElement[] = [];
+    if (a.positions.length) {
+      extra.push(h('h3', { class: 'perp-head' }, 'Positions'));
+      for (const p of a.positions) {
+        const away = p.liquidation > 0 && p.mark > 0 ? Math.abs(p.mark - p.liquidation) / p.mark : 0;
+        extra.push(h('div', { class: 'panel perp-pos', id: `pos-${p.symbol}` },
+          h('div', { class: 'row spread' }, h('strong', { 'data-no-translate': '' }, p.symbol), h('span', { class: `perp-tag ${p.side === 'long' ? 'up' : 'down'}` }, `${p.side === 'long' ? 'Long' : 'Short'} ${p.leverage}x`), h('span', { class: p.pnl >= 0 ? 'up' : 'down' }, usdc(p.pnl, true))),
+          h('div', { class: 'row spread small muted' }, h('span', {}, `${p.size} · entry ${px(p.entry)}`), h('span', {}, `Liq. ${px(p.liquidation)}`)),
+          away > 0 && h('div', { class: 'liq-bar', 'aria-hidden': 'true' }, sized(h('span', {}), { width: `${Math.min(100, Math.round(away * 400))}%` })),
+          away > 0 && h('div', { class: 'small muted' }, p.side === 'long' ? `Price can fall ${(away * 100).toFixed(1)}% before liquidation` : `Price can rise ${(away * 100).toFixed(1)}% before liquidation`),
+          h('div', { class: 'row' },
+            h('button', { onclick: () => void renderPerpMarket(p.symbol) }, 'Trade'),
+            h('button', { class: 'danger', id: `close-${p.symbol}`, onclick: () => void renderPerpClose(p.symbol) }, 'Close'))));
+      }
+    }
+    if (a.orders.length) {
+      extra.push(h('h3', { class: 'perp-head' }, 'Open orders'));
+      for (const o of a.orders) {
+        const cancel = h('button', { id: `cancel-${o.orderId}` }, 'Cancel');
+        cancel.onclick = () => { cancel.disabled = true; void wallet.perpsCancel(o.symbol, o.orderId).then(() => { toast('Order cancelled.'); void renderPerps(); }, (e: unknown) => { cancel.disabled = false; toast(errMsg(e)); }); };
+        extra.push(h('div', { class: 'hist-row perp-order', id: `order-${o.orderId}` },
+          h('div', {}, h('div', {}, h('span', { 'data-no-translate': '' }, o.symbol), ' ', h('span', { class: o.side === 'BUY' ? 'up' : 'down' }, o.side === 'BUY' ? (o.reduceOnly ? 'Close short' : 'Buy') : (o.reduceOnly ? 'Close long' : 'Sell'))),
+            h('div', { class: 'small muted' }, `${o.qty} @ ${px(Number(o.price))}${o.postOnly ? ' · post-only' : ''}`)),
+          cancel));
+      }
+    }
+    acctEl.after(...extra);
+  })();
   const list = h('div', { class: 'list', id: 'perp-markets' }, h('p', { class: 'empty' }, 'Loading markets…'));
   const search = h('input', { type: 'search', id: 'perp-search', placeholder: 'Search markets', value: perpSearch, autocomplete: 'off' });
   let markets: any[] = [];
   const paintMarkets = () => {
     const q = perpSearch.trim().toUpperCase();
-    const shown = (q ? markets.filter((m) => m.symbol.includes(q)) : markets).slice(0, q ? 60 : 30);
+    const shown = (q ? markets.filter((m) => m.symbol.toUpperCase().includes(q)) : markets).slice(0, q ? 60 : 30);
     setKids(list, ...(shown.length ? shown.map((m) => h('button', { class: 'asset perp-market', id: `mkt-${m.symbol}`, onclick: () => void renderPerpMarket(m.symbol) },
-      h('div', {}, h('div', { class: 'name', 'data-no-translate': '' }, m.base, h('span', { class: 'muted small' }, ` /${m.quote}`), m.maxLeverage ? h('span', { class: 'lev-tag', id: `lev-${m.symbol}` }, `${m.maxLeverage}x`) : null), h('div', { class: 'sub' }, `Vol ${compact(m.volume)}`)),
+      h('div', {}, h('div', { class: 'name', 'data-no-translate': '' }, m.base, h('span', { class: 'muted small' }, '-USD'), h('span', { class: 'lev-tag', id: `lev-${m.symbol}` }, `${m.maxLeverage}x`)), h('div', { class: 'sub' }, `Vol $${compact(m.volume)}`)),
       h('div', { class: 'right' }, h('div', { class: 'amt' }, px(m.price)), h('div', { class: `sub ${m.change >= 0 ? 'up' : 'down'}` }, `${m.change >= 0 ? '+' : ''}${m.change.toFixed(2)}%`)))) : [h('p', { class: 'empty' }, 'No market matches.')]));
   };
   search.addEventListener('input', () => { perpSearch = search.value; paintMarkets(); });
   setKids(body, ...top, h('h3', { class: 'perp-head' }, 'Markets'), search, list,
-    h('p', { class: 'small muted' }, 'Prices and trading by Aster (asterdex.com). Futures with leverage can lose all the margin put in.'));
+    h('p', { class: 'small muted' }, 'Prices and trading by Hyperliquid (hyperliquid.xyz). Futures with leverage can lose all the margin put in.'));
   try { markets = await wallet.perpsMarkets(); paintMarkets(); } catch (e) { setKids(list, h('div', { class: 'error' }, errMsg(e))); }
 }
 
-function compact(n: number): string {
-  return n >= 1e9 ? `${(n / 1e9).toFixed(2)}B` : n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}K` : n.toFixed(0);
-}
+interface TradeState { side: 'long' | 'short'; kind: 'market' | 'limit' | 'post'; margin: string; pctOn: boolean; leverage: number; price: string }
 
-async function renderPerpMarket(symbol: string, keep?: { side: 'long' | 'short'; type: 'MARKET' | 'LIMIT'; margin: string; leverage: number; price: string; postOnly: boolean }): Promise<void> {
-  const body = h('div', { class: 'scroll', id: 'perp-trade' }, h('p', { class: 'empty' }, 'Loading…'));
-  show('send', subBar(symbol, () => void renderPerps()), body);
-  let info: any; let ready = false;
-  try { [info, ready] = await Promise.all([wallet.perpsMarket(symbol), wallet.perpsInfo().then((i: any) => i.ready)]); } catch (e) { setKids(body, h('div', { class: 'error' }, errMsg(e))); return; }
+/** Design A: chart and order book on top, the order form with margin and leverage sliders below, Long / Short at the bottom. */
+async function renderPerpMarket(symbol: string, keep?: TradeState): Promise<void> {
+  const body = h('div', { class: 'scroll perp-trade', id: 'perp-trade' }, h('p', { class: 'empty' }, 'Loading…'));
+  show('send', h('div', { class: 'bar' },
+    h('button', { class: 'icon-btn', id: 'back', 'aria-label': 'Back', onclick: () => void renderPerps() }, icon('back')),
+    h('h2', { 'data-no-translate': '' }, `${symbol}-USD`), h('span', {})), body);
+  let info: any; let ready = false; let acct: any = null;
+  try {
+    [info, ready, acct] = await Promise.all([wallet.perpsMarket(symbol), wallet.perpsInfo().then((i: any) => i.ready), wallet.perpsAccount().catch(() => null)]);
+  } catch (e) { setKids(body, h('div', { class: 'error' }, errMsg(e))); return; }
   const m = info.market;
-  const st = keep ?? { side: 'long' as const, type: 'MARKET' as const, margin: '', leverage: Math.min(5, info.maxLeverage || 5), price: '', postOnly: true };
   const maxLev = info.maxLeverage || 1;
-  const sideBtns = (['long', 'short'] as const).map((s) => h('button', { type: 'button', id: `side-${s}`, class: `seg ${s === 'long' ? 'up' : 'down'}`, 'aria-pressed': String(st.side === s), onclick: () => { st.side = s; paint(); } }, s === 'long' ? 'Long' : 'Short'));
-  const typeBtns = (['MARKET', 'LIMIT'] as const).map((t) => h('button', { type: 'button', id: `type-${t.toLowerCase()}`, class: 'seg', 'aria-pressed': String(st.type === t), onclick: () => { st.type = t; paint(); } }, t === 'MARKET' ? 'Market' : 'Limit'));
-  const price = h('input', { id: 'perp-price', inputmode: 'decimal', autocomplete: 'off', value: st.price, placeholder: px(info.mark).replace(/,/g, '') });
-  const post = h('input', { type: 'checkbox', id: 'perp-post' }); post.checked = st.postOnly;
-  const margin = h('input', { id: 'perp-margin', inputmode: 'decimal', autocomplete: 'off', value: st.margin, placeholder: '0.00' });
-  const lev = h('input', { type: 'range', id: 'perp-lev', min: '1', max: String(maxLev), step: '1', value: String(Math.min(st.leverage, maxLev)) });
-  const levText = h('input', { id: 'perp-lev-num', class: 'lev-num', inputmode: 'numeric', autocomplete: 'off', value: String(Math.min(st.leverage, maxLev)), 'aria-label': 'Leverage' });
-  levText.addEventListener('input', () => {
-    const n = Math.floor(Number(levText.value));
-    if (n >= 1) { lev.value = String(Math.min(n, maxLev)); paint(false); }
-  });
-  levText.addEventListener('change', () => { levText.value = lev.value; paint(); });
-  const levQuick = h('div', { class: 'lev-quick' }, ...[...new Set([1, 5, 10, 25, 50, 100, maxLev])].filter((n) => n <= maxLev).sort((a, b) => a - b)
-    .map((n) => h('button', { type: 'button', class: 'seg', id: `lev-pick-${n}`, onclick: () => { lev.value = String(n); paint(); } }, `${n}x`)));
-  const sizeText = h('div', { class: 'small muted', id: 'perp-size' });
-  const feeText = h('div', { class: 'small muted', id: 'perp-fees' });
-  const priceRow = h('label', { class: 'field' }, h('span', {}, 'Limit price (USDT)'), price);
-  const postRow = h('label', { class: 'check' }, post, h('span', {}, `Post-only (maker): Kusari fee ${pct(info.kusariFee.maker)} instead of ${pct(info.kusariFee.taker)}`));
-  const box = errorBox();
-  const go = h('button', { class: 'primary', id: 'perp-review', type: 'submit', disabled: !ready }, 'Review order');
-  function paint(syncBox = true): void {
-    st.price = price.value; st.margin = margin.value; st.leverage = Number(lev.value); st.postOnly = post.checked;
-    sideBtns.forEach((b, i) => b.setAttribute('aria-pressed', String(['long', 'short'][i] === st.side)));
-    typeBtns.forEach((b, i) => b.setAttribute('aria-pressed', String(['MARKET', 'LIMIT'][i] === st.type)));
-    priceRow.hidden = st.type !== 'LIMIT';
-    postRow.hidden = st.type !== 'LIMIT';
-    if (syncBox) levText.value = String(st.leverage);
-    const size = Number(st.margin) * st.leverage;
-    sizeText.textContent = size > 0 ? `Position size about ${usdt(size)}` : '';
-    const maker = st.type === 'LIMIT' && st.postOnly;
-    const k = maker ? info.kusariFee.maker : info.kusariFee.taker;
-    const a = info.asterFee ? (maker ? info.asterFee.maker : info.asterFee.taker) : null;
-    feeText.textContent = `Fees: Aster ${a === null ? 'fee' : pct(a)} + Kusari ${pct(k)} of the position size`;
-    go.textContent = st.side === 'long' ? 'Review long' : 'Review short';
+  const free = acct?.available ?? 0;
+  const pos = acct?.positions?.find((p: any) => p.symbol === symbol);
+  const st: TradeState = keep ?? { side: 'long', kind: 'market', margin: '', pctOn: false, leverage: Math.min(10, maxLev), price: '' };
+  let mark = info.mark;
+
+  // Price block.
+  const priceEl = h('div', { class: 'hl-price', id: 'perp-mark' }, px(mark));
+  const changeEl = h('div', { class: `small ${m.change >= 0 ? 'up' : 'down'}` }, `${m.change >= 0 ? '+' : ''}${m.change.toFixed(2)}% 24h`);
+  const head = h('div', { class: 'hl-head' },
+    h('div', {}, h('div', { class: 'row' }, priceEl, h('span', { class: 'lev-tag', id: 'perp-max-lev' }, `${maxLev}x`)), changeEl),
+    h('div', { class: 'hl-stats' },
+      h('span', { class: 'muted' }, 'Mark'), h('span', { id: 'perp-mark-2' }, px(mark)),
+      // Hyperliquid's index: a weighted median of spot prices on the big exchanges, which marks and funding follow.
+      h('span', { class: 'muted', title: 'Weighted median of spot prices on major exchanges' }, 'Index'), h('span', { id: 'perp-index' }, px(m.oracle)),
+      h('span', { class: 'muted' }, 'Funding'), h('span', { class: info.funding >= 0 ? 'warn-text' : 'up' }, pct(info.funding, 4)),
+      h('span', { class: 'muted' }, 'Open int.'), h('span', {}, `$${compact(info.openInterest)}`)));
+
+  // Chart.
+  const frames = ['1m', '5m', '15m', '1h', '4h', '1d'];
+  const chart = h('div', { class: 'candles', id: 'perp-chart', role: 'img', 'aria-label': `${symbol} price chart` });
+  const frameBtns = frames.map((f) => h('button', { type: 'button', class: 'tf', id: `tf-${f}`, 'aria-pressed': String(f === perpFrame), onclick: () => { perpFrame = f; frameBtns.forEach((b, i) => b.setAttribute('aria-pressed', String(frames[i] === f))); void loadChart(); } }, f === '1d' ? '1D' : f));
+  async function loadChart(): Promise<void> {
+    let cs: any[] = [];
+    try { cs = await wallet.perpsCandles(symbol, perpFrame); } catch { /* keep the old chart */ return; }
+    if (!cs.length) { setKids(chart, h('p', { class: 'empty small' }, 'No chart data.')); return; }
+    const hi = Math.max(...cs.map((c) => c.h));
+    const lo = Math.min(...cs.map((c) => c.l));
+    const span = hi - lo || 1;
+    const y = (v: number) => ((hi - v) / span) * 100;
+    setKids(chart, ...cs.map((c) => {
+      const up = c.c >= c.o;
+      const top = y(Math.max(c.o, c.c));
+      const bot = y(Math.min(c.o, c.c));
+      return h('div', { class: `candle ${up ? 'up' : 'down'}` },
+        sized(h('span', { class: 'wick' }), { top: `${y(c.h)}%`, height: `${Math.max(0.5, y(c.l) - y(c.h))}%` }),
+        sized(h('span', { class: 'body' }), { top: `${top}%`, height: `${Math.max(0.8, bot - top)}%` }));
+    }), h('span', { class: 'candle-hi small muted' }, px(hi)), h('span', { class: 'candle-lo small muted' }, px(lo)));
   }
-  for (const el of [price, margin, lev, post]) el.addEventListener('input', () => paint());
-  const form = h('form', { onsubmit: (e: Event) => {
-    e.preventDefault();
-    busy(go, 'Checking…', box, async () => {
-      const p = await wallet.perpsPrepareOrder({ symbol, side: st.side, type: st.type, margin: st.margin, leverage: st.leverage, price: st.price, postOnly: st.postOnly });
+
+  // Order book.
+  const bidsEl = h('div', { class: 'book-side', id: 'perp-bids' });
+  const asksEl = h('div', { class: 'book-side', id: 'perp-asks' });
+  async function loadBook(): Promise<void> {
+    let b: any;
+    try { b = await wallet.perpsBook(symbol); } catch { return; }
+    const most = Math.max(1e-12, ...b.bids.slice(0, 5).map((l: any) => l.sz), ...b.asks.slice(0, 5).map((l: any) => l.sz));
+    const row = (l: any, side: 'bid' | 'ask') => h('button', { type: 'button', class: `book-row ${side}`, onclick: () => { if (st.kind !== 'market') { price.value = String(l.px); paint(); } } },
+      sized(h('span', { class: 'depth' }), { width: `${Math.round((l.sz / most) * 100)}%` }), h('span', { class: 'bp' }, px(l.px)), h('span', { class: 'bs' }, String(l.sz)));
+    setKids(bidsEl, h('div', { class: 'book-label' }, h('span', {}, 'Bid'), h('span', {}, 'Size')), ...b.bids.slice(0, 5).map((l: any) => row(l, 'bid')));
+    setKids(asksEl, h('div', { class: 'book-label' }, h('span', {}, 'Ask'), h('span', {}, 'Size')), ...b.asks.slice(0, 5).map((l: any) => row(l, 'ask')));
+    if (b.bids[0] && b.asks[0]) { mark = (b.bids[0].px + b.asks[0].px) / 2; priceEl.textContent = px(mark); paint(); }
+  }
+
+  // Order form.
+  const kinds = [['market', 'Market'], ['limit', 'Limit'], ['post', 'Post-only']] as const;
+  const kindBtns = kinds.map(([k, label]) => h('button', { type: 'button', class: 'seg', id: `kind-${k}`, 'aria-pressed': String(st.kind === k), onclick: () => { st.kind = k; paint(); } }, label));
+  const price = h('input', { id: 'perp-price', inputmode: 'decimal', autocomplete: 'off', value: st.price, placeholder: px(mark).replace(/,/g, '') });
+  const priceRow = h('label', { class: 'field' }, h('span', {}, 'Limit price (USD)'), price);
+  const marginRange = h('input', { type: 'range', id: 'perp-margin-range', min: '0', max: '100', step: '1', value: '0', 'aria-label': 'Margin as a share of free balance' });
+  const margin = h('input', { id: 'perp-margin', class: 'num-box', inputmode: 'decimal', autocomplete: 'off', value: st.margin, placeholder: '0.00', 'aria-label': 'Margin (USDC)' });
+  const levRange = h('input', { type: 'range', id: 'perp-lev', min: '1', max: String(maxLev), step: '1', value: String(Math.min(st.leverage, maxLev)), 'aria-label': 'Leverage' });
+  const levNum = h('input', { id: 'perp-lev-num', class: 'num-box lev', inputmode: 'numeric', autocomplete: 'off', value: String(Math.min(st.leverage, maxLev)), 'aria-label': 'Leverage' });
+  const levTicks = [1, ...[0.25, 0.5, 0.75].map((f) => Math.max(1, Math.round(maxLev * f))), maxLev];
+  const sizeText = h('span', { id: 'perp-size' });
+  const liqText = h('span', { id: 'perp-liq', class: 'warn-text' });
+  const feeText = h('div', { class: 'small muted', id: 'perp-fees' });
+  const box = errorBox();
+  const longBtn = h('button', { type: 'button', class: 'big-long', id: 'perp-long', disabled: !ready }, 'Long');
+  const shortBtn = h('button', { type: 'button', class: 'big-short', id: 'perp-short', disabled: !ready }, 'Short');
+
+  function paint(fromBox = false): void {
+    st.price = price.value; st.leverage = Number(levRange.value);
+    if (!fromBox) levNum.value = String(st.leverage);
+    st.margin = margin.value;
+    kindBtns.forEach((b, i) => b.setAttribute('aria-pressed', String(kinds[i][0] === st.kind)));
+    priceRow.hidden = st.kind === 'market';
+    const mg = Number(st.margin.replace(/,/g, '')) || 0;
+    if (!st.pctOn) marginRange.value = String(free > 0 ? Math.min(100, Math.round((mg / free) * 100)) : 0);
+    const size = mg * st.leverage;
+    const ref = st.kind === 'market' ? mark : Number(st.price) || mark;
+    sizeText.textContent = size > 0 ? usdc(size) : '—';
+    const liq = size > 0 ? liqEstimate('long', ref, size / ref, mg, maxLev) : 0;
+    const liqS = size > 0 ? liqEstimate('short', ref, size / ref, mg, maxLev) : 0;
+    liqText.textContent = size > 0 ? `${px(liq)} / ${px(liqS)}` : '—';
+    const maker = st.kind === 'post';
+    const k = maker ? info.kusariFee.maker : info.kusariFee.taker;
+    const v = info.venueFee ? (maker ? info.venueFee.maker : info.venueFee.taker) : null;
+    feeText.textContent = `Fees: Hyperliquid ${v === null ? 'fee' : pct(v)} + Kusari ${pct(k)} of the position size`;
+  }
+  marginRange.addEventListener('input', () => {
+    const v = Math.floor((free * Number(marginRange.value)) / 100 * 100) / 100;
+    margin.value = v > 0 ? String(v) : '';
+    st.pctOn = true; paint(); st.pctOn = false;
+  });
+  margin.addEventListener('input', () => paint());
+  levRange.addEventListener('input', () => paint());
+  levNum.addEventListener('input', () => { const n = Math.floor(Number(levNum.value)); if (n >= 1) { levRange.value = String(Math.min(n, maxLev)); paint(true); } });
+  levNum.addEventListener('change', () => paint());
+  price.addEventListener('input', () => paint());
+  const go = (side: 'long' | 'short') => {
+    st.side = side;
+    const btn = side === 'long' ? longBtn : shortBtn;
+    busy(btn, 'Checking…', box, async () => {
+      const p = await wallet.perpsPrepareOrder({ symbol, side, type: st.kind === 'market' ? 'MARKET' : 'LIMIT', margin: st.margin.replace(/,/g, ''), leverage: st.leverage, price: st.price, postOnly: st.kind === 'post' });
       renderPerpReview(p, () => void renderPerpMarket(symbol, st));
     });
-  } },
-  h('div', { class: 'panel' },
-    h('div', { class: 'row' }, h('div', { class: 'big-amount', id: 'perp-mark' }, px(info.mark)), h('span', { class: 'lev-tag', id: 'perp-max-lev' }, `${maxLev}x`)),
-    h('div', { class: 'small muted' }, h('span', { class: m.change >= 0 ? 'up' : 'down' }, `${m.change >= 0 ? '+' : ''}${m.change.toFixed(2)}% 24h`), ` · Funding ${pct(info.funding, 4)}`)),
-  !ready && h('div', { class: 'warn', id: 'perp-not-ready' }, 'Turn on trading on the Perps screen first.', h('br'), h('button', { type: 'button', class: 'link', onclick: () => void renderPerps() }, 'Go to Perps')),
-  h('div', { class: 'segs' }, ...sideBtns),
-  h('div', { class: 'segs' }, ...typeBtns),
-  priceRow, postRow,
-  h('label', { class: 'field' }, h('span', {}, 'Margin (USDT)'), margin),
-  h('div', { class: 'field' }, h('span', { class: 'lev-head' }, 'Leverage', h('span', { class: 'lev-box' }, levText, 'x')), lev, levQuick),
-  sizeText, feeText, box.el, go,
-  h('p', { class: 'small muted' }, 'Positions use isolated margin: if one is liquidated, only the margin in it is lost.'));
-  setKids(body, form);
+  };
+  longBtn.onclick = () => go('long');
+  shortBtn.onclick = () => go('short');
+
+  setKids(body,
+    head,
+    h('div', { class: 'tfs' }, ...frameBtns),
+    chart,
+    h('div', { class: 'book' }, bidsEl, asksEl),
+    pos && h('button', { type: 'button', class: 'panel perp-mini-pos', id: 'perp-pos', onclick: () => void renderPerpClose(symbol) },
+      h('div', {}, h('div', { class: 'small muted' }, 'Your position'), h('strong', {}, h('span', { class: pos.side === 'long' ? 'up' : 'down' }, `${pos.side === 'long' ? 'Long' : 'Short'} ${pos.leverage}x`), ` · ${pos.size} ${symbol}`)),
+      h('div', { class: 'right' }, h('div', { class: pos.pnl >= 0 ? 'up' : 'down' }, usdc(pos.pnl, true)), h('div', { class: 'small muted' }, `Liq. ${px(pos.liquidation)}`))),
+    !ready && h('div', { class: 'warn', id: 'perp-not-ready' }, 'Turn on trading on the Perps screen first.', h('br'), h('button', { type: 'button', class: 'link', onclick: () => void renderPerps() }, 'Go to Perps')),
+    h('div', { class: 'panel order-panel' },
+      h('div', { class: 'segs' }, ...kindBtns),
+      priceRow,
+      h('div', { class: 'slider-head' }, h('span', {}, 'Margin (USDC)'), h('span', { class: 'small muted', id: 'perp-free' }, `Free ${usdc(free)}`)),
+      h('div', { class: 'slider-row' }, marginRange, margin),
+      h('div', { class: 'ticks' }, ...['0%', '25%', '50%', '75%', '100%'].map((t) => h('span', {}, t))),
+      h('div', { class: 'slider-head' }, h('span', {}, 'Leverage'), h('span', { class: 'small muted' }, `Max ${maxLev}x`)),
+      h('div', { class: 'slider-row' }, levRange, h('span', { class: 'lev-wrap' }, levNum, 'x')),
+      h('div', { class: 'ticks' }, ...levTicks.map((t) => h('button', { type: 'button', class: 'tick', id: `lev-pick-${t}`, onclick: () => { levRange.value = String(t); paint(); } }, `${t}x`))),
+      h('div', { class: 'row spread small summary' }, h('span', { class: 'muted' }, 'Size ', sizeText), h('span', { class: 'muted' }, 'Liq. long/short ≈ ', liqText)),
+      feeText, box.el),
+    h('p', { class: 'small muted' }, 'Positions use isolated margin: if one is liquidated, only the margin in it is lost.'));
+  root.querySelector('.screen')!.append(h('div', { class: 'lr-bar' }, longBtn, shortBtn));
   paint();
+  void loadChart();
+  void loadBook();
+  // Live while this screen is open.
+  const timer = window.setInterval(() => {
+    if (!body.isConnected) { window.clearInterval(timer); return; }
+    void loadBook();
+  }, 4000);
+  const slow = window.setInterval(() => {
+    if (!body.isConnected) { window.clearInterval(slow); return; }
+    void loadChart();
+  }, 30_000);
 }
 
 function renderPerpReview(p: any, back: () => void): void {
@@ -2500,15 +2600,15 @@ function renderPerpReview(p: any, back: () => void): void {
   show('send', subBar('Review order', back), h('div', { class: 'scroll' },
     ...p.warnings.map((w: string) => h('div', { class: 'warn' }, w)),
     h('div', { class: 'panel' }, h('table', { class: 'review-table', id: 'perp-review-table' }, h('tbody', {},
-      h('tr', {}, h('th', {}, 'Market'), h('td', { 'data-no-translate': '' }, p.symbol)),
+      h('tr', {}, h('th', {}, 'Market'), h('td', { 'data-no-translate': '' }, `${p.symbol}-USD`)),
       h('tr', {}, h('th', {}, 'Side'), h('td', { class: p.side === 'long' ? 'up' : 'down' }, `${p.side === 'long' ? 'Long' : 'Short'} ${p.leverage}x`)),
       h('tr', {}, h('th', {}, 'Order'), h('td', {}, p.type === 'MARKET' ? 'Market' : p.postOnly ? 'Limit, post-only' : 'Limit')),
-      h('tr', {}, h('th', {}, 'Size'), h('td', { id: 'perp-r-size' }, `${p.quantity} ${p.base} (${usdt(p.notional)})`)),
+      h('tr', {}, h('th', {}, 'Size'), h('td', { id: 'perp-r-size' }, `${p.quantity} ${p.base} (${usdc(p.notional)})`)),
       h('tr', {}, h('th', {}, p.type === 'MARKET' ? 'Price now' : 'Price'), h('td', {}, px(p.price))),
-      h('tr', {}, h('th', {}, 'Margin'), h('td', { id: 'perp-r-margin' }, usdt(p.margin))),
+      h('tr', {}, h('th', {}, 'Margin'), h('td', { id: 'perp-r-margin' }, usdc(p.margin))),
       h('tr', {}, h('th', {}, 'Liquidation price'), h('td', { class: 'warn-text', id: 'perp-r-liq' }, p.liquidation ? `about ${px(p.liquidation)}` : 'Shown once the position is open')),
-      h('tr', {}, h('th', {}, 'Aster fee'), h('td', { id: 'perp-r-aster' }, p.asterFee === null ? 'Aster\'s rate' : `${usdt(p.asterFee)} (${pct(p.asterRate)})`)),
-      h('tr', {}, h('th', {}, 'Kusari fee'), h('td', { id: 'perp-r-kusari' }, `${usdt(p.kusariFee)} (${pct(p.kusariRate)})`))))),
+      h('tr', {}, h('th', {}, 'Hyperliquid fee'), h('td', { id: 'perp-r-venue' }, p.venueFee === null ? 'Hyperliquid\'s rate' : `${usdc(p.venueFee)} (${pct(p.venueRate)})`)),
+      h('tr', {}, h('th', {}, 'Kusari fee'), h('td', { id: 'perp-r-kusari' }, `${usdc(p.kusariFee)} (${pct(p.kusariRate)})`))))),
     box.el, go));
 }
 
@@ -2527,42 +2627,40 @@ async function renderPerpClose(symbol: string): Promise<void> {
     h('div', { class: 'panel' }, h('table', { class: 'review-table' }, h('tbody', {},
       h('tr', {}, h('th', {}, 'Position'), h('td', {}, `${p.side === 'long' ? 'Long' : 'Short'} ${p.quantity} ${p.base}`)),
       h('tr', {}, h('th', {}, 'Price now'), h('td', {}, px(p.price))),
-      h('tr', {}, h('th', {}, 'P&L now'), h('td', { class: p.pnl >= 0 ? 'up' : 'down' }, usdt(p.pnl, true))),
-      h('tr', {}, h('th', {}, 'Aster fee'), h('td', {}, p.asterFee === null ? 'Aster\'s rate' : `${usdt(p.asterFee)} (${pct(p.asterRate)})`)),
-      h('tr', {}, h('th', {}, 'Kusari fee'), h('td', {}, `${usdt(p.kusariFee)} (${pct(p.kusariRate)})`))))),
+      h('tr', {}, h('th', {}, 'P&L now'), h('td', { class: p.pnl >= 0 ? 'up' : 'down' }, usdc(p.pnl, true))),
+      h('tr', {}, h('th', {}, 'Hyperliquid fee'), h('td', {}, p.venueFee === null ? 'Hyperliquid\'s rate' : `${usdc(p.venueFee)} (${pct(p.venueRate)})`)),
+      h('tr', {}, h('th', {}, 'Kusari fee'), h('td', {}, `${usdc(p.kusariFee)} (${pct(p.kusariRate)})`))))),
     box.el, go));
 }
 
-async function renderPerpDeposit(asset: Asset = 'USDTB'): Promise<void> {
+function renderPerpDeposit(): void {
   const amount = h('input', { id: 'perp-dep-amount', inputmode: 'decimal', autocomplete: 'off', placeholder: '0.00' });
   const box = errorBox();
   const go = h('button', { class: 'primary', id: 'perp-dep-review', type: 'submit' }, 'Review deposit');
-  const picker = h('div', { class: 'list', id: 'perp-dep-assets' }, ...PERP_ASSETS.map((a) => h('button', { type: 'button', class: `asset${a === asset ? ' on' : ''}`, id: `dep-${a}`, 'aria-pressed': String(a === asset), onclick: () => void renderPerpDeposit(a) },
-    coin(a), h('div', {}, h('div', { class: 'name' }, coinName(a))), h('div', { class: 'right' }, h('div', { class: 'amt' }, balanceText(a))))));
   const form = h('form', { onsubmit: (e: Event) => {
     e.preventDefault();
-    busy(go, 'Checking…', box, async () => renderPerpDepositReview(await wallet.perpsDepositPrepare(asset, amount.value)));
+    busy(go, 'Checking…', box, async () => renderPerpDepositReview(await wallet.perpsDepositPrepare(amount.value)));
   } },
-  h('p', { class: 'small muted' }, 'Coins go from this wallet to Aster\'s deposit contract and arrive in your Aster futures account, usually within a few minutes. Pick the coin and network:'),
-  picker,
-  h('label', { class: 'field' }, h('span', {}, `Amount (${coinName(asset)})`), amount),
-  h('button', { type: 'button', class: 'link', id: 'perp-dep-max', onclick: () => { amount.value = String(overview?.balances?.[asset]?.spendable ?? '').replace(/,/g, ''); } }, 'Use all'),
+  h('div', { class: 'list' }, h('div', { class: 'asset on', id: 'dep-USDCA' }, coin('USDCA'), h('div', {}, h('div', { class: 'name' }, coinName('USDCA'))), h('div', { class: 'right' }, h('div', { class: 'amt' }, balanceText('USDCA'))))),
+  h('p', { class: 'small muted' }, 'USDC on Arbitrum goes to Hyperliquid\'s bridge and arrives in your Hyperliquid account in about a minute. At least 5 USDC: Hyperliquid never credits a smaller deposit. ETH (Arb) pays the network fee.'),
+  h('label', { class: 'field' }, h('span', {}, 'Amount (USDC)'), amount),
+  h('button', { type: 'button', class: 'link', id: 'perp-dep-max', onclick: () => { amount.value = String(overview?.balances?.USDCA?.spendable ?? '').replace(/,/g, ''); } }, 'Use all'),
   box.el, go);
-  show('send', subBar('Deposit to Aster', () => void renderPerps()), h('div', { class: 'scroll' }, form));
+  show('send', subBar('Deposit to Hyperliquid', () => void renderPerps()), h('div', { class: 'scroll' }, form));
 }
 
 function renderPerpDepositReview(p: any): void {
   const pw = h('input', { type: 'password', id: 'perp-dep-pw', autocomplete: 'current-password' });
   const box = errorBox();
-  const go = h('button', { class: 'primary', id: 'perp-dep-confirm', type: 'submit' }, p.steps > 1 ? `Approve and deposit (${p.steps} transactions)` : 'Deposit');
+  const go = h('button', { class: 'primary', id: 'perp-dep-confirm', type: 'submit' }, 'Deposit');
   const form = h('form', { onsubmit: (e: Event) => {
     e.preventDefault();
     busy(go, 'Sending…', box, async () => {
       const r = await wallet.perpsDepositConfirm(p.id, pw.value);
       pw.value = '';
       show('receive', subBar('Deposit sent', () => void renderPerps()), h('div', { class: 'scroll' },
-        h('h2', { id: 'perp-dep-sent' }, `${p.amount} ${coinName(p.asset)} → Aster`),
-        h('p', { class: 'muted' }, 'Sent to the network. It shows in your Aster account once the network confirms it.'),
+        h('h2', { id: 'perp-dep-sent' }, `${p.amount} USDC → Hyperliquid`),
+        h('p', { class: 'muted' }, 'Sent to the network. It shows in your Hyperliquid account about a minute after Arbitrum confirms it.'),
         ...r.hashes.map((hash: string) => h('div', { class: 'panel' }, h('div', { class: 'mono' }, hash), h('br'),
           h('div', { class: 'row' }, h('button', { onclick: () => wallet.copy(hash) }, 'Copy'), h('button', { onclick: () => void openExplorer(p.asset, hash) }, 'View in explorer')))),
         h('button', { class: 'primary', onclick: () => void renderPerps() }, 'Back to Perps')));
@@ -2570,31 +2668,27 @@ function renderPerpDepositReview(p: any): void {
     });
   } },
   h('div', { class: 'panel' }, h('table', { class: 'review-table' }, h('tbody', {},
-    h('tr', {}, h('th', {}, 'Deposit'), h('td', { id: 'perp-dep-r-amount' }, `${p.amount} ${coinName(p.asset)}`)),
-    h('tr', {}, h('th', {}, 'To'), h('td', {}, 'Your Aster futures account')),
+    h('tr', {}, h('th', {}, 'Deposit'), h('td', { id: 'perp-dep-r-amount' }, `${p.amount} USDC (Arb)`)),
+    h('tr', {}, h('th', {}, 'To'), h('td', {}, 'Your Hyperliquid account')),
     h('tr', {}, h('th', {}, 'Network fee'), h('td', {}, reviewFee(p.fee, p.feeAsset)))))),
-  p.steps > 1 && h('div', { class: 'warn' }, `${coinName(p.asset)} needs a one-time permission for this exact amount first, so two transactions are sent.`),
   box.el, h('label', { class: 'field' }, h('span', {}, 'Password'), pw), go);
-  show('send', subBar('Review deposit', () => { void wallet.cancelSend(p.id); void renderPerpDeposit(p.asset); }), h('div', { class: 'scroll' }, form));
+  show('send', subBar('Review deposit', () => { void wallet.cancelSend(p.id); renderPerpDeposit(); }), h('div', { class: 'scroll' }, form));
   pw.focus();
 }
 
-function renderPerpWithdraw(available: number, chain = 56, token: 'USDT' | 'USDC' = 'USDT'): void {
+function renderPerpWithdraw(available: number): void {
   const amount = h('input', { id: 'perp-wd-amount', inputmode: 'decimal', autocomplete: 'off', placeholder: '0.00' });
   const box = errorBox();
   const go = h('button', { class: 'primary', id: 'perp-wd-review', type: 'submit' }, 'Review withdrawal');
-  const chains = h('div', { class: 'segs' }, ...[56, 42161, 1].map((c) => h('button', { type: 'button', class: 'seg', id: `wd-chain-${c}`, 'aria-pressed': String(c === chain), onclick: () => renderPerpWithdraw(available, c, token) }, PERP_CHAIN_NAME[c])));
-  const tokens = h('div', { class: 'segs' }, ...(['USDT', 'USDC'] as const).map((t) => h('button', { type: 'button', class: 'seg', id: `wd-token-${t}`, 'aria-pressed': String(t === token), onclick: () => renderPerpWithdraw(available, chain, t) }, t)));
   const form = h('form', { onsubmit: (e: Event) => {
     e.preventDefault();
-    busy(go, 'Checking…', box, async () => renderPerpWithdrawReview(await wallet.perpsWithdrawPrepare(chain, token, amount.value), available));
+    busy(go, 'Checking…', box, async () => renderPerpWithdrawReview(await wallet.perpsWithdrawPrepare(amount.value), available));
   } },
-  h('p', { class: 'small muted' }, `Free to withdraw: ${usdt(available)}. It goes to this wallet's own address.`),
-  chains, tokens,
-  h('label', { class: 'field' }, h('span', {}, `Amount (${token})`), amount),
+  h('p', { class: 'small muted' }, `Free to withdraw: ${usdc(available)}. It goes to this wallet's own address as USDC on Arbitrum, usually within a few minutes. Hyperliquid takes 1 USDC.`),
+  h('label', { class: 'field' }, h('span', {}, 'Amount (USDC)'), amount),
   h('button', { type: 'button', class: 'link', id: 'perp-wd-max', onclick: () => { amount.value = String(Math.floor(available * 100) / 100); } }, 'Use all'),
   box.el, go);
-  show('send', subBar('Withdraw from Aster', () => void renderPerps()), h('div', { class: 'scroll' }, form));
+  show('send', subBar('Withdraw from Hyperliquid', () => void renderPerps()), h('div', { class: 'scroll' }, form));
 }
 
 function renderPerpWithdrawReview(p: any, available: number): void {
@@ -2611,12 +2705,12 @@ function renderPerpWithdrawReview(p: any, available: number): void {
     });
   } },
   h('div', { class: 'panel' }, h('table', { class: 'review-table' }, h('tbody', {},
-    h('tr', {}, h('th', {}, 'Withdraw'), h('td', {}, `${p.amount} ${p.token}`)),
-    h('tr', {}, h('th', {}, 'Network'), h('td', {}, PERP_CHAIN_NAME[p.chainId])),
-    h('tr', {}, h('th', {}, 'Aster withdrawal fee'), h('td', {}, `${p.fee} ${p.token}`)),
-    h('tr', {}, h('th', {}, 'You receive'), h('td', { id: 'perp-wd-receive' }, `${p.receive} ${p.token}`)),
+    h('tr', {}, h('th', {}, 'Withdraw'), h('td', {}, `${p.amount} USDC`)),
+    h('tr', {}, h('th', {}, 'Network'), h('td', {}, 'Arbitrum')),
+    h('tr', {}, h('th', {}, 'Hyperliquid withdrawal fee'), h('td', {}, `${p.fee} USDC`)),
+    h('tr', {}, h('th', {}, 'You receive'), h('td', { id: 'perp-wd-receive' }, `${p.receive} USDC`)),
     h('tr', {}, h('th', {}, 'To'), h('td', { class: 'mono' }, p.to))))),
   box.el, h('label', { class: 'field' }, h('span', {}, 'Password'), pw), go);
-  show('send', subBar('Review withdrawal', () => renderPerpWithdraw(available, p.chainId, p.token)), h('div', { class: 'scroll' }, form));
+  show('send', subBar('Review withdrawal', () => renderPerpWithdraw(available)), h('div', { class: 'scroll' }, form));
   pw.focus();
 }

@@ -56,6 +56,7 @@ const service = new WalletService('/data', undefined, {
   arbRpc: __TEST__ ? testConfig.arbRpc : undefined,
   arbScout: __TEST__ ? testConfig.arbScout : undefined,
   bscRpc: __TEST__ ? testConfig.bscRpc : undefined,
+  hypeRpc: __TEST__ ? testConfig.hypeRpc : undefined,
   bscScout: __TEST__ ? testConfig.bscScout : undefined,
 });
 const ready = service.init();
@@ -180,9 +181,11 @@ const bioCall = (fn: (id: number) => void) => new Promise<string>((resolve, reje
   perpsPrepareClose: call((s: string) => service.perpsPrepareClose(s)),
   perpsPlace: call((id: string) => service.perpsPlace(id)),
   perpsCancel: call((s: string, o: number) => service.perpsCancel(s, o)),
-  perpsDepositPrepare: call((a: any, amt: string) => service.perpsDepositPrepare(a, amt)),
+  perpsBook: call((s: string) => service.perpsBook(s)),
+  perpsCandles: call((s: string, i: string) => service.perpsCandles(s, i)),
+  perpsDepositPrepare: call((amt: string) => service.perpsDepositPrepare(amt)),
   perpsDepositConfirm: call((id: string, pw: string) => service.perpsDepositConfirm(id, pw)),
-  perpsWithdrawPrepare: call((c: number, t: any, amt: string) => service.perpsWithdrawPrepare(c, t, amt)),
+  perpsWithdrawPrepare: call((amt: string) => service.perpsWithdrawPrepare(amt)),
   perpsWithdrawConfirm: call((id: string, pw: string) => service.perpsWithdrawConfirm(id, pw)),
   prepareLtcPrivate: call(() => service.prepareLtcPrivate()),
   prepareScrtPrivate: call((kind: any, amt: string) => service.prepareScrtPrivate(kind, amt)),

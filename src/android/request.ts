@@ -38,11 +38,11 @@ export async function requestText(url: string, opts: { method: 'POST'; body: str
   return text;
 }
 
-export async function requestForm(url: string, opts: { method: 'GET' | 'POST' | 'DELETE'; form?: string; timeoutMs?: number }): Promise<{ status: number; body: any }> {
+export async function requestForm(url: string, opts: { method: 'GET' | 'POST' | 'DELETE'; form?: string; json?: string; timeoutMs?: number }): Promise<{ status: number; body: any }> {
   const res = await fetch(route(url), {
     method: opts.method,
-    headers: { Accept: 'application/json', ...(opts.form === undefined ? {} : { 'Content-Type': 'application/x-www-form-urlencoded' }) },
-    body: opts.form,
+    headers: { Accept: 'application/json', ...(opts.json !== undefined ? { 'Content-Type': 'application/json' } : opts.form === undefined ? {} : { 'Content-Type': 'application/x-www-form-urlencoded' }) },
+    body: opts.json ?? opts.form,
     signal: AbortSignal.timeout(Math.max(opts.timeoutMs ?? 30_000, 45_000)),
   });
   const text = await res.text();

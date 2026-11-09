@@ -50,6 +50,7 @@ const COIN: Record<Asset, { coin: string; network: RegExp; fallback: string }> =
   SCRT: { coin: 'SCRT', network: /^(scrt|secret)/i, fallback: 'SCRT' },
   NEAR: { coin: 'NEAR', network: /^near$/i, fallback: 'NEAR' },
   SSCRT: { coin: '', network: /^$/, fallback: '' }, // never offered: see NOT_SWAPPABLE
+  HYPE: { coin: '', network: /^$/, fallback: '' },
 };
 
 /** Ethereum addresses differ only in checksum casing, which services often drop. */
@@ -64,7 +65,9 @@ function sameAddress(a: unknown, b: string): boolean {
 export interface SwapQuote { from: Asset; to: Asset; amount: string; receive: string; rate: string; min: string | null; max: string | null; problem: string | null; provider: string; providerId: SwapProviderId; approximate: boolean }
 
 /** No provider takes the private form of a coin; it's made from or turned back into the plain one in the wallet. */
-export const NOT_SWAPPABLE: ReadonlySet<Asset> = new Set<Asset>(['SSCRT']);
+// HYPE: exchanges send HYPE to Hyperliquid's own chain or to HyperEVM, and a swap to the wrong one is not credited
+// here, so it is not offered until each service's HyperEVM listing is checked.
+export const NOT_SWAPPABLE: ReadonlySet<Asset> = new Set<Asset>(['SSCRT', 'HYPE']);
 
 export type SwapProviderId = 'exolix' | 'simpleswap' | 'ghostswap' | 'etzswap' | 'ccecash' | 'changenow';
 
@@ -229,6 +232,7 @@ const SIMPLE_COIN: Record<Asset, { ticker: string; network: string }> = {
   SCRT: { ticker: 'scrt', network: 'scrt' },
   NEAR: { ticker: 'near', network: 'near' },
   SSCRT: { ticker: '', network: '' },
+  HYPE: { ticker: '', network: '' },
 };
 
 export class SimpleSwapClient implements SwapProvider {
@@ -321,7 +325,7 @@ const GHOST_LOOKUP: Record<LookedUp, { ticker: RegExp; chain: RegExp; label: str
   USDCP: { ticker: /^usdc(matic|pol|polygon)?$/i, chain: /^(pol|polygon|matic)$/i, label: 'USDC (Pol)' },
   USDCA: { ticker: /^usdc(arb|arbitrum)?$/i, chain: /^(arb|arbitrum)$/i, label: 'USDC (Arb)' },
 };
-const GHOST_TICKER: Record<Exclude<Asset, LookedUp>, string> = { NEAR: 'near', BTC: 'btc', XMR: 'xmr', ETH: 'eth', TRX: 'trx', USDT: 'usdtrx', DASH: 'dash', FIRO: 'firo', SOL: 'sol', BCH: 'bch', LTC: 'ltc', DOGE: 'doge', ZEC: 'zec', ZANO: 'zano', ARRR: 'arrr', SCRT: 'scrt', SSCRT: '' };
+const GHOST_TICKER: Record<Exclude<Asset, LookedUp>, string> = { HYPE: '', NEAR: 'near', BTC: 'btc', XMR: 'xmr', ETH: 'eth', TRX: 'trx', USDT: 'usdtrx', DASH: 'dash', FIRO: 'firo', SOL: 'sol', BCH: 'bch', LTC: 'ltc', DOGE: 'doge', ZEC: 'zec', ZANO: 'zano', ARRR: 'arrr', SCRT: 'scrt', SSCRT: '' };
 
 export class GhostSwapClient implements SwapProvider {
   constructor(private readonly base: string, private readonly bearer: string, private readonly agent?: Agent, private readonly timeoutMs = 30_000) {}

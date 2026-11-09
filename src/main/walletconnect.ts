@@ -10,7 +10,7 @@ type IWalletKit = any;
  * Only EVM accounts are offered: the privacy coins are never shared with a dApp.
  */
 export const WC_CHAINS: { id: bigint; name: string }[] = [
-  { id: 1n, name: 'Ethereum' }, { id: 137n, name: 'Polygon' }, { id: 42161n, name: 'Arbitrum' }, { id: 56n, name: 'BNB Smart Chain' },
+  { id: 1n, name: 'Ethereum' }, { id: 137n, name: 'Polygon' }, { id: 42161n, name: 'Arbitrum' }, { id: 56n, name: 'BNB Smart Chain' }, { id: 999n, name: 'HyperEVM' },
 ];
 /** Requests the wallet answers itself, and the ones that need the person and their password. */
 const SILENT = ['eth_accounts', 'eth_requestAccounts', 'eth_chainId', 'wallet_switchEthereumChain'];

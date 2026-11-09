@@ -88,11 +88,12 @@ export function getJson(url: string, opts: { headers?: Record<string, string>; a
 }
 
 /** A form-encoded request (or a GET), for APIs that take form bodies. Returns the status and the parsed answer. */
-export function requestForm(url: string, opts: { method: 'GET' | 'POST' | 'DELETE'; form?: string; agent?: Agent; timeoutMs?: number }): Promise<{ status: number; body: any }> {
+export function requestForm(url: string, opts: { method: 'GET' | 'POST' | 'DELETE'; form?: string; json?: string; agent?: Agent; timeoutMs?: number }): Promise<{ status: number; body: any }> {
   return new Promise((resolve, reject) => {
     const lib = url.startsWith('https:') ? https : http;
     const headers: Record<string, string> = { Accept: 'application/json', 'User-Agent': 'KusariWallet' };
-    if (opts.form !== undefined) { headers['Content-Type'] = 'application/x-www-form-urlencoded'; headers['Content-Length'] = String(Buffer.byteLength(opts.form)); }
+    const payload = opts.json ?? opts.form;
+    if (payload !== undefined) { headers['Content-Type'] = opts.json !== undefined ? 'application/json' : 'application/x-www-form-urlencoded'; headers['Content-Length'] = String(Buffer.byteLength(payload)); }
     const req = lib.request(url, { method: opts.method, headers, agent: opts.agent }, (res) => {
       const chunks: Buffer[] = [];
       res.on('data', (c: Buffer) => chunks.push(c));
@@ -106,6 +107,6 @@ export function requestForm(url: string, opts: { method: 'GET' | 'POST' | 'DELET
     });
     req.setTimeout(opts.timeoutMs ?? 30_000, () => req.destroy(new Error('Timed out')));
     req.on('error', reject);
-    req.end(opts.form);
+    req.end(payload);
   });
 }
