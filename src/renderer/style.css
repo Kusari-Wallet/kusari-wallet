@@ -456,3 +456,6 @@ ol.steps { padding-left: 20px; margin: 8px 0; }
 .num-row .num-box { flex: 1; width: auto; height: 40px; text-align: right; font-size: 15px; }
 .num-row .unit { min-width: 38px; color: var(--muted); font-weight: 700; }
 .num-row.lev .num-box, .num-row.lev .unit { color: var(--orange); }
+.kx-list[hidden] { display: none; }
+.kx-toggle::after { content: ""; display: inline-block; width: 6px; height: 6px; margin-left: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: translateY(-2px) rotate(45deg); transition: transform 0.15s; }
+.kx-toggle[aria-expanded="true"]::after { transform: translateY(1px) rotate(-135deg); }

@@ -770,6 +770,7 @@ async function renderAsset(): Promise<void> {
       (a === 'SCRT' || a === 'SSCRT') && h('div', { class: 'btn-row', id: 'sscrt-actions' },
         h('button', { class: 'secondary', id: 'sscrt-wrap', onclick: () => renderScrtPrivate('wrap') }, 'Make private'),
         h('button', { class: 'secondary', id: 'sscrt-unwrap', onclick: () => renderScrtPrivate('unwrap') }, 'Make public')),
+      a === 'HYPE' && wcOn && hypeCorePanel(),
       a === 'ZEC' && h('button', { class: 'ghost', id: 'zec-rescan', onclick: () => renderZecRescan() }, 'Rescan past history'),
       a === 'ARRR' && h('button', { class: 'ghost', id: 'arrr-rescan', onclick: () => renderZecRescan('ARRR') }, 'Rescan past history'),
       hist));
@@ -2937,5 +2938,64 @@ function renderPerpWithdrawReview(p: any, available: number): void {
     h('tr', {}, h('th', {}, 'To'), h('td', { class: 'mono' }, p.to))))),
   box.el, h('label', { class: 'field' }, h('span', {}, 'Password'), pw), go);
   show('send', subBar('Review withdrawal', () => renderPerpWithdraw(available)), h('div', { class: 'scroll' }, form));
+  pw.focus();
+}
+
+// ---- HYPE between HyperEVM (this wallet) and HyperCore (the trading engine): WalletConnect wallets ----
+
+function hypeCorePanel(): HTMLElement {
+  const line = h('p', { class: 'small', id: 'hype-core-balance' }, 'HyperCore balance: …');
+  const panel = h('div', { class: 'panel', id: 'hype-core' },
+    line,
+    h('p', { class: 'small muted' }, 'HyperCore is the trading side of the same chain, with a separate balance at this same address. HYPE moves between the two in about a minute.'),
+    h('div', { class: 'btn-row' },
+      h('button', { class: 'secondary', id: 'hype-to-core', onclick: () => renderHypeMove('core') }, 'Move to HyperCore'),
+      h('button', { class: 'secondary', id: 'hype-to-evm', onclick: () => renderHypeMove('evm') }, 'Move to HyperEVM')));
+  void wallet.hypeCore().then((c: any) => { line.textContent = `HyperCore balance: ${hideBalance ? '••••' : shortAmount(String(c.available))} HYPE`; }, () => { line.textContent = 'HyperCore balance: not available right now'; });
+  return panel;
+}
+
+function renderHypeMove(dir: 'core' | 'evm'): void {
+  const amount = h('input', { id: 'hype-move-amount', inputmode: 'decimal', autocomplete: 'off', placeholder: '0.00' });
+  const box = errorBox();
+  const go = h('button', { class: 'primary', id: 'hype-move-review', type: 'submit' }, 'Review');
+  const useAll = h('button', { type: 'button', class: 'link', id: 'hype-move-max' }, 'Use all');
+  useAll.onclick = async () => {
+    if (dir === 'core') { amount.value = String(overview?.balances?.HYPE?.spendable ?? '').replace(/,/g, ''); return; }
+    try { const c = await wallet.hypeCore(); amount.value = String(Math.max(0, Math.floor((c.available - c.reserve) * 1e6) / 1e6)); } catch (e) { box.show(e); }
+  };
+  const form = h('form', { onsubmit: (e: Event) => {
+    e.preventDefault();
+    busy(go, 'Checking…', box, async () => renderHypeMoveReview(dir === 'core' ? await wallet.hypeToCorePrepare(amount.value) : await wallet.hypeToEvmPrepare(amount.value)));
+  } },
+  h('p', { class: 'small muted' }, dir === 'core'
+    ? 'From this wallet (HyperEVM) to HyperCore, at the same address. HyperEVM\'s network fee is paid in HYPE.'
+    : 'From HyperCore to this wallet (HyperEVM), at the same address. HyperCore keeps 0.001 HYPE for the move\'s gas.'),
+  h('label', { class: 'field' }, h('span', {}, 'Amount (HYPE)'), amount), useAll, box.el, go);
+  show('send', subBar(dir === 'core' ? 'Move to HyperCore' : 'Move to HyperEVM', () => { selected = 'HYPE'; void renderAsset(); }), h('div', { class: 'scroll' }, form));
+}
+
+function renderHypeMoveReview(p: any): void {
+  const pw = h('input', { type: 'password', id: 'hype-move-pw', autocomplete: 'current-password' });
+  const box = errorBox();
+  const go = h('button', { class: 'primary', id: 'hype-move-confirm', type: 'submit' }, 'Move');
+  const form = h('form', { onsubmit: (e: Event) => {
+    e.preventDefault();
+    busy(go, 'Sending…', box, async () => {
+      if (p.direction === 'core') await wallet.hypeToCoreConfirm(p.id, pw.value); else await wallet.hypeToEvmConfirm(p.id, pw.value);
+      pw.value = '';
+      toast(p.direction === 'core' ? 'Sent. It shows on HyperCore in about a minute.' : 'Sent. It shows in this wallet in about a minute.');
+      selected = 'HYPE';
+      void refresh();
+      await renderAsset();
+    });
+  } },
+  h('div', { class: 'panel' }, h('table', { class: 'review-table' }, h('tbody', {},
+    h('tr', {}, h('th', {}, 'Move'), h('td', { id: 'hype-move-r-amount' }, `${p.amount} HYPE`)),
+    h('tr', {}, h('th', {}, 'From'), h('td', {}, p.direction === 'core' ? 'HyperEVM (this wallet)' : 'HyperCore')),
+    h('tr', {}, h('th', {}, 'To'), h('td', {}, p.direction === 'core' ? 'HyperCore' : 'HyperEVM (this wallet)')),
+    p.direction === 'core' && h('tr', {}, h('th', {}, 'Network fee'), h('td', {}, reviewFee(p.fee, 'HYPE')))))),
+  box.el, h('label', { class: 'field' }, h('span', {}, 'Password'), pw), go);
+  show('send', subBar('Review move', () => renderHypeMove(p.direction)), h('div', { class: 'scroll' }, form));
   pw.focus();
 }

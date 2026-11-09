@@ -33,12 +33,15 @@ function hlMock(state, req, body, res) {
     if (j.type === 'userFees') return send({ userAddRate: '0.00015', userCrossRate: '0.00045' });
     if (j.type === 'clearinghouseState') return send({ marginSummary: { accountValue: '262.5', totalRawUsd: '250' }, withdrawable: '200', assetPositions: a.positions.map((position) => ({ position })) });
     if (j.type === 'frontendOpenOrders') return send(a.orders);
+    if (j.type === 'spotMeta') return send({ tokens: [{ name: 'USDC', tokenId: '0x6d1e7cde53ba9467b783cb7c530ce054' }, { name: 'HYPE', tokenId: '0x0d01dc56dcaaca66ad901c959b4011ec' }] });
+    if (j.type === 'spotClearinghouseState') return send({ balances: [{ coin: 'HYPE', token: 150, total: String(a.coreHype ?? 3), hold: '0.5' }] });
     return send(null);
   }
   const act = j.action ?? {};
   if (act.type === 'approveAgent') { a.agents.push(act.agentAddress); return send({ status: 'ok', response: { type: 'default' } }); }
   if (act.type === 'approveBuilderFee') { a.builder = Math.round(parseFloat(act.maxFeeRate) * 1000); return send({ status: 'ok', response: { type: 'default' } }); }
   if (act.type === 'withdraw3') { a.withdrawals.push(act); return send({ status: 'ok', response: { type: 'default' } }); }
+  if (act.type === 'spotSend') { (a.spotSends = a.spotSends ?? []).push(act); a.coreHype = (a.coreHype ?? 3) - Number(act.amount); return send({ status: 'ok', response: { type: 'default' } }); }
   if (act.type === 'updateLeverage') { a.leverage.push(act); return send({ status: 'ok', response: { type: 'default' } }); }
   if (act.type === 'cancel') { a.orders = a.orders.filter((o) => o.oid !== act.cancels[0].o); return send({ status: 'ok', response: { type: 'cancel', data: { statuses: ['success'] } } }); }
   if (act.type === 'order') {
@@ -124,6 +127,11 @@ function mockNode() {
         if (m === 'eth_call') return ok('0x' + '0'.repeat(64));
         if (m === 'eth_getBlockByNumber') return ok({ baseFeePerGas: '0x3b9aca00' });
         if (m === 'eth_maxPriorityFeePerGas') return ok('0x0');
+        // HyperEVM also takes a plain HYPE send (to HyperCore's system address in the tests).
+        if (url === '/hype/rpc' && m === 'eth_estimateGas') return ok('0x5208');
+        if (url === '/hype/rpc' && m === 'eth_getTransactionCount') return ok('0x0');
+        if (url === '/hype/rpc' && m === 'eth_sendRawTransaction') { (state.hypeSent = state.hypeSent ?? []).push(json.params[0]); return ok('0x' + 'ab'.repeat(32)); }
+        if (url === '/hype/rpc' && m === 'eth_getTransactionReceipt') return ok(null);
         return send({ jsonrpc: '2.0', id: json.id, error: { message: 'unknown ' + m } });
       }
       // Uniswap's Trading API: a pool route for whatever was asked, paid to whoever asked.

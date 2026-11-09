@@ -11,7 +11,7 @@ import { socksAgent, getJson, requestJson, newTorRoute } from './request';
 import { AAVE_MARKETS, aaveCall, readAave } from './aave';
 import { WC_CHAINS, WalletConnectManager } from './walletconnect';
 import { KusariIndex, kusariIndex } from './kindex';
-import { HL_BRIDGE, HL_MIN_DEPOSIT, HL_WITHDRAW_FEE, HlClient, HlMarket, KUSARI_FEE, OrderInput, builderFee, encodeDeposit, feePct, hlAgent, hlPrice, hlSize, liquidationPrice } from './hyperliquid';
+import { HYPE_CORE_RESERVE, HYPE_SYSTEM, HL_BRIDGE, HL_MIN_DEPOSIT, HL_WITHDRAW_FEE, HlClient, HlMarket, KUSARI_FEE, OrderInput, builderFee, encodeDeposit, feePct, hlAgent, hlPrice, hlSize, liquidationPrice } from './hyperliquid';
 import type { Wallet as EvmWallet } from 'ethers';
 import { DexCall, DexId, DexQuote, NATIVE, UNISWAP_CHAINS, UniswapClient, approvalCalls, narrowPermit, pancakeQuote, pancakeSwapCall } from './dex';
 import { NearClient, NearDraft, isNearAccount, nearPublicKey } from './near';
@@ -156,7 +156,7 @@ export class WalletService extends EventEmitter {
   private hlStatus: { at: number; value: { ready: boolean; agent: boolean; builder: boolean; until: number } } | null = null;
   private perpMarkets: { at: number; list: HlMarket[] } | null = null;
   private readonly perpIndex = new Map<string, KusariIndex>();
-  private readonly perpPreviews = new Map<string, { order?: OrderInput; leverage?: number; withdraw?: { amount: string }; expires: number }>();
+  private readonly perpPreviews = new Map<string, { order?: OrderInput; leverage?: number; withdraw?: { amount: string }; hypeOut?: string; expires: number }>();
   /** Whether this session goes through Tor: the Tor setting is on and this is a maximum-privacy wallet. */
   private torActive = false;
   get torOn(): boolean { return this.torActive; }
@@ -1106,6 +1106,55 @@ export class WalletService extends EventEmitter {
     this.balanceMemo.clear();
     const hashes = await this.evm(preview.asset).sendCalls(preview.perpDeposit.calls, deriveEthAccount(secrets.tronMnemonic).wallet, 120_000n);
     return { hashes, explorer: hashes.map((h) => this.explorerUrl(preview.asset, h)) };
+  }
+
+  // ---- HYPE between HyperEVM (this wallet) and HyperCore (the trading engine) ----
+
+  async hypeCore() {
+    const { hl } = this.perps();
+    return { ...(await hl.hypeOnCore()), reserve: HYPE_CORE_RESERVE };
+  }
+
+  /** HyperEVM to HyperCore: native HYPE sent to the system address, with HyperEVM's usual fee. */
+  async hypeToCorePrepare(amountInput: string) {
+    this.perps();
+    const client = this.evm('HYPE');
+    const amount = parseAmount(amountInput, 18);
+    if (amount <= 0n) throw new Error('Enter an amount.');
+    const calls: DexCall[] = [{ label: 'swap', to: HYPE_SYSTEM, data: '0x', value: amount, gas: 60_000n }];
+    const cost = await client.costOf(calls, 60_000n);
+    const have = await client.balanceOf('HYPE' as EthAsset, true);
+    if (amount + cost.most > have) throw new Error(`Not enough HYPE. Up to ${formatAmount(cost.most, 18)} HYPE is needed for the fee on top of the amount.`);
+    const preview = this.storePreview({ asset: 'HYPE', to: HYPE_SYSTEM, amount, fee: cost.likely, perpDeposit: { calls } });
+    return { id: preview.id, amount: formatAmount(amount, 18), fee: formatAmount(cost.likely, 18), direction: 'core' as const };
+  }
+
+  async hypeToCoreConfirm(id: string, password: string) {
+    return this.perpsDepositConfirm(id, password);
+  }
+
+  /** HyperCore to HyperEVM: a spot send signed by this wallet's key; HyperCore keeps a little HYPE for the gas. */
+  async hypeToEvmPrepare(amountInput: string) {
+    const { hl } = this.perps();
+    const amount = Math.floor(Number(amountInput) * 1e8) / 1e8;
+    if (!(amount > 0)) throw new Error('Enter an amount.');
+    const core = await hl.hypeOnCore();
+    if (amount > core.available - HYPE_CORE_RESERVE + 1e-12) throw new Error(`Only ${Math.max(0, core.available - HYPE_CORE_RESERVE).toFixed(4)} HYPE can be moved: ${HYPE_CORE_RESERVE} HYPE stays on HyperCore for the move's gas.`);
+    const id = randomUUID();
+    const value = amount.toFixed(8).replace(/0+$/, '').replace(/\.$/, '');
+    this.perpPreviews.set(id, { hypeOut: value, expires: Date.now() + 5 * 60_000 });
+    return { id, amount: value, direction: 'evm' as const };
+  }
+
+  async hypeToEvmConfirm(id: string, password: string) {
+    const { hl } = this.perps();
+    const p = this.perpPreviews.get(id);
+    if (!p?.hypeOut || p.expires < Date.now()) { this.perpPreviews.delete(id); throw new Error('The review expired. Try again.'); }
+    const secrets = await this.vault.open(password);
+    this.perpPreviews.delete(id);
+    await hl.hypeToEvm(deriveEthAccount(secrets.tronMnemonic).wallet, p.hypeOut);
+    this.balanceMemo.clear();
+    return { ok: true };
   }
 
   /** Back to this wallet's own address on Arbitrum: Hyperliquid pays out only to the account's address. */

@@ -25,6 +25,7 @@ test('wallet-signed actions match the SDK: trading key, Kusari fee cap, withdraw
   const u = (a) => signUser(K, { ...a, signatureChainId: '0xa4b1', hyperliquidChain: 'Mainnet' });
   assert.deepEqual(await u({ type: 'approveAgent', agentAddress: '0x21cf8ae13bb72632562c6fff438652ba1a151bb0', agentName: 'Kusari', nonce: N }), rsv('0xaa0432240eaca7e13af5010bc65ecfc345021a376c54e3679f47b90fd0d923c9', '0x5ec5e64b23ae65a37079379b9e70b1290e1c48e976ff1ab88d559bc56d9a3e4b', 28));
   assert.deepEqual(await u({ type: 'approveBuilderFee', maxFeeRate: '0.035%', builder: B, nonce: N }), rsv('0x7eaea5f54e4d4eaba6c4ec521d5478ac26b78e95cd05fb7ebe5d0ebed472a310', '0x3d460263e241925eb9a04a1bbcd2d8f273cb5df205aeebb9c78ebb7ef54431f1', 28));
+  assert.deepEqual(await u({ type: 'spotSend', destination: '0x2222222222222222222222222222222222222222', token: 'HYPE:0x0d01dc56dcaaca66ad901c959b4011ec', amount: '1.5', time: N }), rsv('0x91816a494247382fb1120a088a4939831ccb9825492b18184dc5ae532473b62e', '0x72bb091b1ca32e949302d754309c986b737f55b796914ca7bde89fc646679344', 27));
   assert.deepEqual(await u({ type: 'withdraw3', destination: '0x63dd5acc6b1aa0f563956c0e534dd30b6dcf7c4e', amount: '12.5', time: N }), rsv('0xc752ba0dd847e56f1eb858575e2876e69bcb6b160218a4210a7e44832e43482b', '0x74de36c5ae6a57626dd9aa56a775dc0d9944e0c06289c3dd1c67403cc3cbb674', 27));
 });
 

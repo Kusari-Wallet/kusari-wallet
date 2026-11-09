@@ -30,6 +30,15 @@ const ZERO = '0x0000000000000000000000000000000000000000';
 /** User-signed actions name the chain the wallet signs on; any chain works, this is Arbitrum's. */
 const SIGNATURE_CHAIN = '0xa4b1';
 
+/**
+ * HYPE lives in two places on the same addresses: HyperCore (the trading engine, spot and perps) and HyperEVM
+ * (chain 999, where this wallet holds it). This system address moves it between them: native HYPE sent to it on
+ * HyperEVM lands on HyperCore, and HYPE spot-sent to it on HyperCore lands on HyperEVM.
+ */
+export const HYPE_SYSTEM = '0x2222222222222222222222222222222222222222';
+/** HyperCore takes the HyperEVM gas for a move (200k gas, a tiny amount of HYPE) from the HYPE left there. */
+export const HYPE_CORE_RESERVE = 0.001;
+
 export const feePct = (tenthsBp: number) => tenthsBp / 100_000;
 export const feeText = (tenthsBp: number) => `${tenthsBp / 1000}%`;
 
@@ -62,6 +71,7 @@ type Field = { name: string; type: string };
 const USER_TYPES: Record<string, { primary: string; fields: Field[] }> = {
   approveAgent: { primary: 'HyperliquidTransaction:ApproveAgent', fields: [{ name: 'hyperliquidChain', type: 'string' }, { name: 'agentAddress', type: 'address' }, { name: 'agentName', type: 'string' }, { name: 'nonce', type: 'uint64' }] },
   approveBuilderFee: { primary: 'HyperliquidTransaction:ApproveBuilderFee', fields: [{ name: 'hyperliquidChain', type: 'string' }, { name: 'maxFeeRate', type: 'string' }, { name: 'builder', type: 'address' }, { name: 'nonce', type: 'uint64' }] },
+  spotSend: { primary: 'HyperliquidTransaction:SpotSend', fields: [{ name: 'hyperliquidChain', type: 'string' }, { name: 'destination', type: 'string' }, { name: 'token', type: 'string' }, { name: 'amount', type: 'string' }, { name: 'time', type: 'uint64' }] },
   withdraw3: { primary: 'HyperliquidTransaction:Withdraw', fields: [{ name: 'hyperliquidChain', type: 'string' }, { name: 'destination', type: 'string' }, { name: 'amount', type: 'string' }, { name: 'time', type: 'uint64' }] },
 };
 
@@ -290,6 +300,28 @@ export class HlClient {
     const r = await this.l1({ type: 'cancel', cancels: [{ a: asset, o: orderId }] }, agent);
     const st = r?.data?.statuses?.[0];
     if (st && typeof st === 'object' && st.error) throw new HlError(friendly(String(st.error)));
+  }
+
+  /** HYPE on HyperCore's spot side for this address. */
+  async hypeOnCore(): Promise<{ total: number; hold: number; available: number }> {
+    const r = await this.info({ type: 'spotClearinghouseState', user: this.user });
+    const b = (r?.balances ?? []).find((x: any) => x.coin === 'HYPE');
+    const total = Number(b?.total ?? 0);
+    const hold = Number(b?.hold ?? 0);
+    return { total, hold, available: Math.max(0, total - hold) };
+  }
+
+  /** HyperCore's name for HYPE, read from its token list rather than written in. */
+  private async hypeToken(): Promise<string> {
+    const meta = await this.info({ type: 'spotMeta' });
+    const t = (meta?.tokens ?? []).find((x: any) => x.name === 'HYPE');
+    if (!t?.tokenId) throw new HlError('HyperCore did not list HYPE right now. Try again.');
+    return `HYPE:${t.tokenId}`;
+  }
+
+  /** HyperCore to HyperEVM: a spot send to the system address, signed by the wallet's own key. */
+  async hypeToEvm(main: BaseWallet, amount: string): Promise<void> {
+    await this.userAction({ type: 'spotSend', destination: HYPE_SYSTEM, token: await this.hypeToken(), amount, time: this.nonce() }, main);
   }
 
   /** Back to this wallet's own address on Arbitrum. Hyperliquid takes HL_WITHDRAW_FEE from the amount. */
