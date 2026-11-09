@@ -14,3 +14,4 @@ src/main/swap-keys.generated.ts
 *.jks
 native-bin
 locales/source.txt
+native/spark-bridge/.deps
