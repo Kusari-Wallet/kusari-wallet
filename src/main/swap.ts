@@ -65,9 +65,7 @@ function sameAddress(a: unknown, b: string): boolean {
 export interface SwapQuote { from: Asset; to: Asset; amount: string; receive: string; rate: string; min: string | null; max: string | null; problem: string | null; provider: string; providerId: SwapProviderId; approximate: boolean }
 
 /** No provider takes the private form of a coin; it's made from or turned back into the plain one in the wallet. */
-// HYPE: exchanges send HYPE to Hyperliquid's own chain or to HyperEVM, and a swap to the wrong one is not credited
-// here, so it is not offered until each service's HyperEVM listing is checked.
-export const NOT_SWAPPABLE: ReadonlySet<Asset> = new Set<Asset>(['SSCRT', 'HYPE']);
+export const NOT_SWAPPABLE: ReadonlySet<Asset> = new Set<Asset>(['SSCRT']);
 
 export type SwapProviderId = 'exolix' | 'simpleswap' | 'ghostswap' | 'etzswap' | 'ccecash' | 'changenow';
 
@@ -114,6 +112,7 @@ export class SwapClient implements SwapProvider {
   }
 
   async quote(from: Asset, to: Asset, amount: string): Promise<SwapQuote> {
+    if (!COIN[from].coin || !COIN[to].coin) return { from, to, amount, receive: '0', rate: '0', min: null, max: null, problem: 'Exolix doesn\'t offer this coin.', provider: SWAP_PROVIDER, providerId: 'exolix', approximate: false };
     const q = new URLSearchParams({
       coinFrom: COIN[from].coin, networkFrom: await this.network(from),
       coinTo: COIN[to].coin, networkTo: await this.network(to),
@@ -232,7 +231,10 @@ const SIMPLE_COIN: Record<Asset, { ticker: string; network: string }> = {
   SCRT: { ticker: 'scrt', network: 'scrt' },
   NEAR: { ticker: 'near', network: 'near' },
   SSCRT: { ticker: '', network: '' },
-  HYPE: { ticker: '', network: '' },
+  // HYPE has two homes: Hyperliquid's own chain (HyperCore) and HyperEVM. This wallet holds it on HyperEVM, so only
+  // services that pay out there are used: SimpleSwap and ChangeNOW list it as hype/hyperevm (checked with live
+  // quotes). Exolix lists HyperCore only; ETZ, CCECash and GhostSwap don't list HyperEVM.
+  HYPE: { ticker: 'hype', network: 'hyperevm' },
 };
 
 export class SimpleSwapClient implements SwapProvider {
@@ -338,7 +340,11 @@ export class GhostSwapClient implements SwapProvider {
 
   /** Their docs name only Tron's USDT ticker, so chain-specific ones are read from their list and never guessed. */
   private async ticker(asset: Asset): Promise<string> {
-    if (!(asset in GHOST_LOOKUP)) return GHOST_TICKER[asset as Exclude<Asset, LookedUp>];
+    if (!(asset in GHOST_LOOKUP)) {
+      const t = GHOST_TICKER[asset as Exclude<Asset, LookedUp>];
+      if (!t) throw new Error('GhostSwap doesn\'t offer this coin.');
+      return t;
+    }
     const known = this.usdtTickers[asset];
     if (known) return known;
     const want = GHOST_LOOKUP[asset as LookedUp];
@@ -513,6 +519,7 @@ export class EtzSwapClient implements SwapProvider {
 export const CHANGENOW_BASE = 'https://api.changenow.io';
 // Their v2 names a coin by ticker plus network, e.g. USDT on Tron is usdt on trx.
 const CN_COIN: Partial<Record<Asset, { ticker: string; network: string }>> = {
+  HYPE: { ticker: 'hype', network: 'hyperevm' }, // HyperEVM, not HyperCore: checked with a live quote
   BTC: { ticker: 'btc', network: 'btc' },
   XMR: { ticker: 'xmr', network: 'xmr' },
   ETH: { ticker: 'eth', network: 'eth' },

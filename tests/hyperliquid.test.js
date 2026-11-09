@@ -155,3 +155,32 @@ test('a wallet key that is not the account\'s cannot approve anything', async ()
   const c = new HlClient(K.address, { api: 'http://127.0.0.1:1' });
   await assert.rejects(c.enable(Wallet.createRandom(), hlAgent(K.privateKey)), /does not match/);
 });
+
+const { weightedMedian, spotOf, kusariIndex } = require('../dist/main/kindex');
+
+test('Kusari index: weighted median, per-thousand coins, broken books left out', async () => {
+  assert.equal(weightedMedian([{ price: 1, weight: 3 }, { price: 2, weight: 2 }, { price: 3, weight: 2 }]), 2);
+  assert.equal(weightedMedian([{ price: 1, weight: 1 }, { price: 3, weight: 1 }]), 2);
+  assert.equal(weightedMedian([{ price: 100, weight: 3 }, { price: 1, weight: 1 }, { price: 2, weight: 1 }]), 100, 'Binance outweighs two small venues');
+  assert.deepEqual(spotOf('kPEPE'), { base: 'PEPE', scale: 1000 });
+  assert.deepEqual(spotOf('BTC'), { base: 'BTC', scale: 1 });
+  assert.equal(spotOf('@107'), null);
+  const books = { Binance: { bidPrice: '100', askPrice: '102' }, OKX: { data: [{ bidPx: '100', askPx: '100.2' }] }, Gate: [{ highest_bid: '50', lowest_ask: '90' }], MEXC: { bidPrice: '101', askPrice: '101.4' } };
+  const server = http.createServer((req, res) => {
+    const name = req.url.split('/')[1];
+    res.setHeader('content-type', 'application/json');
+    if (!books[name]) { res.statusCode = 404; return res.end('{}'); }
+    res.end(JSON.stringify(books[name]));
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  try {
+    const root = `http://127.0.0.1:${server.address().port}`;
+    const base = Object.fromEntries(['Binance', 'OKX', 'Bybit', 'Kraken', 'KuCoin', 'Gate', 'MEXC'].map((n) => [n, `${root}/${n}`]));
+    const k = await kusariIndex('BTC', { base });
+    assert.deepEqual(k.quotes.map((q) => q.name), ['Binance', 'OKX', 'MEXC']);
+    assert.ok(k.failed.includes('Gate'), 'a book 80% wide is broken, not a price');
+    assert.equal(k.price, 101, 'Binance ×3 of 6 total, with OKX below it and MEXC above');
+    const pepe = await kusariIndex('kPEPE', { base });
+    assert.equal(pepe.quotes[0].price, 101000);
+  } finally { server.close(); }
+});

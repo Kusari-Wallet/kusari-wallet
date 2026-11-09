@@ -181,6 +181,7 @@ const bioCall = (fn: (id: number) => void) => new Promise<string>((resolve, reje
   perpsPrepareClose: call((s: string) => service.perpsPrepareClose(s)),
   perpsPlace: call((id: string) => service.perpsPlace(id)),
   perpsCancel: call((s: string, o: number) => service.perpsCancel(s, o)),
+  perpsIndex: call((s: string) => service.perpsIndex(s)),
   perpsBook: call((s: string) => service.perpsBook(s)),
   perpsCandles: call((s: string, i: string) => service.perpsCandles(s, i)),
   perpsDepositPrepare: call((amt: string) => service.perpsDepositPrepare(amt)),

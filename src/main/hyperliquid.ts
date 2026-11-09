@@ -133,18 +133,18 @@ export function liquidationPrice(side: 'long' | 'short', entry: number, size: nu
 export class HlError extends Error {}
 
 const FRIENDLY: [RegExp, string][] = [
-  [/must deposit before performing actions/i, 'Hyperliquid opens your account after the first deposit. Deposit USDC first.'],
+  [/must deposit before performing actions/i, 'Your perps account opens after the first deposit. Deposit USDC first.'],
   [/builder fee has not been approved|builder.*not approved/i, 'The Kusari fee is not approved. Turn on trading again.'],
   [/insufficient margin/i, 'Not enough margin for this order.'],
-  [/minimum value of \$?10/i, 'Too small. Hyperliquid needs an order of at least 10 USDC (margin × leverage).'],
-  [/does not exist|user or api wallet .* does not exist/i, 'Hyperliquid does not know the trading key. Turn on trading again.'],
-  [/post only order would have immediately matched/i, 'A post-only order would have traded at once, so Hyperliquid cancelled it. Choose a price further from the market.'],
+  [/minimum value of \$?10/i, 'Too small. The smallest order is 10 USDC (margin × leverage).'],
+  [/does not exist|user or api wallet .* does not exist/i, 'The exchange does not know the trading key. Turn on trading again.'],
+  [/post only order would have immediately matched/i, 'A post-only order would have traded at once, so it was cancelled. Choose a price further from the market.'],
   [/could not immediately match/i, 'Nothing on the order book matched this market order. Try again.'],
-  [/builder.*(insufficient|balance|account value)/i, 'Kusari trading is not open yet: Kusari\'s builder account is not active on Hyperliquid. Try again later.'],
+  [/builder.*(insufficient|balance|account value)/i, 'Kusari trading is not open yet: Kusari\'s builder account is not active. Try again later.'],
 ];
 function friendly(msg: string): string {
   for (const [re, text] of FRIENDLY) if (re.test(msg)) return text;
-  return `Hyperliquid: ${msg}`;
+  return `Exchange: ${msg}`;
 }
 
 export class HlClient {
@@ -158,7 +158,7 @@ export class HlClient {
     let r = await send();
     // Hyperliquid limits requests per address; one short wait usually clears it.
     if (r.status === 429) { await new Promise((ok) => setTimeout(ok, 1500)); r = await send(); }
-    if (r.status === 429) throw new HlError('Hyperliquid is busy. Try again in a moment.');
+    if (r.status === 429) throw new HlError('The exchange is busy. Try again in a moment.');
     if (r.status >= 400) throw new HlError(friendly(typeof r.body === 'string' && r.body ? r.body.slice(0, 200) : `error ${r.status}`));
     return r.body;
   }
@@ -283,7 +283,7 @@ export class HlClient {
     if (st?.error) throw new HlError(friendly(String(st.error)));
     if (st?.filled) return { orderId: Number(st.filled.oid), status: 'FILLED', avgPx: Number(st.filled.avgPx) };
     if (st?.resting) return { orderId: Number(st.resting.oid), status: 'NEW' };
-    throw new HlError('Hyperliquid did not confirm the order. Check open orders before trying again.');
+    throw new HlError('The exchange did not confirm the order. Check open orders before trying again.');
   }
 
   async cancel(asset: number, orderId: number, agent: BaseWallet): Promise<void> {

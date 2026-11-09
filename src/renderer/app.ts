@@ -1380,7 +1380,7 @@ const SWAP_STATUS: Record<string, string> = {
 };
 
 function coinSelect(id: string, current: Asset, onPick: (a: Asset) => void): HTMLElement {
-  const menu = h('div', { class: 'menu', hidden: true, id: `${id}-menu` }, ...coinMenu(id, ASSETS.filter((a) => a !== 'SSCRT' && a !== 'HYPE'), current, onPick));
+  const menu = h('div', { class: 'menu', hidden: true, id: `${id}-menu` }, ...coinMenu(id, ASSETS.filter((a) => a !== 'SSCRT'), current, onPick));
   return h('div', { class: 'coin-select' },
     h('button', { type: 'button', id, class: 'coin-select-btn', 'aria-label': `Choose a coin, currently ${coinName(current)}`, onclick: () => { menu.hidden = !menu.hidden; } }, coin(current), h('span', {}, coinName(current)), icon('down')),
     menu);
@@ -2359,12 +2359,12 @@ async function renderPerps(): Promise<void> {
     const box = errorBox();
     const go = h('button', { class: 'primary', id: 'perps-enable', type: 'submit' }, info.agent || info.builder ? 'Turn trading back on' : 'Turn on trading');
     top.push(h('div', { class: 'panel', id: 'perps-setup' },
-      h('h3', {}, 'Trade futures on Hyperliquid'),
-      h('p', { class: 'small muted' }, 'Long or short with leverage, from this wallet. Your USDC stays in your own Hyperliquid account, which only this wallet controls.'),
+      h('h3', {}, 'Trade perpetual futures'),
+      h('p', { class: 'small muted' }, 'Long or short with leverage, from this wallet. Your USDC stays in your own perps account, which only this wallet controls.'),
       h('ol', { class: 'small steps' },
         h('li', {}, `Deposit USDC from Arbitrum (at least ${info.minDeposit} USDC; less is never credited).`),
         h('li', {}, 'Turn on trading. This approves a trading key made from your seed. It can open and close trades but can never withdraw or send your USDC.')),
-      h('p', { class: 'small muted', id: 'perps-fee-note' }, `Kusari fee: ${pct(info.fee.maker)} on post-only orders, ${pct(info.fee.taker)} on all other orders, on top of Hyperliquid's own trading fee. Turning on trading also approves this fee.`),
+      h('p', { class: 'small muted', id: 'perps-fee-note' }, `Kusari fee: ${pct(info.fee.maker)} on post-only orders, ${pct(info.fee.taker)} on all other orders, on top of the exchange's own trading fee. Turning on trading also approves this fee.`),
       h('form', { onsubmit: (e: Event) => {
         e.preventDefault();
         busy(go, 'Approving…', box, async () => {
@@ -2379,7 +2379,7 @@ async function renderPerps(): Promise<void> {
     let a: any;
     try { a = await wallet.perpsAccount(); } catch (e) { setKids(acctEl, h('div', { class: 'error' }, errMsg(e))); return; }
     setKids(acctEl,
-      h('span', { class: 'label' }, 'Perps account · Hyperliquid'),
+      h('span', { class: 'label' }, 'Perps account'),
       h('div', { class: 'big-amount', id: 'perps-equity' }, usdc(a.margin)),
       h('div', { class: 'small muted' }, 'Free: ', h('span', { id: 'perps-free' }, usdc(a.available)), ' · Open P&L: ', h('span', { class: a.pnl >= 0 ? 'up' : 'down', id: 'perps-pnl' }, usdc(a.pnl, true))),
       h('div', { class: 'row' },
@@ -2425,8 +2425,214 @@ async function renderPerps(): Promise<void> {
   };
   search.addEventListener('input', () => { perpSearch = search.value; paintMarkets(); });
   setKids(body, ...top, h('h3', { class: 'perp-head' }, 'Markets'), search, list,
-    h('p', { class: 'small muted' }, 'Prices and trading by Hyperliquid (hyperliquid.xyz). Futures with leverage can lose all the margin put in.'));
+    h('p', { class: 'small muted' }, 'Futures with leverage can lose all the margin put in.'));
   try { markets = await wallet.perpsMarkets(); paintMarkets(); } catch (e) { setKids(list, h('div', { class: 'error' }, errMsg(e))); }
+}
+
+interface Candle { t: number; o: number; h: number; l: number; c: number; v: number }
+
+/**
+ * A candle chart on a canvas you can move and stretch: drag to move it in time and price, the wheel (or a pinch)
+ * to zoom in time, Shift+wheel or a drag on the price scale to stretch the prices, a double click to reset.
+ */
+function candleChart(label: string) {
+  const AXIS = 58;
+  const TIME = 18;
+  const H = 230;
+  const canvas = h('canvas', { class: 'chart-canvas', role: 'img', 'aria-label': label }) as HTMLCanvasElement;
+  const wrap = h('div', { class: 'chart-wrap', id: 'perp-chart' }, canvas);
+  let cs: Candle[] = [];
+  let interval = 3600e3;
+  let bars = 60;
+  let end = 0;
+  let manual: { lo: number; hi: number } | null = null;
+  let last = 0;
+  let hover: { x: number; y: number } | null = null;
+  const css = getComputedStyle(document.documentElement);
+  const color = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback;
+  const nice = (raw: number) => { const p = 10 ** Math.floor(Math.log10(raw)); const f = raw / p; return (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * p; };
+  const clampView = () => {
+    bars = Math.max(10, Math.min(Math.max(10, cs.length), bars));
+    end = Math.max(Math.min(bars, cs.length) * 0.25, Math.min(cs.length + bars * 0.5, end));
+  };
+  const range = (): { lo: number; hi: number } => {
+    if (manual) return manual;
+    const vis = cs.slice(Math.max(0, Math.floor(end - bars)), Math.ceil(end));
+    if (!vis.length) return { lo: 0, hi: 1 };
+    const lo = Math.min(...vis.map((c) => c.l));
+    const hi = Math.max(...vis.map((c) => c.h));
+    const pad = (hi - lo || hi * 0.01 || 1) * 0.08;
+    return { lo: lo - pad, hi: hi + pad };
+  };
+  const timeText = (t: number) => {
+    const d = new Date(t);
+    const two = (n: number) => String(n).padStart(2, '0');
+    return interval >= 86400e3 ? `${two(d.getMonth() + 1)}/${two(d.getDate())}` : interval >= 3600e3 && d.getHours() === 0 ? `${two(d.getMonth() + 1)}/${two(d.getDate())}` : `${two(d.getHours())}:${two(d.getMinutes())}`;
+  };
+
+  function draw(): void {
+    const w = wrap.clientWidth || 360;
+    const dpr = window.devicePixelRatio || 1;
+    if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(H * dpr)) {
+      canvas.width = Math.round(w * dpr); canvas.height = Math.round(H * dpr);
+      canvas.style.width = `${w}px`; canvas.style.height = `${H}px`;
+    }
+    const g = canvas.getContext('2d');
+    if (!g) return;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, w, H);
+    const pw = w - AXIS;
+    const ph = H - TIME;
+    const muted = color('--muted', '#9b9b97');
+    g.font = '10.5px Pretendard, system-ui, sans-serif';
+    if (!cs.length) { g.fillStyle = muted; g.fillText('No chart data.', 8, 20); return; }
+    const { lo, hi } = range();
+    const y = (v: number) => ((hi - v) / (hi - lo)) * ph;
+    const bw = pw / bars;
+    const x0 = end - bars;
+    // Faint grid: prices across, times down.
+    g.strokeStyle = 'rgba(255,255,255,0.055)';
+    g.lineWidth = 1;
+    g.fillStyle = muted;
+    const step = nice((hi - lo) / 5);
+    for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) {
+      const yy = Math.round(y(v)) + 0.5;
+      g.beginPath(); g.moveTo(0, yy); g.lineTo(pw, yy); g.stroke();
+      g.fillText(px(v), pw + 6, yy + 3.5);
+    }
+    const every = Math.max(1, nice(bars / 5));
+    for (let i = Math.ceil(Math.max(0, x0) / every) * every; i < Math.min(cs.length, end); i += every) {
+      const xx = Math.round((i - x0 + 0.5) * bw) + 0.5;
+      g.beginPath(); g.moveTo(xx, 0); g.lineTo(xx, ph); g.stroke();
+      const text = timeText(cs[i].t);
+      g.fillText(text, Math.min(pw - g.measureText(text).width, Math.max(0, xx - g.measureText(text).width / 2)), H - 5);
+    }
+    // Candles.
+    const up = color('--green', '#17b26a');
+    const down = '#ff4d3d';
+    g.save();
+    g.beginPath(); g.rect(0, 0, pw, ph); g.clip();
+    for (let i = Math.max(0, Math.floor(x0)); i < Math.min(cs.length, Math.ceil(end)); i++) {
+      const c = cs[i];
+      const cx = (i - x0 + 0.5) * bw;
+      g.fillStyle = g.strokeStyle = c.c >= c.o ? up : down;
+      g.beginPath(); g.moveTo(Math.round(cx) + 0.5, y(c.h)); g.lineTo(Math.round(cx) + 0.5, y(c.l)); g.stroke();
+      const top = y(Math.max(c.o, c.c));
+      g.fillRect(cx - Math.max(1, bw * 0.35), top, Math.max(1, bw * 0.7), Math.max(1, y(Math.min(c.o, c.c)) - top));
+    }
+    g.restore();
+    // The last price, dashed, with its label on the scale.
+    const lp = last || cs[cs.length - 1].c;
+    if (lp >= lo && lp <= hi) {
+      const yy = Math.round(y(lp)) + 0.5;
+      g.strokeStyle = color('--orange', '#ff6a13');
+      g.setLineDash([4, 3]); g.beginPath(); g.moveTo(0, yy); g.lineTo(pw, yy); g.stroke(); g.setLineDash([]);
+      g.fillStyle = color('--orange', '#ff6a13');
+      g.fillRect(pw + 2, yy - 8, AXIS - 3, 16);
+      g.fillStyle = '#140700';
+      g.fillText(px(lp), pw + 5, yy + 3.5);
+    }
+    // Crosshair, with the candle under it.
+    if (hover && hover.x < pw && hover.y < ph) {
+      g.strokeStyle = 'rgba(255,255,255,0.25)';
+      g.setLineDash([3, 3]);
+      g.beginPath(); g.moveTo(hover.x + 0.5, 0); g.lineTo(hover.x + 0.5, ph); g.moveTo(0, hover.y + 0.5); g.lineTo(pw, hover.y + 0.5); g.stroke();
+      g.setLineDash([]);
+      const v = hi - (hover.y / ph) * (hi - lo);
+      g.fillStyle = '#262626'; g.fillRect(pw + 2, hover.y - 8, AXIS - 3, 16);
+      g.fillStyle = color('--text', '#f5f5f3'); g.fillText(px(v), pw + 5, hover.y + 3.5);
+      const c = cs[Math.floor(x0 + hover.x / bw)];
+      if (c) {
+        g.fillStyle = muted;
+        g.fillText(`${timeText(c.t)}  O ${px(c.o)}  H ${px(c.h)}  L ${px(c.l)}  C ${px(c.c)}`, 6, 12);
+      }
+    }
+  }
+
+  // Moving and stretching.
+  const pointers = new Map<number, { x: number; y: number }>();
+  let drag: { x: number; y: number; end: number; lo: number; hi: number; axis: boolean; pinch?: number; bars?: number } | null = null;
+  const local = (e: { clientX: number; clientY: number }) => { const r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+  const zoomAt = (x: number, factor: number) => {
+    const pw = (wrap.clientWidth || 360) - AXIS;
+    const anchor = end - bars + (Math.min(x, pw) / pw) * bars;
+    const nb = Math.max(10, Math.min(Math.max(10, cs.length), bars * factor));
+    end = anchor + (end - anchor) * (nb / bars);
+    bars = nb;
+    clampView();
+  };
+  const stretch = (factor: number) => {
+    const r = range();
+    const mid = (r.lo + r.hi) / 2;
+    const half = ((r.hi - r.lo) / 2) * factor;
+    manual = { lo: mid - half, hi: mid + half };
+  };
+  canvas.addEventListener('pointerdown', (e) => {
+    canvas.setPointerCapture(e.pointerId);
+    const p = local(e);
+    pointers.set(e.pointerId, p);
+    const r = range();
+    if (pointers.size === 2) {
+      const [a, b] = [...pointers.values()];
+      drag = { x: (a.x + b.x) / 2, y: 0, end, lo: r.lo, hi: r.hi, axis: false, pinch: Math.abs(a.x - b.x) || 1, bars };
+    } else {
+      drag = { x: p.x, y: p.y, end, lo: r.lo, hi: r.hi, axis: p.x > (wrap.clientWidth || 360) - AXIS };
+    }
+  });
+  canvas.addEventListener('pointermove', (e) => {
+    const p = local(e);
+    if (e.pointerType === 'mouse') hover = p;
+    if (pointers.has(e.pointerId)) pointers.set(e.pointerId, p);
+    if (drag) {
+      const pw = (wrap.clientWidth || 360) - AXIS;
+      const ph = H - TIME;
+      if (drag.pinch && pointers.size === 2) {
+        const [a, b] = [...pointers.values()];
+        const dist = Math.abs(a.x - b.x) || 1;
+        bars = drag.bars!; end = drag.end;
+        zoomAt(drag.x, drag.pinch / dist);
+      } else if (drag.axis) {
+        const f = Math.exp((p.y - drag.y) * 0.01);
+        const mid = (drag.lo + drag.hi) / 2;
+        manual = { lo: mid - ((drag.hi - drag.lo) / 2) * f, hi: mid + ((drag.hi - drag.lo) / 2) * f };
+      } else {
+        end = drag.end - (p.x - drag.x) / (pw / bars);
+        if (manual || Math.abs(p.y - drag.y) > 6) {
+          const per = (drag.hi - drag.lo) / ph;
+          manual = { lo: drag.lo + (p.y - drag.y) * per, hi: drag.hi + (p.y - drag.y) * per };
+        }
+        clampView();
+      }
+    }
+    draw();
+  });
+  const up = (e: PointerEvent) => { pointers.delete(e.pointerId); if (!pointers.size) drag = null; };
+  canvas.addEventListener('pointerup', up);
+  canvas.addEventListener('pointercancel', up);
+  canvas.addEventListener('pointerleave', () => { hover = null; draw(); });
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const p = local(e);
+    const f = Math.exp((e.deltaY || e.deltaX) * 0.0015);
+    if (e.shiftKey || p.x > (wrap.clientWidth || 360) - AXIS) stretch(f); else zoomAt(p.x, f);
+    draw();
+  }, { passive: false });
+  canvas.addEventListener('dblclick', () => { bars = 60; end = cs.length; manual = null; clampView(); draw(); });
+  new ResizeObserver(() => draw()).observe(wrap);
+
+  return {
+    el: wrap,
+    /** New candles; the view stays where it was, following the newest candle when it was already at the right edge. */
+    set(list: Candle[], ms: number, fresh: boolean): void {
+      const atEdge = end >= cs.length - 0.5;
+      cs = list;
+      interval = ms;
+      if (fresh) { bars = 60; end = cs.length; manual = null; } else if (atEdge) end = cs.length;
+      clampView();
+      draw();
+    },
+    price(p: number): void { last = p; draw(); },
+  };
 }
 
 interface TradeState { side: 'long' | 'short'; kind: 'market' | 'limit' | 'post'; margin: string; pctOn: boolean; leverage: number; price: string }
@@ -2457,29 +2663,40 @@ async function renderPerpMarket(symbol: string, keep?: TradeState): Promise<void
       h('span', { class: 'muted' }, 'Mark'), h('span', { id: 'perp-mark-2' }, px(mark)),
       // Hyperliquid's index: a weighted median of spot prices on the big exchanges, which marks and funding follow.
       h('span', { class: 'muted', title: 'Weighted median of spot prices on major exchanges' }, 'Index'), h('span', { id: 'perp-index' }, px(m.oracle)),
+      // Kusari's own, read from the exchanges directly; for comparison, it decides nothing.
+      h('button', { type: 'button', class: 'link small kx-toggle', id: 'perp-kindex-toggle', 'aria-expanded': 'false', onclick: () => { kxList.hidden = !kxList.hidden; kxToggle().setAttribute('aria-expanded', String(!kxList.hidden)); } }, 'Kusari index'), h('span', { id: 'perp-kindex' }, '…'),
       h('span', { class: 'muted' }, 'Funding'), h('span', { class: info.funding >= 0 ? 'warn-text' : 'up' }, pct(info.funding, 4)),
       h('span', { class: 'muted' }, 'Open int.'), h('span', {}, `$${compact(info.openInterest)}`)));
 
+  // Kusari index: each exchange's price, behind the toggle.
+  const kxList = h('div', { class: 'panel kx-list small', id: 'perp-kindex-list', hidden: true });
+  const kxToggle = () => document.getElementById('perp-kindex-toggle')!;
+  async function loadIndex(): Promise<void> {
+    let k: any;
+    try { k = await wallet.perpsIndex(symbol); } catch { return; }
+    const el = document.getElementById('perp-kindex');
+    if (el) el.textContent = k.price ? px(k.price) : '—';
+    const gap = k.price && m.oracle ? ((k.price - m.oracle) / m.oracle) * 100 : null;
+    setKids(kxList,
+      h('div', { class: 'muted' }, 'Weighted median of spot mid prices read directly from these exchanges. For comparison only: Index sets marks, funding and liquidations.'),
+      ...k.quotes.map((q: any) => h('div', { class: 'row spread' }, h('span', {}, `${q.name} ×${q.weight}`), h('span', {}, px(q.price)))),
+      ...(k.failed.length ? [h('div', { class: 'muted' }, `Not reached: ${k.failed.join(', ')}`)] : []),
+      gap !== null && h('div', { class: 'row spread' }, h('span', { class: 'muted' }, 'Difference from Index'), h('span', { id: 'perp-kindex-gap' }, `${gap >= 0 ? '+' : ''}${gap.toFixed(3)}%`)));
+  }
+
   // Chart.
   const frames = ['1m', '5m', '15m', '1h', '4h', '1d'];
-  const chart = h('div', { class: 'candles', id: 'perp-chart', role: 'img', 'aria-label': `${symbol} price chart` });
+  const FRAME_MS: Record<string, number> = { '1m': 60e3, '5m': 300e3, '15m': 900e3, '1h': 3600e3, '4h': 14400e3, '1d': 86400e3 };
+  const chart = candleChart(`${symbol} price chart`);
+  let chartFrame = '';
   const frameBtns = frames.map((f) => h('button', { type: 'button', class: 'tf', id: `tf-${f}`, 'aria-pressed': String(f === perpFrame), onclick: () => { perpFrame = f; frameBtns.forEach((b, i) => b.setAttribute('aria-pressed', String(frames[i] === f))); void loadChart(); } }, f === '1d' ? '1D' : f));
   async function loadChart(): Promise<void> {
+    const frame = perpFrame;
     let cs: any[] = [];
-    try { cs = await wallet.perpsCandles(symbol, perpFrame); } catch { /* keep the old chart */ return; }
-    if (!cs.length) { setKids(chart, h('p', { class: 'empty small' }, 'No chart data.')); return; }
-    const hi = Math.max(...cs.map((c) => c.h));
-    const lo = Math.min(...cs.map((c) => c.l));
-    const span = hi - lo || 1;
-    const y = (v: number) => ((hi - v) / span) * 100;
-    setKids(chart, ...cs.map((c) => {
-      const up = c.c >= c.o;
-      const top = y(Math.max(c.o, c.c));
-      const bot = y(Math.min(c.o, c.c));
-      return h('div', { class: `candle ${up ? 'up' : 'down'}` },
-        sized(h('span', { class: 'wick' }), { top: `${y(c.h)}%`, height: `${Math.max(0.5, y(c.l) - y(c.h))}%` }),
-        sized(h('span', { class: 'body' }), { top: `${top}%`, height: `${Math.max(0.8, bot - top)}%` }));
-    }), h('span', { class: 'candle-hi small muted' }, px(hi)), h('span', { class: 'candle-lo small muted' }, px(lo)));
+    try { cs = await wallet.perpsCandles(symbol, frame); } catch { /* keep the old chart */ return; }
+    if (frame !== perpFrame) return;
+    chart.set(cs, FRAME_MS[frame], frame !== chartFrame);
+    chartFrame = frame;
   }
 
   // Order book.
@@ -2493,7 +2710,7 @@ async function renderPerpMarket(symbol: string, keep?: TradeState): Promise<void
       sized(h('span', { class: 'depth' }), { width: `${Math.round((l.sz / most) * 100)}%` }), h('span', { class: 'bp' }, px(l.px)), h('span', { class: 'bs' }, String(l.sz)));
     setKids(bidsEl, h('div', { class: 'book-label' }, h('span', {}, 'Bid'), h('span', {}, 'Size')), ...b.bids.slice(0, 5).map((l: any) => row(l, 'bid')));
     setKids(asksEl, h('div', { class: 'book-label' }, h('span', {}, 'Ask'), h('span', {}, 'Size')), ...b.asks.slice(0, 5).map((l: any) => row(l, 'ask')));
-    if (b.bids[0] && b.asks[0]) { mark = (b.bids[0].px + b.asks[0].px) / 2; priceEl.textContent = px(mark); paint(); }
+    if (b.bids[0] && b.asks[0]) { mark = (b.bids[0].px + b.asks[0].px) / 2; priceEl.textContent = px(mark); chart.price(mark); paint(); }
   }
 
   // Order form.
@@ -2530,7 +2747,7 @@ async function renderPerpMarket(symbol: string, keep?: TradeState): Promise<void
     const maker = st.kind === 'post';
     const k = maker ? info.kusariFee.maker : info.kusariFee.taker;
     const v = info.venueFee ? (maker ? info.venueFee.maker : info.venueFee.taker) : null;
-    feeText.textContent = `Fees: Hyperliquid ${v === null ? 'fee' : pct(v)} + Kusari ${pct(k)} of the position size`;
+    feeText.textContent = v === null ? `Fees: trading fee + Kusari ${pct(k)} of the position size` : `Fees: trading ${pct(v)} + Kusari ${pct(k)} of the position size`;
   }
   marginRange.addEventListener('input', () => {
     const v = Math.floor((free * Number(marginRange.value)) / 100 * 100) / 100;
@@ -2555,8 +2772,9 @@ async function renderPerpMarket(symbol: string, keep?: TradeState): Promise<void
 
   setKids(body,
     head,
+    kxList,
     h('div', { class: 'tfs' }, ...frameBtns),
-    chart,
+    chart.el,
     h('div', { class: 'book' }, bidsEl, asksEl),
     pos && h('button', { type: 'button', class: 'panel perp-mini-pos', id: 'perp-pos', onclick: () => void renderPerpClose(symbol) },
       h('div', {}, h('div', { class: 'small muted' }, 'Your position'), h('strong', {}, h('span', { class: pos.side === 'long' ? 'up' : 'down' }, `${pos.side === 'long' ? 'Long' : 'Short'} ${pos.leverage}x`), ` · ${pos.size} ${symbol}`)),
@@ -2566,11 +2784,13 @@ async function renderPerpMarket(symbol: string, keep?: TradeState): Promise<void
       h('div', { class: 'segs' }, ...kindBtns),
       priceRow,
       h('div', { class: 'slider-head' }, h('span', {}, 'Margin (USDC)'), h('span', { class: 'small muted', id: 'perp-free' }, `Free ${usdc(free)}`)),
-      h('div', { class: 'slider-row' }, marginRange, margin),
+      marginRange,
       h('div', { class: 'ticks' }, ...['0%', '25%', '50%', '75%', '100%'].map((t) => h('span', {}, t))),
+      h('label', { class: 'num-row' }, margin, h('span', { class: 'unit' }, 'USDC')),
       h('div', { class: 'slider-head' }, h('span', {}, 'Leverage'), h('span', { class: 'small muted' }, `Max ${maxLev}x`)),
-      h('div', { class: 'slider-row' }, levRange, h('span', { class: 'lev-wrap' }, levNum, 'x')),
+      levRange,
       h('div', { class: 'ticks' }, ...levTicks.map((t) => h('button', { type: 'button', class: 'tick', id: `lev-pick-${t}`, onclick: () => { levRange.value = String(t); paint(); } }, `${t}x`))),
+      h('label', { class: 'num-row lev' }, levNum, h('span', { class: 'unit' }, 'x')),
       h('div', { class: 'row spread small summary' }, h('span', { class: 'muted' }, 'Size ', sizeText), h('span', { class: 'muted' }, 'Liq. long/short ≈ ', liqText)),
       feeText, box.el),
     h('p', { class: 'small muted' }, 'Positions use isolated margin: if one is liquidated, only the margin in it is lost.'));
@@ -2578,6 +2798,7 @@ async function renderPerpMarket(symbol: string, keep?: TradeState): Promise<void
   paint();
   void loadChart();
   void loadBook();
+  void loadIndex();
   // Live while this screen is open.
   const timer = window.setInterval(() => {
     if (!body.isConnected) { window.clearInterval(timer); return; }
@@ -2587,6 +2808,10 @@ async function renderPerpMarket(symbol: string, keep?: TradeState): Promise<void
     if (!body.isConnected) { window.clearInterval(slow); return; }
     void loadChart();
   }, 30_000);
+  const mid = window.setInterval(() => {
+    if (!body.isConnected) { window.clearInterval(mid); return; }
+    void loadIndex();
+  }, 15_000);
 }
 
 function renderPerpReview(p: any, back: () => void): void {
@@ -2607,7 +2832,7 @@ function renderPerpReview(p: any, back: () => void): void {
       h('tr', {}, h('th', {}, p.type === 'MARKET' ? 'Price now' : 'Price'), h('td', {}, px(p.price))),
       h('tr', {}, h('th', {}, 'Margin'), h('td', { id: 'perp-r-margin' }, usdc(p.margin))),
       h('tr', {}, h('th', {}, 'Liquidation price'), h('td', { class: 'warn-text', id: 'perp-r-liq' }, p.liquidation ? `about ${px(p.liquidation)}` : 'Shown once the position is open')),
-      h('tr', {}, h('th', {}, 'Hyperliquid fee'), h('td', { id: 'perp-r-venue' }, p.venueFee === null ? 'Hyperliquid\'s rate' : `${usdc(p.venueFee)} (${pct(p.venueRate)})`)),
+      h('tr', {}, h('th', {}, 'Trading fee'), h('td', { id: 'perp-r-venue' }, p.venueFee === null ? 'Standard rate' : `${usdc(p.venueFee)} (${pct(p.venueRate)})`)),
       h('tr', {}, h('th', {}, 'Kusari fee'), h('td', { id: 'perp-r-kusari' }, `${usdc(p.kusariFee)} (${pct(p.kusariRate)})`))))),
     box.el, go));
 }
@@ -2628,7 +2853,7 @@ async function renderPerpClose(symbol: string): Promise<void> {
       h('tr', {}, h('th', {}, 'Position'), h('td', {}, `${p.side === 'long' ? 'Long' : 'Short'} ${p.quantity} ${p.base}`)),
       h('tr', {}, h('th', {}, 'Price now'), h('td', {}, px(p.price))),
       h('tr', {}, h('th', {}, 'P&L now'), h('td', { class: p.pnl >= 0 ? 'up' : 'down' }, usdc(p.pnl, true))),
-      h('tr', {}, h('th', {}, 'Hyperliquid fee'), h('td', {}, p.venueFee === null ? 'Hyperliquid\'s rate' : `${usdc(p.venueFee)} (${pct(p.venueRate)})`)),
+      h('tr', {}, h('th', {}, 'Trading fee'), h('td', {}, p.venueFee === null ? 'Standard rate' : `${usdc(p.venueFee)} (${pct(p.venueRate)})`)),
       h('tr', {}, h('th', {}, 'Kusari fee'), h('td', {}, `${usdc(p.kusariFee)} (${pct(p.kusariRate)})`))))),
     box.el, go));
 }
@@ -2642,11 +2867,11 @@ function renderPerpDeposit(): void {
     busy(go, 'Checking…', box, async () => renderPerpDepositReview(await wallet.perpsDepositPrepare(amount.value)));
   } },
   h('div', { class: 'list' }, h('div', { class: 'asset on', id: 'dep-USDCA' }, coin('USDCA'), h('div', {}, h('div', { class: 'name' }, coinName('USDCA'))), h('div', { class: 'right' }, h('div', { class: 'amt' }, balanceText('USDCA'))))),
-  h('p', { class: 'small muted' }, 'USDC on Arbitrum goes to Hyperliquid\'s bridge and arrives in your Hyperliquid account in about a minute. At least 5 USDC: Hyperliquid never credits a smaller deposit. ETH (Arb) pays the network fee.'),
+  h('p', { class: 'small muted' }, 'USDC on Arbitrum goes to the perps bridge and arrives in your perps account in about a minute. At least 5 USDC: a smaller deposit is never credited. ETH (Arb) pays the network fee.'),
   h('label', { class: 'field' }, h('span', {}, 'Amount (USDC)'), amount),
   h('button', { type: 'button', class: 'link', id: 'perp-dep-max', onclick: () => { amount.value = String(overview?.balances?.USDCA?.spendable ?? '').replace(/,/g, ''); } }, 'Use all'),
   box.el, go);
-  show('send', subBar('Deposit to Hyperliquid', () => void renderPerps()), h('div', { class: 'scroll' }, form));
+  show('send', subBar('Deposit to Perps', () => void renderPerps()), h('div', { class: 'scroll' }, form));
 }
 
 function renderPerpDepositReview(p: any): void {
@@ -2659,8 +2884,8 @@ function renderPerpDepositReview(p: any): void {
       const r = await wallet.perpsDepositConfirm(p.id, pw.value);
       pw.value = '';
       show('receive', subBar('Deposit sent', () => void renderPerps()), h('div', { class: 'scroll' },
-        h('h2', { id: 'perp-dep-sent' }, `${p.amount} USDC → Hyperliquid`),
-        h('p', { class: 'muted' }, 'Sent to the network. It shows in your Hyperliquid account about a minute after Arbitrum confirms it.'),
+        h('h2', { id: 'perp-dep-sent' }, `${p.amount} USDC → Perps`),
+        h('p', { class: 'muted' }, 'Sent to the network. It shows in your perps account about a minute after Arbitrum confirms it.'),
         ...r.hashes.map((hash: string) => h('div', { class: 'panel' }, h('div', { class: 'mono' }, hash), h('br'),
           h('div', { class: 'row' }, h('button', { onclick: () => wallet.copy(hash) }, 'Copy'), h('button', { onclick: () => void openExplorer(p.asset, hash) }, 'View in explorer')))),
         h('button', { class: 'primary', onclick: () => void renderPerps() }, 'Back to Perps')));
@@ -2669,7 +2894,7 @@ function renderPerpDepositReview(p: any): void {
   } },
   h('div', { class: 'panel' }, h('table', { class: 'review-table' }, h('tbody', {},
     h('tr', {}, h('th', {}, 'Deposit'), h('td', { id: 'perp-dep-r-amount' }, `${p.amount} USDC (Arb)`)),
-    h('tr', {}, h('th', {}, 'To'), h('td', {}, 'Your Hyperliquid account')),
+    h('tr', {}, h('th', {}, 'To'), h('td', {}, 'Your perps account')),
     h('tr', {}, h('th', {}, 'Network fee'), h('td', {}, reviewFee(p.fee, p.feeAsset)))))),
   box.el, h('label', { class: 'field' }, h('span', {}, 'Password'), pw), go);
   show('send', subBar('Review deposit', () => { void wallet.cancelSend(p.id); renderPerpDeposit(); }), h('div', { class: 'scroll' }, form));
@@ -2684,11 +2909,11 @@ function renderPerpWithdraw(available: number): void {
     e.preventDefault();
     busy(go, 'Checking…', box, async () => renderPerpWithdrawReview(await wallet.perpsWithdrawPrepare(amount.value), available));
   } },
-  h('p', { class: 'small muted' }, `Free to withdraw: ${usdc(available)}. It goes to this wallet's own address as USDC on Arbitrum, usually within a few minutes. Hyperliquid takes 1 USDC.`),
+  h('p', { class: 'small muted' }, `Free to withdraw: ${usdc(available)}. It goes to this wallet's own address as USDC on Arbitrum, usually within a few minutes. The withdrawal fee is 1 USDC.`),
   h('label', { class: 'field' }, h('span', {}, 'Amount (USDC)'), amount),
   h('button', { type: 'button', class: 'link', id: 'perp-wd-max', onclick: () => { amount.value = String(Math.floor(available * 100) / 100); } }, 'Use all'),
   box.el, go);
-  show('send', subBar('Withdraw from Hyperliquid', () => void renderPerps()), h('div', { class: 'scroll' }, form));
+  show('send', subBar('Withdraw from Perps', () => void renderPerps()), h('div', { class: 'scroll' }, form));
 }
 
 function renderPerpWithdrawReview(p: any, available: number): void {
@@ -2707,7 +2932,7 @@ function renderPerpWithdrawReview(p: any, available: number): void {
   h('div', { class: 'panel' }, h('table', { class: 'review-table' }, h('tbody', {},
     h('tr', {}, h('th', {}, 'Withdraw'), h('td', {}, `${p.amount} USDC`)),
     h('tr', {}, h('th', {}, 'Network'), h('td', {}, 'Arbitrum')),
-    h('tr', {}, h('th', {}, 'Hyperliquid withdrawal fee'), h('td', {}, `${p.fee} USDC`)),
+    h('tr', {}, h('th', {}, 'Withdrawal fee'), h('td', {}, `${p.fee} USDC`)),
     h('tr', {}, h('th', {}, 'You receive'), h('td', { id: 'perp-wd-receive' }, `${p.receive} USDC`)),
     h('tr', {}, h('th', {}, 'To'), h('td', { class: 'mono' }, p.to))))),
   box.el, h('label', { class: 'field' }, h('span', {}, 'Password'), pw), go);

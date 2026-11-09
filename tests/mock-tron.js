@@ -62,6 +62,14 @@ function mockNode() {
     req.on('data', (c) => { body += c; });
     req.on('end', () => {
       if (req.url.startsWith('/hl/')) return hlMock(state, req, body, res);
+      // Exchange spot books for the Kusari index: BTC near 60,000 everywhere but Bybit, which is down.
+      if (req.url.startsWith('/kx/')) {
+        const name = req.url.split('/')[2];
+        const b = { Binance: { bidPrice: '60010', askPrice: '60012' }, OKX: { data: [{ bidPx: '60008', askPx: '60010' }] }, Kraken: { result: { XXBTZUSD: { b: ['59990'], a: ['59994'] } } }, KuCoin: { data: { bestBid: '60011', bestAsk: '60013' } }, Gate: [{ highest_bid: '60009', lowest_ask: '60011' }], MEXC: { bidPrice: '60012', askPrice: '60014' } }[name];
+        res.setHeader('content-type', 'application/json');
+        if (!b) { res.statusCode = 403; return res.end('{}'); }
+        return res.end(JSON.stringify(b));
+      }
       const json = body ? JSON.parse(body) : {};
       const send = (o) => { res.setHeader('content-type', 'application/json'); res.end(JSON.stringify(o)); };
       const url = req.url.split('?')[0];

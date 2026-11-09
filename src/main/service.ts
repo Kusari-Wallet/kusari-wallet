@@ -10,6 +10,7 @@ import { TronClient, TronTransfer, deriveTronAccount, generateTronMnemonic, isTr
 import { socksAgent, getJson, requestJson, newTorRoute } from './request';
 import { AAVE_MARKETS, aaveCall, readAave } from './aave';
 import { WC_CHAINS, WalletConnectManager } from './walletconnect';
+import { KusariIndex, kusariIndex } from './kindex';
 import { HL_BRIDGE, HL_MIN_DEPOSIT, HL_WITHDRAW_FEE, HlClient, HlMarket, KUSARI_FEE, OrderInput, builderFee, encodeDeposit, feePct, hlAgent, hlPrice, hlSize, liquidationPrice } from './hyperliquid';
 import type { Wallet as EvmWallet } from 'ethers';
 import { DexCall, DexId, DexQuote, NATIVE, UNISWAP_CHAINS, UniswapClient, approvalCalls, narrowPermit, pancakeQuote, pancakeSwapCall } from './dex';
@@ -154,6 +155,7 @@ export class WalletService extends EventEmitter {
   private hlKey: EvmWallet | null = null;
   private hlStatus: { at: number; value: { ready: boolean; agent: boolean; builder: boolean; until: number } } | null = null;
   private perpMarkets: { at: number; list: HlMarket[] } | null = null;
+  private readonly perpIndex = new Map<string, KusariIndex>();
   private readonly perpPreviews = new Map<string, { order?: OrderInput; leverage?: number; withdraw?: { amount: string }; expires: number }>();
   /** Whether this session goes through Tor: the Tor setting is on and this is a maximum-privacy wallet. */
   private torActive = false;
@@ -186,7 +188,7 @@ export class WalletService extends EventEmitter {
   settings: Settings = { ...DEFAULT_SETTINGS };
 
   constructor(private readonly baseDir: string, private readonly kdf?: { N: number; r: number; p: number }, private readonly dev: {
-    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; bchApi?: string; ltcApi?: string; scrtLcd?: string; nearRpc?: string; nearHistory?: string; polRpc?: string; polScout?: string; polUsdt?: string; arbRpc?: string; arbScout?: string; arbUsdt?: string; bscRpc?: string; bscScout?: string; hypeRpc?: string; uniswapKey?: string; uniswapBase?: string; wcProjectId?: string; dashApi?: string; firoApi?: string; solRpc?: string; dogeApi?: string; zecBin?: string; hlApi?: string; zecServers?: string[]; zanoBin?: string; zanoNode?: string; arrrBin?: string; arrrServers?: string[]; mwebBin?: string; mwebConnect?: string; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; etzSwapBase?: string; cceCashBase?: string; changeNowBase?: string; quoteDeadlineMs?: number; btcApi?: string;
+    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; bchApi?: string; ltcApi?: string; scrtLcd?: string; nearRpc?: string; nearHistory?: string; polRpc?: string; polScout?: string; polUsdt?: string; arbRpc?: string; arbScout?: string; arbUsdt?: string; bscRpc?: string; bscScout?: string; hypeRpc?: string; kindexBase?: string; uniswapKey?: string; uniswapBase?: string; wcProjectId?: string; dashApi?: string; firoApi?: string; solRpc?: string; dogeApi?: string; zecBin?: string; hlApi?: string; zecServers?: string[]; zanoBin?: string; zanoNode?: string; arrrBin?: string; arrrServers?: string[]; mwebBin?: string; mwebConnect?: string; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; etzSwapBase?: string; cceCashBase?: string; changeNowBase?: string; quoteDeadlineMs?: number; btcApi?: string;
     /** Android: every outside address goes through the app's local forwarder. */
     route?: (url: string) => string;
     moneroStore?: (net: NetworkId, walletId: string) => MoneroOptions['store'];
@@ -953,7 +955,7 @@ export class WalletService extends EventEmitter {
 
   private async hlMarket(symbol: string): Promise<HlMarket> {
     const m = (await this.perpsMarkets()).find((x) => x.symbol === symbol);
-    if (!m) throw new Error('Hyperliquid does not list this market.');
+    if (!m) throw new Error('This market is not listed.');
     return m;
   }
 
@@ -974,8 +976,19 @@ export class WalletService extends EventEmitter {
     return this.perps().hl.book(symbol, 8);
   }
 
+  /** Kusari's own index from exchange spot prices, beside Hyperliquid's: for comparison only. Kept 10 seconds. */
+  async perpsIndex(symbol: string) {
+    this.perps();
+    const hit = this.perpIndex.get(symbol);
+    if (hit && Date.now() - hit.at < 10_000) return hit;
+    const base = this.dev.kindexBase ? Object.fromEntries(['Binance', 'OKX', 'Bybit', 'Kraken', 'KuCoin', 'Gate', 'MEXC'].map((n) => [n, `${this.dev.kindexBase}/${n}`])) : undefined;
+    const value = await kusariIndex(symbol, { base });
+    this.perpIndex.set(symbol, value);
+    return value;
+  }
+
   async perpsCandles(symbol: string, interval: string) {
-    return this.perps().hl.candles(symbol, interval, 60);
+    return this.perps().hl.candles(symbol, interval, 300);
   }
 
   /** Approves the trading key and the Kusari fee cap, both signed by this wallet's own key. */
@@ -1013,7 +1026,7 @@ export class WalletService extends EventEmitter {
     const fillPx = limit ? Number(price) : ref;
     const size = hlSize((margin * lev) / fillPx, m.szDecimals);
     const notional = Number(size) * fillPx;
-    if (!(Number(size) > 0) || notional < 10) throw new Error('Too small. Hyperliquid needs an order of at least 10 USDC (margin × leverage).');
+    if (!(Number(size) > 0) || notional < 10) throw new Error('Too small. The smallest order is 10 USDC (margin × leverage).');
     const tif = limit ? (input.postOnly ? 'Alo' : 'Gtc') : 'Ioc';
     const kusariRate = feePct(builderFee(tif));
     const fees = await hl.fees();
@@ -1075,7 +1088,7 @@ export class WalletService extends EventEmitter {
     const asset: Asset = 'USDCA';
     const client = this.evm(asset);
     const amount = parseAmount(amountInput, DECIMALS[asset]);
-    if (amount < BigInt(HL_MIN_DEPOSIT) * 10n ** BigInt(DECIMALS[asset])) throw new Error(`Hyperliquid needs at least ${HL_MIN_DEPOSIT} USDC per deposit. Less would be lost.`);
+    if (amount < BigInt(HL_MIN_DEPOSIT) * 10n ** BigInt(DECIMALS[asset])) throw new Error(`A deposit needs at least ${HL_MIN_DEPOSIT} USDC. Less would be lost.`);
     if (amount > (await client.balanceOf('USDCA' as EthAsset, true))) throw new Error('Not enough USDC on Arbitrum.');
     const token = chainOf('USDCA' as EthAsset).tokens.USDCA!;
     const calls: DexCall[] = [{ label: 'swap', to: token.contract, data: encodeDeposit(amount), value: 0n, gas: 120_000n }];
@@ -1102,7 +1115,7 @@ export class WalletService extends EventEmitter {
     if (!(amount > 0)) throw new Error('Enter an amount.');
     const acct = await hl.account();
     if (amount > acct.available + 1e-9) throw new Error(`Only ${acct.available.toFixed(2)} USDC can be taken out right now. Margin in open positions and orders stays until they close.`);
-    if (amount <= HL_WITHDRAW_FEE) throw new Error(`The amount must be more than Hyperliquid's withdrawal fee of ${HL_WITHDRAW_FEE} USDC.`);
+    if (amount <= HL_WITHDRAW_FEE) throw new Error(`The amount must be more than the withdrawal fee of ${HL_WITHDRAW_FEE} USDC.`);
     const id = randomUUID();
     const value = (Math.floor(amount * 1e6) / 1e6).toString();
     this.perpPreviews.set(id, { withdraw: { amount: value }, expires: Date.now() + 5 * 60_000 });
@@ -1271,7 +1284,7 @@ export class WalletService extends EventEmitter {
     this.session();
     if (this.torNotReady) throw new Error('Tor is connecting. Try again once it connects.');
     if (from === to) throw new Error('Choose a different coin.');
-    if (NOT_SWAPPABLE.has(from) || NOT_SWAPPABLE.has(to)) throw new Error(from === 'HYPE' || to === 'HYPE' ? 'HYPE swaps aren\'t offered yet.' : 'sSCRT can\'t be swapped. Make it public as SCRT first.');
+    if (NOT_SWAPPABLE.has(from) || NOT_SWAPPABLE.has(to)) throw new Error('sSCRT can\'t be swapped. Make it public as SCRT first.');
     const amount = formatAmount(parseAmount(amountInput, DECIMALS[from]), DECIMALS[from]);
     const clients = Object.entries(this.swapClients()) as [SwapProviderId, SwapProvider][];
     // The slowest provider mustn't hold up the others, so each gets a deadline and the screen shows whoever answered.
@@ -1349,7 +1362,7 @@ export class WalletService extends EventEmitter {
 
   /** Gets a fresh rate, opens the order, checks it, and prepares the deposit like any other send. Nothing is signed yet. */
   async swapPrepare(from: Asset, to: Asset, amountInput: string, providerId: SwapProviderId = 'exolix', destination = '') {
-    if (NOT_SWAPPABLE.has(from) || NOT_SWAPPABLE.has(to)) throw new Error(from === 'HYPE' || to === 'HYPE' ? 'HYPE swaps aren\'t offered yet.' : 'sSCRT can\'t be swapped. Make it public as SCRT first.');
+    if (NOT_SWAPPABLE.has(from) || NOT_SWAPPABLE.has(to)) throw new Error('sSCRT can\'t be swapped. Make it public as SCRT first.');
     this.session();
     if (from === to) throw new Error('Choose a different coin.');
     const amount = formatAmount(parseAmount(amountInput, DECIMALS[from]), DECIMALS[from]);
