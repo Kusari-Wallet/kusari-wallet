@@ -81,7 +81,7 @@ function asterMock(state, req, body, res) {
   if (p.startsWith('/bapi/futures/v1/public/future/aster/estimate-withdraw-fee')) return send(200, { code: '000000', data: { gasCost: 0.3 }, success: true });
   if (!a.registered || q.get('signer') !== a.registered) return send(401, { code: -1022, msg: 'Signature for this request is not valid.' });
   if (p === '/fapi/v3/leverageBrackets') return send(200, (q.get('symbol') ? [q.get('symbol')] : ['BTCUSDT', 'ETHUSDT']).map((symbol) => ({ symbol, brackets: [{ bracket: 1, initialLeverage: symbol === 'ETHUSDT' ? 100 : 200, notionalCap: 50000, notionalFloor: 0, maintMarginRatio: 0.004, cum: 0 }] })));
-  if (p === '/fapi/v3/commissionRate') return send(200, { symbol: q.get('symbol'), makerCommissionRate: '0.0001', takerCommissionRate: '0.00035' });
+  if (p === '/fapi/v3/commissionRate') return send(200, { symbol: q.get('symbol'), makerCommissionRate: '0', takerCommissionRate: '0.0004' });
   if (p === '/fapi/v3/account') return send(200, { totalWalletBalance: '250', availableBalance: '200', totalUnrealizedProfit: '12.5', totalMarginBalance: '262.5' });
   if (p === '/fapi/v3/positionRisk') return send(200, a.positions);
   if (p === '/fapi/v3/openOrders') return send(200, a.orders);

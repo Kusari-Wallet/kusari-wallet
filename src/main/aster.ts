@@ -15,7 +15,7 @@ export const ASTER_BAPI = 'https://www.asterdex.com';
 
 /** Kusari's builder address and fees. Maker = post-only orders; every other order pays the taker rate. */
 export const KUSARI_BUILDER = '0xDb0f1c2d5f3713051d1d5AB70D7359E6Daa6f87E';
-export const KUSARI_FEE = { maker: '0.0001', taker: '0.00035', max: '0.00035' } as const;
+export const KUSARI_FEE = { maker: '0.0001', taker: '0.0002', max: '0.0002' } as const;
 export const AGENT_NAME = 'Kusari';
 /** How long a trading key stays approved. Aster allows at most 180 days. */
 export const AGENT_DAYS = 179;
