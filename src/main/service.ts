@@ -4,7 +4,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import QRCode from 'qrcode';
 import { formatAmount, parseAmount } from './amount';
-import { HYPE_EXPLORER_TX, HYPE_RPCS, HYPE_SCOUT, Asset, BTC_APIS, BTC_EXPLORER_TX, DECIMALS, FIRO_APIS, FIRO_EXPLORER_TX, SOL_RPCS, SOL_EXPLORER_TX, BUY_PAGE, BCH_APIS, BCH_EXPLORER_TX, LTC_APIS, LTC_EXPLORER_TX, SCRT_LCDS, SCRT_EXPLORER_TX, NEAR_RPCS, NEAR_HISTORY, NEAR_EXPLORER_TX, DOGE_APIS, DOGE_PUSH_URLS, POL_RPCS, POL_SCOUT, POL_EXPLORER_TX, ARB_RPCS, ARB_SCOUT, ARB_EXPLORER_TX, BSC_RPCS, BSC_SCOUT, BSC_EXPLORER_TX, DOGE_EXPLORER_TX, DASH_APIS, DASH_EXPLORER_TX, DEFAULT_SETTINGS, ARRR_EXPLORER_TX, ARRR_SERVERS, ZANO_EXPLORER_TX, ZANO_NODE, ZEC_EXPLORER_TX, ZEC_SERVERS, ETH_EXPLORER_TX, ETH_RPCS, ETH_SCOUT, ETH_USDT, NETWORKS, NetworkId, Settings, estimateMainnetHeight } from './config';
+import { HYPE_EXPLORER_TX, HYPE_RPCS, HYPE_SCOUT, Asset, BTC_APIS, BTC_EXPLORER_TX, DECIMALS, FIRO_APIS, FIRO_EXPLORER_TX, SOL_RPCS, SOL_EXPLORER_TX, BUY_PAGE, BCH_APIS, BCH_EXPLORER_TX, LTC_APIS, LTC_EXPLORER_TX, SCRT_LCDS, SCRT_EXPLORER_TX, NEAR_RPCS, NEAR_HISTORY, NEAR_HISTORY_BACKUP, NEAR_EXPLORER_TX, DOGE_APIS, DOGE_PUSH_URLS, DOGE_BACKUP, POL_RPCS, POL_SCOUT, POL_EXPLORER_TX, ARB_RPCS, ARB_SCOUT, ARB_EXPLORER_TX, BSC_RPCS, BSC_SCOUT, BSC_EXPLORER_TX, DOGE_EXPLORER_TX, DASH_APIS, DASH_EXPLORER_TX, DEFAULT_SETTINGS, ARRR_EXPLORER_TX, ARRR_SERVERS, ZANO_EXPLORER_TX, ZANO_NODE, ZEC_EXPLORER_TX, ZEC_SERVERS, ETH_EXPLORER_TX, ETH_RPCS, ETH_SCOUT, ETH_USDT, NETWORKS, NetworkId, Settings, estimateMainnetHeight } from './config';
 import { MIN_PASSWORD, Secrets, Vault } from './vault';
 import { TronClient, TronTransfer, deriveTronAccount, generateTronMnemonic, isTronAddress } from './tron';
 import { socksAgent, getJson, requestJson, newTorRoute } from './request';
@@ -52,6 +52,28 @@ const QUOTE_EXTRAS_MS = 8_000;
 const bareBch = (a: string) => a.replace(/^bitcoincash:/, '');
 
 const SWAP_NAMES: Record<SwapProviderId, string> = { exolix: 'Exolix', simpleswap: 'SimpleSwap', ghostswap: 'GhostSwap', etzswap: 'ETZ Swap', ccecash: 'CCECash', changenow: 'ChangeNOW' };
+
+/** A host on the person's own network or machine, which is reached directly rather than through Tor. */
+export function isLocalServer(url: string): boolean {
+  let host: string;
+  try { host = new URL(url).hostname.replace(/^\[|\]$/g, ''); } catch { return false; }
+  return host === 'localhost' || host === '::1' || host.endsWith('.local') || /^127\./.test(host) || /^10\./.test(host) || /^192\.168\./.test(host) || /^172\.(1[6-9]|2\d|3[01])\./.test(host);
+}
+
+/**
+ * A BTC server of the person's own: an Esplora or mempool API address. Plain http only where nobody in between
+ * could read or change it: an .onion address, or the person's own network.
+ */
+export function checkOwnServer(raw: string): string {
+  const v = raw.trim().replace(/\/+$/, '');
+  if (!v) return '';
+  let u: URL;
+  try { u = new URL(v); } catch { throw new Error('Enter the server as a full address, for example https://mempool.example/api.'); }
+  if (u.protocol !== 'https:' && u.protocol !== 'http:') throw new Error('Enter the server as a full address, for example https://mempool.example/api.');
+  if (u.username || u.password || u.search || u.hash) throw new Error('Leave out any login, ? or # part of the address.');
+  if (u.protocol === 'http:' && !u.hostname.endsWith('.onion') && !isLocalServer(v)) throw new Error('Use https://, an .onion address, or a server on your own network.');
+  return v;
+}
 
 function within<T, F>(ms: number, work: Promise<T>, late: F): Promise<T | F> {
   let timer: ReturnType<typeof setTimeout>;
@@ -179,7 +201,7 @@ export class WalletService extends EventEmitter {
   settings: Settings = { ...DEFAULT_SETTINGS };
 
   constructor(private readonly baseDir: string, private readonly kdf?: { N: number; r: number; p: number }, private readonly dev: {
-    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; bchApi?: string; ltcApi?: string; scrtLcd?: string; nearRpc?: string; nearHistory?: string; polRpc?: string; polScout?: string; polUsdt?: string; arbRpc?: string; arbScout?: string; arbUsdt?: string; bscRpc?: string; bscScout?: string; hypeRpc?: string; uniswapKey?: string; uniswapBase?: string; dashApi?: string; dashSeeds?: string[]; dashConnect?: string; firoApi?: string; solRpc?: string; dogeApi?: string; adaApi?: string; zecBin?: string; zecServers?: string[]; zanoBin?: string; zanoNode?: string; arrrBin?: string; arrrServers?: string[]; mwebBin?: string; mwebConnect?: string; sparkBin?: string; sparkServer?: string; sparkConnect?: string; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; etzSwapBase?: string; cceCashBase?: string; changeNowBase?: string; quoteDeadlineMs?: number; btcApi?: string;
+    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; bchApi?: string; ltcApi?: string; scrtLcd?: string; nearRpc?: string; nearHistory?: string; polRpc?: string; polScout?: string; polUsdt?: string; arbRpc?: string; arbScout?: string; arbUsdt?: string; bscRpc?: string; bscScout?: string; hypeRpc?: string; uniswapKey?: string; uniswapBase?: string; dashApi?: string; dashSeeds?: string[]; dashConnect?: string; firoApi?: string; solRpc?: string; dogeApi?: string; dogeBackup?: string; adaApi?: string; zecBin?: string; zecServers?: string[]; zanoBin?: string; zanoNode?: string; arrrBin?: string; arrrServers?: string[]; mwebBin?: string; mwebConnect?: string; sparkBin?: string; sparkServer?: string; sparkConnect?: string; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; etzSwapBase?: string; cceCashBase?: string; changeNowBase?: string; quoteDeadlineMs?: number; btcApi?: string;
     /** Android: every outside address goes through the app's local forwarder. */
     route?: (url: string) => string;
     moneroStore?: (net: NetworkId, walletId: string) => MoneroOptions['store'];
@@ -385,7 +407,10 @@ export class WalletService extends EventEmitter {
     this.tron = new TronClient(tronNet, this.settings.tronApiKey, account.address, this.torRoute('tron'), this.torActive);
 
     const slow = this.torActive;
-    this.btc = new BtcClient(btcAccountXpub(secrets.tronMnemonic), this.dev.btcApi ? [this.dev.btcApi] : BTC_APIS, this.torRoute('btc'), slow ? 60_000 : 30_000);
+    // A server of the person's own is the only one asked: no public server learns the addresses then. One on
+    // their own network is reached directly, since Tor can't reach it and nothing leaves the network.
+    const ownBtc = (this.settings.customBtcServer ?? '').trim();
+    this.btc = new BtcClient(btcAccountXpub(secrets.tronMnemonic), this.dev.btcApi ? [this.dev.btcApi] : ownBtc ? [ownBtc] : BTC_APIS, ownBtc && isLocalServer(ownBtc) ? undefined : this.torRoute('btc'), slow ? 60_000 : 30_000);
     if (this.dev.btcApi) this.btc.spacingMs = 0;
     const scanFile = path.join(this.dir, 'btc-scan.json');
     try { this.btc.importHints(JSON.parse(await fs.readFile(scanFile, 'utf8') as unknown as string)); } catch { /* first time */ }
@@ -393,10 +418,10 @@ export class WalletService extends EventEmitter {
     if (!this.torNotReady) void this.btc.refresh().catch(() => undefined);
     this.ltc = new BtcClient(ltcAccountXpub(secrets.tronMnemonic), this.dev.ltcApi ? [this.dev.ltcApi] : LTC_APIS, this.torRoute('ltc'), slow ? 60_000 : 30_000, LITECOIN);
     if (this.dev.ltcApi) this.ltc.spacingMs = 0;
-    this.near = new NearClient(nearPublicKey(secrets.tronMnemonic), this.dev.nearRpc ? [this.dev.nearRpc] : NEAR_RPCS, this.dev.nearHistory ?? NEAR_HISTORY, this.torRoute('near'), slow ? 60_000 : 20_000);
+    this.near = new NearClient(nearPublicKey(secrets.tronMnemonic), this.dev.nearRpc ? [this.dev.nearRpc] : NEAR_RPCS, this.dev.nearHistory ?? [NEAR_HISTORY, NEAR_HISTORY_BACKUP], this.torRoute('near'), slow ? 60_000 : 20_000);
     this.scrt = new ScrtClient(scrtPublicKey(secrets.tronMnemonic), this.dev.scrtLcd ? this.dev.scrtLcd.split(',') : SCRT_LCDS, this.torRoute('scrt'), slow ? 60_000 : 20_000, scrtPrivacyKeys(secrets.tronMnemonic));
     this.firo = new FiroClient(firoAccountXpub(secrets.tronMnemonic), this.dev.firoApi ? [this.dev.firoApi] : FIRO_APIS, this.torRoute('firo'), slow ? 60_000 : 20_000);
-    this.doge = new DogeClient(dogeAccountXpub(secrets.tronMnemonic), this.dev.dogeApi ? [this.dev.dogeApi] : DOGE_APIS, this.torRoute('doge'), slow ? 60_000 : 20_000, this.dev.dogeApi ? {} : { pushUrls: DOGE_PUSH_URLS });
+    this.doge = new DogeClient(dogeAccountXpub(secrets.tronMnemonic), this.dev.dogeApi ? [this.dev.dogeApi] : DOGE_APIS, this.torRoute('doge'), slow ? 60_000 : 20_000, this.dev.dogeApi ? (this.dev.dogeBackup ? { backup: this.dev.dogeBackup } : {}) : { pushUrls: DOGE_PUSH_URLS, backup: DOGE_BACKUP });
     this.ada = new AdaClient(adaAddress(secrets.tronMnemonic), this.dev.adaApi ?? ADA_API, this.torRoute('ada'), slow ? 60_000 : 20_000);
     this.bch = new BchClient(bchAccountXpub(secrets.tronMnemonic), this.dev.bchApi ? [this.dev.bchApi] : BCH_APIS, this.torRoute('bch'), slow ? 60_000 : 20_000);
     this.sol = new SolClient(solAddress(secrets.tronMnemonic), this.dev.solRpc ? [this.dev.solRpc] : SOL_RPCS, this.torRoute('sol'), slow ? 60_000 : 20_000);
@@ -524,7 +549,7 @@ export class WalletService extends EventEmitter {
     if (this.torActive && !torPort) return; // Never fall back to a direct connection.
     const client = new ZanoClient({
       engine: () => startZanoEngine(this.dev.zanoBin, this.dir),
-      node: this.dev.zanoNode ?? ZANO_NODE,
+      node: this.dev.zanoNode ?? ((this.settings.customZanoNode ?? '').trim() || ZANO_NODE),
       socks: torPort,
       canConnect: () => !this.torNotReady,
       onChange: () => this.emit('balance-changed'),
@@ -1949,6 +1974,12 @@ export class WalletService extends EventEmitter {
       if (node && !/^https?:\/\/[^\s/]+(:\d+)?\/?$/.test(node)) throw new Error('Enter the node address as http://host:port.');
       next.customMoneroNode = node;
     }
+    if (typeof patch.customBtcServer === 'string') next.customBtcServer = checkOwnServer(patch.customBtcServer);
+    if (typeof patch.customZanoNode === 'string') {
+      const node = patch.customZanoNode.trim().replace(/^https?:\/\//, '').replace(/\/$/, '');
+      if (node && !/^[A-Za-z0-9.-]+:\d{2,5}$/.test(node)) throw new Error('Enter the Zano node as host:port, for example 192.168.1.5:11211.');
+      next.customZanoNode = node;
+    }
     if (typeof patch.showPrices === 'boolean') next.showPrices = patch.showPrices;
     if (typeof patch.tornadoRelayer === 'string') next.tornadoRelayer = patch.tornadoRelayer.trim();
     if (typeof patch.simpleSwapKey === 'string') next.simpleSwapKey = patch.simpleSwapKey.trim();
@@ -1971,6 +2002,8 @@ export class WalletService extends EventEmitter {
     }
     const reconnect = next.network !== this.settings.network
       || next.customMoneroNode !== this.settings.customMoneroNode
+      || next.customBtcServer !== this.settings.customBtcServer
+      || next.customZanoNode !== this.settings.customZanoNode
       || next.tronApiKey !== this.settings.tronApiKey
       || next.torEnabled !== this.settings.torEnabled;
     const bridgeChanged = next.torBridge !== this.settings.torBridge || next.torBridgeLines !== this.settings.torBridgeLines;

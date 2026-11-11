@@ -152,3 +152,16 @@ test('a wallet whose file is already gone can still be deleted, and files held o
   assert.ok(fs.existsSync('/etc'));
   assert.equal((await s.vault.open(PW1)).tronMnemonic, 'one', 'the remaining wallet is untouched');
 });
+
+test('your own Bitcoin server and Zano node are checked and kept', async (t) => {
+  const { s } = await make(t);
+  await makeOldWallet(s, PW1, 'one');
+  await s.updateSettings({ customBtcServer: 'http://192.168.1.20:3006/api/', customZanoNode: 'http://10.0.0.5:11211/' });
+  assert.equal(s.settings.customBtcServer, 'http://192.168.1.20:3006/api');
+  assert.equal(s.settings.customZanoNode, '10.0.0.5:11211');
+  await assert.rejects(s.updateSettings({ customBtcServer: 'http://mempool.example/api' }), /https/);
+  await assert.rejects(s.updateSettings({ customZanoNode: 'not a node' }), /host:port/);
+  assert.equal(s.settings.customBtcServer, 'http://192.168.1.20:3006/api', 'a refused change leaves the last good one');
+  await s.updateSettings({ customBtcServer: '', customZanoNode: '' });
+  assert.equal(s.settings.customBtcServer, '');
+});

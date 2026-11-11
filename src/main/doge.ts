@@ -38,7 +38,8 @@ export function isDogeAddress(address: string): boolean {
 
 export const typicalDogeFee = (): bigint => (SIZE_BASE + SIZE_INPUT + SIZE_OUTPUT * 2n) * FEE_SATS_PER_BYTE;
 
-export interface DogeOptions { pushUrls?: string[]; paceMs?: number; verifyDelayMs?: number }
+/** backup: dogechain's API base, asked when the main server can't answer. */
+export interface DogeOptions { pushUrls?: string[]; paceMs?: number; verifyDelayMs?: number; backup?: string }
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const UNEXPECTED = 'The DOGE server gave an unexpected answer.';
 
@@ -49,6 +50,7 @@ const UNEXPECTED = 'The DOGE server gave an unexpected answer.';
 export class DogeClient extends InsightWallet<'DOGE'> {
   private readonly account: any;
   private readonly pushUrls: string[];
+  private readonly backup?: string;
   private readonly paceMs: number;
   private readonly verifyDelayMs: number;
   private answers = new Map<string, { at: number; info: any; unspent: any }>();
@@ -59,6 +61,7 @@ export class DogeClient extends InsightWallet<'DOGE'> {
     super({ symbol: 'DOGE', dust: DUST, feePerByte: FEE_SATS_PER_BYTE, base: SIZE_BASE, input: SIZE_INPUT, output: SIZE_OUTPUT, sign: signDogeDraft, gapReceive: GAP_RECEIVE, gapChange: GAP_CHANGE, cacheMs: CACHE_MS }, apis, agent, timeoutMs);
     this.account = HDKey.fromExtendedKey(xpub);
     this.pushUrls = opts.pushUrls ?? apis.map((a) => `${a}/txs/push`);
+    this.backup = opts.backup;
     this.paceMs = opts.paceMs ?? PACE_MS;
     this.verifyDelayMs = opts.verifyDelayMs ?? VERIFY_DELAY_MS;
   }
@@ -109,7 +112,46 @@ export class DogeClient extends InsightWallet<'DOGE'> {
     return coins;
   }
 
+  /**
+   * The backup server (dogechain's API) when BlockCypher can't answer: coins per address, and which addresses
+   * have history, so the scan still finds them all. It doesn't say which way a transaction went, so history
+   * isn't drawn from it.
+   */
+  private async lookupBackup(addresses: string[]): Promise<{ utxoRows: any[]; txs: any[] }> {
+    const base = this.backup!;
+    const ask = async (p: string) => {
+      const hold = this.lastAsked + this.paceMs - Date.now();
+      if (hold > 0) await wait(hold);
+      this.lastAsked = Date.now();
+      const r = await getJson(base + p, { agent: this.agent, timeoutMs: this.timeoutMs, headers: { Accept: 'application/json', 'User-Agent': 'KusariWallet' } });
+      if (r?.success !== 1) throw new Error(UNEXPECTED);
+      return r;
+    };
+    const utxoRows: any[] = [];
+    const txs: any[] = [];
+    for (const a of addresses) {
+      const seen = (await ask(`/address/transactions/${a}`)).transactions;
+      if (!Array.isArray(seen)) throw new Error(UNEXPECTED);
+      if (!seen.length) continue;
+      txs.push({ txid: String(seen[0].hash ?? ''), placeholder: true, vin: [], vout: [{ value: 0, scriptPubKey: { addresses: [a] } }] });
+      const coins = (await ask(`/address/unspent/${a}`)).unspent_outputs;
+      if (!Array.isArray(coins)) throw new Error(UNEXPECTED);
+      for (const c of coins) {
+        if (c.address !== a || !Number.isSafeInteger(c.value) || !Number.isInteger(c.tx_output_n)) throw new Error(UNEXPECTED);
+        utxoRows.push({ address: a, txid: c.tx_hash, vout: c.tx_output_n, satoshis: c.value, confirmations: c.confirmations ?? 0 });
+      }
+    }
+    return { utxoRows, txs };
+  }
+
   protected async lookup(addresses: string[], round: number): Promise<{ utxoRows: any[]; txs: any[] }> {
+    try { return await this.lookupPrimary(addresses, round); } catch (e) {
+      if (!this.backup) throw e;
+      return this.lookupBackup(addresses);
+    }
+  }
+
+  private async lookupPrimary(addresses: string[], round: number): Promise<{ utxoRows: any[]; txs: any[] }> {
     // Later rounds only add addresses, and a retry after a failure keeps what it already paid for.
     if (round === 0) {
       if (this.scanFinished) this.answers.clear();

@@ -1182,5 +1182,16 @@
 "This Tor has no {0} bridges.": "В этом Tor нет мостов {0}.",
 "The bridge lines were refused.": "Строки мостов отклонены.",
 "This build has no bridge program.": "В этой сборке нет программы для мостов.",
-"LocalCoinSwap opened in your browser. Use your address from Receive as the receiving address there.": "LocalCoinSwap открыт в браузере. В качестве адреса получения там используйте свой адрес с экрана «Получить»."
+"LocalCoinSwap opened in your browser. Use your address from Receive as the receiving address there.": "LocalCoinSwap открыт в браузере. В качестве адреса получения там используйте свой адрес с экрана «Получить».",
+"Your own Bitcoin server": "Свой сервер Bitcoin",
+"Your own Zano node": "Свой узел Zano",
+"The Esplora or mempool API of your own node (for example on Umbrel or Start9), as https://, .onion, or an address on your network. Then only your server learns your Bitcoin addresses. Empty uses public servers.": "Esplora или mempool API вашего собственного узла (например, на Umbrel или Start9): https://, .onion или адрес в вашей сети. Тогда ваши адреса Bitcoin узнает только ваш сервер. Пусто — публичные серверы.",
+"host:port of a Zano node you run. Empty uses the public node.": "host:port вашего узла Zano. Пусто — публичный узел.",
+"Enter the Zano node as host:port, for example 192.168.1.5:11211.": "Укажите узел Zano как host:port, например 192.168.1.5:11211.",
+"Enter the server as a full address, for example https://mempool.example/api.": "Укажите полный адрес сервера, например https://mempool.example/api.",
+"Leave out any login, ? or # part of the address.": "Уберите из адреса логин, части с ? или #.",
+"Use https://, an .onion address, or a server on your own network.": "Используйте https://, адрес .onion или сервер в вашей сети.",
+"The backup server gave an unexpected answer.": "Резервный сервер дал неожиданный ответ.",
+"Not served by the backup server.": "Резервный сервер это не поддерживает.",
+"Could not reach the NEAR history server.": "Не удалось связаться с сервером истории NEAR."
 }

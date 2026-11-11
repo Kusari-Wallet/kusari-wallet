@@ -1182,5 +1182,16 @@
 "This Tor has no {0} bridges.": "この Tor には {0} ブリッジがありません。",
 "The bridge lines were refused.": "ブリッジ行が拒否されました。",
 "This build has no bridge program.": "このビルドにはブリッジ用のプログラムがありません。",
-"LocalCoinSwap opened in your browser. Use your address from Receive as the receiving address there.": "ブラウザで LocalCoinSwap を開きました。受取アドレスには「受け取る」画面のアドレスを使ってください。"
+"LocalCoinSwap opened in your browser. Use your address from Receive as the receiving address there.": "ブラウザで LocalCoinSwap を開きました。受取アドレスには「受け取る」画面のアドレスを使ってください。",
+"Your own Bitcoin server": "自分のビットコインサーバー",
+"Your own Zano node": "自分のZanoノード",
+"The Esplora or mempool API of your own node (for example on Umbrel or Start9), as https://, .onion, or an address on your network. Then only your server learns your Bitcoin addresses. Empty uses public servers.": "自分で運用するノード(Umbrel、Start9など)のEsploraまたはmempool APIです。https://、.onion、または自分のネットワーク内のアドレスで入力してください。そうすればビットコインのアドレスを知るのは自分のサーバーだけです。空欄なら公開サーバーを使います。",
+"host:port of a Zano node you run. Empty uses the public node.": "自分で運用するZanoノードのhost:portです。空欄なら公開ノードを使います。",
+"Enter the Zano node as host:port, for example 192.168.1.5:11211.": "Zanoノードはhost:portの形式で入力してください。例:192.168.1.5:11211。",
+"Enter the server as a full address, for example https://mempool.example/api.": "サーバーは完全なアドレスで入力してください。例:https://mempool.example/api。",
+"Leave out any login, ? or # part of the address.": "アドレスからログイン、?、#の部分を外してください。",
+"Use https://, an .onion address, or a server on your own network.": "https://、.onionアドレス、または自分のネットワーク内のサーバーを使ってください。",
+"The backup server gave an unexpected answer.": "予備サーバーから予期しない応答がありました。",
+"Not served by the backup server.": "予備サーバーでは対応していません。",
+"Could not reach the NEAR history server.": "NEARの履歴サーバーに接続できませんでした。"
 }

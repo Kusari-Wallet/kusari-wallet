@@ -1182,5 +1182,16 @@
 "This Tor has no {0} bridges.": "У цьому Tor немає мостів {0}.",
 "The bridge lines were refused.": "Рядки мостів відхилено.",
 "This build has no bridge program.": "У цій збірці немає програми для мостів.",
-"LocalCoinSwap opened in your browser. Use your address from Receive as the receiving address there.": "LocalCoinSwap відкрито в браузері. Як адресу отримання там використайте свою адресу з екрана «Отримати»."
+"LocalCoinSwap opened in your browser. Use your address from Receive as the receiving address there.": "LocalCoinSwap відкрито в браузері. Як адресу отримання там використайте свою адресу з екрана «Отримати».",
+"Your own Bitcoin server": "Свій сервер Bitcoin",
+"Your own Zano node": "Свій вузол Zano",
+"The Esplora or mempool API of your own node (for example on Umbrel or Start9), as https://, .onion, or an address on your network. Then only your server learns your Bitcoin addresses. Empty uses public servers.": "Esplora або mempool API вашого власного вузла (наприклад, на Umbrel чи Start9): https://, .onion або адреса у вашій мережі. Тоді ваші адреси Bitcoin знатиме лише ваш сервер. Порожньо — публічні сервери.",
+"host:port of a Zano node you run. Empty uses the public node.": "host:port вашого вузла Zano. Порожньо — публічний вузол.",
+"Enter the Zano node as host:port, for example 192.168.1.5:11211.": "Вкажіть вузол Zano як host:port, наприклад 192.168.1.5:11211.",
+"Enter the server as a full address, for example https://mempool.example/api.": "Вкажіть повну адресу сервера, наприклад https://mempool.example/api.",
+"Leave out any login, ? or # part of the address.": "Приберіть з адреси логін, частини з ? або #.",
+"Use https://, an .onion address, or a server on your own network.": "Використовуйте https://, адресу .onion або сервер у вашій мережі.",
+"The backup server gave an unexpected answer.": "Резервний сервер дав неочікувану відповідь.",
+"Not served by the backup server.": "Резервний сервер цього не підтримує.",
+"Could not reach the NEAR history server.": "Не вдалося зв’язатися із сервером історії NEAR."
 }

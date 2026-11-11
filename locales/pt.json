@@ -1182,5 +1182,16 @@
 "This Tor has no {0} bridges.": "Este Tor não tem pontes {0}.",
 "The bridge lines were refused.": "As linhas de ponte foram recusadas.",
 "This build has no bridge program.": "Esta versão não tem o programa de pontes.",
-"LocalCoinSwap opened in your browser. Use your address from Receive as the receiving address there.": "O LocalCoinSwap foi aberto no navegador. Use o seu endereço da tela Receber como endereço de recebimento lá."
+"LocalCoinSwap opened in your browser. Use your address from Receive as the receiving address there.": "O LocalCoinSwap foi aberto no navegador. Use o seu endereço da tela Receber como endereço de recebimento lá.",
+"Your own Bitcoin server": "Seu próprio servidor Bitcoin",
+"Your own Zano node": "Seu próprio nó Zano",
+"The Esplora or mempool API of your own node (for example on Umbrel or Start9), as https://, .onion, or an address on your network. Then only your server learns your Bitcoin addresses. Empty uses public servers.": "A API Esplora ou mempool do seu próprio nó (por exemplo no Umbrel ou Start9), como https://, .onion ou um endereço da sua rede. Assim só o seu servidor conhece seus endereços Bitcoin. Vazio usa servidores públicos.",
+"host:port of a Zano node you run. Empty uses the public node.": "host:port de um nó Zano que você opera. Vazio usa o nó público.",
+"Enter the Zano node as host:port, for example 192.168.1.5:11211.": "Informe o nó Zano como host:port, por exemplo 192.168.1.5:11211.",
+"Enter the server as a full address, for example https://mempool.example/api.": "Informe o servidor como endereço completo, por exemplo https://mempool.example/api.",
+"Leave out any login, ? or # part of the address.": "Retire do endereço qualquer login e as partes com ? ou #.",
+"Use https://, an .onion address, or a server on your own network.": "Use https://, um endereço .onion ou um servidor na sua própria rede.",
+"The backup server gave an unexpected answer.": "O servidor reserva deu uma resposta inesperada.",
+"Not served by the backup server.": "O servidor reserva não oferece isso.",
+"Could not reach the NEAR history server.": "Não foi possível acessar o servidor de histórico NEAR."
 }

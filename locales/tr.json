@@ -1182,5 +1182,16 @@
 "This Tor has no {0} bridges.": "Bu Tor'da {0} köprüsü yok.",
 "The bridge lines were refused.": "Köprü satırları reddedildi.",
 "This build has no bridge program.": "Bu sürümde köprü programı yok.",
-"LocalCoinSwap opened in your browser. Use your address from Receive as the receiving address there.": "LocalCoinSwap tarayıcınızda açıldı. Oradaki alıcı adresi olarak Al ekranındaki adresinizi kullanın."
+"LocalCoinSwap opened in your browser. Use your address from Receive as the receiving address there.": "LocalCoinSwap tarayıcınızda açıldı. Oradaki alıcı adresi olarak Al ekranındaki adresinizi kullanın.",
+"Your own Bitcoin server": "Kendi Bitcoin sunucunuz",
+"Your own Zano node": "Kendi Zano düğümünüz",
+"The Esplora or mempool API of your own node (for example on Umbrel or Start9), as https://, .onion, or an address on your network. Then only your server learns your Bitcoin addresses. Empty uses public servers.": "Kendi düğümünüzün (ör. Umbrel veya Start9) Esplora ya da mempool API’si; https://, .onion veya kendi ağınızdaki bir adres olarak. Böylece Bitcoin adreslerinizi yalnızca sizin sunucunuz öğrenir. Boş bırakılırsa genel sunucular kullanılır.",
+"host:port of a Zano node you run. Empty uses the public node.": "Çalıştırdığınız Zano düğümünün host:port bilgisi. Boş bırakılırsa genel düğüm kullanılır.",
+"Enter the Zano node as host:port, for example 192.168.1.5:11211.": "Zano düğümünü host:port olarak girin, ör. 192.168.1.5:11211.",
+"Enter the server as a full address, for example https://mempool.example/api.": "Sunucuyu tam adres olarak girin, ör. https://mempool.example/api.",
+"Leave out any login, ? or # part of the address.": "Adresteki giriş bilgisini, ? veya # kısmını çıkarın.",
+"Use https://, an .onion address, or a server on your own network.": "https://, bir .onion adresi veya kendi ağınızdaki bir sunucu kullanın.",
+"The backup server gave an unexpected answer.": "Yedek sunucu beklenmeyen bir yanıt verdi.",
+"Not served by the backup server.": "Yedek sunucu bunu sunmuyor.",
+"Could not reach the NEAR history server.": "NEAR geçmiş sunucusuna ulaşılamadı."
 }

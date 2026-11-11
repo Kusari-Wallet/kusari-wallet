@@ -225,3 +225,56 @@ test("Bitcoin Core's consensus code accepts taproot signatures and rejects tampe
   assert.equal(res.wrong_script, false, 'signature is bound to the key');
   assert.equal(res.tampered, false, 'changed output fails');
 });
+
+/** A stand-in Blockbook with the same coins as the Esplora stand-in above. */
+function blockbook() {
+  const c = new BtcClient(xpub, []);
+  const addr0 = c.addressAt(0, 0);
+  const state = { sent: [], asked: [] };
+  const server = http.createServer((q, r) => {
+    state.asked.push(q.url);
+    const send = (o, code = 200) => { r.statusCode = code; r.setHeader('content-type', 'application/json'); r.end(JSON.stringify(o)); };
+    const u = new URL(q.url, 'http://x');
+    let m = /^\/api\/v2\/address\/([^/]+)$/.exec(u.pathname);
+    if (m) {
+      if (m[1] !== addr0) return send({ address: m[1], balance: '0', totalReceived: '0', totalSent: '0', unconfirmedBalance: '0', unconfirmedTxs: 0, txs: 0, transactions: [] });
+      if (u.searchParams.get('details') === 'txs') return send({ address: addr0, transactions: [{ txid: 'ab'.repeat(32), confirmations: 3, blockTime: 1700000000, vin: [{ addresses: ['bc1qother'], value: '600000' }], vout: [{ addresses: [addr0], value: '500000' }] }] });
+      return send({ address: addr0, balance: '500000', totalReceived: '500000', totalSent: '0', unconfirmedBalance: '40000', unconfirmedTxs: 1, txs: 2 });
+    }
+    m = /^\/api\/v2\/utxo\/([^/]+)$/.exec(u.pathname);
+    if (m) return send(m[1] === addr0 ? [{ txid: 'ab'.repeat(32), vout: 1, value: '500000', confirmations: 3 }, { txid: 'cd'.repeat(32), vout: 0, value: '40000', confirmations: 0 }] : []);
+    if (u.pathname === '/api/v2/estimatefee/3') return send({ result: '0.00007' });
+    m = /^\/api\/v2\/sendtx\/([0-9a-f]+)$/.exec(u.pathname);
+    if (m) { state.sent.push(m[1]); return send({ result: btc.Transaction.fromRaw(Buffer.from(m[1], 'hex')).id }); }
+    send({ error: 'nope' }, 404);
+  });
+  return new Promise((res) => server.listen(0, '127.0.0.1', () => res({ server, state, base: `blockbook+http://127.0.0.1:${server.address().port}` })));
+}
+
+test('a Blockbook server stands in when the Esplora one is down: balance, fee, send and history', async (t) => {
+  const { server, state, base } = await blockbook();
+  t.after(() => { server.close(); server.closeAllConnections(); });
+  const client = new BtcClient(xpub, ['http://127.0.0.1:1', base]);
+  const bal = await client.getBalance(8000);
+  assert.deepEqual(bal, { total: 540000n, spendable: 500000n });
+  const draft = await client.draft('bc1qnjg0jd8228aq7egyzacy8cys3knf9xvrerkf9g', 100000n);
+  assert.equal(draft.fee, estimateVbytes(1, 2) * 7n, '0.00007 per kB is 7 sat/vB');
+  const id = await client.send(draft, MNEMONIC);
+  assert.equal(btc.Transaction.fromRaw(Buffer.from(state.sent[0], 'hex')).id, id);
+  const hist = await client.getHistory();
+  assert.deepEqual(hist.map((h) => [h.direction, h.amount, h.status]), [['in', '0.005', 'confirmed']]);
+});
+
+test('your own server: https, .onion or your own network only; local ones are reached directly', () => {
+  const { checkOwnServer, isLocalServer } = require('../dist/main/service');
+  assert.equal(checkOwnServer(' https://mempool.example/api/ '), 'https://mempool.example/api');
+  assert.equal(checkOwnServer('http://abcdefghijklmnopqrstuvwxyz234567abcdefghijklmnopqrstuv.onion/api'), 'http://abcdefghijklmnopqrstuvwxyz234567abcdefghijklmnopqrstuv.onion/api');
+  assert.equal(checkOwnServer('http://umbrel.local:3006/api'), 'http://umbrel.local:3006/api');
+  assert.equal(checkOwnServer('http://192.168.1.20:3006/api'), 'http://192.168.1.20:3006/api');
+  assert.equal(checkOwnServer(''), '');
+  assert.throws(() => checkOwnServer('http://mempool.example/api'), /https/);
+  assert.throws(() => checkOwnServer('ftp://x.example'), /full address/);
+  assert.throws(() => checkOwnServer('https://user:pw@x.example/api'), /login/);
+  assert.ok(isLocalServer('http://10.0.0.2:3000') && isLocalServer('http://[::1]:3000') && isLocalServer('http://172.20.1.1'));
+  assert.ok(!isLocalServer('https://mempool.space/api') && !isLocalServer('http://172.40.1.1'));
+});

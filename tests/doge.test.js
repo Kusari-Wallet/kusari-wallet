@@ -241,3 +241,28 @@ test('signing refuses wrong sums, addresses not mine, a bad recipient', () => {
   assert.throws(() => signDogeDraft({ ...good, changeAddress: c.addressAt(0, 9) }, PHRASE), /change address/);
   assert.throws(() => signDogeDraft({ ...good, to: '1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2' }, PHRASE), /DOGE address/);
 });
+
+test('when BlockCypher is down, the backup server gives the balance and coins', async (t) => {
+  const mine = new DogeClient(xpub, []).addressAt(0, 1);
+  const down = await server(Object.fromEntries(Array.from({ length: 40 }, (_, i) => [new DogeClient(xpub, []).addressAt(i < 20 ? 0 : 1, i % 20), () => ({ status: 500, body: {} })])));
+  close(t, down);
+  const asked = [];
+  const backup = http.createServer((q, r) => {
+    asked.push(q.url);
+    r.setHeader('content-type', 'application/json');
+    const m = /^\/address\/(transactions|unspent)\/(\w+)$/.exec(q.url);
+    if (!m) { r.statusCode = 404; return r.end('{}'); }
+    const used = m[2] === mine;
+    if (m[1] === 'transactions') return r.end(JSON.stringify({ success: 1, transactions: used ? [{ hash: ID('ab') }] : [] }));
+    r.end(JSON.stringify({ success: 1, unspent_outputs: used ? [{ address: mine, tx_hash: ID('ab'), tx_output_n: 0, value: 500000000, confirmations: 4 }, { address: mine, tx_hash: ID('cd'), tx_output_n: 1, value: 200000000, confirmations: 0 }] : [] }));
+  });
+  await new Promise((res) => backup.listen(0, '127.0.0.1', res));
+  t.after(() => { backup.close(); backup.closeAllConnections(); });
+  const c = new DogeClient(xpub, [down.url], undefined, 5000, { ...fast, backup: `http://127.0.0.1:${backup.address().port}` });
+  assert.deepEqual(await c.getBalance(), { total: 700000000n, spendable: 500000000n });
+  assert.equal(c.receiveAddress, new DogeClient(xpub, []).addressAt(0, 2), 'a used address is known as used');
+  assert.ok(asked.some((u) => u.includes(mine)));
+  assert.deepEqual(await c.getHistory(), [], 'the backup has no amounts per transaction, so no made-up history');
+  const draft = await c.draft(OTHER, 100000000n);
+  assert.equal(draft.inputs.length, 1);
+});

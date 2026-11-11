@@ -1182,5 +1182,16 @@
 "This Tor has no {0} bridges.": "이 Tor에는 {0} 브리지가 없습니다.",
 "The bridge lines were refused.": "브리지 주소가 거부되었습니다.",
 "This build has no bridge program.": "이 빌드에는 브리지 프로그램이 없습니다.",
-"LocalCoinSwap opened in your browser. Use your address from Receive as the receiving address there.": "브라우저에서 LocalCoinSwap을 열었습니다. 받는 주소는 받기 화면의 내 주소를 쓰세요."
+"LocalCoinSwap opened in your browser. Use your address from Receive as the receiving address there.": "브라우저에서 LocalCoinSwap을 열었습니다. 받는 주소는 받기 화면의 내 주소를 쓰세요.",
+"Your own Bitcoin server": "내 비트코인 서버",
+"Your own Zano node": "내 Zano 노드",
+"The Esplora or mempool API of your own node (for example on Umbrel or Start9), as https://, .onion, or an address on your network. Then only your server learns your Bitcoin addresses. Empty uses public servers.": "직접 운영하는 노드(예: Umbrel, Start9)의 Esplora 또는 mempool API 주소입니다. https://, .onion, 또는 내 네트워크 주소로 입력하세요. 그러면 비트코인 주소는 내 서버만 알게 됩니다. 비워 두면 공개 서버를 씁니다.",
+"host:port of a Zano node you run. Empty uses the public node.": "직접 운영하는 Zano 노드의 host:port입니다. 비워 두면 공개 노드를 씁니다.",
+"Enter the Zano node as host:port, for example 192.168.1.5:11211.": "Zano 노드는 host:port 형식으로 입력하세요. 예: 192.168.1.5:11211.",
+"Enter the server as a full address, for example https://mempool.example/api.": "서버는 전체 주소로 입력하세요. 예: https://mempool.example/api.",
+"Leave out any login, ? or # part of the address.": "주소에서 로그인, ? 또는 # 부분은 빼 주세요.",
+"Use https://, an .onion address, or a server on your own network.": "https://, .onion 주소, 또는 내 네트워크 안의 서버를 쓰세요.",
+"The backup server gave an unexpected answer.": "예비 서버가 예상하지 못한 응답을 보냈습니다.",
+"Not served by the backup server.": "예비 서버에서는 지원하지 않습니다.",
+"Could not reach the NEAR history server.": "NEAR 내역 서버에 연결할 수 없습니다."
 }

@@ -75,3 +75,14 @@ test('a send uses the next nonce, refuses a removed key, and never more than is 
     await assert.rejects(c.draft('alice.near', 1n), /no longer on the NEAR account/);
   } finally { server.close(); }
 });
+
+test('history comes from the second NearBlocks address when the first is down', async () => {
+  const me = nearAccount(M);
+  const down = http.createServer((q, r) => { r.statusCode = 503; r.end('{}'); });
+  await new Promise((res) => down.listen(0, '127.0.0.1', res));
+  const { server, url } = await rpcServer(() => ({ txns: [{ transaction_hash: '1'.repeat(44), predecessor_account_id: 'bob.near', receiver_account_id: me, actions: [{ action: 'TRANSFER', deposit: 2e24 }], block_timestamp: '1700000000000000000' }] }));
+  try {
+    const h = await new NearClient(nearPublicKey(M), [url], [`http://127.0.0.1:${down.address().port}`, url]).getHistory();
+    assert.deepEqual(h.map((i) => [i.direction, i.amount, i.counterparty]), [['in', '2', 'bob.near']]);
+  } finally { server.close(); down.close(); }
+});

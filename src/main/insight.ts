@@ -193,7 +193,7 @@ export abstract class InsightWallet<S extends string> {
     const atoms = (v: unknown) => BigInt(Math.round(Number(v ?? 0) * 1e8));
     const items: InsightHistoryItem<S>[] = [];
     for (const tx of txs) {
-      if (typeof tx.txid !== 'string' || !/^[0-9a-f]{64}$/.test(tx.txid)) continue;
+      if (tx.placeholder || typeof tx.txid !== 'string' || !/^[0-9a-f]{64}$/.test(tx.txid)) continue;
       const out = (tx.vout ?? []).reduce((s: bigint, v: any) => s + ((v.scriptPubKey?.addresses ?? []).some((a: string) => mine.has(a)) ? atoms(v.value) : 0n), 0n);
       const spent = (tx.vin ?? []).reduce((s: bigint, v: any) => s + (mine.has(v.addr) ? atoms(v.value) : 0n), 0n);
       const net = out - spent;

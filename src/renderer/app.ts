@@ -1939,6 +1939,8 @@ async function renderSettings(): Promise<void> {
   const s = await wallet.getSettings();
   const netBox = errorBox(), pwBox = errorBox(), seedBox = errorBox(), delBox = errorBox();
   const node = h('input', { id: 'set-node', value: s.customMoneroNode, placeholder: 'http://127.0.0.1:18081', spellcheck: 'false' });
+  const btcServer = h('input', { id: 'set-btc-server', value: s.customBtcServer ?? '', placeholder: 'http://umbrel.local:3006/api', spellcheck: 'false' });
+  const zanoNode = h('input', { id: 'set-zano-node', value: s.customZanoNode ?? '', placeholder: '192.168.1.5:11211', spellcheck: 'false' });
   const key = h('input', { id: 'set-key', value: s.tronApiKey, spellcheck: 'false', autocomplete: 'off' });
   const auto = h('input', { id: 'set-auto', type: 'number', min: '1', max: '240', value: String(s.autoLockMinutes) });
   const showPrices = h('input', { type: 'checkbox', id: 'set-prices', checked: s.showPrices });
@@ -1989,7 +1991,7 @@ async function renderSettings(): Promise<void> {
       await wallet.installTor();
       tor.installed = true;
     }
-    const relocked = await wallet.updateSettings({ customMoneroNode: node.value, tronApiKey: key.value, autoLockMinutes: Number(auto.value), showPrices: showPrices.checked, ...(tor.allowed === false ? {} : { torEnabled: useTor.checked, torBridge: bridge.value, torBridgeLines: bridgeLines.value }) });
+    const relocked = await wallet.updateSettings({ customMoneroNode: node.value, customBtcServer: btcServer.value, customZanoNode: zanoNode.value, tronApiKey: key.value, autoLockMinutes: Number(auto.value), showPrices: showPrices.checked, ...(tor.allowed === false ? {} : { torEnabled: useTor.checked, torBridge: bridge.value, torBridgeLines: bridgeLines.value }) });
     if (!relocked) { saved.textContent = 'Saved.'; void refresh(); }
   }) }, 'Save');
 
@@ -2053,6 +2055,8 @@ async function renderSettings(): Promise<void> {
         h('select', { id: 'set-language', 'aria-label': 'Language', 'data-no-translate': '', onchange: (e: Event) => (window as any).kusariI18n.set((e.target as HTMLSelectElement).value) },
           ...(window as any).kusariI18n.languages.map(([code, name]: [string, string]) => h('option', { value: code, selected: code === (window as any).kusariI18n.current() }, name)))),
       h('div', { class: 'section' }, h('h3', {}, 'Connections'), netBox.el,
+        h('label', { class: 'field' }, h('span', {}, 'Your own Bitcoin server'), btcServer, h('div', { class: 'hint' }, 'The Esplora or mempool API of your own node (for example on Umbrel or Start9), as https://, .onion, or an address on your network. Then only your server learns your Bitcoin addresses. Empty uses public servers.')),
+        h('label', { class: 'field' }, h('span', {}, 'Your own Zano node'), zanoNode, h('div', { class: 'hint' }, 'host:port of a Zano node you run. Empty uses the public node.')),
         h('label', { class: 'field' }, h('span', {}, 'Custom Monero node'), node, h('div', { class: 'hint' }, 'Enter your own node if you have one. Empty chooses a public node automatically. Public nodes can see your IP.')),
         h('label', { class: 'field' }, h('span', {}, 'TronGrid API key'), key, h('div', { class: 'hint' }, 'Works without one. Add a free key if lookups are often limited.')),
         h('label', { class: 'field' }, h('span', {}, 'Auto-lock (minutes)'), auto),

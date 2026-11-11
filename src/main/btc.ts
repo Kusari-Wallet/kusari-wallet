@@ -1,5 +1,6 @@
 import type { Agent } from 'node:http';
 import { getJson, requestText } from './request';
+import { blockbookGet, blockbookSend, isBlockbook } from './blockbook';
 import { formatAmount } from './amount';
 
 // These packages are ESM only, which require() handles in this Node version.
@@ -115,6 +116,7 @@ export class BtcClient {
       for (const base of this.apis) {
         if ((this.cooling.get(base) ?? 0) > Date.now()) continue;
         try {
+          if (isBlockbook(base)) return await blockbookGet(base, path, { agent: this.agent, timeoutMs: this.timeoutMs });
           return await getJson(base + path, { agent: this.agent, timeoutMs: this.timeoutMs });
         } catch (e) {
           last = e;
@@ -226,7 +228,10 @@ export class BtcClient {
   private async broadcast(hex: string): Promise<string> {
     let last: unknown;
     for (const base of this.apis) {
-      try { return await requestText(`${base}/tx`, { method: 'POST', body: hex, agent: this.agent, timeoutMs: this.timeoutMs }); } catch (e) { last = e; }
+      try {
+        if (isBlockbook(base)) return await blockbookSend(base, hex, { agent: this.agent, timeoutMs: this.timeoutMs });
+        return await requestText(`${base}/tx`, { method: 'POST', body: hex, agent: this.agent, timeoutMs: this.timeoutMs });
+      } catch (e) { last = e; }
     }
     throw last instanceof Error ? new Error(`Send rejected: ${last.message}`) : new Error('The send failed.');
   }

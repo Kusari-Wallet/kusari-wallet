@@ -1182,5 +1182,16 @@
 "This Tor has no {0} bridges.": "此 Tor 没有 {0} 网桥。",
 "The bridge lines were refused.": "网桥地址被拒绝。",
 "This build has no bridge program.": "此版本没有网桥程序。",
-"LocalCoinSwap opened in your browser. Use your address from Receive as the receiving address there.": "已在浏览器中打开 LocalCoinSwap。收款地址请使用“接收”页面中的地址。"
+"LocalCoinSwap opened in your browser. Use your address from Receive as the receiving address there.": "已在浏览器中打开 LocalCoinSwap。收款地址请使用“接收”页面中的地址。",
+"Your own Bitcoin server": "我自己的比特币服务器",
+"Your own Zano node": "我自己的 Zano 节点",
+"The Esplora or mempool API of your own node (for example on Umbrel or Start9), as https://, .onion, or an address on your network. Then only your server learns your Bitcoin addresses. Empty uses public servers.": "你自己运行的节点(例如 Umbrel 或 Start9)的 Esplora 或 mempool API,可用 https://、.onion 或你所在网络内的地址。这样只有你的服务器知道你的比特币地址。留空则使用公共服务器。",
+"host:port of a Zano node you run. Empty uses the public node.": "你运行的 Zano 节点的 host:port。留空则使用公共节点。",
+"Enter the Zano node as host:port, for example 192.168.1.5:11211.": "请按 host:port 输入 Zano 节点,例如 192.168.1.5:11211。",
+"Enter the server as a full address, for example https://mempool.example/api.": "请输入完整的服务器地址,例如 https://mempool.example/api。",
+"Leave out any login, ? or # part of the address.": "请去掉地址中的登录信息、? 或 # 部分。",
+"Use https://, an .onion address, or a server on your own network.": "请使用 https://、.onion 地址或你自己网络内的服务器。",
+"The backup server gave an unexpected answer.": "备用服务器返回了意外的应答。",
+"Not served by the backup server.": "备用服务器不提供此功能。",
+"Could not reach the NEAR history server.": "无法连接 NEAR 记录服务器。"
 }

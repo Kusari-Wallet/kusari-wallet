@@ -1182,5 +1182,16 @@
 "This Tor has no {0} bridges.": "Bản Tor này không có cầu nối {0}.",
 "The bridge lines were refused.": "Các dòng cầu nối đã bị từ chối.",
 "This build has no bridge program.": "Bản dựng này không có chương trình cầu nối.",
-"LocalCoinSwap opened in your browser. Use your address from Receive as the receiving address there.": "Đã mở LocalCoinSwap trong trình duyệt. Hãy dùng địa chỉ ở mục Nhận làm địa chỉ nhận tại đó."
+"LocalCoinSwap opened in your browser. Use your address from Receive as the receiving address there.": "Đã mở LocalCoinSwap trong trình duyệt. Hãy dùng địa chỉ ở mục Nhận làm địa chỉ nhận tại đó.",
+"Your own Bitcoin server": "Máy chủ Bitcoin của riêng bạn",
+"Your own Zano node": "Nút Zano của riêng bạn",
+"The Esplora or mempool API of your own node (for example on Umbrel or Start9), as https://, .onion, or an address on your network. Then only your server learns your Bitcoin addresses. Empty uses public servers.": "API Esplora hoặc mempool của nút do bạn tự chạy (ví dụ trên Umbrel hoặc Start9), dạng https://, .onion hoặc một địa chỉ trong mạng của bạn. Khi đó chỉ máy chủ của bạn biết các địa chỉ Bitcoin của bạn. Để trống sẽ dùng máy chủ công cộng.",
+"host:port of a Zano node you run. Empty uses the public node.": "host:port của nút Zano bạn tự chạy. Để trống sẽ dùng nút công cộng.",
+"Enter the Zano node as host:port, for example 192.168.1.5:11211.": "Nhập nút Zano dạng host:port, ví dụ 192.168.1.5:11211.",
+"Enter the server as a full address, for example https://mempool.example/api.": "Nhập máy chủ dạng địa chỉ đầy đủ, ví dụ https://mempool.example/api.",
+"Leave out any login, ? or # part of the address.": "Bỏ phần đăng nhập, ? hoặc # khỏi địa chỉ.",
+"Use https://, an .onion address, or a server on your own network.": "Hãy dùng https://, địa chỉ .onion hoặc máy chủ trong mạng của bạn.",
+"The backup server gave an unexpected answer.": "Máy chủ dự phòng trả về câu trả lời không mong đợi.",
+"Not served by the backup server.": "Máy chủ dự phòng không hỗ trợ việc này.",
+"Could not reach the NEAR history server.": "Không kết nối được máy chủ lịch sử NEAR."
 }

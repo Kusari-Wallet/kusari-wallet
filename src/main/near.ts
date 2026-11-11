@@ -79,7 +79,7 @@ const yocto = (v: unknown): bigint => { if (typeof v !== 'string' || !/^\d+$/.te
 export class NearClient {
   private cache: { at: number; total: bigint; spendable: bigint } | null = null;
   readonly account: string;
-  constructor(private readonly publicKey: Uint8Array, private readonly rpcs: string[], private readonly history: string, private readonly agent?: Agent, private readonly timeoutMs = 20_000) {
+  constructor(private readonly publicKey: Uint8Array, private readonly rpcs: string[], private readonly history: string | string[], private readonly agent?: Agent, private readonly timeoutMs = 20_000) {
     this.account = nearAccountOf(publicKey);
   }
 
@@ -155,7 +155,13 @@ export class NearClient {
 
   /** Transfers in and out, from NearBlocks (the RPC keeps no history). Gas refunds from "system" are left out. */
   async getHistory() {
-    const body = await getJson(`${this.history}/account/${this.account}/txns?per_page=25`, { agent: this.agent, timeoutMs: this.timeoutMs, headers: { Accept: 'application/json' } });
+    // NearBlocks answers on more than one address; the next is asked when one fails.
+    let body: any;
+    let last: unknown;
+    for (const base of Array.isArray(this.history) ? this.history : [this.history]) {
+      try { body = await getJson(`${base}/account/${this.account}/txns?per_page=25`, { agent: this.agent, timeoutMs: this.timeoutMs, headers: { Accept: 'application/json' } }); break; } catch (e) { last = e; }
+    }
+    if (body === undefined) throw last instanceof Error ? last : new Error('Could not reach the NEAR history server.');
     const rows: any[] = Array.isArray(body?.txns) ? body.txns : [];
     const items = [];
     for (const r of rows) {
