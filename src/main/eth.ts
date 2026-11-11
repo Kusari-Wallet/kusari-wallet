@@ -7,7 +7,7 @@ export const ETH_PATH = "m/44'/60'/0'/0/0";
 const GWEI = 1_000_000_000n;
 const BALANCE_CACHE_MS = 20_000;
 
-export type EthAsset = 'ETH' | 'USDTE' | 'LINK' | 'WLD' | 'ETHP' | 'UNI' | 'PEPE' | 'AAVE' | 'POL' | 'USDTP' | 'ETHA' | 'ARB' | 'USDTA' | 'BNB' | 'USDTB' | 'ASTER' | 'CAKE' | 'USDCE' | 'USDCB' | 'USDCP' | 'USDCA' | 'HYPE' | 'SHIB' | 'SHIBB' | 'LINKB' | 'UNIB' | 'AAVEB' | 'LINKP' | 'UNIP' | 'AAVEP' | 'LINKA' | 'UNIA';
+export type EthAsset = 'ETH' | 'USDTE' | 'LINK' | 'WLD' | 'ETHP' | 'UNI' | 'PEPE' | 'AAVE' | 'POL' | 'USDTP' | 'ETHA' | 'ARB' | 'USDTA' | 'BNB' | 'USDTB' | 'ASTER' | 'CAKE' | 'USDCE' | 'USDCB' | 'USDCP' | 'USDCA' | 'HYPE' | 'SHIB' | 'SHIBB' | 'LINKB' | 'UNIB' | 'AAVEB';
 export interface EvmToken { contract: string; decimals: number; symbol: string; label: string; dust: bigint }
 /** One EVM chain. The same key and address serve all of them, so the chain id is what keeps them apart. */
 export interface EvmChain {
@@ -43,9 +43,6 @@ export const POLYGON: EvmChain = {
     // Bridged ETH (WETH) on Polygon, as Aave's address book lists it.
     ETHP: { contract: '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619', decimals: 18, symbol: 'ETH', label: 'ETH (Pol)', dust: 10_000_000_000_000n },
     // Bridged LINK, UNI and AAVE on Polygon (PoS bridge), each read on chain: symbol and 18 decimals.
-    LINKP: { contract: '0x53E0bca35eC356BD5ddDFebbD1Fc0fD03FaBad39', decimals: 18, symbol: 'LINK', label: 'LINK (Pol)', dust: 10_000_000_000_000_000n },
-    UNIP: { contract: '0xb33EaAd8d922B1083446DC23f610c2567fB5180f', decimals: 18, symbol: 'UNI', label: 'UNI (Pol)', dust: 1_000_000_000_000_000n },
-    AAVEP: { contract: '0xD6DF932A45C0f255f85145f286eA0b292B21C90B', decimals: 18, symbol: 'AAVE', label: 'AAVE (Pol)', dust: 100_000_000_000_000n },
   },
   maxBaseFee: 20_000n * GWEI, minTip: 30n * GWEI, defaultTip: 30n * GWEI, maxTip: 500n * GWEI, gasToken: 200_000n, gasContract: 300_000n, dust: 10_000_000_000_000_000n,
 };
@@ -56,8 +53,6 @@ export const ARBITRUM: EvmChain = {
     ARB: { contract: '0x912CE59144191C1204E64559FE8253a0e49E6548', decimals: 18, symbol: 'ARB', label: 'ARB', dust: 10_000_000_000_000_000n },
     USDTA: { contract: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9', decimals: 6, symbol: 'USDT', label: 'USDT (Arb)', dust: 100_000n },
     USDCA: { contract: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831', decimals: 6, symbol: 'USDC', label: 'USDC (Arb)', dust: 100_000n },
-    LINKA: { contract: '0xf97f4df75117a78c1A5a0DBb814Af92458539FB4', decimals: 18, symbol: 'LINK', label: 'LINK (Arb)', dust: 10_000_000_000_000_000n },
-    UNIA: { contract: '0xFa7F8980b0f1E64A2062791cc3b0871572f1F7f0', decimals: 18, symbol: 'UNI', label: 'UNI (Arb)', dust: 1_000_000_000_000_000n },
   },
   maxBaseFee: 100n * GWEI, minTip: 0n, defaultTip: 0n, maxTip: GWEI, gasToken: 3_000_000n, gasContract: 3_000_000n, dust: 10_000_000_000_000n,
 };

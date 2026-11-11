@@ -1,16 +1,16 @@
 declare const wallet: any;
 declare const jsQR: any;
 
-type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'LINK' | 'WLD' | 'SOL' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA' | 'BCH' | 'LTC' | 'DOGE' | 'DASH' | 'FIRO' | 'ZEC' | 'ZANO' | 'ARRR' | 'SCRT' | 'ETHP' | 'UNI' | 'PEPE' | 'AAVE' | 'BNB' | 'USDTB' | 'ASTER' | 'CAKE' | 'JUP' | 'RAY' | 'NEAR' | 'USDCE' | 'USDCB' | 'USDCS' | 'USDCP' | 'USDCA' | 'SSCRT' | 'HYPE' | 'SHIB' | 'SHIBB' | 'LINKB' | 'UNIB' | 'AAVEB' | 'LINKP' | 'UNIP' | 'AAVEP' | 'LINKA' | 'UNIA' | 'ORCA' | 'PUMP' | 'ADA';
+type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'LINK' | 'WLD' | 'SOL' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA' | 'BCH' | 'LTC' | 'DOGE' | 'DASH' | 'FIRO' | 'ZEC' | 'ZANO' | 'ARRR' | 'SCRT' | 'ETHP' | 'UNI' | 'PEPE' | 'AAVE' | 'BNB' | 'USDTB' | 'ASTER' | 'CAKE' | 'JUP' | 'RAY' | 'NEAR' | 'USDCE' | 'USDCB' | 'USDCS' | 'USDCP' | 'USDCA' | 'SSCRT' | 'HYPE' | 'SHIB' | 'SHIBB' | 'LINKB' | 'UNIB' | 'AAVEB' | 'ORCA' | 'PUMP' | 'ADA';
 type Attrs = Record<string, any>;
 type Child = Node | string | null | undefined | false;
 
-const ALL_ASSETS: Asset[] = ['XMR', 'BTC', 'ETH', 'USDTE', 'USDCE', 'LINK', 'WLD', 'UNI', 'PEPE', 'AAVE', 'SHIB', 'ZEC', 'SOL', 'USDTS', 'USDCS', 'JUP', 'RAY', 'ORCA', 'PUMP', 'TRX', 'USDT', 'HYPE', 'BNB', 'USDTB', 'USDCB', 'ASTER', 'CAKE', 'SHIBB', 'LINKB', 'UNIB', 'AAVEB', 'POL', 'ETHP', 'USDTP', 'USDCP', 'LINKP', 'UNIP', 'AAVEP', 'ARB', 'ETHA', 'USDTA', 'USDCA', 'LINKA', 'UNIA', 'BCH', 'LTC', 'ADA', 'NEAR', 'SCRT', 'SSCRT', 'DOGE', 'DASH', 'FIRO', 'ZANO', 'ARRR'];
+const ALL_ASSETS: Asset[] = ['XMR', 'BTC', 'ETH', 'USDTE', 'USDCE', 'LINK', 'WLD', 'UNI', 'PEPE', 'AAVE', 'SHIB', 'ZEC', 'SOL', 'USDTS', 'USDCS', 'JUP', 'RAY', 'ORCA', 'PUMP', 'TRX', 'USDT', 'HYPE', 'BNB', 'USDTB', 'USDCB', 'ASTER', 'CAKE', 'SHIBB', 'LINKB', 'UNIB', 'AAVEB', 'POL', 'ETHP', 'USDTP', 'USDCP', 'ARB', 'ETHA', 'USDTA', 'USDCA', 'BCH', 'LTC', 'ADA', 'NEAR', 'SCRT', 'SSCRT', 'DOGE', 'DASH', 'FIRO', 'ZANO', 'ARRR'];
 /** Tokens shown under the coin of their chain on the home screen, folded until opened. */
-const GROUPS: Partial<Record<Asset, Asset[]>> = { ETH: ['USDTE', 'USDCE', 'LINK', 'WLD', 'UNI', 'PEPE', 'AAVE', 'SHIB'], SOL: ['USDTS', 'USDCS', 'JUP', 'RAY', 'ORCA', 'PUMP'], TRX: ['USDT'], BNB: ['USDTB', 'USDCB', 'ASTER', 'CAKE', 'SHIBB', 'LINKB', 'UNIB', 'AAVEB'], POL: ['ETHP', 'USDTP', 'USDCP', 'LINKP', 'UNIP', 'AAVEP'], ARB: ['ETHA', 'USDTA', 'USDCA', 'LINKA', 'UNIA'], SCRT: ['SSCRT'] };
+const GROUPS: Partial<Record<Asset, Asset[]>> = { ETH: ['USDTE', 'USDCE', 'LINK', 'WLD', 'UNI', 'PEPE', 'AAVE', 'SHIB'], SOL: ['USDTS', 'USDCS', 'JUP', 'RAY', 'ORCA', 'PUMP'], TRX: ['USDT'], BNB: ['USDTB', 'USDCB', 'ASTER', 'CAKE', 'SHIBB', 'LINKB', 'UNIB', 'AAVEB'], POL: ['ETHP', 'USDTP', 'USDCP'], ARB: ['ETHA', 'USDTA', 'USDCA'], SCRT: ['SSCRT'] };
 const IN_GROUP = new Set(Object.values(GROUPS).flat());
 const GROUP_OF: Partial<Record<Asset, Asset>> = Object.fromEntries(Object.entries(GROUPS).flatMap(([parent, kids]) => (kids ?? []).map((k) => [k, parent])));
-const EVM_ASSETS: Asset[] = ['ETH', 'USDTE', 'USDCE', 'LINK', 'WLD', 'ETHP', 'UNI', 'PEPE', 'AAVE', 'POL', 'USDTP', 'ARB', 'ETHA', 'USDTA', 'BNB', 'USDTB', 'ASTER', 'CAKE', 'USDCB', 'USDCP', 'USDCA', 'HYPE', 'SHIB', 'SHIBB', 'LINKB', 'UNIB', 'AAVEB', 'LINKP', 'UNIP', 'AAVEP', 'LINKA', 'UNIA'];
+const EVM_ASSETS: Asset[] = ['ETH', 'USDTE', 'USDCE', 'LINK', 'WLD', 'ETHP', 'UNI', 'PEPE', 'AAVE', 'POL', 'USDTP', 'ARB', 'ETHA', 'USDTA', 'BNB', 'USDTB', 'ASTER', 'CAKE', 'USDCB', 'USDCP', 'USDCA', 'HYPE', 'SHIB', 'SHIBB', 'LINKB', 'UNIB', 'AAVEB'];
 const SPL_ASSETS: Asset[] = ['USDTS', 'USDCS', 'JUP', 'RAY', 'ORCA', 'PUMP'];
 const BSC_ASSETS: Asset[] = ['BNB', 'USDTB', 'USDCB', 'ASTER', 'CAKE', 'SHIBB', 'LINKB', 'UNIB', 'AAVEB'];
 // These need their engines, which aren't in every build or on every phone.
@@ -66,18 +66,13 @@ const COIN: Record<Asset, { label: string; file: string; note: string }> = {
   LINKB: { label: 'LINK (BNB)', file: 'coins/link.png', note: 'Chainlink on BNB Smart Chain (BEP-20) only. BNB is needed for the fee. No free service lists BNB Smart Chain history, so past transfers show on bscscan.com, not here.' },
   UNIB: { label: 'UNI (BNB)', file: 'coins/uni.png', note: 'Uniswap on BNB Smart Chain (BEP-20) only. BNB is needed for the fee. No free service lists BNB Smart Chain history, so past transfers show on bscscan.com, not here.' },
   AAVEB: { label: 'AAVE (BNB)', file: 'coins/aave.png', note: 'Aave on BNB Smart Chain (BEP-20) only. BNB is needed for the fee. No free service lists BNB Smart Chain history, so past transfers show on bscscan.com, not here.' },
-  LINKP: { label: 'LINK (Pol)', file: 'coins/link.png', note: 'Chainlink on Polygon only (bridged). POL is needed for the fee.' },
-  UNIP: { label: 'UNI (Pol)', file: 'coins/uni.png', note: 'Uniswap on Polygon only (bridged). POL is needed for the fee.' },
-  AAVEP: { label: 'AAVE (Pol)', file: 'coins/aave.png', note: 'Aave on Polygon only (bridged). POL is needed for the fee.' },
-  LINKA: { label: 'LINK (Arb)', file: 'coins/link.png', note: 'Chainlink on Arbitrum One only. ETH (Arb) is needed for the fee.' },
-  UNIA: { label: 'UNI (Arb)', file: 'coins/uni.png', note: 'Uniswap on Arbitrum One only. ETH (Arb) is needed for the fee.' },
   ORCA: { label: 'ORCA', file: 'coins/orca.png', note: 'Orca on Solana (SPL) only. SOL is needed for the fee.' },
   PUMP: { label: 'PUMP', file: 'coins/pump.png', note: 'pump.fun\'s PUMP on Solana only (a Token-2022 token). SOL is needed for the fee.' },
 };
 const coinName = (a: Asset): string => COIN[a]?.label ?? a;
 /** The unit after an amount. The three USDTs are all just USDT there; the screen around them names the chain. */
 /** The same token on another chain: its unit is still the token's own symbol. */
-const SAME_TOKEN: Partial<Record<Asset, string>> = { SHIBB: 'SHIB', LINKB: 'LINK', LINKP: 'LINK', LINKA: 'LINK', UNIB: 'UNI', UNIP: 'UNI', UNIA: 'UNI', AAVEB: 'AAVE', AAVEP: 'AAVE' };
+const SAME_TOKEN: Partial<Record<Asset, string>> = { SHIBB: 'SHIB', LINKB: 'LINK', UNIB: 'UNI', AAVEB: 'AAVE' };
 const unitOf = (a: Asset): string => (SAME_TOKEN[a] ? SAME_TOKEN[a]! : a === 'SSCRT' ? 'sSCRT' : a.startsWith('USDC') ? 'USDC' : a === 'USDTE' || a === 'USDTS' || a === 'USDTP' || a === 'USDTA' || a === 'USDTB' ? 'USDT' : a === 'ETHA' || a === 'ETHP' ? 'ETH' : a);
 
 const root = document.getElementById('app') as HTMLElement;
@@ -689,7 +684,7 @@ function assetRow(a: Asset, child = false, toggle?: HTMLElement): HTMLElement {
     ? (moneroBusy() ? syncLabel() : status)
     : p
       ? h('span', {}, usdFormat(p.usd), p.change !== null && h('span', { class: p.change >= 0 ? 'up' : 'down' }, `${p.change >= 0 ? '+' : ''}${p.change.toFixed(2)}%`))
-      : a === 'BTC' ? 'Bitcoin' : a === 'HYPE' ? 'Hyperliquid' : a === 'SOL' ? 'Solana' : a === 'DOGE' ? 'Dogecoin' : a === 'ADA' ? 'Cardano' : a === 'BCH' ? 'Bitcoin Cash' : a === 'LTC' ? 'Litecoin' : a === 'SCRT' || a === 'SSCRT' ? 'Secret' : a === 'DASH' ? 'Dash' : a === 'FIRO' ? 'Firo' : a === 'ZEC' ? 'Zcash' : a === 'ZANO' ? 'Zano' : a === 'ARRR' ? 'Pirate Chain' : a === 'ETH' || a === 'ETHA' ? 'Ethereum' : a === 'POL' ? 'Polygon' : a === 'LINK' ? 'Chainlink' : a === 'WLD' ? 'Worldcoin' : a === 'ARB' ? 'Arbitrum' : a === 'UNI' ? 'Uniswap' : a === 'PEPE' ? 'Pepe' : a === 'AAVE' ? 'Aave' : a === 'NEAR' ? 'NEAR Protocol' : a === 'ETHP' ? 'Ethereum' : a === 'BNB' ? 'BNB Smart Chain' : a === 'ASTER' ? 'Aster' : a === 'CAKE' ? 'PancakeSwap' : a === 'JUP' ? 'Jupiter' : a === 'RAY' ? 'Raydium' : a === 'SHIB' || a === 'SHIBB' ? 'Shiba Inu' : a === 'LINKB' || a === 'LINKP' || a === 'LINKA' ? 'Chainlink' : a === 'UNIB' || a === 'UNIP' || a === 'UNIA' ? 'Uniswap' : a === 'AAVEB' || a === 'AAVEP' ? 'Aave' : a === 'ORCA' ? 'Orca' : a === 'PUMP' ? 'pump.fun' : a === 'USDT' || a === 'USDTE' || a === 'USDTS' || a === 'USDTP' || a === 'USDTA' ? 'Tether' : a === 'TRX' ? 'Tron' : 'Monero';
+      : a === 'BTC' ? 'Bitcoin' : a === 'HYPE' ? 'Hyperliquid' : a === 'SOL' ? 'Solana' : a === 'DOGE' ? 'Dogecoin' : a === 'ADA' ? 'Cardano' : a === 'BCH' ? 'Bitcoin Cash' : a === 'LTC' ? 'Litecoin' : a === 'SCRT' || a === 'SSCRT' ? 'Secret' : a === 'DASH' ? 'Dash' : a === 'FIRO' ? 'Firo' : a === 'ZEC' ? 'Zcash' : a === 'ZANO' ? 'Zano' : a === 'ARRR' ? 'Pirate Chain' : a === 'ETH' || a === 'ETHA' ? 'Ethereum' : a === 'POL' ? 'Polygon' : a === 'LINK' ? 'Chainlink' : a === 'WLD' ? 'Worldcoin' : a === 'ARB' ? 'Arbitrum' : a === 'UNI' ? 'Uniswap' : a === 'PEPE' ? 'Pepe' : a === 'AAVE' ? 'Aave' : a === 'NEAR' ? 'NEAR Protocol' : a === 'ETHP' ? 'Ethereum' : a === 'BNB' ? 'BNB Smart Chain' : a === 'ASTER' ? 'Aster' : a === 'CAKE' ? 'PancakeSwap' : a === 'JUP' ? 'Jupiter' : a === 'RAY' ? 'Raydium' : a === 'SHIB' || a === 'SHIBB' ? 'Shiba Inu' : a === 'LINKB' ? 'Chainlink' : a === 'UNIB' ? 'Uniswap' : a === 'AAVEB' ? 'Aave' : a === 'ORCA' ? 'Orca' : a === 'PUMP' ? 'pump.fun' : a === 'USDT' || a === 'USDTE' || a === 'USDTS' || a === 'USDTP' || a === 'USDTA' ? 'Tether' : a === 'TRX' ? 'Tron' : 'Monero';
   const usd = assetUsd(a);
   return h('button', { class: `asset${child ? ' child' : ''}`, id: `asset-${a}`, onclick: () => { selected = a; void renderAsset(); } },
     coin(a),
@@ -766,6 +761,7 @@ async function renderAsset(): Promise<void> {
           ? h('p', { class: 'small' }, `Private (MWEB): ${shortAmount(overview.mweb.balance.total)} LTC. Its amounts and addresses are hidden on the chain.`)
           : h('p', { class: 'small', id: 'mweb-sync' }, overview.mweb.error ? `Private (MWEB) balance: ${overview.mweb.error}` : `Syncing the private (MWEB) balance… ${overview.mweb.percent}%`),
         overview.mweb.ready && h('button', { class: 'secondary', id: 'mweb-pegin', onclick: () => void ltcPrivateStep() }, 'Make public LTC private')),
+      a === 'DASH' && overview?.coinjoin && coinjoinPanel(overview.coinjoin),
       a === 'FIRO' && overview?.spark && h('div', { class: 'panel', id: 'spark-panel' },
         overview.spark.ready && overview.spark.balance
           ? h('p', { class: 'small' }, `Private (Spark): ${shortAmount(overview.spark.balance.total)} FIRO. Its amounts and addresses are hidden on the chain.`)
@@ -879,6 +875,86 @@ async function ltcPrivateStep(): Promise<void> {
   ...p.warnings.map((w: string) => h('div', { class: 'warn' }, w)),
   h('div', { class: 'panel' }, h('table', { class: 'review-table' }, h('tbody', {},
     h('tr', {}, h('th', {}, 'Amount'), h('td', {}, h('div', { class: 'big-amount', id: 'review-amount' }, `${p.amount} LTC → MWEB`))),
+    h('tr', {}, h('th', {}, 'Fee'), h('td', { id: 'review-fee' }, reviewFee(p.fee, p.feeAsset)))))),
+  h('label', { class: 'field' }, h('span', {}, 'Password'), pw),
+  go);
+  show('send', subBar('Review', back), h('div', { class: 'scroll' }, form));
+  pw.focus();
+}
+
+// ---- Dash CoinJoin ----
+
+const CJ_STEPS: Record<string, string> = {
+  checking: 'Checking coins…', masternodes: 'Getting the masternode list…', connecting: 'Connecting to a masternode…',
+  queued: 'Waiting for others to join the mix…', mixing: 'Mixing with others…', signing: 'Signing the mix…',
+  waiting: 'Waiting for coins to confirm.', done: 'All coins are mixed.',
+};
+
+function coinjoinStatusText(cj: any): string {
+  if (Number(cj.total) === 0) return '';
+  if (!cj.running) return 'Mixing is paused.';
+  if (cj.step === 'retrying') return `Trying again soon: ${cj.error ?? ''}`;
+  return CJ_STEPS[cj.step] ?? 'Starting…';
+}
+
+/** Mixed and mixing DASH, what the mixer is doing, and its controls. */
+function coinjoinPanel(cj: any): HTMLElement {
+  const has = Number(cj.total) > 0;
+  const pause = async (paused: boolean) => { try { await wallet.coinjoinPause(paused); await refresh(); void renderAsset(); } catch (e) { toast(errMsg(e)); } };
+  return h('div', { class: 'panel', id: 'coinjoin-panel' },
+    has
+      ? h('p', { class: 'small', id: 'cj-balance' }, `CoinJoin: ${shortAmount(cj.mixed)} DASH mixed, ${shortAmount(cj.mixing)} DASH still mixing (${cj.progress}% of ${cj.rounds} rounds).`)
+      : h('p', { class: 'small', id: 'cj-intro' }, 'CoinJoin mixes your DASH with other people\'s through Dash masternodes, so which coins are yours can\'t be told apart on the chain. Mixing runs while the wallet is open and can take hours.'),
+    has && h('p', { class: 'small muted', id: 'cj-step' }, coinjoinStatusText(cj)),
+    h('br'),
+    h('div', { class: 'btn-row' },
+      h('button', { class: 'secondary', id: 'cj-mix', onclick: () => renderDashMix() }, has ? 'Mix more DASH' : 'Mix DASH'),
+      has && (cj.running
+        ? h('button', { class: 'ghost', id: 'cj-pause', onclick: () => void pause(true) }, 'Pause mixing')
+        : h('button', { class: 'ghost', id: 'cj-resume', onclick: () => void pause(false) }, 'Resume mixing'))));
+}
+
+/** How much regular DASH to split into CoinJoin's sizes, then a review. */
+function renderDashMix(): void {
+  const amount = numbersOnly(h('input', { id: 'cj-amount', class: 'amount-input', inputmode: 'decimal', autocomplete: 'off', placeholder: '0.00' }) as HTMLInputElement);
+  const box = errorBox();
+  const next = h('button', { class: 'primary', id: 'cj-next', type: 'submit' }, 'Next');
+  const form = h('form', { onsubmit: (e: Event) => {
+    e.preventDefault();
+    busy(next, 'Calculating the fee…', box, async () => renderDashMixReview(await wallet.prepareDashMix(amount.value)));
+  } },
+  box.el,
+  h('p', { class: 'small muted' }, 'The amount is split into coins of 10, 1, 0.1, 0.01 and 0.001 DASH, the sizes everyone mixes in, plus a few tiny collateral coins. What doesn\'t fit a size stays in your regular balance.'),
+  h('br'),
+  h('div', { class: 'panel' }, h('label', { class: 'label', for: 'cj-amount' }, 'Amount to mix'),
+    h('div', { class: 'input-wrap' }, amount, h('span', { class: 'unit' }, 'DASH'),
+      h('button', { type: 'button', class: 'max', id: 'cj-max', onclick: () => { amount.value = 'max'; } }, 'Max'))),
+  h('br'),
+  next);
+  show('send', subBar('Mix DASH', () => void renderAsset()), h('div', { class: 'scroll' }, form));
+  amount.focus();
+}
+
+function renderDashMixReview(p: any): void {
+  const pw = h('input', { type: 'password', id: 'confirm-pw', autocomplete: 'current-password' });
+  const box = errorBox();
+  const go = h('button', { class: 'primary', id: 'confirm-send', type: 'submit' }, `Mix ${p.amount} DASH`);
+  const back = () => { void wallet.cancelSend(p.id); renderDashMix(); };
+  const form = h('form', { onsubmit: (e: Event) => {
+    e.preventDefault();
+    busy(go, 'Sending…', box, async () => {
+      await wallet.confirmSend(p.id, pw.value);
+      pw.value = '';
+      toast('Sent. Mixing starts once the coins are in a block.');
+      void refresh();
+      void renderAsset();
+    });
+  } },
+  box.el,
+  ...p.warnings.map((w: string) => h('div', { class: 'warn' }, w)),
+  h('div', { class: 'panel' }, h('table', { class: 'review-table' }, h('tbody', {},
+    h('tr', {}, h('th', {}, 'Amount'), h('td', {}, h('div', { class: 'big-amount', id: 'review-amount' }, `${p.amount} DASH → CoinJoin`))),
+    h('tr', {}, h('th', {}, 'Coins'), h('td', { id: 'review-coins' }, String(p.coins))),
     h('tr', {}, h('th', {}, 'Fee'), h('td', { id: 'review-fee' }, reviewFee(p.fee, p.feeAsset)))))),
   h('label', { class: 'field' }, h('span', {}, 'Password'), pw),
   go);
@@ -1009,6 +1085,8 @@ function renderSend(keep?: { to: string; amount: string }): void {
   const usd = h('div', { class: 'usd', id: 'usd-preview' });
   const box = errorBox();
   const next = h('button', { class: 'primary', id: 'review', type: 'submit' }, 'Next');
+  const mixed = asset === 'DASH' ? Number(overview?.coinjoin?.mixed ?? 0) : 0;
+  const fromMixed = mixed > 0 ? h('input', { type: 'checkbox', id: 'cj-from-mixed' }) as HTMLInputElement : null;
   const update = () => {
     next.disabled = !to.value.trim() || !amount.value.trim();
     const p = prices?.[asset]?.usd;
@@ -1021,7 +1099,9 @@ function renderSend(keep?: { to: string; amount: string }): void {
   const form = h('form', { onsubmit: (e: Event) => {
     e.preventDefault();
     busy(next, asset === 'XMR' ? 'Creating the transaction…' : 'Calculating the fee…', box, async () => {
-      const preview = await wallet.prepareSend(asset, to.value, amount.value);
+      const preview = asset === 'DASH' && fromMixed?.checked
+        ? await wallet.prepareDashPrivate(to.value, amount.value)
+        : await wallet.prepareSend(asset, to.value, amount.value);
       renderReview(preview, { to: to.value, amount: amount.value });
     });
   } },
@@ -1037,6 +1117,7 @@ function renderSend(keep?: { to: string; amount: string }): void {
     h('div', { class: 'input-wrap' }, amount, h('span', { class: 'unit' }, unitOf(asset)),
       h('button', { type: 'button', class: 'max', id: 'max', onclick: () => { amount.value = 'max'; update(); } }, 'Max'))),
   usd,
+  fromMixed && h('label', { class: 'check', id: 'cj-from-mixed-row' }, fromMixed, h('span', {}, `Send from mixed coins (CoinJoin, ${shortAmount(overview.coinjoin.mixed)} DASH)`)),
   feeLine(asset, 'send-fee', (f) => `Estimated fee: ${feeText(f)}. It depends on the amount and address, and the next screen shows the exact value.`),
   COIN[asset].note && h('p', { class: 'small muted' }, COIN[asset].note),
   h('br'),
@@ -1352,8 +1433,6 @@ async function renderReceive(current?: string): Promise<void> {
     : asset === 'LINK' ? 'Receives LINK on Ethereum (ERC-20) only. Sending needs ETH at this address for the fee.'
     : asset === 'UNI' || asset === 'PEPE' || asset === 'AAVE' || asset === 'SHIB' ? `Receives ${asset} on Ethereum (ERC-20) only. Sending needs ETH at this address for the fee.`
     : asset === 'SHIBB' || asset === 'LINKB' || asset === 'UNIB' || asset === 'AAVEB' ? `Receives ${unitOf(asset)} on BNB Smart Chain (BEP-20) only. Sending needs BNB at this address for the fee.`
-    : asset === 'LINKP' || asset === 'UNIP' || asset === 'AAVEP' ? `Receives ${unitOf(asset)} on Polygon only. Sending needs POL at this address for the fee.`
-    : asset === 'LINKA' || asset === 'UNIA' ? `Receives ${unitOf(asset)} on Arbitrum One only. Sending needs ETH (Arb) at this address for the fee.`
     : asset === 'ETHP' ? 'Receives ETH on Polygon only (bridged ETH). ETH sent on Ethereum or Arbitrum won\'t show here. Sending needs POL at this address for the fee.'
     : asset === 'ADA' ? 'A Cardano base address (addr1…), the same as in Yoroi, Eternl and Lace for this seed. Receives ADA on Cardano mainnet only.'
     : asset === 'NEAR' ? 'Receives NEAR on the NEAR network only. This 64-character account becomes active when the first NEAR arrives. NEAR sent as a token on Ethereum or BNB Chain won\'t arrive.'

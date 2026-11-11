@@ -21,9 +21,9 @@ export function mirror(p: Partial<Record<Asset, Row | undefined>>): void {
   // USDC is one coin on every chain.
   if (p.USDCE) for (const a of ['USDCB', 'USDCS', 'USDCP', 'USDCA'] as const) p[a] = p.USDCE;
   // The same tokens on other chains, pegged one to one.
-  if (p.LINK) for (const a of ['LINKB', 'LINKP', 'LINKA'] as const) p[a] = p.LINK;
-  if (p.UNI) for (const a of ['UNIB', 'UNIP', 'UNIA'] as const) p[a] = p.UNI;
-  if (p.AAVE) for (const a of ['AAVEB', 'AAVEP'] as const) p[a] = p.AAVE;
+  if (p.LINK) for (const a of ['LINKB'] as const) p[a] = p.LINK;
+  if (p.UNI) for (const a of ['UNIB'] as const) p[a] = p.UNI;
+  if (p.AAVE) for (const a of ['AAVEB'] as const) p[a] = p.AAVE;
   if (p.SHIB) p.SHIBB = p.SHIB;
 }
 

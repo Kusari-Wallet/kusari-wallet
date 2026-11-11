@@ -11,6 +11,7 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.PersistableBundle;
+import android.util.Base64;
 import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
@@ -40,6 +41,12 @@ public class MainActivity extends Activity {
             "https://mempool.space/", "https://litecoinspace.org/", "https://www.mintscan.io/secret/", "https://nearblocks.io/", "https://bscscan.com/", "https://blockchair.com/", "https://changenow.io/embeds/exchange-widget/", "https://etherscan.io/", "https://polygonscan.com/", "https://arbiscan.io/", "https://insight.dash.org/", "https://solscan.io/", "https://dogechain.info/", "https://explorer.firo.org/", "https://tronscan.org/", "https://nile.tronscan.org/", "https://xmrchain.net/", "https://stagenet.xmrchain.net/");
 
     private final LocalProxy proxy = new LocalProxy(ORIGIN);
+    private volatile int torSocksPort = 0;
+    private final TcpBridge tcp = new TcpBridge(new TcpBridge.Listener() {
+        @Override public void onOpen(int id) { toPage("window.__tcp&&window.__tcp(" + id + ",'o','')"); }
+        @Override public void onData(int id, byte[] data, int length) { toPage("window.__tcp&&window.__tcp(" + id + ",'d','" + Base64.encodeToString(data, 0, length, Base64.NO_WRAP) + "')"); }
+        @Override public void onClose(int id, String error) { toPage("window.__tcp&&window.__tcp(" + id + ",'c'," + JSONObject.quote(error) + ")"); }
+    });
     private static final int CAMERA_REQUEST = 41;
     private int cameraRequestId = -1;
     private WebView web;
@@ -164,6 +171,7 @@ public class MainActivity extends Activity {
         arrr.stop();
         mweb.stop();
         spark.stop();
+        tcp.closeAll();
         super.onDestroy();
     }
 
@@ -313,6 +321,8 @@ public class MainActivity extends Activity {
             try {
                 int port = tor.prepare();
                 proxy.setSocksPort(port);
+                tcp.setSocksPort(port);
+                torSocksPort = port;
                 return port;
             } catch (IOException e) {
                 return 0;
@@ -322,7 +332,17 @@ public class MainActivity extends Activity {
         @JavascriptInterface public void torNewRoute() { proxy.newRoutes(); }
         @JavascriptInterface public void torStart() { tor.start(); }
         @JavascriptInterface public void torStop() { tor.stop(); }
-        @JavascriptInterface public void torDirect() { tor.stop(); proxy.setSocksPort(0); }
+        @JavascriptInterface public void torDirect() { tor.stop(); proxy.setSocksPort(0); tcp.setSocksPort(0); torSocksPort = 0; }
+
+        /** Dash peer-to-peer sockets. With requireTor, refused unless Tor's SOCKS port is set: never a direct fallback. */
+        @JavascriptInterface public boolean tcpOpen(int id, String host, int port, boolean requireTor) {
+            if (requireTor && torSocksPort == 0) return false;
+            return tcp.open(id, host, port);
+        }
+        @JavascriptInterface public boolean tcpWrite(int id, String data) {
+            try { return tcp.write(id, Base64.decode(data, Base64.NO_WRAP)); } catch (IllegalArgumentException e) { return false; }
+        }
+        @JavascriptInterface public void tcpClose(int id) { tcp.close(id, ""); }
 
         @JavascriptInterface public boolean bioAvailable() { return biometric.available(); }
         @JavascriptInterface public boolean bioEnabled(String wallet) { return biometric.enabled(wallet); }

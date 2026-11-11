@@ -149,6 +149,12 @@ export abstract class InsightWallet<S extends string> {
     throw new Error(`Not enough ${this.cfg.symbol} to cover the amount and fee.`);
   }
 
+  /** Where change goes next: the first unused change address. Read after a refresh. */
+  changeTarget(): { address: string; index: number } {
+    const i = this.state?.nextChange ?? 0;
+    return { address: this.addressAt(1, i), index: i };
+  }
+
   /** Every coin with at least one confirmation, freshly read. */
   async confirmedUtxos(): Promise<InsightUtxo[]> {
     await this.refresh(true);

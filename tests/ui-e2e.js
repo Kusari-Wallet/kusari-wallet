@@ -158,7 +158,7 @@ const PASSWORD = 'correct horse battery';
   const scrolled = await page.evaluate(() => document.querySelector('.scroll').scrollTop);
   await page.click('#fold-ARB'); await page.click('#fold-ARB');
   assert.equal(await page.evaluate(() => document.querySelector('.scroll').scrollTop), scrolled, 'folding keeps the list where it was');
-  assert.deepEqual(await page.locator('.asset').evaluateAll((els) => els.map((e) => e.id)), ['asset-XMR', 'asset-BTC', 'asset-ETH', 'asset-USDTE', 'asset-USDCE', 'asset-LINK', 'asset-WLD', 'asset-UNI', 'asset-PEPE', 'asset-AAVE', 'asset-SHIB', 'asset-ZEC', 'asset-SOL', 'asset-USDTS', 'asset-USDCS', 'asset-JUP', 'asset-RAY', 'asset-ORCA', 'asset-PUMP', 'asset-TRX', 'asset-USDT', 'asset-HYPE', 'asset-BNB', 'asset-USDTB', 'asset-USDCB', 'asset-ASTER', 'asset-CAKE', 'asset-SHIBB', 'asset-LINKB', 'asset-UNIB', 'asset-AAVEB', 'asset-POL', 'asset-ETHP', 'asset-USDTP', 'asset-USDCP', 'asset-LINKP', 'asset-UNIP', 'asset-AAVEP', 'asset-ARB', 'asset-ETHA', 'asset-USDTA', 'asset-USDCA', 'asset-LINKA', 'asset-UNIA', 'asset-BCH', 'asset-LTC', 'asset-ADA', 'asset-NEAR', 'asset-SCRT', 'asset-DOGE', 'asset-DASH', 'asset-FIRO', 'asset-ZANO', 'asset-ARRR']);
+  assert.deepEqual(await page.locator('.asset').evaluateAll((els) => els.map((e) => e.id)), ['asset-XMR', 'asset-BTC', 'asset-ETH', 'asset-USDTE', 'asset-USDCE', 'asset-LINK', 'asset-WLD', 'asset-UNI', 'asset-PEPE', 'asset-AAVE', 'asset-SHIB', 'asset-ZEC', 'asset-SOL', 'asset-USDTS', 'asset-USDCS', 'asset-JUP', 'asset-RAY', 'asset-ORCA', 'asset-PUMP', 'asset-TRX', 'asset-USDT', 'asset-HYPE', 'asset-BNB', 'asset-USDTB', 'asset-USDCB', 'asset-ASTER', 'asset-CAKE', 'asset-SHIBB', 'asset-LINKB', 'asset-UNIB', 'asset-AAVEB', 'asset-POL', 'asset-ETHP', 'asset-USDTP', 'asset-USDCP', 'asset-ARB', 'asset-ETHA', 'asset-USDTA', 'asset-USDCA', 'asset-BCH', 'asset-LTC', 'asset-ADA', 'asset-NEAR', 'asset-SCRT', 'asset-DOGE', 'asset-DASH', 'asset-FIRO', 'asset-ZANO', 'asset-ARRR']);
   await page.locator('#asset-HYPE', { hasText: '2.5' }).waitFor({ timeout: 30000 }); // HYPE on HyperEVM, above BNB
   assert.match(await page.locator('#asset-USDTA').innerText(), /USDT \(Arb\)/);
   assert.match(await page.locator('#asset-ETHA').innerText(), /ETH \(Arb\)/);
@@ -573,6 +573,38 @@ const PASSWORD = 'correct horse battery';
   await page.click('#send-again');
   await page.click('#back');
   console.log('ok Dash: address, checks, signed send');
+
+  // Dash CoinJoin: regular DASH split into the standard sizes on the CoinJoin account, after a review.
+  state.dashUtxos = [{ address: dashAddress, txid: 'ce'.repeat(32), vout: 0, satoshis: 50000000, confirmations: 5 }];
+  await page.click('#nav-home');
+  await page.click('#asset-DASH');
+  await page.locator('#coinjoin-panel #cj-intro').waitFor({ timeout: 20000 });
+  await page.click('#cj-mix');
+  await page.fill('#cj-amount', '0.3');
+  await page.click('#cj-next');
+  await page.locator('#confirm-send').waitFor({ timeout: 20000 });
+  assert.equal(await page.locator('#review-amount').innerText(), '0.29900299 DASH → CoinJoin');
+  assert.equal(await page.locator('#review-coins').innerText(), '23', '20 coins of three sizes and 3 collateral coins');
+  await shot('coinjoin-review');
+  await page.fill('#confirm-pw', PASSWORD);
+  await page.click('#confirm-send');
+  await page.locator('#coinjoin-panel').waitFor({ timeout: 20000 });
+  assert.equal(state.dashRaw.length, 2);
+  {
+    const btcSigner = require('@scure/btc-signer');
+    const NET = { bech32: 'dash', pubKeyHash: 0x4c, scriptHash: 0x10, wif: 0xcc };
+    const tx = btcSigner.Transaction.fromRaw(Buffer.from(state.dashRaw[1], 'hex'), { allowLegacyWitnessUtxo: true });
+    const outs = Array.from({ length: tx.outputsLength }, (_, i) => tx.getOutput(i)).map((o) => ({ value: o.amount, address: btcSigner.Address(NET).encode(btcSigner.OutScript.decode(o.script)) }));
+    const sizes = outs.map((o) => o.value).filter((v) => [10000100n, 1000010n, 100001n, 40000n].includes(v));
+    assert.equal(sizes.length, 23);
+    assert.equal(sizes.filter((v) => v === 10000100n).length, 2);
+    assert.equal(sizes.filter((v) => v === 40000n).length, 3);
+    assert.equal(new Set(outs.map((o) => o.address)).size, outs.length, 'every output on its own address');
+    assert.equal(outs.length, 24, 'and change back to the regular balance');
+  }
+  state.dashUtxos = [];
+  await page.click('#back');
+  console.log('ok Dash CoinJoin: split into standard sizes on the CoinJoin account');
 
   // Zcash, shielded: the engine here is a stand-in, the screens and their checks are real.
   const zecOther = 'u1' + 'p'.repeat(150);

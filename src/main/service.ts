@@ -36,7 +36,10 @@ import { DogeClient, DogeDraft, dogeAccountXpub, isDogeAddress, typicalDogeFee }
 import { ADA_API, ADA_EXPLORER_TX, AdaClient, AdaDraft, adaAddress, isAdaAddress } from './ada';
 import { BchClient, bchAccountXpub, isBchAddress, normalBchAddress, typicalBchFee } from './bch';
 import { SOL_FEE, SPL_TOKENS, SolClient, SolDraft, SolUsdtDraft, SplAsset, isSolAddress, solAddress } from './sol';
-import { DashClient, DashDraft, dashAccountXpub, isDashAddress, typicalDashFee } from './dash';
+import { DASH_DUST, DashClient, DashDraft, dashAccountXpub, dashFee, isDashAddress, signDashOutputs, typicalDashFee } from './dash';
+import { DashMixer, MIX_ROUNDS, SplitPlan } from './dash-mix';
+import { tcpDial } from './dash-net';
+import type { InsightUtxo } from './insight';
 import { ARBITRUM, BSC, HYPEREVM, EvmChain, EthAsset, EthClient, EthDraft, POLYGON, chainOf, deriveEthAccount, isEthAddress } from './eth';
 import { TorManager } from './tor';
 import { BUILTIN_SWAP_KEYS, CCECASH_BASE, CHANGENOW_BASE, CceCashClient, ChangeNowClient, ETZSWAP_BASE, EtzSwapClient, GHOSTSWAP_BASE, GhostSwapClient, NOT_SWAPPABLE, PRIVACY_ASSETS, PrivacySwap, SIMPLESWAP_BASE, SWAP_BASE, SWAP_DEAD, SWAP_DONE, SimpleSwapClient, SwapClient, SwapProvider, SwapProviderId, SwapRecord } from './swap';
@@ -70,17 +73,17 @@ function within<T, F>(ms: number, work: Promise<T>, late: F): Promise<T | F> {
 }
 /** Which Tor route each balance lookup uses. */
 /** Coins and tokens on an EVM chain. They share one address. */
-const EVM: Asset[] = ['ETH', 'USDTE', 'LINK', 'WLD', 'POL', 'USDTP', 'ARB', 'ETHA', 'USDTA', 'ETHP', 'UNI', 'PEPE', 'AAVE', 'BNB', 'USDTB', 'ASTER', 'CAKE', 'USDCE', 'USDCB', 'USDCP', 'USDCA', 'HYPE', 'SHIB', 'SHIBB', 'LINKB', 'UNIB', 'AAVEB', 'LINKP', 'UNIP', 'AAVEP', 'LINKA', 'UNIA'];
+const EVM: Asset[] = ['ETH', 'USDTE', 'LINK', 'WLD', 'POL', 'USDTP', 'ARB', 'ETHA', 'USDTA', 'ETHP', 'UNI', 'PEPE', 'AAVE', 'BNB', 'USDTB', 'ASTER', 'CAKE', 'USDCE', 'USDCB', 'USDCP', 'USDCA', 'HYPE', 'SHIB', 'SHIBB', 'LINKB', 'UNIB', 'AAVEB'];
 /** Solana tokens. */
 const SPL: Asset[] = ['USDTS', 'USDCS', 'JUP', 'RAY', 'ORCA', 'PUMP'];
 const isSpl = (a: Asset): a is SplAsset => SPL.includes(a);
-const EXTRA_ASSETS: Asset[] = ['ETHP', 'UNI', 'PEPE', 'AAVE', 'BNB', 'USDTB', 'ASTER', 'CAKE', 'JUP', 'RAY', 'USDCE', 'USDCB', 'USDCS', 'USDCP', 'USDCA', 'HYPE', 'SHIB', 'SHIBB', 'LINKB', 'UNIB', 'AAVEB', 'LINKP', 'UNIP', 'AAVEP', 'LINKA', 'UNIA', 'ORCA', 'PUMP'];
+const EXTRA_ASSETS: Asset[] = ['ETHP', 'UNI', 'PEPE', 'AAVE', 'BNB', 'USDTB', 'ASTER', 'CAKE', 'JUP', 'RAY', 'USDCE', 'USDCB', 'USDCS', 'USDCP', 'USDCA', 'HYPE', 'SHIB', 'SHIBB', 'LINKB', 'UNIB', 'AAVEB', 'ORCA', 'PUMP'];
 const isEvm = (a: Asset): a is Asset & EthAsset => EVM.includes(a);
 const EVM_EXPLORER: Record<string, string> = { '1': ETH_EXPLORER_TX, '137': POL_EXPLORER_TX, '42161': ARB_EXPLORER_TX, '56': BSC_EXPLORER_TX, '999': HYPE_EXPLORER_TX };
 
-const ASSET_LABEL: Partial<Record<Asset, string>> = { SHIBB: 'SHIB (BNB)', LINKB: 'LINK (BNB)', UNIB: 'UNI (BNB)', AAVEB: 'AAVE (BNB)', LINKP: 'LINK (Pol)', UNIP: 'UNI (Pol)', AAVEP: 'AAVE (Pol)', LINKA: 'LINK (Arb)', UNIA: 'UNI (Arb)', USDTE: 'USDT (Eth)', USDT: 'USDT (Tron)', USDTS: 'USDT (Sol)', USDTP: 'USDT (Pol)', USDTA: 'USDT (Arb)', ETHA: 'ETH (Arb)', ETHP: 'ETH (Pol)', USDTB: 'USDT (BNB)', USDCE: 'USDC (Eth)', USDCB: 'USDC (BNB)', USDCS: 'USDC (Sol)', USDCP: 'USDC (Pol)', USDCA: 'USDC (Arb)' };
+const ASSET_LABEL: Partial<Record<Asset, string>> = { SHIBB: 'SHIB (BNB)', LINKB: 'LINK (BNB)', UNIB: 'UNI (BNB)', AAVEB: 'AAVE (BNB)', USDTE: 'USDT (Eth)', USDT: 'USDT (Tron)', USDTS: 'USDT (Sol)', USDTP: 'USDT (Pol)', USDTA: 'USDT (Arb)', ETHA: 'ETH (Arb)', ETHP: 'ETH (Pol)', USDTB: 'USDT (BNB)', USDCE: 'USDC (Eth)', USDCB: 'USDC (BNB)', USDCS: 'USDC (Sol)', USDCP: 'USDC (Pol)', USDCA: 'USDC (Arb)' };
 
-const LOOKUP_ROUTE: Record<string, string> = { ADA: 'ada', SHIB: 'eth', SHIBB: 'bsc', LINKB: 'bsc', UNIB: 'bsc', AAVEB: 'bsc', LINKP: 'pol', UNIP: 'pol', AAVEP: 'pol', LINKA: 'arb', UNIA: 'arb', ORCA: 'sol', PUMP: 'sol', NEAR: 'near', BTC: 'btc', ETH: 'eth', USDTE: 'eth', LINK: 'eth', WLD: 'eth', TRX: 'tron', USDT: 'tron', DASH: 'dash', FIRO: 'firo', SOL: 'sol', USDTS: 'sol', POL: 'pol', USDTP: 'pol', ARB: 'arb', ETHA: 'arb', USDTA: 'arb', BCH: 'bch', LTC: 'ltc', DOGE: 'doge', SCRT: 'scrt', ETHP: 'pol', UNI: 'eth', PEPE: 'eth', AAVE: 'eth', BNB: 'bsc', USDTB: 'bsc', ASTER: 'bsc', CAKE: 'bsc', JUP: 'sol', RAY: 'sol', USDCE: 'eth', USDCB: 'bsc', USDCS: 'sol', USDCP: 'pol', USDCA: 'arb', HYPE: 'hype' };
+const LOOKUP_ROUTE: Record<string, string> = { ADA: 'ada', SHIB: 'eth', SHIBB: 'bsc', LINKB: 'bsc', UNIB: 'bsc', AAVEB: 'bsc', ORCA: 'sol', PUMP: 'sol', NEAR: 'near', BTC: 'btc', ETH: 'eth', USDTE: 'eth', LINK: 'eth', WLD: 'eth', TRX: 'tron', USDT: 'tron', DASH: 'dash', FIRO: 'firo', SOL: 'sol', USDTS: 'sol', POL: 'pol', USDTP: 'pol', ARB: 'arb', ETHA: 'arb', USDTA: 'arb', BCH: 'bch', LTC: 'ltc', DOGE: 'doge', SCRT: 'scrt', ETHP: 'pol', UNI: 'eth', PEPE: 'eth', AAVE: 'eth', BNB: 'bsc', USDTB: 'bsc', ASTER: 'bsc', CAKE: 'bsc', JUP: 'sol', RAY: 'sol', USDCE: 'eth', USDCB: 'bsc', USDCS: 'sol', USDCP: 'pol', USDCA: 'arb', HYPE: 'hype' };
 
 /** Waits longer each time, up to five minutes, so a server that's down isn't asked over and over. */
 export function lookupRetryDelay(fails: number): number {
@@ -108,6 +111,8 @@ interface Preview {
   near?: NearDraft;
   eth?: EthDraft;
   dash?: DashDraft;
+  dashMix?: { plan: SplitPlan; inputs: InsightUtxo[]; change: { address: string; index: number; value: bigint } | null; fee: bigint };
+  dashPrivate?: Awaited<ReturnType<DashMixer['draftPrivate']>>;
   firo?: FiroDraft;
   doge?: DogeDraft;
   ada?: AdaDraft;
@@ -177,6 +182,7 @@ export class WalletService extends EventEmitter {
   private torActive = false;
   get torOn(): boolean { return this.torActive; }
   private dash: DashClient | null = null;
+  private mixer: DashMixer | null = null;
   private firo: FiroClient | null = null;
   private doge: DogeClient | null = null;
   private ada: AdaClient | null = null;
@@ -207,7 +213,7 @@ export class WalletService extends EventEmitter {
   settings: Settings = { ...DEFAULT_SETTINGS };
 
   constructor(private readonly baseDir: string, private readonly kdf?: { N: number; r: number; p: number }, private readonly dev: {
-    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; bchApi?: string; ltcApi?: string; scrtLcd?: string; nearRpc?: string; nearHistory?: string; polRpc?: string; polScout?: string; polUsdt?: string; arbRpc?: string; arbScout?: string; arbUsdt?: string; bscRpc?: string; bscScout?: string; hypeRpc?: string; kindexBase?: string; uniswapKey?: string; uniswapBase?: string; wcProjectId?: string; dashApi?: string; firoApi?: string; solRpc?: string; dogeApi?: string; adaApi?: string; zecBin?: string; hlApi?: string; asterApi?: string; asterBapi?: string; zecServers?: string[]; zanoBin?: string; zanoNode?: string; arrrBin?: string; arrrServers?: string[]; mwebBin?: string; mwebConnect?: string; sparkBin?: string; sparkServer?: string; sparkConnect?: string; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; etzSwapBase?: string; cceCashBase?: string; changeNowBase?: string; quoteDeadlineMs?: number; btcApi?: string;
+    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; bchApi?: string; ltcApi?: string; scrtLcd?: string; nearRpc?: string; nearHistory?: string; polRpc?: string; polScout?: string; polUsdt?: string; arbRpc?: string; arbScout?: string; arbUsdt?: string; bscRpc?: string; bscScout?: string; hypeRpc?: string; kindexBase?: string; uniswapKey?: string; uniswapBase?: string; wcProjectId?: string; dashApi?: string; dashSeeds?: string[]; dashConnect?: string; firoApi?: string; solRpc?: string; dogeApi?: string; adaApi?: string; zecBin?: string; hlApi?: string; asterApi?: string; asterBapi?: string; zecServers?: string[]; zanoBin?: string; zanoNode?: string; arrrBin?: string; arrrServers?: string[]; mwebBin?: string; mwebConnect?: string; sparkBin?: string; sparkServer?: string; sparkConnect?: string; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; etzSwapBase?: string; cceCashBase?: string; changeNowBase?: string; quoteDeadlineMs?: number; btcApi?: string;
     /** Android: every outside address goes through the app's local forwarder. */
     route?: (url: string) => string;
     moneroStore?: (net: NetworkId, walletId: string) => MoneroOptions['store'];
@@ -430,6 +436,7 @@ export class WalletService extends EventEmitter {
     this.bch = new BchClient(bchAccountXpub(secrets.tronMnemonic), this.dev.bchApi ? [this.dev.bchApi] : BCH_APIS, this.torRoute('bch'), slow ? 60_000 : 20_000);
     this.sol = new SolClient(solAddress(secrets.tronMnemonic), this.dev.solRpc ? [this.dev.solRpc] : SOL_RPCS, this.torRoute('sol'), slow ? 60_000 : 20_000);
     this.dash = new DashClient(dashAccountXpub(secrets.tronMnemonic), this.dev.dashApi ? [this.dev.dashApi] : DASH_APIS, this.torRoute('dash'), slow ? 60_000 : 20_000);
+    this.startMixer(secrets, slow);
     this.eth = new EthClient(this.dev.ethRpc ? [this.dev.ethRpc] : ETH_RPCS, this.dev.ethScout ?? ETH_SCOUT, ETH_USDT, deriveEthAccount(secrets.tronMnemonic).address, this.torRoute('eth'), slow ? 60_000 : 15_000);
     const evmAddress = deriveEthAccount(secrets.tronMnemonic).address;
     this.pol = new EthClient(this.dev.polRpc ? [this.dev.polRpc] : POL_RPCS, this.dev.polScout ?? POL_SCOUT, this.dev.polUsdt ?? '', evmAddress, this.torRoute('pol'), slow ? 60_000 : 15_000, POLYGON);
@@ -463,6 +470,27 @@ export class WalletService extends EventEmitter {
     await this.startArrr(secrets);
     await this.startMweb(secrets);
     await this.startSpark(secrets);
+  }
+
+  /**
+   * Dash CoinJoin: mixing runs by itself while the wallet is unlocked, for wallets that have split coins into it.
+   * With Tor on, the masternode connections go through Tor too, never directly.
+   */
+  private startMixer(secrets: Secrets, slow: boolean): void {
+    const devConnect = this.dev.dashConnect?.match(/^(.+):(\d+)$/);
+    const real = tcpDial(this.torProxy);
+    const dial = devConnect ? (_h: string, _p: number) => real(devConnect[1], Number(devConnect[2])) : real;
+    const mixer = new DashMixer({
+      apis: this.dev.dashApi ? [this.dev.dashApi] : DASH_APIS, agent: this.torRoute('dash-mix'), timeoutMs: slow ? 60_000 : 20_000,
+      dir: this.dir, dial, seeds: this.dev.dashSeeds,
+    }, DashMixer.account(secrets.tronMnemonic));
+    this.mixer = mixer;
+    void (async () => {
+      if (!(await mixer.used().catch(() => false)) || (await mixer.paused())) return;
+      // Wait for Tor before the first connection; the mixer itself retries on failure.
+      for (let i = 0; i < 120 && this.torNotReady && this.mixer === mixer; i++) await new Promise((r) => setTimeout(r, 5_000));
+      if (this.mixer === mixer) mixer.start();
+    })();
   }
 
   /** Firo Spark: the engine syncs the anonymity sets itself. Without it, FIRO is transparent only. */
@@ -605,6 +633,8 @@ export class WalletService extends EventEmitter {
     this.perpBrackets.clear();
     this.perpPreviews.clear();
     this.dash = null;
+    this.mixer?.stop();
+    this.mixer = null;
     this.firo = null;
     this.doge = null;
     this.ada = null;
@@ -784,7 +814,12 @@ export class WalletService extends EventEmitter {
       }),
       settle('DOGE', async () => { const b = await this.doge!.getBalance(); return [b.total, b.spendable]; }, 8),
       settle('ADA', async () => { const b = await this.ada!.getBalance(); return [b.total, b.spendable]; }, 6),
-      settle('DASH', async () => { const b = await dash.getBalance(); return [b.total, b.spendable]; }, 8),
+      settle('DASH', async () => {
+        const b = await dash.getBalance();
+        // CoinJoin coins count toward the balance; they're spent through a private send, not a regular one.
+        await this.mixer?.refreshIfStale().catch(() => undefined);
+        return [b.total + (this.mixer?.balance().total ?? 0n), b.spendable];
+      }, 8),
       // FIRO is the public coins plus the private (Spark) ones, once Spark has synced.
       settle('FIRO', async () => { const b = await firo.getBalance(); const p = this.spark?.balance(); return [b.total + (p?.total ?? 0n), b.spendable + (p?.spendable ?? 0n)]; }, 8),
       settle('SCRT', async () => { const b = await this.scrt!.getBalance(); return [b, b]; }, 6),
@@ -799,6 +834,7 @@ export class WalletService extends EventEmitter {
       tor: this.torActive ? this.tor.state : null,
       balances: { XMR, BTC, ETH, TRX, USDTE, USDT, SOL, USDTS, LINK, WLD, POL, USDTP, ARB, ETHA, USDTA, BCH, LTC, DOGE, ADA, DASH, FIRO, SCRT, NEAR, SSCRT, ...Object.fromEntries(EXTRA_ASSETS.map((a, i) => [a, EXTRA[i]])), ...(zec ? { ZEC: zecView() } : {}), ...(zano ? { ZANO: zanoView() } : {}), ...(arrr ? { ARRR: arrrView() } : {}) },
       sscrt: { needsKey: this.sscrtNeedsKey },
+      coinjoin: this.mixer ? { ...this.mixer.status, rounds: MIX_ROUNDS } : null,
       spark: this.spark ? { ...this.spark.info(), balance: this.spark.balance() ? { total: formatAmount(this.spark.balance()!.total, 8), spendable: formatAmount(this.spark.balance()!.spendable, 8) } : null } : null,
       mweb: this.mweb ? { ...this.mweb.info(), balance: this.mweb.balance() ? { total: formatAmount(this.mweb.balance()!.total, 8), spendable: formatAmount(this.mweb.balance()!.spendable, 8) } : null } : null,
       arrr: arrr ? { scanning: arrr.isScanning, percent: arrr.percent } : null,
@@ -2160,6 +2196,21 @@ export class WalletService extends EventEmitter {
     if (preview.bch) return { hashes: [await this.bch!.send(preview.bch, secrets.tronMnemonic)] };
     if (preview.firo) return { hashes: [await this.firo!.send(preview.firo, secrets.tronMnemonic)] };
     if (preview.dash) return { hashes: [await dash.send(preview.dash, secrets.tronMnemonic)] };
+    if (preview.dashMix) {
+      const m = preview.dashMix;
+      if (!this.mixer) throw new Error('CoinJoin is not available.');
+      const { hex, id: txid } = signDashOutputs(m.inputs, m.plan.outputs, m.change, m.fee, secrets.tronMnemonic);
+      await this.mixer.commitSplit(m.plan);
+      // Not handed back on failure: a send that timed out may still have gone through.
+      await dash.broadcastSigned(hex, txid);
+      // Mixing starts once these coins confirm; the mixer waits for that itself.
+      if (this.mixer && !(await this.mixer.paused())) this.mixer.start();
+      return { hashes: [txid] };
+    }
+    if (preview.dashPrivate) {
+      if (!this.mixer) throw new Error('CoinJoin is not available.');
+      return { hashes: [await this.mixer.sendPrivate(preview.dashPrivate)] };
+    }
     if (preview.near) return { hashes: [await this.near!.send(preview.near, secrets.tronMnemonic)] };
     if (preview.scrt) return { hashes: [await this.scrt!.send(preview.scrt, secrets.tronMnemonic)] };
     if (preview.ltc) return { hashes: [await this.ltc!.send(preview.ltc, secrets.tronMnemonic)] };
@@ -2247,6 +2298,84 @@ export class WalletService extends EventEmitter {
       id: preview.id, asset: 'LTC' as Asset, to: draft.to, amount: formatAmount(draft.amount, 8), fee: formatAmount(draft.fee, 8), feeAsset: 'LTC', feeIsEstimate: false,
       warnings: ['How much you make private is visible on the chain. Where it goes from the private balance is not.'],
     };
+  }
+
+  /**
+   * Splits regular DASH into CoinJoin's standard sizes, on the CoinJoin account, plus a few small collateral
+   * coins. Confirmed with confirmSend; mixing then runs by itself while the wallet is unlocked.
+   */
+  async prepareDashMix(amountInput: string) {
+    const { dash } = this.session();
+    if (this.torNotReady) throw new Error('Tor is connecting. Try again once it connects.');
+    if (!this.mixer) throw new Error('CoinJoin is not available.');
+    const coins = (await dash.confirmedUtxos()).sort((a, b) => (b.value > a.value ? 1 : b.value < a.value ? -1 : 0));
+    const have = coins.reduce((s, c) => s + c.value, 0n);
+    if (!coins.length) throw new Error('No DASH available to mix. Deposits can be used after 1 confirmation.');
+    const isMax = amountInput.trim().toLowerCase() === 'max';
+    // What a split of `want` costs in all: its sizes, collateral, and the fee for every coin it spends.
+    const build = async (want: bigint) => {
+      const plan = await this.mixer!.planSplit(want);
+      const outs = plan.outputs.reduce((s, o) => s + o.value, 0n);
+      const inputs: InsightUtxo[] = [];
+      let sum = 0n;
+      for (const c of coins) {
+        inputs.push(c);
+        sum += c.value;
+        const withChange = dashFee(inputs.length, plan.outputs.length + 1);
+        if (sum >= outs + withChange + DASH_DUST) return { plan, inputs, fee: withChange, change: sum - outs - withChange };
+        const noChange = dashFee(inputs.length, plan.outputs.length);
+        if (sum >= outs + noChange) return { plan, inputs, fee: sum - outs, change: 0n };
+      }
+      return null;
+    };
+    let draft = null;
+    if (isMax) {
+      // Every coin, less the fee and collateral, rounded down to the sizes; the rest stays as change.
+      let want = have;
+      for (let i = 0; i < 6 && !draft; i++) {
+        const fee = dashFee(coins.length, DashMixer.split(want).length + 4);
+        want = have - fee - 3n * 40_000n;
+        if (want <= 0n) break;
+        draft = await build(want);
+        if (!draft) want -= 100_001n;
+      }
+    } else {
+      draft = await build(parseAmount(amountInput, 8));
+    }
+    if (!draft) throw new Error('Not enough DASH for that amount, collateral and fee.');
+    const change = draft.change > 0n ? { ...dash.changeTarget(), value: draft.change } : null;
+    const preview = this.storePreview({ asset: 'DASH', to: 'CoinJoin', amount: draft.plan.mixable, fee: draft.fee, dashMix: { plan: draft.plan, inputs: draft.inputs, change, fee: draft.fee } });
+    const collateral = draft.plan.outputs.reduce((s, o) => s + o.value, 0n) - draft.plan.mixable;
+    return {
+      id: preview.id, asset: 'DASH' as Asset, to: 'CoinJoin', amount: formatAmount(draft.plan.mixable, 8), fee: formatAmount(draft.fee, 8), feeAsset: 'DASH', feeIsEstimate: false,
+      coins: draft.plan.outputs.length, collateral: formatAmount(collateral, 8),
+      warnings: [
+        `Splits into ${draft.plan.outputs.length} coins of CoinJoin's standard sizes${collateral > 0n ? `, ${formatAmount(collateral, 8)} DASH of it small collateral coins` : ''}. Mixing then takes ${MIX_ROUNDS} rounds with masternodes while the wallet is open, which can take hours.`,
+        'This split is visible on the chain. After mixing, which coin is which is not.',
+      ],
+    };
+  }
+
+  /** A payment from fully mixed DASH: no change, and the fixed sizes may overpay the fee a little. */
+  async prepareDashPrivate(to: string, amountInput: string) {
+    this.session();
+    if (this.torNotReady) throw new Error('Tor is connecting. Try again once it connects.');
+    if (!this.mixer) throw new Error('CoinJoin is not available.');
+    const address = to.trim();
+    if (!isDashAddress(address)) throw new Error('Not a Dash address. Only addresses starting with X can be used.');
+    const isMax = amountInput.trim().toLowerCase() === 'max';
+    const draft = await this.mixer.draftPrivate(address, isMax ? 'max' : parseAmount(amountInput, 8));
+    const preview = this.storePreview({ asset: 'DASH', to: address, amount: draft.amount, fee: draft.fee, dashPrivate: draft });
+    return {
+      id: preview.id, asset: 'DASH' as Asset, to: address, amount: formatAmount(draft.amount, 8), fee: formatAmount(draft.fee, 8), feeAsset: 'DASH', feeIsEstimate: false,
+      warnings: ['Paid from mixed coins only, with no change. Mixed coins come in fixed sizes, so a small rest goes to the fee.'],
+    };
+  }
+
+  async coinjoinPause(paused: boolean): Promise<void> {
+    this.session();
+    if (!this.mixer) throw new Error('CoinJoin is not available.');
+    await this.mixer.setPaused(paused);
   }
 
   /** Moves every confirmed public FIRO coin into the private (Spark) balance. Confirmed with confirmSend. */
@@ -2342,7 +2471,7 @@ export class WalletService extends EventEmitter {
     this.activate(next.active);
     const targets = id === 'main'
       // The app's shared files live next to this wallet's, so only its own are removed.
-      ? [path.join(dir, 'xmr'), ...['swaps.json', 'privacy-swaps.json', 'tornado.json', 'zec-state.json', 'mode.json', 'walletconnect.json', 'spark-servers.json'].map((f) => path.join(dir, f))]
+      ? [path.join(dir, 'xmr'), ...['swaps.json', 'privacy-swaps.json', 'tornado.json', 'zec-state.json', 'mode.json', 'walletconnect.json', 'spark-servers.json', 'coinjoin.json'].map((f) => path.join(dir, f))]
       : [dir];
     const stuck: string[] = [];
     for (const t of targets) {
