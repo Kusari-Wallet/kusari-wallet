@@ -110,3 +110,24 @@ export function requestForm(url: string, opts: { method: 'GET' | 'POST' | 'DELET
     req.end(payload);
   });
 }
+
+/** Raw bytes up, text back, for a transaction broadcast that takes binary (Cardano's CBOR). Rejects on an error status. */
+export function requestBytes(url: string, opts: { body: Uint8Array; contentType: string; agent?: Agent; timeoutMs?: number }): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const lib = url.startsWith('https:') ? https : http;
+    const data = Buffer.from(opts.body);
+    const req = lib.request(url, { method: 'POST', headers: { 'Content-Type': opts.contentType, 'Content-Length': String(data.length), 'User-Agent': 'KusariWallet' }, agent: opts.agent }, (res) => {
+      const chunks: Buffer[] = [];
+      res.on('data', (c: Buffer) => chunks.push(c));
+      res.on('end', () => {
+        const text = Buffer.concat(chunks).toString('utf8');
+        if ((res.statusCode ?? 500) >= 400) reject(new Error(text.slice(0, 300) || `Server error (${res.statusCode})`));
+        else resolve(text);
+      });
+      res.on('error', reject);
+    });
+    req.setTimeout(opts.timeoutMs ?? 30_000, () => req.destroy(new Error('Timed out')));
+    req.on('error', reject);
+    req.end(data);
+  });
+}

@@ -102,10 +102,31 @@ function mockNode() {
   const state = { broadcast: [], balance: 50_000_000, usdt: 10_000_000n, energyUsed: 64285, recipientExists: true, tamper: null };
   const server = http.createServer((req, res) => {
     let body = '';
-    req.on('data', (c) => { body += c; });
+    const rawChunks = [];
+    req.on('data', (c) => { body += c; rawChunks.push(Buffer.from(c)); });
     req.on('end', () => {
       if (req.url.startsWith('/hl/')) return hlMock(state, req, body, res);
       if (req.url.startsWith('/aster/')) return asterMock(state, req, body, res);
+      if (req.url.startsWith('/ada/')) {
+        // Koios, enough for a balance and one payment; the payment is checked with Cardano's own library.
+        const p = req.url.replace(/^\/ada/, '').split('?')[0];
+        const out = (o) => { res.setHeader('content-type', 'application/json'); res.end(JSON.stringify(o)); };
+        if (p === '/address_utxos') return out([{ tx_hash: 'ab'.repeat(32), tx_index: 0, value: '12500000', asset_list: [] }, { tx_hash: 'cd'.repeat(32), tx_index: 1, value: '1500000', asset_list: [{ policy_id: '00', quantity: '1' }] }]);
+        if (p === '/tip') return out([{ abs_slot: 150000000 }]);
+        if (p === '/epoch_params') return out([{ min_fee_a: 44, min_fee_b: 155381, coins_per_utxo_size: '4310', max_tx_size: 16384 }]);
+        if (p === '/address_txs') return out([]);
+        if (p === '/submittx') {
+          const C = require('@emurgo/cardano-serialization-lib-nodejs');
+          const raw = Buffer.concat(rawChunks);
+          const tx = C.FixedTransaction.from_bytes(raw);
+          const hash = tx.transaction_hash();
+          const w = C.Transaction.from_bytes(raw).witness_set().vkeys().get(0);
+          if (!w.vkey().public_key().verify(hash.to_bytes(), w.signature())) { res.statusCode = 400; return res.end('bad signature'); }
+          (state.ada = state.ada ?? []).push(C.Transaction.from_bytes(raw).to_json());
+          return out(hash.to_hex());
+        }
+        res.statusCode = 404; return res.end('{}');
+      }
       // Exchange spot books for the Kusari index: BTC near 60,000 everywhere but Bybit, which is down.
       if (req.url.startsWith('/kx/')) {
         const name = req.url.split('/')[2];

@@ -50,3 +50,10 @@ export async function requestForm(url: string, opts: { method: 'GET' | 'POST' | 
   try { body = JSON.parse(text); } catch { /* not JSON */ }
   return { status: res.status, body };
 }
+
+export async function requestBytes(url: string, opts: { body: Uint8Array; contentType: string; timeoutMs?: number }): Promise<string> {
+  const res = await fetch(route(url), { method: 'POST', headers: { 'Content-Type': opts.contentType }, body: opts.body, signal: AbortSignal.timeout(Math.max(opts.timeoutMs ?? 30_000, 45_000)) });
+  const text = await res.text();
+  if (!res.ok) throw new Error(text.slice(0, 300) || `Server error (${res.status})`);
+  return text;
+}
