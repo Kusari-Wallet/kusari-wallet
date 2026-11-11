@@ -1000,6 +1000,39 @@ const PASSWORD = 'correct horse battery';
   await shot('tor-explorer-copied');
   await page.click('#tab-assets');
 
+  // Bitcoin coin control: freeze one coin, label another, spend exactly the chosen coin.
+  {
+    const { BtcClient: Btc, btcAccountXpub } = require('../dist/main/btc');
+    const mineBtc = new Btc(btcAccountXpub(MNEMONIC), []).addressAt(0, 0);
+    const A = 'ab'.repeat(32), C = 'cd'.repeat(32);
+    state.btcCoins = { [mineBtc]: [{ txid: A, vout: 0, value: 500000, status: { confirmed: true } }, { txid: C, vout: 2, value: 300000, status: { confirmed: true } }] };
+    await page.click('#asset-BTC');
+    await page.click('#detail-send');
+    await page.click('#coin-control');
+    await page.locator('.coin-row').nth(1).waitFor({ timeout: 30000 });
+    assert.match(await page.locator('.coin-row').first().innerText(), /0\.005 BTC/, 'largest first');
+    await page.locator('.coin-row').first().locator('.coin-freeze').click();
+    await page.locator('.coin-row.frozen').waitFor({ timeout: 15000 });
+    await page.locator('.coin-row').nth(1).locator('.coin-label').fill('from the exchange');
+    await page.locator('.coin-row').nth(1).locator('.coin-label').press('Tab');
+    await page.locator(`.coin-pick[data-coin="${C}:2"]`).check();
+    await page.locator('#coin-summary', { hasText: 'Chosen: 1, 0.003 BTC' }).waitFor();
+    await shot('btc-coin-control');
+    await page.fill('#to', 'bc1qnjg0jd8228aq7egyzacy8cys3knf9xvrerkf9g');
+    await page.click('#max');
+    await page.click('#review');
+    await page.locator('#review-amount').waitFor({ timeout: 30000 });
+    assert.match(await page.locator('#review-amount').innerText(), /0\.0029/, 'max is all of the chosen coin, less the fee');
+    const notes = JSON.parse(fs.readFileSync(fs.readdirSync(data, { recursive: true }).map((f) => path.join(data, f)).find((f) => f.endsWith('btc-coins.json')), 'utf8'));
+    assert.deepEqual(notes, { labels: { [`${C}:2`]: 'from the exchange' }, frozen: [`${A}:0`] });
+    await page.click('#back');
+    await page.click('#back');
+    await page.locator('#asset-TRX').waitFor();
+    await page.click('#asset-TRX');
+    await page.click('#back');
+    console.log('ok Bitcoin coin control: freeze, label, spend only the chosen coin');
+  }
+
   // Kill switch
   const before = connectionsToNode.length;
   await socks.close();

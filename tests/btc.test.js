@@ -278,3 +278,57 @@ test('your own server: https, .onion or your own network only; local ones are re
   assert.ok(isLocalServer('http://10.0.0.2:3000') && isLocalServer('http://[::1]:3000') && isLocalServer('http://172.20.1.1'));
   assert.ok(!isLocalServer('https://mempool.space/api') && !isLocalServer('http://172.40.1.1'));
 });
+
+test('coin control: chosen coins are all spent, frozen ones are left out, waiting or gone ones refused', async (t) => {
+  const c0 = new BtcClient(xpub, []);
+  const addr0 = c0.addressAt(0, 0);
+  const A = 'ab'.repeat(32), B = 'cd'.repeat(32), W = 'ef'.repeat(32);
+  const server = http.createServer((q, r) => {
+    const send = (o) => r.end(typeof o === 'string' ? o : JSON.stringify(o));
+    if (q.url === '/v1/fees/recommended') return send({ halfHourFee: 5 });
+    if (q.url === `/address/${addr0}`) return send({ chain_stats: { tx_count: 2, funded_txo_sum: 800000, spent_txo_sum: 0 }, mempool_stats: { tx_count: 1, funded_txo_sum: 10000, spent_txo_sum: 0 } });
+    if (q.url === `/address/${addr0}/utxo`) return send([{ txid: A, vout: 0, value: 500000, status: { confirmed: true } }, { txid: B, vout: 3, value: 300000, status: { confirmed: true } }, { txid: W, vout: 0, value: 10000, status: { confirmed: false } }]);
+    if (q.url.endsWith('/utxo') || q.url.endsWith('/txs')) return send([]);
+    if (q.url.startsWith('/address/')) return send({ chain_stats: {}, mempool_stats: {} });
+    r.statusCode = 404; send('nope');
+  });
+  await new Promise((res) => server.listen(0, '127.0.0.1', res));
+  t.after(() => { server.close(); server.closeAllConnections(); });
+  const client = new BtcClient(xpub, [`http://127.0.0.1:${server.address().port}`]);
+  const to = 'bc1qnjg0jd8228aq7egyzacy8cys3knf9xvrerkf9g';
+  assert.equal((await client.coins()).length, 3);
+  const auto = await client.draft(to, 100000n);
+  assert.deepEqual(auto.inputs.map((u) => u.txid), [A], 'left alone, the largest coin pays');
+  const frozen = await client.draft(to, 100000n, { frozen: new Set([`${A}:0`]) });
+  assert.deepEqual(frozen.inputs.map((u) => u.txid), [B], 'a frozen coin is not picked');
+  const both = await client.draft(to, 100000n, { use: [`${A}:0`, `${B}:3`] });
+  assert.deepEqual(both.inputs.map((u) => u.txid).sort(), [A, B].sort(), 'every chosen coin goes in');
+  assert.equal(both.change, 800000n - 100000n - both.fee);
+  assert.equal(both.fee, estimateVbytes(2, 2) * 5n);
+  const max = await client.draft(to, 'max', { use: [`${B}:3`], frozen: new Set([`${B}:3`]) });
+  assert.equal(max.amount + max.fee, 300000n, 'max with chosen coins is all of them; choosing a frozen coin spends it');
+  await assert.rejects(client.draft(to, 400000n, { use: [`${B}:3`] }), /don't cover/);
+  await assert.rejects(client.draft(to, 1000n, { use: [`${W}:0`] }), /waiting/);
+  await assert.rejects(client.draft(to, 1000n, { use: [`${'00'.repeat(32)}:0`] }), /no longer/);
+  await assert.rejects(client.draft(to, 'max', { frozen: new Set([`${A}:0`, `${B}:3`]) }), /No BTC available/);
+});
+
+test('coin labels and freezing are kept per wallet and checked', async (t) => {
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const { WalletService } = require('../dist/main/service');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kw-coins-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const s = new WalletService(dir, { N: 2 ** 10, r: 8, p: 1 });
+  s.session = () => ({});
+  s.dir = dir;
+  const id = `${'ab'.repeat(32)}:1`;
+  await s.btcCoinSet(id, { label: '  from the exchange\n ', frozen: true });
+  let notes = JSON.parse(fs.readFileSync(path.join(dir, 'btc-coins.json'), 'utf8'));
+  assert.deepEqual(notes, { labels: { [id]: 'from the exchange' }, frozen: [id] });
+  await s.btcCoinSet(id, { frozen: true });
+  await s.btcCoinSet(id, { label: '', frozen: false });
+  notes = JSON.parse(fs.readFileSync(path.join(dir, 'btc-coins.json'), 'utf8'));
+  assert.deepEqual(notes, { labels: {}, frozen: [] });
+  await assert.rejects(s.btcCoinSet('../x', { label: 'a' }), /Not a coin/);
+});

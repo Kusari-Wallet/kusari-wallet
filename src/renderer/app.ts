@@ -1057,6 +1057,7 @@ function renderSend(keep?: { to: string; amount: string }): void {
   const next = h('button', { class: 'primary', id: 'review', type: 'submit' }, 'Next');
   const mixed = asset === 'DASH' ? Number(overview?.coinjoin?.mixed ?? 0) : 0;
   const fromMixed = mixed > 0 ? h('input', { type: 'checkbox', id: 'cj-from-mixed' }) as HTMLInputElement : null;
+  const coins = asset === 'BTC' ? coinControl() : null;
   const update = () => {
     next.disabled = !to.value.trim() || !amount.value.trim();
     const p = prices?.[asset]?.usd;
@@ -1071,7 +1072,7 @@ function renderSend(keep?: { to: string; amount: string }): void {
     busy(next, asset === 'XMR' ? 'Creating the transaction…' : 'Calculating the fee…', box, async () => {
       const preview = asset === 'DASH' && fromMixed?.checked
         ? await wallet.prepareDashPrivate(to.value, amount.value)
-        : await wallet.prepareSend(asset, to.value, amount.value);
+        : await wallet.prepareSend(asset, to.value, amount.value, coins?.chosen.size ? { coins: [...coins.chosen] } : undefined);
       renderReview(preview, { to: to.value, amount: amount.value });
     });
   } },
@@ -1087,6 +1088,7 @@ function renderSend(keep?: { to: string; amount: string }): void {
     h('div', { class: 'input-wrap' }, amount, h('span', { class: 'unit' }, unitOf(asset)),
       h('button', { type: 'button', class: 'max', id: 'max', onclick: () => { amount.value = 'max'; update(); } }, 'Max'))),
   usd,
+  coins?.el,
   fromMixed && h('label', { class: 'check', id: 'cj-from-mixed-row' }, fromMixed, h('span', {}, `Send from mixed coins (CoinJoin, ${shortAmount(overview.coinjoin.mixed)} DASH)`)),
   feeLine(asset, 'send-fee', (f) => `Estimated fee: ${feeText(f)}. It depends on the amount and address, and the next screen shows the exact value.`),
   COIN[asset].note && h('p', { class: 'small muted' }, COIN[asset].note),
@@ -1095,6 +1097,53 @@ function renderSend(keep?: { to: string; amount: string }): void {
   show('send', subBar('Send', renderHome), h('div', { class: 'scroll' }, picker(() => renderSend({ to: to.value, amount: '' })), form));
   onData = update;
   update();
+}
+
+// ---- Bitcoin coin control ----
+
+/** Choosing which Bitcoin coins pay, with your labels, and freezing coins so they're never picked on their own. */
+function coinControl(): { el: HTMLElement; chosen: Set<string> } {
+  const chosen = new Set<string>();
+  const list = h('div', { id: 'coin-list', hidden: true });
+  const summary = h('div', { class: 'small muted', id: 'coin-summary' }, 'The wallet picks the coins.');
+  const box = errorBox();
+  const sats = (a: string) => Math.round(Number(a) * 1e8);
+  let all: { id: string; amount: string; frozen: boolean }[] = [];
+  const sum = () => {
+    const total = all.filter((c) => chosen.has(c.id)).reduce((s, c) => s + sats(c.amount), 0);
+    summary.textContent = chosen.size ? `Chosen: ${chosen.size}, ${shortAmount(String(total / 1e8))} BTC. Only these are spent, all of them, and what's left comes back as change.` : 'The wallet picks the coins. Frozen coins are left out.';
+  };
+  const load = async () => {
+    list.replaceChildren(h('div', { class: 'small muted' }, 'Loading coins…'));
+    try {
+      const coinsNow: any[] = await wallet.btcCoins();
+      all = coinsNow;
+      for (const id of [...chosen]) if (!coinsNow.some((c) => c.id === id)) chosen.delete(id);
+      if (!coinsNow.length) { list.replaceChildren(h('div', { class: 'small muted' }, 'No coins yet.')); sum(); return; }
+      list.replaceChildren(...coinsNow.map((c) => {
+        const pick = h('input', { type: 'checkbox', class: 'coin-pick', 'data-coin': c.id, checked: chosen.has(c.id), disabled: !c.confirmed, 'aria-label': `Spend ${c.amount} BTC` }) as HTMLInputElement;
+        pick.addEventListener('change', () => { if (pick.checked) chosen.add(c.id); else chosen.delete(c.id); sum(); });
+        const label = h('input', { class: 'coin-label', value: c.label, placeholder: 'Label (only on this device)', maxlength: '80', spellcheck: 'false', 'aria-label': 'Label' }) as HTMLInputElement;
+        label.addEventListener('change', () => void wallet.btcCoinSet(c.id, { label: label.value }).catch((e: Error) => box.show(e.message)));
+        const freeze = h('button', { type: 'button', class: 'link coin-freeze', 'aria-pressed': String(c.frozen) }, c.frozen ? 'Unfreeze' : 'Freeze');
+        freeze.addEventListener('click', () => void wallet.btcCoinSet(c.id, { frozen: !c.frozen }).then(load).catch((e: Error) => box.show(e.message)));
+        const tags = [c.confirmed ? '' : 'Waiting for confirmation', c.change ? 'Change' : '', c.frozen ? 'Frozen' : ''].filter(Boolean).flatMap((t) => [' · ', h('span', {}, t)]);
+        return h('div', { class: 'coin-row' + (c.frozen ? ' frozen' : '') },
+          h('label', { class: 'check' }, pick, h('span', { class: 'mono' }, `${c.amount} BTC`)),
+          h('div', { class: 'small muted', title: c.id }, h('span', { class: 'mono' }, `${c.id.slice(0, 8)}…:${c.id.split(':')[1]}`), ...tags),
+          h('div', { class: 'coin-edit' }, label, freeze));
+      }));
+      sum();
+    } catch (e) { list.replaceChildren(); box.show((e as Error).message); }
+  };
+  const toggle = h('button', { type: 'button', class: 'link', id: 'coin-control', 'aria-expanded': 'false', onclick: () => {
+    list.hidden = !list.hidden;
+    toggle.setAttribute('aria-expanded', String(!list.hidden));
+    if (!list.hidden) void load();
+  } }, 'Choose coins');
+  sum();
+  return { chosen, el: h('div', { class: 'panel', id: 'coin-panel' }, h('div', { class: 'row-between' }, h('span', { class: 'label' }, 'Coins'), toggle), summary, box.el, list,
+    h('p', { class: 'small muted' }, 'Spending coins together shows they belong to one person. Keep coins from different sources apart, and freeze ones you don\'t want spent.')) };
 }
 
 // ---- QR scan ----

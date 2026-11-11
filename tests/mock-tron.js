@@ -131,7 +131,11 @@ function mockNode() {
         return send({ jsonrpc: '2.0', id: json.id, error: { message: 'unknown ' + m } });
       }
       if (url.startsWith('/eth/scout/')) return send({ items: [] });
-      if (url.startsWith('/btc/address/')) return send(url.endsWith('/utxo') || url.endsWith('/txs') ? [] : { chain_stats: {}, mempool_stats: {} });
+      if (url.startsWith('/btc/address/')) {
+        const coins = state.btcCoins?.[url.split('/')[3]];
+        if (coins) return send(url.endsWith('/utxo') ? coins : url.endsWith('/txs') ? [] : { chain_stats: { tx_count: coins.length, funded_txo_sum: coins.reduce((s, c) => s + c.value, 0), spent_txo_sum: 0 }, mempool_stats: {} });
+        return send(url.endsWith('/utxo') || url.endsWith('/txs') ? [] : { chain_stats: {}, mempool_stats: {} });
+      }
       if (url === '/btc/v1/fees/recommended') return send({ halfHourFee: 5 });
       if (url === '/simple/v3/estimates') { state.simpleKey = req.headers['x-api-key']; return send({ result: { estimatedAmount: '0.012' } }); }
       if (url === '/simple/v3/exchanges' && req.method === 'POST') return send({ result: { publicId: 'S1', addressFrom: json.networkFrom === 'eth' ? '0x70997970C51812dc3A010C7d01b50e0d17dc79C8' : RECIPIENT, addressTo: json.addressTo, userRefundAddress: json.userRefundAddress, amountFrom: json.amount, amountTo: '0.012', tickerFrom: json.tickerFrom, tickerTo: json.tickerTo, networkFrom: json.networkFrom, networkTo: json.networkTo } });

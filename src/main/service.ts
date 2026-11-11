@@ -13,7 +13,7 @@ import type { Wallet as EvmWallet } from 'ethers';
 import { DexCall, DexId, DexQuote, NATIVE, UNISWAP_CHAINS, UniswapClient, approvalCalls, narrowPermit, pancakeQuote, pancakeSwapCall } from './dex';
 import { NearClient, NearDraft, isNearAccount, nearPublicKey } from './near';
 import { ScrtClient, ScrtDraft, isScrtAddress, scrtPrivacyKeys, scrtPublicKey } from './scrt';
-import { BtcClient, BtcDraft, LITECOIN, btcAccountXpub, estimateVbytes, isBtcAddress, isLtcAddress, ltcAccountXpub } from './btc';
+import { BtcClient, BtcDraft, LITECOIN, btcAccountXpub, coinId, estimateVbytes, isBtcAddress, isLtcAddress, ltcAccountXpub } from './btc';
 import { PRICE_SOURCES, PriceMap, PriceSource, coingecko, mirror } from './prices';
 import { DEPOSIT_GAS, TORNADO_POOLS, TornadoNote, TornadoStore, WITHDRAW_GAS, abi as tornadoAbi, checkRelayerUrl, denomination, noteSecrets, noteText, relayerFee, relayerStatus, relayerSubmit, tornadoEngineCheck } from './tornado';
 import { runTornado } from './tornado-run';
@@ -64,6 +64,8 @@ export function isLocalServer(url: string): boolean {
  * A BTC server of the person's own: an Esplora or mempool API address. Plain http only where nobody in between
  * could read or change it: an .onion address, or the person's own network.
  */
+const COIN_ID = /^[0-9a-f]{64}:\d{1,6}$/;
+
 export function checkOwnServer(raw: string): string {
   const v = raw.trim().replace(/\/+$/, '');
   if (!v) return '';
@@ -1539,7 +1541,46 @@ export class WalletService extends EventEmitter {
 
   // ---- sending ----
 
-  async prepareSend(asset: Asset, to: string, amountInput: string) {
+  private get btcCoinsPath() { return path.join(this.dir, 'btc-coins.json'); }
+
+  /** Your notes on Bitcoin coins and which are frozen, kept on this device only. */
+  private async btcCoinNotes(): Promise<{ labels: Record<string, string>; frozen: string[] }> {
+    try {
+      const j = JSON.parse(await fs.readFile(this.btcCoinsPath, 'utf8') as unknown as string);
+      const labels = j?.labels && typeof j.labels === 'object' ? Object.fromEntries(Object.entries(j.labels).filter(([k, v]) => COIN_ID.test(k) && typeof v === 'string')) as Record<string, string> : {};
+      const frozen = Array.isArray(j?.frozen) ? j.frozen.filter((k: unknown): k is string => typeof k === 'string' && COIN_ID.test(k)) : [];
+      return { labels, frozen };
+    } catch { return { labels: {}, frozen: [] }; }
+  }
+
+  /** Bitcoin coins one by one: amount, whether confirmed, your label, frozen or not. Largest first. */
+  async btcCoins() {
+    const { btc } = this.session();
+    if (this.torNotReady) throw new Error('Tor is connecting. Try again once it connects.');
+    const [coins, notes] = await Promise.all([btc.coins(), this.btcCoinNotes()]);
+    const frozen = new Set(notes.frozen);
+    return coins.sort((a, b) => (b.value > a.value ? 1 : b.value < a.value ? -1 : 0)).map((u) => ({
+      id: coinId(u), amount: formatAmount(u.value, 8), address: u.address, change: u.chain === 1, confirmed: u.confirmed,
+      label: notes.labels[coinId(u)] ?? '', frozen: frozen.has(coinId(u)),
+    }));
+  }
+
+  /** Sets a coin's label and whether it's frozen. */
+  async btcCoinSet(id: string, change: { label?: string; frozen?: boolean }) {
+    this.session();
+    if (typeof id !== 'string' || !COIN_ID.test(id)) throw new Error('Not a coin.');
+    const notes = await this.btcCoinNotes();
+    if (typeof change.label === 'string') {
+      const label = change.label.replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 80);
+      if (label) notes.labels[id] = label; else delete notes.labels[id];
+    }
+    if (typeof change.frozen === 'boolean') notes.frozen = change.frozen ? [...new Set([...notes.frozen, id])] : notes.frozen.filter((k) => k !== id);
+    await fs.mkdir(this.dir, { recursive: true });
+    await fs.writeFile(this.btcCoinsPath, JSON.stringify(notes), { mode: 0o600 });
+    return { ok: true };
+  }
+
+  async prepareSend(asset: Asset, to: string, amountInput: string, opts: { coins?: string[] } = {}) {
     const { tron, monero, btc, eth, dash } = this.session();
     if (this.torNotReady) throw new Error('Tor is connecting. Try again once it connects.');
     const address = to.trim();
@@ -1651,7 +1692,8 @@ export class WalletService extends EventEmitter {
       }
     } else if (asset === 'BTC') {
       if (!isBtcAddress(address)) throw new Error('Not a Bitcoin address.');
-      const draft = await btc.draft(address, isMax ? 'max' : parseAmount(amountInput, decimals));
+      const use = Array.isArray(opts.coins) ? opts.coins.filter((c) => typeof c === 'string' && COIN_ID.test(c)) : [];
+      const draft = await btc.draft(address, isMax ? 'max' : parseAmount(amountInput, decimals), { use, frozen: new Set((await this.btcCoinNotes()).frozen) });
       if (draft.fee * 2n > draft.amount) warnings.push('The fee is more than half of the amount being sent.');
       preview = this.storePreview({ asset, to: address, amount: draft.amount, fee: draft.fee, btc: draft });
     } else if (isEvm(asset)) {

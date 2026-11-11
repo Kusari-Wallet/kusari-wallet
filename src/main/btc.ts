@@ -75,6 +75,25 @@ export function selectCoins(utxos: BtcUtxo[], amount: bigint | 'max', feeRate: b
   throw new Error(`Not enough ${symbol} to cover the amount and fee.`);
 }
 
+export const coinId = (u: { txid: string; vout: number }): string => `${u.txid}:${u.vout}`;
+
+/** All of these coins go in; what's left over comes back as change, or goes to the fee when it would be dust. */
+export function spendExactly(inputs: BtcUtxo[], amount: bigint | 'max', feeRate: bigint, coin: UtxoCoin = BITCOIN): { inputs: BtcUtxo[]; amount: bigint; fee: bigint; change: bigint } {
+  const { symbol, dust } = coin;
+  const size = (o: number) => estimateVbytes(inputs.length, o, coin.inputVb, coin.outputVb);
+  const total = inputs.reduce((s, u) => s + u.value, 0n);
+  if (amount === 'max') {
+    const fee = size(1) * feeRate;
+    if (total - fee < dust) throw new Error(`The chosen coins leave no ${symbol} to send after the fee.`);
+    return { inputs, amount: total - fee, fee, change: 0n };
+  }
+  if (amount < dust) throw new Error(`The minimum to send is ${formatAmount(dust, 8)} ${symbol}.`);
+  const withChange = size(2) * feeRate;
+  if (total >= amount + withChange + dust) return { inputs, amount, fee: withChange, change: total - amount - withChange };
+  if (total >= amount + size(1) * feeRate) return { inputs, amount, fee: total - amount, change: 0n };
+  throw new Error(`The chosen coins don't cover the amount and fee. Choose more coins or send less.`);
+}
+
 export class BtcClient {
   private readonly account: any;
   private state: { at: number; utxos: BtcUtxo[]; total: bigint; spendable: bigint; nextReceive: number; nextChange: number; used: Set<string>; addresses: Map<string, [number, number]> } | null = null;
@@ -208,11 +227,29 @@ export class BtcClient {
     return this.state!.utxos.filter((u) => u.confirmed);
   }
 
-  async draft(to: string, amount: bigint | 'max'): Promise<BtcDraft> {
+  /** Every coin, waiting ones too, for choosing what to spend. */
+  async coins(): Promise<BtcUtxo[]> {
+    await this.refresh(true);
+    return [...this.state!.utxos];
+  }
+
+  /**
+   * `use`: spend exactly these coins (txid:vout), all of them, so only the coins chosen are linked together.
+   * `frozen`: coins never spent unless chosen.
+   */
+  async draft(to: string, amount: bigint | 'max', pick: { use?: string[]; frozen?: Set<string> } = {}): Promise<BtcDraft> {
     await this.refresh(true);
     const state = this.state!;
     const rate = await this.feeRate();
-    const picked = selectCoins(state.utxos.filter((u) => u.confirmed), amount, rate, this.coin);
+    let picked: { inputs: BtcUtxo[]; amount: bigint; fee: bigint; change: bigint };
+    if (pick.use?.length) {
+      const chosen = [...new Set(pick.use)].map((id) => state.utxos.find((u) => coinId(u) === id));
+      if (chosen.some((u) => !u)) throw new Error('A chosen coin was spent or is no longer in this wallet. Choose again.');
+      if (chosen.some((u) => !u!.confirmed)) throw new Error('A chosen coin is still waiting for its first confirmation.');
+      picked = spendExactly(chosen as BtcUtxo[], amount, rate, this.coin);
+    } else {
+      picked = selectCoins(state.utxos.filter((u) => u.confirmed && !pick.frozen?.has(coinId(u))), amount, rate, this.coin);
+    }
     return { to, amount: picked.amount, fee: picked.fee, change: picked.change, changeAddress: this.addressAt(1, state.nextChange), changePath: [1, state.nextChange], inputs: picked.inputs };
   }
 
