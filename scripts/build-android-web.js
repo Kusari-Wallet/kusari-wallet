@@ -11,8 +11,8 @@ const android = path.join(root, 'src/android');
 const aliasPlugin = {
   name: 'android-aliases',
   setup(b) {
-    const swap = { './vault': 'vault.ts', './request': 'request.ts', './tor': 'tor.ts', './tornado-run': 'tornado-run.ts', './zec-process': 'zec-process.ts', './zano-process': 'zano-process.ts', './arrr-process': 'arrr-process.ts', './mweb-process': 'mweb-process.ts' };
-    b.onResolve({ filter: /^\.\/(vault|request|tor|tornado-run|zec-process|zano-process|arrr-process|mweb-process)$/ }, (args) => (args.importer.includes(`${path.sep}src${path.sep}main${path.sep}`) ? { path: path.join(android, swap[args.path]) } : undefined));
+    const swap = { './vault': 'vault.ts', './request': 'request.ts', './tor': 'tor.ts', './tornado-run': 'tornado-run.ts', './zec-process': 'zec-process.ts', './zano-process': 'zano-process.ts', './arrr-process': 'arrr-process.ts', './mweb-process': 'mweb-process.ts', './spark-process': 'spark-process.ts' };
+    b.onResolve({ filter: /^\.\/(vault|request|tor|tornado-run|zec-process|zano-process|arrr-process|mweb-process|spark-process)$/ }, (args) => (args.importer.includes(`${path.sep}src${path.sep}main${path.sep}`) ? { path: path.join(android, swap[args.path]) } : undefined));
     // Node-only branches of libraries never run in the WebView. They just need something to import.
     const empty = /^(node:)?(fs|fs\/promises|http|https|net|tls|os|zlib|url|stream|child_process|worker_threads|perf_hooks|crypto|dns|http2)$/;
     b.onResolve({ filter: empty }, (args) => (args.path === 'node:crypto' || args.path === 'node:fs' ? undefined : { path: path.join(android, 'shim-empty.js') }));

@@ -49,6 +49,7 @@ public class MainActivity extends Activity {
     private ZecProcess zano;
     private ZecProcess arrr;
     private ZecProcess mweb;
+    private ZecProcess spark;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -63,6 +64,10 @@ public class MainActivity extends Activity {
         mweb = new ZecProcess(new File(getApplicationInfo().nativeLibraryDir, "libmwebbridge.so"), new File(getFilesDir(), "mweb"), new ZecProcess.Listener() {
             @Override public void onLine(String line) { toPage("window.__mwebLine&&window.__mwebLine(" + JSONObject.quote(line) + ")"); }
             @Override public void onExit() { toPage("window.__mwebExit&&window.__mwebExit()"); }
+        });
+        spark = new ZecProcess(new File(getApplicationInfo().nativeLibraryDir, "libsparkbridge.so"), new File(getFilesDir(), "spark"), new ZecProcess.Listener() {
+            @Override public void onLine(String line) { toPage("window.__sparkLine&&window.__sparkLine(" + JSONObject.quote(line) + ")"); }
+            @Override public void onExit() { toPage("window.__sparkExit&&window.__sparkExit()"); }
         });
         zano = new ZecProcess(new File(getApplicationInfo().nativeLibraryDir, "libzanobridge.so"), new File(getFilesDir(), "zano"), new ZecProcess.Listener() {
             @Override public void onLine(String line) { toPage("window.__zanoLine&&window.__zanoLine(" + JSONObject.quote(line) + ")"); }
@@ -158,6 +163,7 @@ public class MainActivity extends Activity {
         zano.stop();
         arrr.stop();
         mweb.stop();
+        spark.stop();
         super.onDestroy();
     }
 
@@ -273,6 +279,11 @@ public class MainActivity extends Activity {
         @JavascriptInterface public boolean mwebWrite(String line) { return mweb.write(line); }
         @JavascriptInterface public void mwebStop() { mweb.stop(); }
         @JavascriptInterface public String mwebDir() { return new File(getFilesDir(), "mweb").getAbsolutePath(); }
+        @JavascriptInterface public boolean sparkAvailable() { return spark.available(); }
+        @JavascriptInterface public boolean sparkStart() { return spark.start(); }
+        @JavascriptInterface public boolean sparkWrite(String line) { return spark.write(line); }
+        @JavascriptInterface public void sparkStop() { spark.stop(); }
+        @JavascriptInterface public String sparkDir() { return new File(getFilesDir(), "spark").getAbsolutePath(); }
         @JavascriptInterface public boolean arrrAvailable() { return arrr.available(); }
         @JavascriptInterface public boolean arrrStart() { return arrr.start(); }
         @JavascriptInterface public boolean arrrWrite(String line) { return arrr.write(line); }

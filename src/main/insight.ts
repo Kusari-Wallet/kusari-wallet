@@ -132,6 +132,25 @@ export abstract class InsightWallet<S extends string> {
     throw new Error(`Not enough ${this.cfg.symbol} to cover the amount and fee.`);
   }
 
+  /** Every coin with at least one confirmation, freshly read. */
+  async confirmedUtxos(): Promise<InsightUtxo[]> {
+    await this.refresh(true);
+    return [...this.state!.utxos];
+  }
+
+  /** A transaction signed elsewhere, to the first server that takes it. */
+  async broadcastSigned(hex: string, id: string): Promise<void> {
+    let last: unknown;
+    for (const base of this.apis) {
+      try {
+        await this.broadcast(base, hex, id);
+        this.state = null;
+        return;
+      } catch (e) { last = e; }
+    }
+    throw new Error(`Send rejected: ${(last as Error)?.message ?? ''}`);
+  }
+
   async send(draft: InsightDraft, mnemonic: string): Promise<string> {
     const { hex, id } = this.cfg.sign(draft, mnemonic);
     let last: unknown;

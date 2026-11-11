@@ -194,6 +194,7 @@ const bioCall = (fn: (id: number) => void) => new Promise<string>((resolve, reje
   perpsWithdrawPrepare: call((amt: string) => service.perpsWithdrawPrepare(amt)),
   perpsWithdrawConfirm: call((id: string, pw: string) => service.perpsWithdrawConfirm(id, pw)),
   prepareLtcPrivate: call(() => service.prepareLtcPrivate()),
+  prepareFiroPrivate: call(() => service.prepareFiroPrivate()),
   prepareScrtPrivate: call((kind: any, amt: string) => service.prepareScrtPrivate(kind, amt)),
   zecRescan: call((d: string, pw: string) => service.zecRescan(d, pw)),
   walletsList: call(() => service.walletsList()),

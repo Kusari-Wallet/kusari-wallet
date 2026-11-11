@@ -27,6 +27,7 @@ rm -rf "$B/native"; mkdir -p "$B/native/lib"; cp -r android/jniLibs/arm64-v8a an
 if [ -f native-bin/android/libarrrbridge.so ]; then cp native-bin/android/libarrrbridge.so "$B/native/lib/arm64-v8a/"; fi
 if [ -f native-bin/android/libzanobridge.so ]; then cp native-bin/android/libzanobridge.so "$B/native/lib/arm64-v8a/"; fi
 if [ -f native-bin/android/libmwebbridge.so ]; then cp native-bin/android/libmwebbridge.so "$B/native/lib/arm64-v8a/"; fi
+if [ -f native-bin/android/libsparkbridge.so ]; then cp native-bin/android/libsparkbridge.so "$B/native/lib/arm64-v8a/"; fi
 if [ -f native-bin/android/libzecbridge.so ]; then
   cp native-bin/android/libzecbridge.so "$B/native/lib/arm64-v8a/"
   cp native-bin/params/sapling-spend.params "$B/native/lib/arm64-v8a/libzecspend.so"

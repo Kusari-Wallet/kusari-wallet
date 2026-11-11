@@ -7,6 +7,10 @@ const { _electron } = require('playwright');
 const { mockNode, MNEMONIC, RECIPIENT, me } = require('./mock-tron');
 const { TronWeb } = require('tronweb');
 const { mockSocks } = require('./mock-socks');
+const { startSparkMock, mintCoin } = require('./mock-spark');
+const { startSparkEngine } = require('../dist/main/spark-process');
+const { sparkKey } = require('../dist/main/spark');
+const SPARK_ENGINE = path.join(__dirname, '..', 'native-bin', 'spark-linux', 'spark-bridge');
 
 /** Opens a coin menu's token group unless it is already open. */
 async function openFold(page, sel) {
@@ -35,6 +39,15 @@ const PASSWORD = 'correct horse battery';
 
 (async () => {
   const { server, state } = await mockNode();
+  // Firo Spark: the real engine against a stand-in server holding one private coin of ours among others.
+  const spark = fs.existsSync(SPARK_ENGINE) ? await startSparkMock() : null;
+  if (spark) {
+    const e = startSparkEngine(SPARK_ENGINE);
+    const mine = await e.call('address', { key: sparkKey(MNEMONIC), index: 1, diversifier: 0 });
+    const other = await e.call('address', { key: 'cb02b05c71a69080b083484f1cdf407677fac00ced6438df16925e2a29b4eebf', index: 1, diversifier: 0 });
+    for (const [to, v] of [[other, 3e8], [mine, 1.5e8], [other, 2e8], [other, 1e8]]) spark.state.groups[1].push(await mintCoin(e, to, v));
+    e.close();
+  }
   const camVideo = path.join(os.tmpdir(), `vw-cam-${process.pid}.y4m`);
   qrVideo(`tron:${RECIPIENT}?amount=2.5`, camVideo);
   const socks = await mockSocks();
@@ -43,7 +56,7 @@ const PASSWORD = 'correct horse battery';
   const data = fs.mkdtempSync(path.join(os.tmpdir(), 'vw-ui-'));
   const launch = () => _electron.launch({
     args: ['--no-sandbox', '--use-fake-device-for-media-stream', `--use-file-for-fake-video-capture=${camVideo}`, path.join(__dirname, '..')],
-    env: { ...process.env, VAULT_WALLET_DATA: data, VAULT_DEV_TRON_HOST: `http://127.0.0.1:${server.address().port}`, VAULT_DEV_SOCKS: socks.uri, VAULT_DEV_BTC_API: `http://127.0.0.1:${server.address().port}/btc`, VAULT_DEV_TORNADO: JSON.stringify({ 0.1: '0x12D66f87A04A9E220743712cE6d9bB1B5616B8Fc', 1: '0x47CE0C6eD5B0Ce3d3A51fdb1C52DC66a7c3c2936' }), VAULT_DEV_DASH_API: `http://127.0.0.1:${server.address().port}/dash`, VAULT_DEV_SOL_RPC: `http://127.0.0.1:${server.address().port}/sol`, VAULT_DEV_DOGE_API: `http://127.0.0.1:${server.address().port}/doge`, VAULT_DEV_FIRO_API: `http://127.0.0.1:${server.address().port}/dash-firo`, VAULT_DEV_ZEC_BIN: path.join(__dirname, 'fake-zec-engine.js'), VAULT_DEV_ZANO_BIN: path.join(__dirname, 'fake-zano-engine.js'), VAULT_DEV_ARRR_BIN: path.join(__dirname, 'fake-arrr-engine.js'), VAULT_DEV_MWEB_BIN: path.join(__dirname, 'fake-mweb-engine.js'), VAULT_DEV_ETH_RPC: `http://127.0.0.1:${server.address().port}/eth/rpc`, VAULT_DEV_ETH_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_LTC_API: `http://127.0.0.1:${server.address().port}/btc`, VAULT_DEV_BCH_API: `http://127.0.0.1:${server.address().port}/bch`, VAULT_DEV_SCRT_LCD: `http://127.0.0.1:${server.address().port}/scrt,http://localhost:${server.address().port}/scrt`, VAULT_DEV_NEAR_RPC: `http://127.0.0.1:${server.address().port}/near/rpc`, VAULT_DEV_HL_API: `http://127.0.0.1:${server.address().port}/hl`, VAULT_DEV_KINDEX: `http://127.0.0.1:${server.address().port}/kx`, VAULT_DEV_NEAR_HISTORY: `http://127.0.0.1:${server.address().port}/near/history`, VAULT_DEV_POL_RPC: `http://127.0.0.1:${server.address().port}/pol/rpc`, VAULT_DEV_POL_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_ARB_RPC: `http://127.0.0.1:${server.address().port}/arb/rpc`, VAULT_DEV_ARB_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_BSC_RPC: `http://127.0.0.1:${server.address().port}/bsc/rpc`, VAULT_DEV_HYPE_RPC: `http://127.0.0.1:${server.address().port}/hype/rpc`, VAULT_DEV_UNISWAP_BASE: `http://127.0.0.1:${server.address().port}/uniswap`, VAULT_DEV_UNISWAP_KEY: 'test-key', VAULT_DEV_BSC_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_SIMPLESWAP_BASE: `http://127.0.0.1:${server.address().port}/simple`, VAULT_DEV_GHOSTSWAP_BASE: `http://127.0.0.1:${server.address().port}/ghost`, VAULT_DEV_SWAP_BASE: `http://127.0.0.1:${server.address().port}/swap`, VAULT_DEV_PRICE_URL: `http://127.0.0.1:${server.address().port}/simple/price`, NO_PROXY: '*' },
+    env: { ...process.env, VAULT_WALLET_DATA: data, VAULT_DEV_TRON_HOST: `http://127.0.0.1:${server.address().port}`, VAULT_DEV_SOCKS: socks.uri, VAULT_DEV_BTC_API: `http://127.0.0.1:${server.address().port}/btc`, VAULT_DEV_TORNADO: JSON.stringify({ 0.1: '0x12D66f87A04A9E220743712cE6d9bB1B5616B8Fc', 1: '0x47CE0C6eD5B0Ce3d3A51fdb1C52DC66a7c3c2936' }), VAULT_DEV_DASH_API: `http://127.0.0.1:${server.address().port}/dash`, VAULT_DEV_SOL_RPC: `http://127.0.0.1:${server.address().port}/sol`, VAULT_DEV_DOGE_API: `http://127.0.0.1:${server.address().port}/doge`, VAULT_DEV_FIRO_API: `http://127.0.0.1:${server.address().port}/dash-firo`, VAULT_DEV_ZEC_BIN: path.join(__dirname, 'fake-zec-engine.js'), VAULT_DEV_ZANO_BIN: path.join(__dirname, 'fake-zano-engine.js'), VAULT_DEV_ARRR_BIN: path.join(__dirname, 'fake-arrr-engine.js'), VAULT_DEV_MWEB_BIN: path.join(__dirname, 'fake-mweb-engine.js'), ...(spark ? { VAULT_DEV_SPARK_BIN: SPARK_ENGINE, VAULT_DEV_SPARK_SERVER: `127.0.0.1:${spark.port}` } : {}), VAULT_DEV_ETH_RPC: `http://127.0.0.1:${server.address().port}/eth/rpc`, VAULT_DEV_ETH_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_LTC_API: `http://127.0.0.1:${server.address().port}/btc`, VAULT_DEV_BCH_API: `http://127.0.0.1:${server.address().port}/bch`, VAULT_DEV_SCRT_LCD: `http://127.0.0.1:${server.address().port}/scrt,http://localhost:${server.address().port}/scrt`, VAULT_DEV_NEAR_RPC: `http://127.0.0.1:${server.address().port}/near/rpc`, VAULT_DEV_HL_API: `http://127.0.0.1:${server.address().port}/hl`, VAULT_DEV_KINDEX: `http://127.0.0.1:${server.address().port}/kx`, VAULT_DEV_NEAR_HISTORY: `http://127.0.0.1:${server.address().port}/near/history`, VAULT_DEV_POL_RPC: `http://127.0.0.1:${server.address().port}/pol/rpc`, VAULT_DEV_POL_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_ARB_RPC: `http://127.0.0.1:${server.address().port}/arb/rpc`, VAULT_DEV_ARB_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_BSC_RPC: `http://127.0.0.1:${server.address().port}/bsc/rpc`, VAULT_DEV_HYPE_RPC: `http://127.0.0.1:${server.address().port}/hype/rpc`, VAULT_DEV_UNISWAP_BASE: `http://127.0.0.1:${server.address().port}/uniswap`, VAULT_DEV_UNISWAP_KEY: 'test-key', VAULT_DEV_BSC_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_SIMPLESWAP_BASE: `http://127.0.0.1:${server.address().port}/simple`, VAULT_DEV_GHOSTSWAP_BASE: `http://127.0.0.1:${server.address().port}/ghost`, VAULT_DEV_SWAP_BASE: `http://127.0.0.1:${server.address().port}/swap`, VAULT_DEV_PRICE_URL: `http://127.0.0.1:${server.address().port}/simple/price`, NO_PROXY: '*' },
   });
   let app = await launch();
   let page = await app.firstWindow();
@@ -219,6 +232,41 @@ const PASSWORD = 'correct horse battery';
   await page.click('#asset-TRX');
   await page.click('#back');
   console.log('ok Litecoin MWEB: private balance, private address, make private');
+
+  if (spark) {
+    // Firo Spark: the private balance, a private receiving address, and paying a transparent address from it.
+    await page.click('#asset-FIRO');
+    await page.locator('#spark-panel', { hasText: 'Private (Spark): 1.5 FIRO' }).waitFor({ timeout: 60000 });
+    await shot('firo-spark');
+    await page.click('#spark-mint');
+    await page.locator('#toast', { hasText: /public FIRO/ }).waitFor({ timeout: 30000 });
+    await page.click('#detail-receive');
+    await page.locator('#firo-address-kind').waitFor({ timeout: 30000 });
+    await page.click('#firo-address-kind');
+    await page.locator('#my-address', { hasText: /^sm1/ }).waitFor({ timeout: 20000 });
+    assert.match(await page.locator('.screen').innerText(), /private \(Spark\) Firo address/);
+    await page.click('#back');
+    await page.locator('#asset-FIRO').waitFor();
+    await page.click('#asset-FIRO');
+    await page.locator('#detail-send').waitFor();
+    await page.click('#detail-send');
+    await page.fill('#to', 'a8ULhhDgfdSiXJhSZVdhb8EuDc6R3ogsaM');
+    await page.fill('#amount', '0.5');
+    await page.click('#review');
+    await page.locator('#confirm-send').waitFor({ timeout: 60000 });
+    assert.match(await page.locator('.screen').innerText(), /private \(Spark\) balance/);
+    await shot('firo-spark-review');
+    await page.fill('#confirm-pw', PASSWORD);
+    await page.click('#confirm-send');
+    await page.locator('#sent').waitFor({ timeout: 30000 });
+    assert.equal(spark.state.sent.length, 1, 'the spend went to the Spark server');
+    assert.equal(spark.state.sent[0].slice(0, 8), '03000b00');
+    await page.click('#back').catch(() => undefined);
+    await page.locator('#asset-TRX').waitFor();
+    await page.click('#asset-TRX');
+    await page.click('#back');
+    console.log('ok Firo Spark: private balance, private address, private to public send');
+  }
   await page.click('#eye');
   assert.equal(await page.locator('#total').innerText(), '••••');
   await page.click('#eye');

@@ -3,7 +3,8 @@
 # Sources: firoorg/sparkmobile (MIT) as vendored by cypherstack/flutter_libsparkmobile (MIT) at a pinned commit,
 # with its C wrapper, plus nlohmann/json (MIT). Needs g++, autotools, Boost headers, OpenSSL headers (Linux),
 # zig for Windows (pip install ziglang) and the Android NDK (NDK=/path/to/android-ndk-r26c).
-# Usage: scripts/build-spark.sh [linux|windows|android|all]
+# Usage: scripts/build-spark.sh [linux|windows|android|all|verify]
+# "verify" builds a Linux test tool that checks spends as a Firo node does; it is never shipped.
 set -euo pipefail
 here="$(cd "$(dirname "$0")/.." && pwd)"
 work="${SPARK_WORK:-$here/native/spark-bridge/.deps}"
@@ -48,7 +49,14 @@ openssl() {
 
 if [ "$targets" = linux ] || [ "$targets" = all ]; then
   secp "$work/secp-linux" "" gcc
-  g++ -std=c++17 -O2 -s "${INC[@]}" -I"$work/secp-linux/include" "${SRC[@]}" "$work/secp-linux/.libs/libsecp256k1.a" -l:libcrypto.a -lpthread -ldl -o "$out/spark-linux/spark-bridge"
+  g++ -std=c++17 -O2 -s "${INC[@]}" -I"$work/secp-linux/include" "${SRC[@]}" "$work/secp-linux/.libs/libsecp256k1.a" -l:libssl.a -l:libcrypto.a -lpthread -ldl -o "$out/spark-linux/spark-bridge"
+fi
+
+if [ "$targets" = verify ]; then
+  secp "$work/secp-linux" "" gcc
+  VSRC=("${SRC[@]}")
+  unset 'VSRC[${#VSRC[@]}-1]'
+  g++ -std=c++17 -O2 -s "${INC[@]}" -I"$work/secp-linux/include" "${VSRC[@]}" "$here/native/spark-bridge/verify.cpp" "$work/secp-linux/.libs/libsecp256k1.a" -l:libcrypto.a -lpthread -ldl -o "$out/spark-linux/spark-verify"
 fi
 
 if [ "$targets" = windows ] || [ "$targets" = all ]; then
@@ -61,7 +69,7 @@ if [ "$targets" = windows ] || [ "$targets" = all ]; then
   AR_TOOL="$zig/ar" RANLIB_TOOL="$zig/ranlib" openssl "$work/ossl-win" mingw64 "$zig/cc"
   ossl="$work/ossl-win/install"; lib="$ossl/lib"; [ -d "$ossl/lib64" ] && lib="$ossl/lib64"
   secp "$work/secp-win" x86_64-w64-mingw32 "$zig/cc" "$zig/c++" "-I$ossl/include"
-  (cd "$out/spark" && "$zig/c++" -std=c++17 -O2 -s "${INC[@]}" -I"$work/secp-win/include" -I"$ossl/include" -I"$S/deps/missing_headers/windows" "${SRC[@]}" "$work/secp-win/.libs/libsecp256k1.a" "$lib/libcrypto.a" -lws2_32 -lcrypt32 -lbcrypt -luser32 -ladvapi32 -static -o "$out/spark/spark-bridge.exe") && rm -f "$out/spark/"*.lib
+  (cd "$out/spark" && "$zig/c++" -std=c++17 -O2 -s "${INC[@]}" -I"$work/secp-win/include" -I"$ossl/include" -I"$S/deps/missing_headers/windows" "${SRC[@]}" "$work/secp-win/.libs/libsecp256k1.a" "$lib/libssl.a" "$lib/libcrypto.a" -lws2_32 -lcrypt32 -lbcrypt -luser32 -ladvapi32 -static -o "$out/spark/spark-bridge.exe") && rm -f "$out/spark/"*.lib
 fi
 
 if [ "$targets" = android ] || [ "$targets" = all ]; then
@@ -70,7 +78,7 @@ if [ "$targets" = android ] || [ "$targets" = all ]; then
   ossl="$work/ossl-android/install"; lib="$ossl/lib"; [ -d "$ossl/lib64" ] && lib="$ossl/lib64"
   secp "$work/secp-android" aarch64-linux-android "$tc/aarch64-linux-android26-clang" "$tc/aarch64-linux-android26-clang++" "-I$ossl/include"
   # An executable named like a library, so Android unpacks it next to the app's other native code.
-  "$tc/aarch64-linux-android26-clang++" -std=c++17 -O2 -s -fPIE -pie -static-libstdc++ -D_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION -Wno-enum-constexpr-conversion "${INC[@]}" -I"$work/secp-android/include" -I"$ossl/include" "${SRC[@]}" "$work/secp-android/.libs/libsecp256k1.a" "$lib/libcrypto.a" -Wl,-z,max-page-size=16384 -o "$out/android/libsparkbridge.so"
+  "$tc/aarch64-linux-android26-clang++" -std=c++17 -O2 -s -fPIE -pie -static-libstdc++ -D_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION -Wno-enum-constexpr-conversion "${INC[@]}" -I"$work/secp-android/include" -I"$ossl/include" "${SRC[@]}" "$work/secp-android/.libs/libsecp256k1.a" "$lib/libssl.a" "$lib/libcrypto.a" -Wl,-z,max-page-size=16384 -o "$out/android/libsparkbridge.so"
 fi
 
 ls -la "$out/spark-linux" "$out/spark" "$out/android" 2>/dev/null | grep -i spark || true

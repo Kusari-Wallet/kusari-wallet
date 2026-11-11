@@ -30,7 +30,7 @@ const COIN: Record<Asset, { label: string; file: string; note: string }> = {
   SCRT: { label: 'SCRT', file: 'coins/scrt.png', note: 'Plain SCRT on Secret Network. These transfers are public on the chain. Sends carry no memo, so don\'t send to an exchange that asks for one.' },
   NEAR: { label: 'NEAR', file: 'coins/near.png', note: 'NEAR on its own network. The fee is paid in NEAR, and every account keeps a little NEAR for its storage.' },
   DOGE: { label: 'DOGE', file: 'coins/doge.png', note: 'Dogecoin mainnet only. The fee is paid in DOGE.' },
-  FIRO: { label: 'FIRO', file: 'coins/firo.png', note: 'Transparent transactions only. Addresses and amounts are public on the chain.' },
+  FIRO: { label: 'FIRO', file: 'coins/firo.png', note: 'Public FIRO plus a private (Spark) balance, whose amounts and addresses are hidden on the chain.' },
   DASH: { label: 'DASH', file: 'coins/dash.png', note: 'Dash mainnet only. The fee is paid in DASH.' },
   ARRR: { label: 'ARRR', file: 'coins/arrr.png', note: 'Every Pirate Chain transaction is shielded. The fee is paid in ARRR.' },
   ZANO: { label: 'ZANO', file: 'coins/zano.png', note: 'Received coins can be used after 10 confirmations. The fee is a fixed 0.01 ZANO.' },
@@ -751,6 +751,11 @@ async function renderAsset(): Promise<void> {
           ? h('p', { class: 'small' }, `Private (MWEB): ${shortAmount(overview.mweb.balance.total)} LTC. Its amounts and addresses are hidden on the chain.`)
           : h('p', { class: 'small', id: 'mweb-sync' }, overview.mweb.error ? `Private (MWEB) balance: ${overview.mweb.error}` : `Syncing the private (MWEB) balance… ${overview.mweb.percent}%`),
         overview.mweb.ready && h('button', { class: 'secondary', id: 'mweb-pegin', onclick: () => void ltcPrivateStep() }, 'Make public LTC private')),
+      a === 'FIRO' && overview?.spark && h('div', { class: 'panel', id: 'spark-panel' },
+        overview.spark.ready && overview.spark.balance
+          ? h('p', { class: 'small' }, `Private (Spark): ${shortAmount(overview.spark.balance.total)} FIRO. Its amounts and addresses are hidden on the chain.`)
+          : h('p', { class: 'small', id: 'spark-sync' }, overview.spark.error ? `Private (Spark) balance: ${overview.spark.error}` : `Syncing the private (Spark) balance… ${overview.spark.percent}%`),
+        overview.spark.ready && h('button', { class: 'secondary', id: 'spark-mint', onclick: () => void firoPrivateStep() }, 'Make public FIRO private')),
       a === 'SSCRT' && overview?.sscrt?.needsKey && h('div', { class: 'panel', id: 'sscrt-key-panel' },
         h('p', { class: 'small' }, 'The private balance is encrypted on the chain. Turn it on once so this wallet can read it: it sets a viewing key on the sSCRT contract, which costs a small SCRT fee.'), h('br'),
         h('button', { class: 'primary', id: 'sscrt-key', onclick: () => void scrtPrivateStep('key') }, 'Turn on private balance')),
@@ -859,6 +864,36 @@ async function ltcPrivateStep(): Promise<void> {
   ...p.warnings.map((w: string) => h('div', { class: 'warn' }, w)),
   h('div', { class: 'panel' }, h('table', { class: 'review-table' }, h('tbody', {},
     h('tr', {}, h('th', {}, 'Amount'), h('td', {}, h('div', { class: 'big-amount', id: 'review-amount' }, `${p.amount} LTC → MWEB`))),
+    h('tr', {}, h('th', {}, 'Fee'), h('td', { id: 'review-fee' }, reviewFee(p.fee, p.feeAsset)))))),
+  h('label', { class: 'field' }, h('span', {}, 'Password'), pw),
+  go);
+  show('send', subBar('Review', back), h('div', { class: 'scroll' }, form));
+  pw.focus();
+}
+
+/** Every confirmed public FIRO coin into the private (Spark) balance, after a review. */
+async function firoPrivateStep(): Promise<void> {
+  let p: any;
+  try { p = await wallet.prepareFiroPrivate(); } catch (e) { toast(errMsg(e)); return; }
+  const pw = h('input', { type: 'password', id: 'confirm-pw', autocomplete: 'current-password' });
+  const box = errorBox();
+  const go = h('button', { class: 'primary', id: 'confirm-send', type: 'submit' }, `Make ${p.amount} FIRO private`);
+  const back = () => { void wallet.cancelSend(p.id); void renderAsset(); };
+  const form = h('form', { onsubmit: (e: Event) => {
+    e.preventDefault();
+    busy(go, 'Sending…', box, async () => {
+      await wallet.confirmSend(p.id, pw.value);
+      pw.value = '';
+      toast('Sent. Balances update once it\'s in a block.');
+      void refresh();
+      void renderAsset();
+    });
+  } },
+  h('p', { class: 'small muted' }, 'Moves all your confirmed public FIRO to your private (Spark) address in this wallet. Nothing comes back as public change.'), h('br'),
+  box.el,
+  ...p.warnings.map((w: string) => h('div', { class: 'warn' }, w)),
+  h('div', { class: 'panel' }, h('table', { class: 'review-table' }, h('tbody', {},
+    h('tr', {}, h('th', {}, 'Amount'), h('td', {}, h('div', { class: 'big-amount', id: 'review-amount' }, `${p.amount} FIRO → Spark`))),
     h('tr', {}, h('th', {}, 'Fee'), h('td', { id: 'review-fee' }, reviewFee(p.fee, p.feeAsset)))))),
   h('label', { class: 'field' }, h('span', {}, 'Password'), pw),
   go);
@@ -1015,7 +1050,7 @@ function parseScanned(asset: Asset, raw: string): { address: string; amount: str
     : asset === 'LTC' ? /^(ltc1[02-9ac-hj-np-z]{8,87}|ltcmweb1[02-9ac-hj-np-z]{100,140}|[LM][1-9A-HJ-NP-Za-km-z]{25,34})$/.test(address)
     : asset === 'SCRT' || asset === 'SSCRT' ? /^secret1[02-9ac-hj-np-z]{38}$/.test(address)
     : asset === 'NEAR' ? /^([0-9a-f]{64}|0x[0-9a-f]{40}|(([a-z\d]+[-_])*[a-z\d]+\.)+([a-z\d]+[-_])*[a-z\d]+)$/.test(address)
-    : asset === 'FIRO' ? /^[a3][1-9A-HJ-NP-Za-km-z]{33}$/.test(address)
+    : asset === 'FIRO' ? /^([a3][1-9A-HJ-NP-Za-km-z]{33}|sm1[02-9ac-hj-np-z]{100,200})$/.test(address)
     : asset === 'DASH' ? /^[X7][1-9A-HJ-NP-Za-km-z]{33}$/.test(address)
     : asset === 'ARRR' ? /^(zs1[02-9ac-hj-np-z]{75}|pirate1[02-9ac-hj-np-z]{40,})$/.test(address)
     : asset === 'ZANO' ? /^(Zx|iZ|aZ|ai)[1-9A-HJ-NP-Za-km-z]{90,120}$/.test(address)
@@ -1294,6 +1329,7 @@ async function renderReceive(current?: string): Promise<void> {
     : asset === 'SCRT' ? 'Receives SCRT on Secret Network mainnet only. The amount and address are public on the chain. No memo is needed.'
     : asset === 'BCH' ? 'Receives BCH on Bitcoin Cash only. Coins sent from Bitcoin or other chains won\'t arrive. Once a deposit is seen, a new address appears next time.'
     : asset === 'DOGE' ? 'Receives DOGE on Dogecoin mainnet only. Once a deposit is seen, a new address appears next time.'
+    : asset === 'FIRO' && address.startsWith('sm1') ? 'A private (Spark) Firo address. The amount and both addresses stay hidden on the chain. Senders need a wallet with Spark support, such as Firo\'s own wallet or Stack Wallet. Coins show here once they are in a block.'
     : asset === 'FIRO' ? 'Receives FIRO on Firo mainnet only. This is a transparent address, so the amount and address are public on the chain. Once a deposit is seen, a new address appears next time.'
     : asset === 'DASH' ? 'Receives DASH on Dash mainnet only. Once a deposit is seen, a new address appears next time.'
     : asset === 'BTC' ? 'A Bitcoin Taproot (bc1p) address. Coins sent from other chains won\'t arrive. Once a deposit is seen, a new address appears next time.'
@@ -1349,6 +1385,12 @@ async function renderReceive(current?: string): Promise<void> {
     return;
   }
 
+  if (asset === 'FIRO' && overview?.spark?.receive) {
+    const priv = address.startsWith('sm1');
+    const list = await wallet.addresses();
+    setKids(extra, h('button', { class: 'ghost', id: 'firo-address-kind', onclick: () => void renderReceive(priv ? list.FIRO : overview.spark.receive) }, priv ? 'Show public address' : 'Show private (Spark) address'));
+    return;
+  }
   if (asset === 'LTC' && overview?.mweb?.receive) {
     const priv = address.startsWith('ltcmweb1');
     const list = await wallet.addresses();

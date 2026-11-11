@@ -24,6 +24,8 @@ import { ArrrClient, ArrrDraft, isArrrAddress } from './arrr';
 import { startArrrEngine, arrrEngineAvailable, arrrEngineInfo } from './arrr-process';
 import { startMwebEngine, mwebEngineAvailable } from './mweb-process';
 import { MwebClient, MwebDraft, PeginDraft, isMwebAddress } from './mweb';
+import { startSparkEngine, sparkEngineAvailable } from './spark-process';
+import { SparkClient, SparkDraft, MintDraft, isSparkAddress, sparkKey } from './spark';
 import { ZanoClient, ZanoDraft, isZanoAddress, zanoKeys, ZANO_FEE } from './zano';
 import { startZanoEngine, zanoEngineAvailable, zanoEngineInfo } from './zano-process';
 import { ZecClient, ZecDraft, isZecAddress, zecHeightForDate } from './zec';
@@ -100,6 +102,8 @@ interface Preview {
   ltc?: BtcDraft;
   mweb?: MwebDraft;
   pegin?: PeginDraft;
+  spark?: SparkDraft;
+  mint?: MintDraft;
   scrt?: ScrtDraft;
   near?: NearDraft;
   eth?: EthDraft;
@@ -169,6 +173,7 @@ export class WalletService extends EventEmitter {
   private zano: ZanoClient | null = null;
   private arrr: ArrrClient | null = null;
   private mweb: MwebClient | null = null;
+  private spark: SparkClient | null = null;
   private previews = new Map<string, Preview>();
   private privacyTargets = new Map<string, Asset>();
   private pendingSwaps = new Map<string, { id: string; from: Asset; to: Asset; amount: string; receive: string; rate: string; providerId: SwapProviderId; provider: string; approximate: boolean; statusKey?: string; withdrawalAddress: string; privacy?: { leg: 'first'; via: string; destination: string } | { leg: 'second'; id: string } }>();
@@ -188,7 +193,7 @@ export class WalletService extends EventEmitter {
   settings: Settings = { ...DEFAULT_SETTINGS };
 
   constructor(private readonly baseDir: string, private readonly kdf?: { N: number; r: number; p: number }, private readonly dev: {
-    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; bchApi?: string; ltcApi?: string; scrtLcd?: string; nearRpc?: string; nearHistory?: string; polRpc?: string; polScout?: string; polUsdt?: string; arbRpc?: string; arbScout?: string; arbUsdt?: string; bscRpc?: string; bscScout?: string; hypeRpc?: string; kindexBase?: string; uniswapKey?: string; uniswapBase?: string; wcProjectId?: string; dashApi?: string; firoApi?: string; solRpc?: string; dogeApi?: string; zecBin?: string; hlApi?: string; zecServers?: string[]; zanoBin?: string; zanoNode?: string; arrrBin?: string; arrrServers?: string[]; mwebBin?: string; mwebConnect?: string; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; etzSwapBase?: string; cceCashBase?: string; changeNowBase?: string; quoteDeadlineMs?: number; btcApi?: string;
+    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; bchApi?: string; ltcApi?: string; scrtLcd?: string; nearRpc?: string; nearHistory?: string; polRpc?: string; polScout?: string; polUsdt?: string; arbRpc?: string; arbScout?: string; arbUsdt?: string; bscRpc?: string; bscScout?: string; hypeRpc?: string; kindexBase?: string; uniswapKey?: string; uniswapBase?: string; wcProjectId?: string; dashApi?: string; firoApi?: string; solRpc?: string; dogeApi?: string; zecBin?: string; hlApi?: string; zecServers?: string[]; zanoBin?: string; zanoNode?: string; arrrBin?: string; arrrServers?: string[]; mwebBin?: string; mwebConnect?: string; sparkBin?: string; sparkServer?: string; sparkConnect?: string; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; etzSwapBase?: string; cceCashBase?: string; changeNowBase?: string; quoteDeadlineMs?: number; btcApi?: string;
     /** Android: every outside address goes through the app's local forwarder. */
     route?: (url: string) => string;
     moneroStore?: (net: NetworkId, walletId: string) => MoneroOptions['store'];
@@ -441,6 +446,32 @@ export class WalletService extends EventEmitter {
     await this.startZano(secrets);
     await this.startArrr(secrets);
     await this.startMweb(secrets);
+    await this.startSpark(secrets);
+  }
+
+  /** Firo Spark: the engine syncs the anonymity sets itself. Without it, FIRO is transparent only. */
+  private async startSpark(secrets: Secrets): Promise<void> {
+    if (!sparkEngineAvailable(this.dev.sparkBin)) return;
+    const torPort = this.torActive ? Number((await this.tor.allocate()).match(/:(\d+)$/)?.[1]) : undefined;
+    if (this.torActive && !torPort) return; // Never fall back to a direct connection.
+    const pinFile = path.join(this.dir, 'spark-servers.json');
+    let pins: Record<string, string> = {};
+    try { pins = JSON.parse(await fs.readFile(pinFile, 'utf8')); } catch { pins = {}; }
+    const dev = this.dev.sparkServer?.match(/^(.+):(\d+)$/);
+    const client = new SparkClient({
+      engine: () => startSparkEngine(this.dev.sparkBin),
+      dir: this.dir,
+      socks: torPort,
+      connect: this.dev.sparkConnect,
+      servers: dev ? [{ host: dev[1], port: Number(dev[2]) }] : undefined,
+      pins: () => pins,
+      // Certificates are pinned on first use, as Electrum wallets do with these servers.
+      savePin: (host, fingerprint) => { pins = { ...pins, [host]: fingerprint }; void fs.writeFile(pinFile, JSON.stringify(pins)).catch(() => undefined); },
+      canConnect: () => !this.torNotReady,
+      onChange: () => this.emit('balance-changed'),
+    }, sparkKey(secrets.tronMnemonic));
+    this.spark = client;
+    try { await client.start(); } catch (e) { client.lastError = (e as Error).message; }
   }
 
   /** Litecoin MWEB: a light client of its own. Without its engine, LTC simply has no private balance. */
@@ -560,6 +591,8 @@ export class WalletService extends EventEmitter {
     this.arrr = null;
     this.mweb?.close();
     this.mweb = null;
+    this.spark?.close();
+    this.spark = null;
     this.priceCache = null;
     const monero = this.monero;
     this.monero = null;
@@ -725,7 +758,8 @@ export class WalletService extends EventEmitter {
       }),
       settle('DOGE', async () => { const b = await this.doge!.getBalance(); return [b.total, b.spendable]; }, 8),
       settle('DASH', async () => { const b = await dash.getBalance(); return [b.total, b.spendable]; }, 8),
-      settle('FIRO', async () => { const b = await firo.getBalance(); return [b.total, b.spendable]; }, 8),
+      // FIRO is the public coins plus the private (Spark) ones, once Spark has synced.
+      settle('FIRO', async () => { const b = await firo.getBalance(); const p = this.spark?.balance(); return [b.total + (p?.total ?? 0n), b.spendable + (p?.spendable ?? 0n)]; }, 8),
       settle('SCRT', async () => { const b = await this.scrt!.getBalance(); return [b, b]; }, 6),
       settle('NEAR', async () => { const b = await this.near!.getBalance(); return [b.total, b.spendable]; }, 24),
       // Until the viewing key is set on the contract, the private balance can't be read; the sSCRT screen offers to set it.
@@ -738,6 +772,7 @@ export class WalletService extends EventEmitter {
       tor: this.torActive ? this.tor.state : null,
       balances: { XMR, BTC, ETH, TRX, USDTE, USDT, SOL, USDTS, LINK, WLD, POL, USDTP, ARB, ETHA, USDTA, BCH, LTC, DOGE, DASH, FIRO, SCRT, NEAR, SSCRT, ...Object.fromEntries(EXTRA_ASSETS.map((a, i) => [a, EXTRA[i]])), ...(zec ? { ZEC: zecView() } : {}), ...(zano ? { ZANO: zanoView() } : {}), ...(arrr ? { ARRR: arrrView() } : {}) },
       sscrt: { needsKey: this.sscrtNeedsKey },
+      spark: this.spark ? { ...this.spark.info(), balance: this.spark.balance() ? { total: formatAmount(this.spark.balance()!.total, 8), spendable: formatAmount(this.spark.balance()!.spendable, 8) } : null } : null,
       mweb: this.mweb ? { ...this.mweb.info(), balance: this.mweb.balance() ? { total: formatAmount(this.mweb.balance()!.total, 8), spendable: formatAmount(this.mweb.balance()!.spendable, 8) } : null } : null,
       arrr: arrr ? { scanning: arrr.isScanning, percent: arrr.percent } : null,
       zec: zec ? { ...zec.state(), address: zec.receive?.unified ?? '', transparentAddress: zec.transparentAddress } : null,
@@ -764,7 +799,13 @@ export class WalletService extends EventEmitter {
   async history(asset: Asset) {
     const { tron, monero, btc, eth, dash } = this.session();
     if (asset === 'DASH') return dash.getHistory();
-    if (asset === 'FIRO') return this.firo!.getHistory();
+    if (asset === 'FIRO') {
+      const pub = await this.firo!.getHistory();
+      const priv = this.spark?.history() ?? [];
+      // A move between the two balances shows once, as a move to self.
+      const both = new Set(pub.map((h) => h.hash).filter((h) => priv.some((p) => p.hash === h)));
+      return [...pub.map((h) => (both.has(h.hash) ? { ...h, direction: 'self' as const } : h)), ...priv.filter((p) => !both.has(p.hash))].sort((a, b) => b.timestamp - a.timestamp);
+    }
     if (asset === 'SOL') return this.sol!.getHistory();
     if (isSpl(asset)) return this.sol!.getUsdtHistory(asset);
     if (asset === 'DOGE') return this.doge!.getHistory();
@@ -1361,7 +1402,7 @@ export class WalletService extends EventEmitter {
       : asset === 'SCRT' || asset === 'SSCRT' ? isScrtAddress(address)
       : asset === 'NEAR' ? isNearAccount(address)
       : asset === 'DASH' ? isDashAddress(address)
-      : asset === 'FIRO' ? isFiroAddress(address)
+      : asset === 'FIRO' ? isFiroAddress(address) || isSparkAddress(address)
       : asset === 'SOL' || isSpl(asset) ? isSolAddress(address)
       : asset === 'DOGE' ? isDogeAddress(address)
       : asset === 'BCH' ? isBchAddress(address)
@@ -1885,12 +1926,27 @@ export class WalletService extends EventEmitter {
       if (address === this.doge!.receiveAddress) throw new Error('You cannot send to your own address.');
       const draft = await this.doge!.draft(address, isMax ? 'max' : parseAmount(amountInput, decimals));
       preview = this.storePreview({ asset, to: address, amount: draft.amount, fee: draft.fee, doge: draft });
+    } else if (asset === 'FIRO' && isSparkAddress(address)) {
+      // To a Spark address: paid from the private balance, so the amount and both addresses stay hidden.
+      if (!this.spark) throw new Error('Private (Spark) FIRO isn\'t available on this device.');
+      const draft = await this.spark.draft(address, isMax ? 'max' : parseAmount(amountInput, decimals));
+      preview = this.storePreview({ asset, to: address, amount: draft.amount, fee: draft.fee, spark: draft });
     } else if (asset === 'FIRO') {
-      if (!isFiroAddress(address)) throw new Error('Not a Firo address. Only transparent addresses starting with a can be used. Spark addresses are not supported.');
-      if (address === this.firo!.receiveAddress) throw new Error('You cannot send to your own address.');
-      const draft = await this.firo!.draft(address, isMax ? 'max' : parseAmount(amountInput, decimals));
-      warnings.push('FIRO only supports transparent transactions. Addresses and amounts are public on the chain.');
-      preview = this.storePreview({ asset, to: address, amount: draft.amount, fee: draft.fee, firo: draft });
+      if (!isFiroAddress(address)) throw new Error('Not a Firo address. Use a transparent address starting with a, or a Spark address starting with sm1.');
+      const want = isMax ? 'max' as const : parseAmount(amountInput, decimals);
+      const pub = await this.firo!.getBalance().catch(() => null);
+      const priv = this.spark?.balance();
+      // Public coins pay first. Only when they can't cover it does the private balance pay, which makes it public.
+      if (want !== 'max' && pub && pub.spendable < want && priv && priv.spendable >= want) {
+        const draft = await this.spark!.draft(address, want);
+        warnings.push('This is paid from your private (Spark) balance. Sending to a transparent address makes this amount and the receiving address public.');
+        preview = this.storePreview({ asset, to: address, amount: draft.amount, fee: draft.fee, spark: draft });
+      } else {
+        if (address === this.firo!.receiveAddress) throw new Error('You cannot send to your own address.');
+        const draft = await this.firo!.draft(address, want);
+        warnings.push('This is paid from your public FIRO: the addresses and the amount are visible on the chain. Payments to a Spark address (sm1…) come from the private balance and stay hidden.');
+        preview = this.storePreview({ asset, to: address, amount: draft.amount, fee: draft.fee, firo: draft });
+      }
     } else if (asset === 'DASH') {
       if (!isDashAddress(address)) throw new Error('Not a Dash address. Only addresses starting with X can be used.');
       if (address === dash.receiveAddress) throw new Error('You cannot send to your own address.');
@@ -2024,6 +2080,8 @@ export class WalletService extends EventEmitter {
     if (preview.ltc) return { hashes: [await this.ltc!.send(preview.ltc, secrets.tronMnemonic)] };
     if (preview.mweb) return { hashes: [await this.mweb!.send(preview.mweb, secrets.tronMnemonic)] };
     if (preview.pegin) return { hashes: [await this.mweb!.pegin(preview.pegin, secrets.tronMnemonic)] };
+    if (preview.spark) return { hashes: [await this.spark!.send(preview.spark)] };
+    if (preview.mint) return { hashes: [await this.spark!.mint(preview.mint, secrets.tronMnemonic, (hex, id) => this.firo!.broadcastSigned(hex, id))] };
     if (preview.btc) {
       return { hashes: [await btc.send(preview.btc, secrets.tronMnemonic)] };
     }
@@ -2102,6 +2160,19 @@ export class WalletService extends EventEmitter {
     const preview = this.storePreview({ asset: 'LTC', to: draft.to, amount: draft.amount, fee: draft.fee, pegin: draft });
     return {
       id: preview.id, asset: 'LTC' as Asset, to: draft.to, amount: formatAmount(draft.amount, 8), fee: formatAmount(draft.fee, 8), feeAsset: 'LTC', feeIsEstimate: false,
+      warnings: ['How much you make private is visible on the chain. Where it goes from the private balance is not.'],
+    };
+  }
+
+  /** Moves every confirmed public FIRO coin into the private (Spark) balance. Confirmed with confirmSend. */
+  async prepareFiroPrivate() {
+    this.session();
+    if (this.torNotReady) throw new Error('Tor is connecting. Try again once it connects.');
+    if (!this.spark) throw new Error('Private (Spark) FIRO isn\'t available on this device.');
+    const draft = await this.spark.mintDraft(await this.firo!.confirmedUtxos());
+    const preview = this.storePreview({ asset: 'FIRO', to: draft.to, amount: draft.amount, fee: draft.fee, mint: draft });
+    return {
+      id: preview.id, asset: 'FIRO' as Asset, to: draft.to, amount: formatAmount(draft.amount, 8), fee: formatAmount(draft.fee, 8), feeAsset: 'FIRO', feeIsEstimate: false,
       warnings: ['How much you make private is visible on the chain. Where it goes from the private balance is not.'],
     };
   }

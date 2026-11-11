@@ -2,7 +2,17 @@
 // Each request is {"id":n,"m":"method","p":{...}}; each answer is {"id":n,"r":...} or {"id":n,"e":"message"}.
 // Binary values travel as lowercase hex. Keys arrive per request and are never written anywhere.
 
+#include <algorithm>
+#include <atomic>
 #include <cstdint>
+#include <filesystem>
+#include <fstream>
+#include <map>
+#include <mutex>
+#include <set>
+#include <sstream>
+#include <thread>
+#include <unordered_map>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
@@ -13,6 +23,7 @@
 
 #include "json.hpp"
 #include "flutter_libsparkmobile.h"
+#include "net.hpp"
 
 using nlohmann::json;
 
@@ -198,12 +209,14 @@ json spend(const json& p) {
   for (const auto& b : p.at("blockHashes")) { bufs.push_back(unhex(b.at("hash").get<std::string>())); hashes.push_back({ bufs.back().data(), b.at("id").get<int>() }); }
   bufs.push_back(unhex(p.at("txHashSig").get<std::string>()));
   unsigned char* sig = bufs.back().data();
-  std::vector<unsigned char> ext;
+  // A plain spend binds no extension: 32 zero bytes.
+  std::vector<unsigned char> ext(32, 0);
   if (p.contains("extensionCommitment")) ext = unhex(p.at("extensionCommitment").get<std::string>());
+  if (ext.size() != 32) throw std::runtime_error("the extension commitment must be 32 bytes");
   SparkSpendTransactionResult* r = cCreateSparkSpendTransaction(
       key.data(), index, recips.data(), (int)recips.size(), privs.data(), (int)privs.size(),
       spendCoins.data(), (int)spendCoins.size(), coverSets.data(), (int)coverSets.size(), hashes.data(), (int)hashes.size(),
-      sig, p.value("additionalTxSize", 0), p.value("version", 1), ext.empty() ? nullptr : ext.data());
+      sig, p.value("additionalTxSize", 0), p.value("version", 2), ext.data());
   if (!r) throw std::runtime_error(lastError("could not make the Spark spend"));
   if (r->isError) {
     std::string msg = r->data ? std::string((char*)r->data, r->dataLength) : "could not make the Spark spend";
@@ -238,22 +251,58 @@ json fee(const json& p) {
   return f;
 }
 
+json fvkOf(const json& p) {
+  auto key = key32(p);
+  Fvk f(key, p.value("index", 1));
+  int n = 0;
+  unsigned char* b = serializeFullViewKey(f.p, &n);
+  if (!b) throw std::runtime_error(lastError("could not make the view key"));
+  std::string s = hex(b, n);
+  native_free(b);
+  return s;
+}
+
+#include "wallet.hpp"
+
+std::mutex outMu;
+
+void answer(const json& a) {
+  std::lock_guard<std::mutex> l(outMu);
+  std::cout << a.dump() << "\n" << std::flush;
+}
+
 }  // namespace
 
 int main() {
   std::ios::sync_with_stdio(false);
+  SSL_library_init();
   std::string line;
   while (std::getline(std::cin, line)) {
     if (line.empty()) continue;
     json id = nullptr;
-    json answer;
+    json ans;
     try {
       json req = json::parse(line);
       id = req.value("id", json(nullptr));
       const std::string m = req.at("m").get<std::string>();
       const json p = req.value("p", json::object());
       json r;
-      if (m == "address") r = address(p);
+      if (m == "sync") {
+        // Long: it runs on its own thread and answers when done, while "status" reports how far it is.
+        if (engine.syncing.exchange(true)) throw std::runtime_error("a Spark sync is already running");
+        std::thread([id, p]() {
+          json a;
+          try { a = { { "id", id }, { "r", engine.sync(p) } }; } catch (const std::exception& e) { a = { { "id", id }, { "e", e.what() } }; std::lock_guard<std::recursive_mutex> c(engine.connMu); engine.el.close(); }
+          engine.syncing = false;
+          answer(a);
+        }).detach();
+        continue;
+      }
+      if (m == "status") r = engine.getProgress();
+      else if (m == "fvk") r = fvkOf(p);
+      else if (m == "send") r = engine.send(p);
+      else if (m == "rpc") { engine.configure(p); r = engine.call(p.at("method").get<std::string>(), p.value("params", json::array())); }
+      else if (m == "address") r = address(p);
       else if (m == "valid") r = valid(p);
       else if (m == "identify") r = identify(p);
       else if (m == "tagHashes") r = tagHashes(p);
@@ -262,11 +311,11 @@ int main() {
       else if (m == "fee") r = fee(p);
       else if (m == "ping") r = "pong";
       else throw std::runtime_error("unknown method " + m);
-      answer = { { "id", id }, { "r", r } };
+      ans = { { "id", id }, { "r", r } };
     } catch (const std::exception& e) {
-      answer = { { "id", id }, { "e", e.what() } };
+      ans = { { "id", id }, { "e", e.what() } };
     }
-    std::cout << answer.dump() << "\n" << std::flush;
+    answer(ans);
   }
   return 0;
 }
