@@ -216,3 +216,31 @@ test('real tor crash is reported and traffic stays closed', { skip: !torBin }, a
   assert.equal(tor.state.phase, 'error');
   await tor.stop();
 });
+
+test('a Tor left running by an earlier run is stopped before a new one starts, and nothing else is', async () => {
+  const { spawn } = require('node:child_process');
+  const fsx = require('node:fs');
+  const osx = require('node:os');
+  const px = require('node:path');
+  const dir = fsx.mkdtempSync(px.join(osx.tmpdir(), 'tor-left-'));
+  const bin = px.join(dir, 'tor');
+  fsx.copyFileSync('/bin/sleep', bin);
+  fsx.chmodSync(bin, 0o755);
+  const { TorManager } = require('../dist/main/tor');
+  const m = new TorManager(dir, { binPath: bin });
+  const ours = spawn(bin, ['300'], { stdio: 'ignore' });
+  const other = spawn('/bin/sleep', ['300'], { stdio: 'ignore' });
+  const alive = (pid) => { try { process.kill(pid, 0); return true; } catch { return false; } };
+  try {
+    fsx.writeFileSync(px.join(dir, 'tor.pid'), String(other.pid));
+    m.killLeftover();
+    assert.equal(alive(other.pid), true, 'a process that is not this Tor is left alone');
+    fsx.writeFileSync(px.join(dir, 'tor.pid'), String(ours.pid));
+    m.killLeftover();
+    await new Promise((r) => setTimeout(r, 300));
+    assert.equal(ours.exitCode !== null || ours.signalCode !== null, true, 'the leftover Tor is stopped');
+  } finally {
+    other.kill(); ours.kill();
+    fsx.rmSync(dir, { recursive: true, force: true });
+  }
+});

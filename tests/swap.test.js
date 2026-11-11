@@ -156,7 +156,18 @@ function ghost(override = {}) {
       log.push({ method: q.method, path: u.pathname, body: b && JSON.parse(b), auth: q.headers.authorization, idem: q.headers['idempotency-key'] });
       r.setHeader('content-type', 'application/json');
       if (q.headers.authorization !== 'Bearer pub:sec') { r.statusCode = 401; return r.end('{"error":{"message":"bad key"}}'); }
-      if (u.pathname === '/v1/currencies') return r.end(JSON.stringify({ currencies: [{ ticker: 'usdtrx', blockchain: 'tron' }, { ticker: 'usdt20', blockchain: 'ethereum', enabled: true }] }));
+      // Their list as it really comes: no chain field, tokens told apart by contract and explorer.
+      if (u.pathname === '/v1/currencies') return r.end(JSON.stringify({ currencies: [
+        { ticker: 'usdtrx', enabled: true, contractAddress: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t', transactionUrl: 'https://tronscan.org/#/transaction/%1$s' },
+        { ticker: 'xmr', enabled: true },
+        { ticker: 'btc', enabled: true },
+        { ticker: 'hype', enabled: true, transactionUrl: 'https://hyperevmscan.io/tx/%1$s' },
+        { ticker: 'usdtbsc', enabled: true, contractAddress: '0xdac17f958d2ee523a2206206994597c13d831ec7', transactionUrl: 'https://bscscan.com/tx/%1$s' },
+        { ticker: 'usdt20', enabled: true, contractAddress: '0xdac17f958d2ee523a2206206994597c13d831ec7', transactionUrl: 'https://etherscan.io/tx/%1$s' },
+        { ticker: 'linkbsc', enabled: true, contractAddress: '0xf8a0bf9cf54bb92f17374d9e9a321e6a111a51bd', transactionUrl: 'https://bscscan.com/tx/%1$s' },
+        { ticker: 'jup', enabled: true, contractAddress: 'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN', transactionUrl: 'https://solscan.io/tx/%1$s' },
+        { ticker: 'ray', enabled: false, contractAddress: '4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R', transactionUrl: 'https://solscan.io/tx/%1$s' },
+      ] }));
       if (u.pathname === '/v1/quotes') return r.end(JSON.stringify({ quote: { amountTo: '1510', networkFee: '10', amountUserReceives: '1500', rate: '150', min: '1', max: '500' } }));
       if (q.method === 'POST' && u.pathname === '/v1/swaps') { const p = JSON.parse(b); return r.end(JSON.stringify({ swap: { id: 'g1', status: 'waiting', from: p.from, to: p.to, amountFrom: p.amountFrom, amountExpectedFrom: p.amountFrom, amountExpectedTo: '1505', networkFee: '10', payinAddress: DEPOSIT, payoutAddress: p.address, refundAddress: p.refundAddress, rate: '150', ...override } })); }
       if (u.pathname === '/v1/swaps/g1') return r.end(JSON.stringify({ swap: { id: 'g1', status: 'hold', payoutHash: null } }));
@@ -170,8 +181,9 @@ test('GhostSwap: bearer, usdtrx ticker, net amount, idempotency key', async (t) 
   const m = await ghost(); closing(t, m.server);
   const q = await m.client.quote('USDT', 'XMR', '10');
   assert.equal(q.receive, '1500');
-  assert.equal(m.log[0].body.from, 'usdtrx');
-  assert.equal(m.log[0].body.mode, 'float');
+  const quoteReq = m.log.find((l) => l.path === '/v1/quotes');
+  assert.equal(quoteReq.body.from, 'usdtrx');
+  assert.equal(quoteReq.body.mode, 'float');
   const o = await m.client.create('USDT', 'XMR', '10', q.receive, ME_XMR, ME_TRON);
   assert.equal(o.receive, '1495', 'gross minus network fee');
   const post = m.log.find((l) => l.path === '/v1/swaps');
@@ -218,10 +230,16 @@ test('swap: another Ethereum address is still refused, whatever its case', async
   await assert.rejects(m.client.create('XMR', 'USDTE', '1', '1500', ME_ETH, ME_XMR), /receiving address/);
 });
 
-test('GhostSwap: USDT(Eth) ticker comes from their list', async (t) => {
+test('GhostSwap: token tickers come from their list by contract and chain, never by name', async (t) => {
   const m = await ghost(); closing(t, m.server);
-  await m.client.quote('USDTE', 'XMR', '10');
-  assert.equal(m.log.find((l) => l.path === '/v1/quotes').body.from, 'usdt20');
+  const fromOf = async (a) => { m.log.length = 0; const q = await m.client.quote(a, 'XMR', '10'); return q.problem ?? m.log.find((l) => l.path === '/v1/quotes').body.from; };
+  assert.equal(await fromOf('USDTE'), 'usdt20', 'same contract on BNB is skipped by its explorer');
+  assert.equal(await fromOf('JUP'), 'jup');
+  assert.equal(await fromOf('HYPE'), 'hype');
+  assert.match(await fromOf('RAY'), /doesn't offer/, 'switched off in their list');
+  assert.match(await fromOf('USDTB'), /doesn't offer/, 'no BNB row with that contract');
+  assert.match(await fromOf('FIRO'), /doesn't offer/);
+  assert.equal(m.log.filter((l) => l.path === '/v1/currencies').length, 0, 'the list is read once');
 });
 
 // ---- ETZ Swap ----

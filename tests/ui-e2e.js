@@ -56,7 +56,7 @@ const PASSWORD = 'correct horse battery';
   const data = fs.mkdtempSync(path.join(os.tmpdir(), 'vw-ui-'));
   const launch = () => _electron.launch({
     args: ['--no-sandbox', '--use-fake-device-for-media-stream', `--use-file-for-fake-video-capture=${camVideo}`, path.join(__dirname, '..')],
-    env: { ...process.env, VAULT_WALLET_DATA: data, VAULT_DEV_TRON_HOST: `http://127.0.0.1:${server.address().port}`, VAULT_DEV_SOCKS: socks.uri, VAULT_DEV_BTC_API: `http://127.0.0.1:${server.address().port}/btc`, VAULT_DEV_TORNADO: JSON.stringify({ 0.1: '0x12D66f87A04A9E220743712cE6d9bB1B5616B8Fc', 1: '0x47CE0C6eD5B0Ce3d3A51fdb1C52DC66a7c3c2936' }), VAULT_DEV_DASH_API: `http://127.0.0.1:${server.address().port}/dash`, VAULT_DEV_SOL_RPC: `http://127.0.0.1:${server.address().port}/sol`, VAULT_DEV_DOGE_API: `http://127.0.0.1:${server.address().port}/doge`, VAULT_DEV_FIRO_API: `http://127.0.0.1:${server.address().port}/dash-firo`, VAULT_DEV_ZEC_BIN: path.join(__dirname, 'fake-zec-engine.js'), VAULT_DEV_ZANO_BIN: path.join(__dirname, 'fake-zano-engine.js'), VAULT_DEV_ARRR_BIN: path.join(__dirname, 'fake-arrr-engine.js'), VAULT_DEV_MWEB_BIN: path.join(__dirname, 'fake-mweb-engine.js'), ...(spark ? { VAULT_DEV_SPARK_BIN: SPARK_ENGINE, VAULT_DEV_SPARK_SERVER: `127.0.0.1:${spark.port}` } : {}), VAULT_DEV_ETH_RPC: `http://127.0.0.1:${server.address().port}/eth/rpc`, VAULT_DEV_ETH_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_LTC_API: `http://127.0.0.1:${server.address().port}/btc`, VAULT_DEV_BCH_API: `http://127.0.0.1:${server.address().port}/bch`, VAULT_DEV_SCRT_LCD: `http://127.0.0.1:${server.address().port}/scrt,http://localhost:${server.address().port}/scrt`, VAULT_DEV_NEAR_RPC: `http://127.0.0.1:${server.address().port}/near/rpc`, VAULT_DEV_HL_API: `http://127.0.0.1:${server.address().port}/hl`, VAULT_DEV_KINDEX: `http://127.0.0.1:${server.address().port}/kx`, VAULT_DEV_NEAR_HISTORY: `http://127.0.0.1:${server.address().port}/near/history`, VAULT_DEV_POL_RPC: `http://127.0.0.1:${server.address().port}/pol/rpc`, VAULT_DEV_POL_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_ARB_RPC: `http://127.0.0.1:${server.address().port}/arb/rpc`, VAULT_DEV_ARB_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_BSC_RPC: `http://127.0.0.1:${server.address().port}/bsc/rpc`, VAULT_DEV_HYPE_RPC: `http://127.0.0.1:${server.address().port}/hype/rpc`, VAULT_DEV_UNISWAP_BASE: `http://127.0.0.1:${server.address().port}/uniswap`, VAULT_DEV_UNISWAP_KEY: 'test-key', VAULT_DEV_BSC_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_SIMPLESWAP_BASE: `http://127.0.0.1:${server.address().port}/simple`, VAULT_DEV_GHOSTSWAP_BASE: `http://127.0.0.1:${server.address().port}/ghost`, VAULT_DEV_SWAP_BASE: `http://127.0.0.1:${server.address().port}/swap`, VAULT_DEV_PRICE_URL: `http://127.0.0.1:${server.address().port}/simple/price`, NO_PROXY: '*' },
+    env: { ...process.env, VAULT_WALLET_DATA: data, VAULT_DEV_TRON_HOST: `http://127.0.0.1:${server.address().port}`, VAULT_DEV_SOCKS: socks.uri, VAULT_DEV_BTC_API: `http://127.0.0.1:${server.address().port}/btc`, VAULT_DEV_TORNADO: JSON.stringify({ 0.1: '0x12D66f87A04A9E220743712cE6d9bB1B5616B8Fc', 1: '0x47CE0C6eD5B0Ce3d3A51fdb1C52DC66a7c3c2936' }), VAULT_DEV_DASH_API: `http://127.0.0.1:${server.address().port}/dash`, VAULT_DEV_SOL_RPC: `http://127.0.0.1:${server.address().port}/sol`, VAULT_DEV_DOGE_API: `http://127.0.0.1:${server.address().port}/doge`, VAULT_DEV_FIRO_API: `http://127.0.0.1:${server.address().port}/dash-firo`, VAULT_DEV_ZEC_BIN: path.join(__dirname, 'fake-zec-engine.js'), VAULT_DEV_ZANO_BIN: path.join(__dirname, 'fake-zano-engine.js'), VAULT_DEV_ARRR_BIN: path.join(__dirname, 'fake-arrr-engine.js'), VAULT_DEV_MWEB_BIN: path.join(__dirname, 'fake-mweb-engine.js'), ...(spark ? { VAULT_DEV_SPARK_BIN: SPARK_ENGINE, VAULT_DEV_SPARK_SERVER: `127.0.0.1:${spark.port}` } : {}), VAULT_DEV_ETH_RPC: `http://127.0.0.1:${server.address().port}/eth/rpc`, VAULT_DEV_ETH_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_LTC_API: `http://127.0.0.1:${server.address().port}/btc`, VAULT_DEV_BCH_API: `http://127.0.0.1:${server.address().port}/bch`, VAULT_DEV_SCRT_LCD: `http://127.0.0.1:${server.address().port}/scrt,http://localhost:${server.address().port}/scrt`, VAULT_DEV_NEAR_RPC: `http://127.0.0.1:${server.address().port}/near/rpc`, VAULT_DEV_HL_API: `http://127.0.0.1:${server.address().port}/hl`, VAULT_DEV_ASTER_API: `http://127.0.0.1:${server.address().port}/aster`, VAULT_DEV_ASTER_BAPI: `http://127.0.0.1:${server.address().port}/aster`, VAULT_DEV_KINDEX: `http://127.0.0.1:${server.address().port}/kx`, VAULT_DEV_NEAR_HISTORY: `http://127.0.0.1:${server.address().port}/near/history`, VAULT_DEV_POL_RPC: `http://127.0.0.1:${server.address().port}/pol/rpc`, VAULT_DEV_POL_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_ARB_RPC: `http://127.0.0.1:${server.address().port}/arb/rpc`, VAULT_DEV_ARB_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_BSC_RPC: `http://127.0.0.1:${server.address().port}/bsc/rpc`, VAULT_DEV_HYPE_RPC: `http://127.0.0.1:${server.address().port}/hype/rpc`, VAULT_DEV_UNISWAP_BASE: `http://127.0.0.1:${server.address().port}/uniswap`, VAULT_DEV_UNISWAP_KEY: 'test-key', VAULT_DEV_BSC_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_SIMPLESWAP_BASE: `http://127.0.0.1:${server.address().port}/simple`, VAULT_DEV_GHOSTSWAP_BASE: `http://127.0.0.1:${server.address().port}/ghost`, VAULT_DEV_SWAP_BASE: `http://127.0.0.1:${server.address().port}/swap`, VAULT_DEV_PRICE_URL: `http://127.0.0.1:${server.address().port}/simple/price`, NO_PROXY: '*' },
   });
   let app = await launch();
   let page = await app.firstWindow();
@@ -158,7 +158,7 @@ const PASSWORD = 'correct horse battery';
   const scrolled = await page.evaluate(() => document.querySelector('.scroll').scrollTop);
   await page.click('#fold-ARB'); await page.click('#fold-ARB');
   assert.equal(await page.evaluate(() => document.querySelector('.scroll').scrollTop), scrolled, 'folding keeps the list where it was');
-  assert.deepEqual(await page.locator('.asset').evaluateAll((els) => els.map((e) => e.id)), ['asset-XMR', 'asset-BTC', 'asset-ETH', 'asset-USDTE', 'asset-USDCE', 'asset-LINK', 'asset-WLD', 'asset-UNI', 'asset-PEPE', 'asset-AAVE', 'asset-ZEC', 'asset-SOL', 'asset-USDTS', 'asset-USDCS', 'asset-JUP', 'asset-RAY', 'asset-TRX', 'asset-USDT', 'asset-HYPE', 'asset-BNB', 'asset-USDTB', 'asset-USDCB', 'asset-ASTER', 'asset-CAKE', 'asset-POL', 'asset-ETHP', 'asset-USDTP', 'asset-USDCP', 'asset-ARB', 'asset-ETHA', 'asset-USDTA', 'asset-USDCA', 'asset-BCH', 'asset-LTC', 'asset-NEAR', 'asset-SCRT', 'asset-DOGE', 'asset-DASH', 'asset-FIRO', 'asset-ZANO', 'asset-ARRR']);
+  assert.deepEqual(await page.locator('.asset').evaluateAll((els) => els.map((e) => e.id)), ['asset-XMR', 'asset-BTC', 'asset-ETH', 'asset-USDTE', 'asset-USDCE', 'asset-LINK', 'asset-WLD', 'asset-UNI', 'asset-PEPE', 'asset-AAVE', 'asset-SHIB', 'asset-ZEC', 'asset-SOL', 'asset-USDTS', 'asset-USDCS', 'asset-JUP', 'asset-RAY', 'asset-ORCA', 'asset-PUMP', 'asset-TRX', 'asset-USDT', 'asset-HYPE', 'asset-BNB', 'asset-USDTB', 'asset-USDCB', 'asset-ASTER', 'asset-CAKE', 'asset-SHIBB', 'asset-LINKB', 'asset-UNIB', 'asset-AAVEB', 'asset-POL', 'asset-ETHP', 'asset-USDTP', 'asset-USDCP', 'asset-LINKP', 'asset-UNIP', 'asset-AAVEP', 'asset-ARB', 'asset-ETHA', 'asset-USDTA', 'asset-USDCA', 'asset-LINKA', 'asset-UNIA', 'asset-BCH', 'asset-LTC', 'asset-NEAR', 'asset-SCRT', 'asset-DOGE', 'asset-DASH', 'asset-FIRO', 'asset-ZANO', 'asset-ARRR']);
   await page.locator('#asset-HYPE', { hasText: '2.5' }).waitFor({ timeout: 30000 }); // HYPE on HyperEVM, above BNB
   assert.match(await page.locator('#asset-USDTA').innerText(), /USDT \(Arb\)/);
   assert.match(await page.locator('#asset-ETHA').innerText(), /ETH \(Arb\)/);
@@ -181,7 +181,7 @@ const PASSWORD = 'correct horse battery';
   await page.click('#go-buy');
   await page.locator('#buy-copy:not([disabled])').waitFor({ timeout: 30000 });
   assert.match(await page.locator('#buy-address').innerText(), /\S{20,}/);
-  assert.match(await page.locator('.screen').innerText(), /KYC/);
+  assert.match(await page.locator('.screen').innerText(), /LocalCoinSwap/);
   await shot('buy');
   await page.click('#back');
   await page.locator('#go-buy').waitFor();
@@ -815,14 +815,11 @@ const PASSWORD = 'correct horse battery';
     await closed; // answered, so the window goes away
     console.log('ok dApp request in its own window');
   }
-  // Perps: Hyperliquid futures, in WalletConnect wallets only. Every order carries the Kusari builder fee.
+  // Perps: Aster futures, in WalletConnect wallets only. Every order carries the Kusari builder fee.
   await page.click('#nav-perps');
   await page.locator('#perps-setup').waitFor();
-  await page.locator('#mkt-BTC').waitFor({ timeout: 20000 });
-  assert.equal(await page.locator('#mkt-OLD').count(), 0, 'delisted markets stay out');
+  await page.locator('#mkt-BTCUSDT').waitFor({ timeout: 20000 });
   assert.match(await page.locator('#perps-fee-note').innerText(), /0\.01%.*0\.035%/);
-  await page.locator('#lev-BTC', { hasText: '40x' }).waitFor(); // each market's highest leverage beside its name
-  await page.locator('#lev-ETH', { hasText: '25x' }).waitFor();
   await shot('perps-setup');
   await page.fill('#perps-pw', 'wrong password');
   await page.click('#perps-enable');
@@ -831,14 +828,15 @@ const PASSWORD = 'correct horse battery';
   await page.click('#perps-enable');
   await page.locator('#perps-setup').waitFor({ state: 'detached', timeout: 20000 });
   await page.locator('#perps-equity', { hasText: '262.50' }).waitFor({ timeout: 20000 });
-  assert.equal(state.hl.builder, 35, 'the Kusari fee cap (0.035%) was approved');
-  assert.equal(state.hl.agents.length, 1);
+  assert.equal(state.aster.builder, '0.00035', 'the Kusari fee cap (0.035%) was approved');
+  await page.locator('#lev-BTCUSDT', { hasText: '200x' }).waitFor({ timeout: 20000 }); // each market's highest leverage beside its name
+  await page.locator('#lev-ETHUSDT', { hasText: '100x' }).waitFor();
   await shot('perps-home');
   await page.fill('#perp-search', 'eth');
-  await page.locator('#mkt-ETH').waitFor();
-  assert.equal(await page.locator('#mkt-BTC').count(), 0);
+  await page.locator('#mkt-ETHUSDT').waitFor();
+  assert.equal(await page.locator('#mkt-BTCUSDT').count(), 0);
   await page.fill('#perp-search', '');
-  await page.click('#mkt-BTC');
+  await page.click('#mkt-BTCUSDT');
   await page.locator('#perp-bids .book-row').first().waitFor({ timeout: 20000 });
   await page.locator('#perp-chart canvas').waitFor();
   // The chart moves and stretches: wheel zoom, drag, double click back.
@@ -847,80 +845,74 @@ const PASSWORD = 'correct horse battery';
   await page.mouse.wheel(0, -400);
   await page.mouse.down(); await page.mouse.move(box.x + box.width / 2 + 60, box.y + box.height / 2 + 30); await page.mouse.up();
   await page.mouse.dblclick(box.x + box.width / 2, box.y + box.height / 2);
-  await page.locator('#perp-max-lev', { hasText: '40x' }).waitFor();
-  assert.equal(await page.locator('#perp-index').innerText(), '60,012', 'the index price, Hyperliquid\'s median of exchange prices');
+  await page.locator('#perp-max-lev', { hasText: '200x' }).waitFor();
+  assert.equal(await page.locator('#perp-index').innerText(), '60,012', 'the exchange\'s index price');
   // Kusari's own index, straight from the exchanges; Bybit is down in the stand-in and named as not reached.
   await page.locator('#perp-kindex', { hasText: '60,011' }).waitFor({ timeout: 20000 });
   assert.equal(await page.locator('#perp-kindex-list').isVisible(), false, 'the exchange list starts folded');
   await page.click('#perp-kindex-toggle');
   await page.locator('#perp-kindex-list', { hasText: 'Binance ×3' }).waitFor();
   assert.match(await page.locator('#perp-kindex-list').innerText(), /Not reached: Bybit/);
-  assert.equal(await page.locator('#perp-kindex-gap').innerText(), '-0.002%');
   await page.click('#perp-kindex-toggle');
   await page.locator('#perp-kindex-list').waitFor({ state: 'hidden' });
-  assert.equal(await page.locator('#perp-lev').getAttribute('max'), '40', 'the full leverage Hyperliquid allows');
+  assert.equal(await page.locator('#perp-lev').getAttribute('max'), '200', 'the full leverage the market allows');
   await page.click('#tf-15m');
   assert.equal(await page.locator('#tf-15m').getAttribute('aria-pressed'), 'true');
-  // Margin by slider (a share of the free balance) or typed; leverage by slider, box or tick.
+  // Margin by slider (a share of the free balance) or typed; leverage by slider or box.
   await page.locator('#perp-margin-range').fill('50');
   assert.equal(await page.inputValue('#perp-margin'), '100');
   await page.fill('#perp-margin', '10');
   assert.equal(await page.inputValue('#perp-margin-range'), '5');
-  await page.click('#lev-pick-40');
-  assert.equal(await page.inputValue('#perp-lev-num'), '40');
   await page.fill('#perp-lev-num', '10');
   assert.equal(await page.inputValue('#perp-lev'), '10');
   await page.locator('#perp-size', { hasText: '$100.00' }).waitFor();
   await shot('perps-trade');
   await page.click('#perp-long');
   await page.locator('#perp-review-table').waitFor();
-  assert.match(await page.locator('#perp-r-size').innerText(), /0\.00166 BTC/);
+  assert.match(await page.locator('#perp-r-size').innerText(), /0\.001 BTC/);
   assert.match(await page.locator('#perp-r-kusari').innerText(), /0\.035%/);
-  assert.match(await page.locator('#perp-r-venue').innerText(), /0\.045%/);
-  assert.match(await page.locator('#perp-r-liq').innerText(), /about 54,/);
+  assert.match(await page.locator('#perp-r-venue').innerText(), /0\.035%/);
   await shot('perps-review');
   await page.click('#perp-place');
-  await page.locator('#pos-BTC').waitFor({ timeout: 20000 });
-  let placed = state.hl.placed.at(-1);
-  assert.deepEqual([placed.b, placed.s, placed.t.limit.tif, placed.builder.b, placed.builder.f], [true, '0.00166', 'Ioc', '0xdb0f1c2d5f3713051d1d5ab70d7359e6daa6f87e', 35]);
-  assert.ok(Number(placed.p) > 60000 && Number(placed.p) <= 63000, 'a market buy is capped 5% above the price');
-  assert.deepEqual(state.hl.leverage.at(-1), { type: 'updateLeverage', asset: 0, isCross: false, leverage: 10 });
+  await page.locator('#pos-BTCUSDT').waitFor({ timeout: 20000 });
+  let placed = state.aster.placed.at(-1);
+  assert.deepEqual([placed.side, placed.type, placed.quantity, placed.builder, placed.feeRate], ['BUY', 'MARKET', '0.001', '0xDb0f1c2d5f3713051d1d5AB70D7359E6Daa6f87E', '0.00035']);
   // A post-only limit order pays the lower Kusari fee, and can be cancelled.
-  await page.click('#mkt-BTC');
+  await page.click('#mkt-BTCUSDT');
   await page.click('#kind-post');
   await page.fill('#perp-price', '59000');
-  await page.fill('#perp-margin', '0.5');
+  await page.fill('#perp-margin', '0.01');
   await page.click('#perp-long');
-  await page.getByText('The smallest order is 10 USDC').waitFor();
+  await page.getByText(/Too small/).waitFor();
   await page.fill('#perp-margin', '10');
   await page.click('#perp-long');
   await page.locator('#perp-r-kusari', { hasText: '0.01%' }).waitFor();
   await page.click('#perp-place');
   await page.locator('#order-9').waitFor({ timeout: 20000 });
-  placed = state.hl.placed.at(-1);
-  assert.deepEqual([placed.t.limit.tif, placed.p, placed.builder.f], ['Alo', '59000', 10]);
+  placed = state.aster.placed.at(-1);
+  assert.deepEqual([placed.timeInForce, placed.price, placed.feeRate], ['GTX', '59000', '0.0001']);
   await page.click('#cancel-9');
   await page.locator('#order-9').waitFor({ state: 'detached', timeout: 20000 });
-  await page.click('#close-BTC');
+  await page.click('#close-BTCUSDT');
   await page.click('#perp-close-confirm');
-  await page.locator('#pos-BTC').waitFor({ state: 'detached', timeout: 20000 });
-  placed = state.hl.placed.at(-1);
-  assert.deepEqual([placed.b, placed.r, placed.builder.f], [false, true, 35]);
+  await page.locator('#pos-BTCUSDT').waitFor({ state: 'detached', timeout: 20000 });
+  placed = state.aster.placed.at(-1);
+  assert.deepEqual([placed.side, placed.reduceOnly, placed.feeRate], ['SELL', 'true', '0.00035']);
   await page.click('#perps-withdraw');
+  await page.selectOption('#perp-wd-chain', '42161');
   await page.fill('#perp-wd-amount', '5');
   await page.click('#perp-wd-review');
-  await page.locator('#perp-wd-receive', { hasText: '4 USDC' }).waitFor();
+  await page.locator('#perp-wd-receive', { hasText: '4.7 USDT' }).waitFor();
   await page.fill('#perp-wd-pw', 'second wallet password');
   await page.click('#perp-wd-confirm');
   await page.locator('#perps-equity').waitFor({ timeout: 20000 });
-  assert.equal(state.hl.withdrawals[0].destination, secondEth.toLowerCase(), 'paid out only to this wallet');
+  assert.equal(state.aster.withdrawals[0].receiver.toLowerCase(), secondEth.toLowerCase(), 'paid out only to this wallet');
+  assert.equal(state.aster.withdrawals[0].chainId, '42161');
   await page.click('#perps-deposit');
-  await page.fill('#perp-dep-amount', '3');
-  await page.click('#perp-dep-review');
-  await page.getByText('A deposit needs at least 5 USDC').waitFor();
+  await page.click('#dep-USDCA');
   await page.fill('#perp-dep-amount', '10');
   await page.click('#perp-dep-review');
-  await page.getByText('Not enough USDC on Arbitrum').waitFor();
+  await page.getByText(/Not enough USDC/).waitFor();
   await shot('perps-deposit');
   await page.click('#back');
   // HYPE between this wallet (HyperEVM) and HyperCore.

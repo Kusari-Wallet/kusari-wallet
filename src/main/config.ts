@@ -3,18 +3,17 @@ export type NetworkId = 'mainnet' | 'testnet';
  * USDT is the Tron token, USDTE the Ethereum one, USDTS Solana's, USDTP Polygon's and USDTA Arbitrum's.
  * ETHA is ETH on Arbitrum, which pays Arbitrum's fees; ARB is the token.
  */
-export type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'LINK' | 'WLD' | 'SOL' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA' | 'BCH' | 'LTC' | 'DOGE' | 'DASH' | 'FIRO' | 'ZEC' | 'ZANO' | 'ARRR' | 'SCRT' | 'SSCRT' | 'ETHP' | 'UNI' | 'PEPE' | 'AAVE' | 'BNB' | 'USDTB' | 'ASTER' | 'CAKE' | 'JUP' | 'RAY' | 'NEAR' | 'USDCE' | 'USDCB' | 'USDCS' | 'USDCP' | 'USDCA' | 'HYPE';
+export type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'LINK' | 'WLD' | 'SOL' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA' | 'BCH' | 'LTC' | 'DOGE' | 'DASH' | 'FIRO' | 'ZEC' | 'ZANO' | 'ARRR' | 'SCRT' | 'SSCRT' | 'ETHP' | 'UNI' | 'PEPE' | 'AAVE' | 'BNB' | 'USDTB' | 'ASTER' | 'CAKE' | 'JUP' | 'RAY' | 'NEAR' | 'USDCE' | 'USDCB' | 'USDCS' | 'USDCP' | 'USDCA' | 'HYPE' | 'SHIB' | 'SHIBB' | 'LINKB' | 'UNIB' | 'AAVEB' | 'LINKP' | 'UNIP' | 'AAVEP' | 'LINKA' | 'UNIA' | 'ORCA' | 'PUMP';
 
-export const DECIMALS: Record<Asset, number> = { HYPE: 18, USDCE: 6, USDCB: 18, USDCS: 6, USDCP: 6, USDCA: 6, BTC: 8, XMR: 12, ETH: 18, TRX: 6, USDT: 6, USDTE: 6, LINK: 18, WLD: 18, SOL: 9, USDTS: 6, POL: 18, USDTP: 6, ARB: 18, ETHA: 18, USDTA: 6, BCH: 8, LTC: 8, DOGE: 8, DASH: 8, FIRO: 8, ZEC: 8, ZANO: 12, ARRR: 8, SCRT: 6, SSCRT: 6, ETHP: 18, UNI: 18, PEPE: 18, AAVE: 18, BNB: 18, USDTB: 18, ASTER: 18, CAKE: 18, JUP: 6, RAY: 6, NEAR: 24 };
+export const DECIMALS: Record<Asset, number> = { SHIB: 18, SHIBB: 18, LINKB: 18, UNIB: 18, AAVEB: 18, LINKP: 18, UNIP: 18, AAVEP: 18, LINKA: 18, UNIA: 18, ORCA: 6, PUMP: 6, HYPE: 18, USDCE: 6, USDCB: 18, USDCS: 6, USDCP: 6, USDCA: 6, BTC: 8, XMR: 12, ETH: 18, TRX: 6, USDT: 6, USDTE: 6, LINK: 18, WLD: 18, SOL: 9, USDTS: 6, POL: 18, USDTP: 6, ARB: 18, ETHA: 18, USDTA: 6, BCH: 8, LTC: 8, DOGE: 8, DASH: 8, FIRO: 8, ZEC: 8, ZANO: 12, ARRR: 8, SCRT: 6, SSCRT: 6, ETHP: 18, UNI: 18, PEPE: 18, AAVE: 18, BNB: 18, USDTB: 18, ASTER: 18, CAKE: 18, JUP: 6, RAY: 6, NEAR: 24 };
 
 export const BTC_APIS = ['https://mempool.space/api', 'https://blockstream.info/api'];
 export const BTC_EXPLORER_TX = 'https://mempool.space/tx/';
 
 export const SOL_RPCS = ['https://api.mainnet-beta.solana.com', 'https://api.mainnet.solana.com', 'https://solana-rpc.publicnode.com'];
 export const SOL_EXPLORER_TX = 'https://solscan.io/tx/';
-// Card purchases open ChangeNOW's own page in the browser. The link id only credits the partner account.
-export const CHANGENOW_BUY_PAGE = 'https://changenow.io/embeds/exchange-widget/v2/widget.html';
-export const CHANGENOW_LINK_ID = '9183599f3b8ee2';
+// Buying opens LocalCoinSwap's P2P marketplace in the browser. The code only credits the referral account.
+export const BUY_PAGE = 'https://localcoinswap.com/?rc=FE969A35';
 // BitPay's public Bitcore API. It needs no key.
 // The Litecoin project's mempool site, the same API as mempool.space.
 export const LTC_APIS = ['https://litecoinspace.org/api'];

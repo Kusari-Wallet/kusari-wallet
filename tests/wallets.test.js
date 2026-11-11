@@ -129,3 +129,26 @@ test('removing the first wallet while another exists keeps that other one', asyn
   assert.equal(s.activeWallet, second);
   assert.equal((await s.vault.open(PW2)).tronMnemonic, 'two');
 });
+
+test('a wallet whose file is already gone can still be deleted, and files held open are removed at the next start', async (t) => {
+  const { s, dir } = await make(t);
+  await makeOldWallet(s, PW1, 'one');
+  await s.walletBeginAdd('Second');
+  s.draftSeeds = { tronMnemonic: 'two', moneroSeed: 'two' };
+  await s.finishCreate(PW2);
+  const second = s.activeWallet;
+  // As after an earlier delete that removed the vault but not the folder.
+  fs.rmSync(path.join(dir, 'wallets', second, 'vault.json'));
+  assert.equal(await s.deleteWallet(''), second);
+  assert.equal(s.activeWallet, 'main');
+  assert.deepEqual((await s.walletsList()).list.map((w) => w.id), ['main']);
+
+  // A leftover that something still held open is cleaned up later, and only inside the app's own folder.
+  const stale = path.join(dir, 'wallets', 'gone');
+  fs.mkdirSync(stale, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'leftovers.json'), JSON.stringify([stale, '/etc', path.join(dir, 'xmr')]));
+  await s.removeLeftovers();
+  assert.ok(!fs.existsSync(stale));
+  assert.ok(fs.existsSync('/etc'));
+  assert.equal((await s.vault.open(PW1)).tronMnemonic, 'one', 'the remaining wallet is untouched');
+});

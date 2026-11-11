@@ -58,6 +58,46 @@ function hlMock(state, req, body, res) {
   return send({ status: 'err', response: 'unknown action' });
 }
 
+// Aster futures: enough of fapi and bapi to walk through turning on trading and placing an order.
+function asterMock(state, req, body, res) {
+  const a = (state.aster = state.aster ?? { registered: false, builder: null, orders: [], positions: [] });
+  const u = new URL(req.url, 'http://x');
+  const p = u.pathname.replace(/^\/aster/, '');
+  const q = new URLSearchParams(req.method === 'POST' ? body : u.search.slice(1));
+  const send = (code, o) => { res.statusCode = code; res.setHeader('content-type', 'application/json'); res.end(JSON.stringify(o)); };
+  if (p === '/fapi/v3/time') return send(200, { serverTime: Date.now() });
+  if (p === '/fapi/v3/exchangeInfo') return send(200, { symbols: [
+    { symbol: 'BTCUSDT', status: 'TRADING', contractType: 'PERPETUAL', baseAsset: 'BTC', quoteAsset: 'USDT', filters: [{ filterType: 'PRICE_FILTER', tickSize: '0.1' }, { filterType: 'LOT_SIZE', stepSize: '0.001', minQty: '0.001' }, { filterType: 'MARKET_LOT_SIZE', stepSize: '0.001', minQty: '0.001', maxQty: '100' }, { filterType: 'MIN_NOTIONAL', notional: '5' }] },
+    { symbol: 'ETHUSDT', status: 'TRADING', contractType: 'PERPETUAL', baseAsset: 'ETH', quoteAsset: 'USDT', filters: [{ filterType: 'PRICE_FILTER', tickSize: '0.01' }, { filterType: 'LOT_SIZE', stepSize: '0.001', minQty: '0.001' }, { filterType: 'MIN_NOTIONAL', notional: '5' }] }] });
+  if (p === '/fapi/v3/ticker/24hr') return send(200, [{ symbol: 'BTCUSDT', lastPrice: '60000', priceChangePercent: '1.52', quoteVolume: '900000000' }, { symbol: 'ETHUSDT', lastPrice: '3000', priceChangePercent: '-0.8', quoteVolume: '400000000' }]);
+  const prem = (symbol) => ({ symbol, markPrice: symbol === 'ETHUSDT' ? '3000' : '60000', indexPrice: symbol === 'ETHUSDT' ? '3001' : '60012', lastFundingRate: '0.0001', nextFundingTime: Date.now() + 3600e3 });
+  if (p === '/fapi/v3/premiumIndex') return send(200, q.get('symbol') ? prem(q.get('symbol')) : ['BTCUSDT', 'ETHUSDT'].map(prem));
+  if (p === '/fapi/v3/depth') return send(200, { bids: [['59999.9', '1.2'], ['59999.0', '3']], asks: [['60000.1', '0.8'], ['60001', '2']] });
+  if (p === '/fapi/v3/klines') return send(200, Array.from({ length: 60 }, (_, i) => [Date.now() - (60 - i) * 3600e3, String(59000 + i * 10), String(59100 + i * 10), String(58900 + i * 10), String(59050 + i * 10), '12', 0]));
+  if (p === '/fapi/v3/openInterest') return send(200, { symbol: q.get('symbol'), openInterest: '1234.5' });
+  if (p === '/fapi/v3/registerAndApproveAgent') { a.registered = q.get('agentAddress'); return send(200, { code: 200, msg: 'success' }); }
+  if (p === '/fapi/v3/approveBuilder') { a.builder = q.get('maxFeeRate'); return send(200, { code: 200, msg: 'success' }); }
+  if (p === '/fapi/v3/remainingOpenableNotionalValue') return Number(q.get('leverage')) >= 1 && Number(q.get('leverage')) <= 75 ? send(200, { remainingOpenableNotionalValue: '1000000' }) : send(400, { code: -4028, msg: 'Invalid leverage' });
+  if (p.startsWith('/bapi/futures/v1/public/future/aster/estimate-withdraw-fee')) return send(200, { code: '000000', data: { gasCost: 0.3 }, success: true });
+  if (!a.registered || q.get('signer') !== a.registered) return send(401, { code: -1022, msg: 'Signature for this request is not valid.' });
+  if (p === '/fapi/v3/leverageBrackets') return send(200, (q.get('symbol') ? [q.get('symbol')] : ['BTCUSDT', 'ETHUSDT']).map((symbol) => ({ symbol, brackets: [{ bracket: 1, initialLeverage: symbol === 'ETHUSDT' ? 100 : 200, notionalCap: 50000, notionalFloor: 0, maintMarginRatio: 0.004, cum: 0 }] })));
+  if (p === '/fapi/v3/commissionRate') return send(200, { symbol: q.get('symbol'), makerCommissionRate: '0.0001', takerCommissionRate: '0.00035' });
+  if (p === '/fapi/v3/account') return send(200, { totalWalletBalance: '250', availableBalance: '200', totalUnrealizedProfit: '12.5', totalMarginBalance: '262.5' });
+  if (p === '/fapi/v3/positionRisk') return send(200, a.positions);
+  if (p === '/fapi/v3/openOrders') return send(200, a.orders);
+  if (p === '/fapi/v3/marginType' || p === '/fapi/v3/leverage') return send(200, { code: 200, msg: 'success' });
+  if (p === '/fapi/v3/order' && req.method === 'POST') {
+    (a.placed = a.placed ?? []).push(Object.fromEntries(q));
+    if (q.get('type') === 'MARKET' && !q.get('reduceOnly')) a.positions = [{ symbol: q.get('symbol'), positionAmt: (q.get('side') === 'SELL' ? '-' : '') + q.get('quantity'), entryPrice: '60000', markPrice: '60500', unRealizedProfit: '5', liquidationPrice: '54321', leverage: '10', marginType: 'isolated', isolatedWallet: '10', notional: '100' }];
+    if (q.get('reduceOnly')) a.positions = [];
+    if (q.get('type') === 'LIMIT') a.orders.push({ orderId: 9, symbol: q.get('symbol'), side: q.get('side'), origType: 'LIMIT', price: q.get('price'), origQty: q.get('quantity'), executedQty: '0', timeInForce: q.get('timeInForce'), time: Date.now() });
+    return send(200, { orderId: 9, status: q.get('type') === 'MARKET' ? 'FILLED' : 'NEW' });
+  }
+  if (p === '/fapi/v3/order' && req.method === 'DELETE') { a.orders = a.orders.filter((o) => String(o.orderId) !== q.get('orderId')); return send(200, { status: 'CANCELED' }); }
+  if (p === '/fapi/v3/aster/user-withdraw') { (a.withdrawals = a.withdrawals ?? []).push(Object.fromEntries(q)); return send(200, { withdrawId: '77', hash: '0xab' }); }
+  return send(404, { code: -1, msg: 'unknown' });
+}
+
 function mockNode() {
   const state = { broadcast: [], balance: 50_000_000, usdt: 10_000_000n, energyUsed: 64285, recipientExists: true, tamper: null };
   const server = http.createServer((req, res) => {
@@ -65,6 +105,7 @@ function mockNode() {
     req.on('data', (c) => { body += c; });
     req.on('end', () => {
       if (req.url.startsWith('/hl/')) return hlMock(state, req, body, res);
+      if (req.url.startsWith('/aster/')) return asterMock(state, req, body, res);
       // Exchange spot books for the Kusari index: BTC near 60,000 everywhere but Bybit, which is down.
       if (req.url.startsWith('/kx/')) {
         const name = req.url.split('/')[2];
@@ -163,6 +204,7 @@ function mockNode() {
       if (url === '/btc/v1/fees/recommended') return send({ halfHourFee: 5 });
       if (url === '/simple/v3/estimates') { state.simpleKey = req.headers['x-api-key']; return send({ result: { estimatedAmount: '0.012' } }); }
       if (url === '/simple/v3/exchanges' && req.method === 'POST') return send({ result: { publicId: 'S1', addressFrom: json.networkFrom === 'eth' ? '0x70997970C51812dc3A010C7d01b50e0d17dc79C8' : RECIPIENT, addressTo: json.addressTo, userRefundAddress: json.userRefundAddress, amountFrom: json.amount, amountTo: '0.012', tickerFrom: json.tickerFrom, tickerTo: json.tickerTo, networkFrom: json.networkFrom, networkTo: json.networkTo } });
+      if (url === '/ghost/v1/currencies') return send({ currencies: ['btc', 'xmr', 'eth', 'trx', 'ltc', 'doge', 'dash', 'sol', 'bch', 'zec', 'pol', 'bnbbsc', 'etharb', 'hype'].map((ticker) => ({ ticker, enabled: true })).concat([{ ticker: 'usdtrx', enabled: true, contractAddress: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t' }]) });
       if (url === '/ghost/v1/quotes') { state.ghostAuth = req.headers.authorization; return send({ quote: { amountUserReceives: '0.009', rate: '0.0045' } }); }
       if (url === '/swap/rate') return send({ fromAmount: 2, toAmount: 0.01, rate: 0.005, minAmount: 1, maxAmount: 9000 });
       if (url.startsWith('/swap/currencies/')) return send([{ network: 'TRX', shortName: 'TRC20' }]);

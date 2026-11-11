@@ -1,6 +1,6 @@
-import { ChildProcess, spawn } from 'node:child_process';
+import { ChildProcess, execFileSync, spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
-import { promises as fs, existsSync } from 'node:fs';
+import { promises as fs, existsSync, readFileSync, readlinkSync } from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 // eslint-disable-next-line
@@ -92,6 +92,8 @@ export class TorManager extends EventEmitter {
   private stopping = false;
   private port = 0;
   private restartTimer: NodeJS.Timeout | null = null;
+  private quickExits = 0;
+  private lastProblem = '';
   state: TorState = { phase: 'off', percent: 0, verified: null, exitIp: null, error: null, installedVersion: null };
 
   constructor(private readonly dir: string, private readonly opts: {
@@ -215,6 +217,9 @@ export class TorManager extends EventEmitter {
     if (!existsSync(this.binPath)) { this.patch({ phase: 'error', error: 'Tor isn\'t installed.' }); return; }
     this.patch({ phase: 'starting', percent: 0, error: null, verified: null, exitIp: null });
     const dataDir = path.join(this.dir, 'data');
+    // A Tor left running by an earlier run that closed badly keeps the data folder locked, and a new one quits at once.
+    this.killLeftover();
+    const startedAt = Date.now();
     const proc = spawn(this.binPath, [
       '--ignore-missing-torrc', '-f', path.join(this.dir, 'no-torrc'),
       '--SocksPort', `127.0.0.1:${this.port}`,
@@ -227,6 +232,7 @@ export class TorManager extends EventEmitter {
       env: { ...process.env, LD_LIBRARY_PATH: path.dirname(this.binPath) },
     });
     this.proc = proc;
+    if (proc.pid) void fs.writeFile(this.pidPath, String(proc.pid)).catch(() => undefined);
     let tail = '';
     const onData = (d: Buffer) => {
       const text = tail + d.toString('utf8');
@@ -234,6 +240,7 @@ export class TorManager extends EventEmitter {
       tail = lines.pop() ?? '';
       for (const line of lines) {
         if (line.trim()) { this.log.push(scrubLog(line.trim()).slice(0, 300)); this.log.splice(0, Math.max(0, this.log.length - LOG_LINES)); }
+        if (/\[(warn|err)\]/.test(line)) this.lastProblem = scrubLog(line.replace(/^.*\[(warn|err)\]\s*/, '').trim()).slice(0, 200);
         const m = line.match(/Bootstrapped (\d+)%/);
         if (!m) continue;
         const percent = Number(m[1]);
@@ -242,14 +249,19 @@ export class TorManager extends EventEmitter {
       }
     };
     proc.stdout?.on('data', onData);
-    proc.stderr?.on('data', () => undefined);
+    proc.stderr?.on('data', onData);
     proc.on('error', (e) => { this.patch({ phase: 'error', error: `Could not start Tor. ${e.message}` }); });
-    proc.on('exit', () => {
+    proc.on('exit', (code) => {
       this.proc = null;
+      void fs.rm(this.pidPath, { force: true }).catch(() => undefined);
       if (this.stopping) return;
+      // Quitting again and again right after starting is a problem to show, with longer waits between tries.
+      this.quickExits = Date.now() - startedAt < 60_000 ? this.quickExits + 1 : 0;
+      const wait = [5, 15, 30, 60][Math.min(this.quickExits, 3)] * 1000;
+      const why = this.lastProblem ? ` Tor said: ${this.lastProblem}` : code ? ` (exit code ${code})` : '';
       // Nothing listens on the port now, so wallet traffic fails rather than leaving unprotected.
-      this.patch({ phase: 'error', percent: 0, verified: null, exitIp: null, error: 'Tor stopped. Restarting it.' });
-      this.restartTimer = setTimeout(() => this.start(), 5000);
+      this.patch({ phase: 'error', percent: 0, verified: null, exitIp: null, error: `Tor stopped. Restarting it in ${wait / 1000} seconds.${why}` });
+      this.restartTimer = setTimeout(() => this.start(), wait);
     });
   }
 
@@ -264,6 +276,28 @@ export class TorManager extends EventEmitter {
   }
 
   clearLog(): void { this.log = []; }
+
+  private get pidPath() { return path.join(this.dir, 'tor.pid'); }
+
+  /** Stops the Tor an earlier run started, if it is still there and really is this wallet's Tor. */
+  private killLeftover(): void {
+    let pid = 0;
+    try { pid = Number(readFileSync(this.pidPath, 'utf8').trim()); } catch { return; }
+    if (!(pid > 0) || pid === process.pid) return;
+    try { process.kill(pid, 0); } catch { return; } // already gone
+    try {
+      if (process.platform === 'win32') {
+        const out = execFileSync('tasklist', ['/FI', `PID eq ${pid}`, '/FO', 'CSV', '/NH'], { windowsHide: true, timeout: 5000 }).toString();
+        if (!/^"tor\.exe"/i.test(out.trim())) return;
+      } else if (process.platform === 'linux') {
+        if (readlinkSync(`/proc/${pid}/exe`) !== this.binPath) return;
+      } else return;
+      process.kill(pid);
+      // Its lock on the data folder goes when it exits.
+      const until = Date.now() + 3000;
+      while (Date.now() < until) { try { process.kill(pid, 0); } catch { break; } execFileSync(process.platform === 'win32' ? 'cmd' : 'sleep', process.platform === 'win32' ? ['/c', 'ping -n 2 127.0.0.1 >nul'] : ['0.2'], { windowsHide: true }); }
+    } catch { /* could not check it: leave it alone */ }
+  }
 
   async stop(): Promise<void> {
     this.stopping = true;

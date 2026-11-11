@@ -1,18 +1,18 @@
 declare const wallet: any;
 declare const jsQR: any;
 
-type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'LINK' | 'WLD' | 'SOL' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA' | 'BCH' | 'LTC' | 'DOGE' | 'DASH' | 'FIRO' | 'ZEC' | 'ZANO' | 'ARRR' | 'SCRT' | 'ETHP' | 'UNI' | 'PEPE' | 'AAVE' | 'BNB' | 'USDTB' | 'ASTER' | 'CAKE' | 'JUP' | 'RAY' | 'NEAR' | 'USDCE' | 'USDCB' | 'USDCS' | 'USDCP' | 'USDCA' | 'SSCRT' | 'HYPE';
+type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'LINK' | 'WLD' | 'SOL' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA' | 'BCH' | 'LTC' | 'DOGE' | 'DASH' | 'FIRO' | 'ZEC' | 'ZANO' | 'ARRR' | 'SCRT' | 'ETHP' | 'UNI' | 'PEPE' | 'AAVE' | 'BNB' | 'USDTB' | 'ASTER' | 'CAKE' | 'JUP' | 'RAY' | 'NEAR' | 'USDCE' | 'USDCB' | 'USDCS' | 'USDCP' | 'USDCA' | 'SSCRT' | 'HYPE' | 'SHIB' | 'SHIBB' | 'LINKB' | 'UNIB' | 'AAVEB' | 'LINKP' | 'UNIP' | 'AAVEP' | 'LINKA' | 'UNIA' | 'ORCA' | 'PUMP';
 type Attrs = Record<string, any>;
 type Child = Node | string | null | undefined | false;
 
-const ALL_ASSETS: Asset[] = ['XMR', 'BTC', 'ETH', 'USDTE', 'USDCE', 'LINK', 'WLD', 'UNI', 'PEPE', 'AAVE', 'ZEC', 'SOL', 'USDTS', 'USDCS', 'JUP', 'RAY', 'TRX', 'USDT', 'HYPE', 'BNB', 'USDTB', 'USDCB', 'ASTER', 'CAKE', 'POL', 'ETHP', 'USDTP', 'USDCP', 'ARB', 'ETHA', 'USDTA', 'USDCA', 'BCH', 'LTC', 'NEAR', 'SCRT', 'SSCRT', 'DOGE', 'DASH', 'FIRO', 'ZANO', 'ARRR'];
+const ALL_ASSETS: Asset[] = ['XMR', 'BTC', 'ETH', 'USDTE', 'USDCE', 'LINK', 'WLD', 'UNI', 'PEPE', 'AAVE', 'SHIB', 'ZEC', 'SOL', 'USDTS', 'USDCS', 'JUP', 'RAY', 'ORCA', 'PUMP', 'TRX', 'USDT', 'HYPE', 'BNB', 'USDTB', 'USDCB', 'ASTER', 'CAKE', 'SHIBB', 'LINKB', 'UNIB', 'AAVEB', 'POL', 'ETHP', 'USDTP', 'USDCP', 'LINKP', 'UNIP', 'AAVEP', 'ARB', 'ETHA', 'USDTA', 'USDCA', 'LINKA', 'UNIA', 'BCH', 'LTC', 'NEAR', 'SCRT', 'SSCRT', 'DOGE', 'DASH', 'FIRO', 'ZANO', 'ARRR'];
 /** Tokens shown under the coin of their chain on the home screen, folded until opened. */
-const GROUPS: Partial<Record<Asset, Asset[]>> = { ETH: ['USDTE', 'USDCE', 'LINK', 'WLD', 'UNI', 'PEPE', 'AAVE'], SOL: ['USDTS', 'USDCS', 'JUP', 'RAY'], TRX: ['USDT'], BNB: ['USDTB', 'USDCB', 'ASTER', 'CAKE'], POL: ['ETHP', 'USDTP', 'USDCP'], ARB: ['ETHA', 'USDTA', 'USDCA'], SCRT: ['SSCRT'] };
+const GROUPS: Partial<Record<Asset, Asset[]>> = { ETH: ['USDTE', 'USDCE', 'LINK', 'WLD', 'UNI', 'PEPE', 'AAVE', 'SHIB'], SOL: ['USDTS', 'USDCS', 'JUP', 'RAY', 'ORCA', 'PUMP'], TRX: ['USDT'], BNB: ['USDTB', 'USDCB', 'ASTER', 'CAKE', 'SHIBB', 'LINKB', 'UNIB', 'AAVEB'], POL: ['ETHP', 'USDTP', 'USDCP', 'LINKP', 'UNIP', 'AAVEP'], ARB: ['ETHA', 'USDTA', 'USDCA', 'LINKA', 'UNIA'], SCRT: ['SSCRT'] };
 const IN_GROUP = new Set(Object.values(GROUPS).flat());
 const GROUP_OF: Partial<Record<Asset, Asset>> = Object.fromEntries(Object.entries(GROUPS).flatMap(([parent, kids]) => (kids ?? []).map((k) => [k, parent])));
-const EVM_ASSETS: Asset[] = ['ETH', 'USDTE', 'USDCE', 'LINK', 'WLD', 'ETHP', 'UNI', 'PEPE', 'AAVE', 'POL', 'USDTP', 'ARB', 'ETHA', 'USDTA', 'BNB', 'USDTB', 'ASTER', 'CAKE', 'USDCB', 'USDCP', 'USDCA', 'HYPE'];
-const SPL_ASSETS: Asset[] = ['USDTS', 'USDCS', 'JUP', 'RAY'];
-const BSC_ASSETS: Asset[] = ['BNB', 'USDTB', 'USDCB', 'ASTER', 'CAKE'];
+const EVM_ASSETS: Asset[] = ['ETH', 'USDTE', 'USDCE', 'LINK', 'WLD', 'ETHP', 'UNI', 'PEPE', 'AAVE', 'POL', 'USDTP', 'ARB', 'ETHA', 'USDTA', 'BNB', 'USDTB', 'ASTER', 'CAKE', 'USDCB', 'USDCP', 'USDCA', 'HYPE', 'SHIB', 'SHIBB', 'LINKB', 'UNIB', 'AAVEB', 'LINKP', 'UNIP', 'AAVEP', 'LINKA', 'UNIA'];
+const SPL_ASSETS: Asset[] = ['USDTS', 'USDCS', 'JUP', 'RAY', 'ORCA', 'PUMP'];
+const BSC_ASSETS: Asset[] = ['BNB', 'USDTB', 'USDCB', 'ASTER', 'CAKE', 'SHIBB', 'LINKB', 'UNIB', 'AAVEB'];
 // These need their engines, which aren't in every build or on every phone.
 let ASSETS: Asset[] = ALL_ASSETS.filter((a) => a !== 'ZEC' && a !== 'ZANO' && a !== 'ARRR');
 let zecInSession = false;
@@ -60,10 +60,24 @@ const COIN: Record<Asset, { label: string; file: string; note: string }> = {
   USDCA: { label: 'USDC (Arb)', file: 'coins/usdc.png', note: 'Arbitrum One only (native USDC, not USDC.e). ETH (Arb) is needed for the fee.' },
   HYPE: { label: 'HYPE', file: 'coins/hype.png', note: 'HYPE on HyperEVM (chain 999) only, not Hyperliquid\'s own trading chain. The fee is paid in HYPE. No free service lists HyperEVM history, so past transfers show on hyperevmscan.io, not here.' },
   RAY: { label: 'RAY', file: 'coins/ray.png', note: 'Raydium on Solana (SPL) only. SOL is needed for the fee.' },
+  SHIB: { label: 'SHIB', file: 'coins/shib.png', note: 'Shiba Inu on Ethereum (ERC-20) only. ETH is needed for the fee.' },
+  SHIBB: { label: 'SHIB (BNB)', file: 'coins/shib.png', note: 'Shiba Inu on BNB Smart Chain (BEP-20) only. BNB is needed for the fee. No free service lists BNB Smart Chain history, so past transfers show on bscscan.com, not here.' },
+  LINKB: { label: 'LINK (BNB)', file: 'coins/link.png', note: 'Chainlink on BNB Smart Chain (BEP-20) only. BNB is needed for the fee. No free service lists BNB Smart Chain history, so past transfers show on bscscan.com, not here.' },
+  UNIB: { label: 'UNI (BNB)', file: 'coins/uni.png', note: 'Uniswap on BNB Smart Chain (BEP-20) only. BNB is needed for the fee. No free service lists BNB Smart Chain history, so past transfers show on bscscan.com, not here.' },
+  AAVEB: { label: 'AAVE (BNB)', file: 'coins/aave.png', note: 'Aave on BNB Smart Chain (BEP-20) only. BNB is needed for the fee. No free service lists BNB Smart Chain history, so past transfers show on bscscan.com, not here.' },
+  LINKP: { label: 'LINK (Pol)', file: 'coins/link.png', note: 'Chainlink on Polygon only (bridged). POL is needed for the fee.' },
+  UNIP: { label: 'UNI (Pol)', file: 'coins/uni.png', note: 'Uniswap on Polygon only (bridged). POL is needed for the fee.' },
+  AAVEP: { label: 'AAVE (Pol)', file: 'coins/aave.png', note: 'Aave on Polygon only (bridged). POL is needed for the fee.' },
+  LINKA: { label: 'LINK (Arb)', file: 'coins/link.png', note: 'Chainlink on Arbitrum One only. ETH (Arb) is needed for the fee.' },
+  UNIA: { label: 'UNI (Arb)', file: 'coins/uni.png', note: 'Uniswap on Arbitrum One only. ETH (Arb) is needed for the fee.' },
+  ORCA: { label: 'ORCA', file: 'coins/orca.png', note: 'Orca on Solana (SPL) only. SOL is needed for the fee.' },
+  PUMP: { label: 'PUMP', file: 'coins/pump.png', note: 'pump.fun\'s PUMP on Solana only (a Token-2022 token). SOL is needed for the fee.' },
 };
 const coinName = (a: Asset): string => COIN[a]?.label ?? a;
 /** The unit after an amount. The three USDTs are all just USDT there; the screen around them names the chain. */
-const unitOf = (a: Asset): string => (a === 'SSCRT' ? 'sSCRT' : a.startsWith('USDC') ? 'USDC' : a === 'USDTE' || a === 'USDTS' || a === 'USDTP' || a === 'USDTA' || a === 'USDTB' ? 'USDT' : a === 'ETHA' || a === 'ETHP' ? 'ETH' : a);
+/** The same token on another chain: its unit is still the token's own symbol. */
+const SAME_TOKEN: Partial<Record<Asset, string>> = { SHIBB: 'SHIB', LINKB: 'LINK', LINKP: 'LINK', LINKA: 'LINK', UNIB: 'UNI', UNIP: 'UNI', UNIA: 'UNI', AAVEB: 'AAVE', AAVEP: 'AAVE' };
+const unitOf = (a: Asset): string => (SAME_TOKEN[a] ? SAME_TOKEN[a]! : a === 'SSCRT' ? 'sSCRT' : a.startsWith('USDC') ? 'USDC' : a === 'USDTE' || a === 'USDTS' || a === 'USDTP' || a === 'USDTA' || a === 'USDTB' ? 'USDT' : a === 'ETHA' || a === 'ETHP' ? 'ETH' : a);
 
 const root = document.getElementById('app') as HTMLElement;
 let selected: Asset = 'TRX';
@@ -674,7 +688,7 @@ function assetRow(a: Asset, child = false, toggle?: HTMLElement): HTMLElement {
     ? (moneroBusy() ? syncLabel() : status)
     : p
       ? h('span', {}, usdFormat(p.usd), p.change !== null && h('span', { class: p.change >= 0 ? 'up' : 'down' }, `${p.change >= 0 ? '+' : ''}${p.change.toFixed(2)}%`))
-      : a === 'BTC' ? 'Bitcoin' : a === 'HYPE' ? 'Hyperliquid' : a === 'SOL' ? 'Solana' : a === 'DOGE' ? 'Dogecoin' : a === 'BCH' ? 'Bitcoin Cash' : a === 'LTC' ? 'Litecoin' : a === 'SCRT' || a === 'SSCRT' ? 'Secret' : a === 'DASH' ? 'Dash' : a === 'FIRO' ? 'Firo' : a === 'ZEC' ? 'Zcash' : a === 'ZANO' ? 'Zano' : a === 'ARRR' ? 'Pirate Chain' : a === 'ETH' || a === 'ETHA' ? 'Ethereum' : a === 'POL' ? 'Polygon' : a === 'LINK' ? 'Chainlink' : a === 'WLD' ? 'Worldcoin' : a === 'ARB' ? 'Arbitrum' : a === 'UNI' ? 'Uniswap' : a === 'PEPE' ? 'Pepe' : a === 'AAVE' ? 'Aave' : a === 'NEAR' ? 'NEAR Protocol' : a === 'ETHP' ? 'Ethereum' : a === 'BNB' ? 'BNB Smart Chain' : a === 'ASTER' ? 'Aster' : a === 'CAKE' ? 'PancakeSwap' : a === 'JUP' ? 'Jupiter' : a === 'RAY' ? 'Raydium' : a === 'USDT' || a === 'USDTE' || a === 'USDTS' || a === 'USDTP' || a === 'USDTA' ? 'Tether' : a === 'TRX' ? 'Tron' : 'Monero';
+      : a === 'BTC' ? 'Bitcoin' : a === 'HYPE' ? 'Hyperliquid' : a === 'SOL' ? 'Solana' : a === 'DOGE' ? 'Dogecoin' : a === 'BCH' ? 'Bitcoin Cash' : a === 'LTC' ? 'Litecoin' : a === 'SCRT' || a === 'SSCRT' ? 'Secret' : a === 'DASH' ? 'Dash' : a === 'FIRO' ? 'Firo' : a === 'ZEC' ? 'Zcash' : a === 'ZANO' ? 'Zano' : a === 'ARRR' ? 'Pirate Chain' : a === 'ETH' || a === 'ETHA' ? 'Ethereum' : a === 'POL' ? 'Polygon' : a === 'LINK' ? 'Chainlink' : a === 'WLD' ? 'Worldcoin' : a === 'ARB' ? 'Arbitrum' : a === 'UNI' ? 'Uniswap' : a === 'PEPE' ? 'Pepe' : a === 'AAVE' ? 'Aave' : a === 'NEAR' ? 'NEAR Protocol' : a === 'ETHP' ? 'Ethereum' : a === 'BNB' ? 'BNB Smart Chain' : a === 'ASTER' ? 'Aster' : a === 'CAKE' ? 'PancakeSwap' : a === 'JUP' ? 'Jupiter' : a === 'RAY' ? 'Raydium' : a === 'SHIB' || a === 'SHIBB' ? 'Shiba Inu' : a === 'LINKB' || a === 'LINKP' || a === 'LINKA' ? 'Chainlink' : a === 'UNIB' || a === 'UNIP' || a === 'UNIA' ? 'Uniswap' : a === 'AAVEB' || a === 'AAVEP' ? 'Aave' : a === 'ORCA' ? 'Orca' : a === 'PUMP' ? 'pump.fun' : a === 'USDT' || a === 'USDTE' || a === 'USDTS' || a === 'USDTP' || a === 'USDTA' ? 'Tether' : a === 'TRX' ? 'Tron' : 'Monero';
   const usd = assetUsd(a);
   return h('button', { class: `asset${child ? ' child' : ''}`, id: `asset-${a}`, onclick: () => { selected = a; void renderAsset(); } },
     coin(a),
@@ -1256,25 +1270,23 @@ async function renderBuy(): Promise<void> {
   const tor = Boolean((await wallet.torInfo().catch(() => null))?.enabled);
   const open = h('button', { class: 'primary', id: 'buy-open', onclick: () => busy(open, 'Opening…', box, async () => {
     await wallet.openBuy(asset);
-    status.textContent = 'ChangeNOW opened in your browser. Paste this address there as the receiving address.';
-  }) }, 'Buy with ChangeNOW');
-  // ChangeNOW doesn't sell these.
+    status.textContent = 'LocalCoinSwap opened in your browser. Give this address to the seller as the receiving address.';
+  }) }, 'Buy on LocalCoinSwap');
   if (asset === 'SSCRT') { (open as HTMLButtonElement).disabled = true; status.textContent = 'sSCRT isn\'t sold anywhere. Buy SCRT, then make it private on the SCRT screen.'; }
-  if (asset === 'SCRT') { (open as HTMLButtonElement).disabled = true; status.textContent = 'ChangeNOW doesn\'t sell SCRT. Buy it on an exchange and send it to this address.'; }
   show('send', subBar('Buy', renderHome), h('div', { class: 'scroll' },
     picker(() => void renderBuy()),
     h('div', { class: 'panel' },
       h('span', { class: 'label' }, `Your ${coinName(asset)} receiving address`),
       h('div', { class: 'addr-box' }, addressEl, copy),
       status),
-    h('p', { class: 'small muted' }, 'Copy the address, then paste it on ChangeNOW\'s page as the receiving address. Check that the coin and network there match.'),
-    h('p', { class: 'small muted' }, `Purchases are made on ChangeNOW's page in your browser, by card or another payment method they offer. ChangeNOW and its payment partners ask for identity checks (KYC), set the fees, and may not offer every coin or country. This wallet adds no fee and sends them nothing.`),
+    h('p', { class: 'small muted' }, 'Copy the address and use it as the receiving address on LocalCoinSwap. Check that the coin and network there match.'),
+    h('p', { class: 'small muted' }, 'LocalCoinSwap is a peer-to-peer marketplace: you buy from other people, with the payment methods they offer, and its escrow holds the coins until the trade is done. LocalCoinSwap sets its own rules and fees and may not list every coin. This wallet adds no fee and sends them nothing.'),
     tor && h('p', { class: 'small muted' }, 'Your browser isn\'t behind Tor, so they can see your IP address.'),
     box.el,
     open));
   try {
     const list = await wallet.addresses();
-    // ChangeNOW pays Zcash to transparent addresses only.
+    // Sellers pay Zcash to transparent addresses.
     address = asset === 'ZEC' ? list?.ZEC_T ?? '' : list?.[asset] ?? '';
     if (!address) throw new Error(asset === 'ZEC' ? 'The Zcash wallet is getting ready. See the Zcash engine section in Settings for progress.' : 'Could not load the address. Open this again.');
     if (!addressEl.isConnected) return;
@@ -1336,13 +1348,16 @@ async function renderReceive(current?: string): Promise<void> {
     : asset === 'ETH' ? 'The same address as USDT (Eth). Receives ETH on Ethereum mainnet only. Coins sent over L2s or other chains won\'t arrive.'
     : asset === 'USDTE' ? 'Receives USDT on the Ethereum network (ERC-20) only. Sending needs ETH at this address for the fee.'
     : asset === 'LINK' ? 'Receives LINK on Ethereum (ERC-20) only. Sending needs ETH at this address for the fee.'
-    : asset === 'UNI' || asset === 'PEPE' || asset === 'AAVE' ? `Receives ${asset} on Ethereum (ERC-20) only. Sending needs ETH at this address for the fee.`
+    : asset === 'UNI' || asset === 'PEPE' || asset === 'AAVE' || asset === 'SHIB' ? `Receives ${asset} on Ethereum (ERC-20) only. Sending needs ETH at this address for the fee.`
+    : asset === 'SHIBB' || asset === 'LINKB' || asset === 'UNIB' || asset === 'AAVEB' ? `Receives ${unitOf(asset)} on BNB Smart Chain (BEP-20) only. Sending needs BNB at this address for the fee.`
+    : asset === 'LINKP' || asset === 'UNIP' || asset === 'AAVEP' ? `Receives ${unitOf(asset)} on Polygon only. Sending needs POL at this address for the fee.`
+    : asset === 'LINKA' || asset === 'UNIA' ? `Receives ${unitOf(asset)} on Arbitrum One only. Sending needs ETH (Arb) at this address for the fee.`
     : asset === 'ETHP' ? 'Receives ETH on Polygon only (bridged ETH). ETH sent on Ethereum or Arbitrum won\'t show here. Sending needs POL at this address for the fee.'
     : asset === 'NEAR' ? 'Receives NEAR on the NEAR network only. This 64-character account becomes active when the first NEAR arrives. NEAR sent as a token on Ethereum or BNB Chain won\'t arrive.'
     : asset === 'HYPE' ? 'The same 0x address as on Ethereum. Receives HYPE on HyperEVM only. HYPE sent on Hyperliquid\'s trading chain (HyperCore) or another chain won\'t show here.'
     : asset === 'BNB' ? 'The same 0x address as on Ethereum. Receives BNB on BNB Smart Chain (BEP-20) only. BNB on other chains won\'t show here.'
     : asset === 'USDTB' || asset === 'ASTER' || asset === 'CAKE' ? `Receives ${asset === 'USDTB' ? 'USDT' : asset} on BNB Smart Chain (BEP-20) only. Sending needs BNB at this address for the fee.`
-    : asset === 'JUP' || asset === 'RAY' ? `Receives ${asset} on Solana (SPL) only. Sending needs a little SOL at this address for the fee.`
+    : asset === 'JUP' || asset === 'RAY' || asset === 'ORCA' || asset === 'PUMP' ? `Receives ${asset} on Solana (SPL) only. Sending needs a little SOL at this address for the fee.`
     : asset === 'WLD' ? 'Receives WLD on Ethereum (ERC-20) only. Sending needs ETH at this address for the fee.'
     : asset === 'POL' ? 'The same 0x address as on Ethereum and Arbitrum. Receives POL on Polygon only.'
     : asset === 'USDTP' ? 'Receives USDT on Polygon only. Sending needs POL at this address for the fee.'
@@ -2403,10 +2418,10 @@ async function renderPerps(): Promise<void> {
     const go = h('button', { class: 'primary', id: 'perps-enable', type: 'submit' }, info.agent || info.builder ? 'Turn trading back on' : 'Turn on trading');
     top.push(h('div', { class: 'panel', id: 'perps-setup' },
       h('h3', {}, 'Trade perpetual futures'),
-      h('p', { class: 'small muted' }, 'Long or short with leverage, from this wallet. Your USDC stays in your own perps account, which only this wallet controls.'),
+      h('p', { class: 'small muted' }, 'Long or short with leverage, from this wallet. Your USDT or USDC stays in your own futures account, which only this wallet controls.'),
       h('ol', { class: 'small steps' },
-        h('li', {}, `Deposit USDC from Arbitrum (at least ${info.minDeposit} USDC; less is never credited).`),
-        h('li', {}, 'Turn on trading. This approves a trading key made from your seed. It can open and close trades but can never withdraw or send your USDC.')),
+        h('li', {}, 'Deposit USDT or USDC from BNB Chain, Arbitrum or Ethereum. Your futures account opens with the first deposit.'),
+        h('li', {}, `Turn on trading. This approves a trading key made from your seed for ${info.days} days. It can open and close trades but can never withdraw or send your funds.`)),
       h('p', { class: 'small muted', id: 'perps-fee-note' }, `Kusari fee: ${pct(info.fee.maker)} on post-only orders, ${pct(info.fee.taker)} on all other orders, on top of the exchange's own trading fee. Turning on trading also approves this fee.`),
       h('form', { onsubmit: (e: Event) => {
         e.preventDefault();
@@ -2463,7 +2478,7 @@ async function renderPerps(): Promise<void> {
     const q = perpSearch.trim().toUpperCase();
     const shown = (q ? markets.filter((m) => m.symbol.toUpperCase().includes(q)) : markets).slice(0, q ? 60 : 30);
     setKids(list, ...(shown.length ? shown.map((m) => h('button', { class: 'asset perp-market', id: `mkt-${m.symbol}`, onclick: () => void renderPerpMarket(m.symbol) },
-      h('div', {}, h('div', { class: 'name', 'data-no-translate': '' }, m.base, h('span', { class: 'muted small' }, '-USD'), h('span', { class: 'lev-tag', id: `lev-${m.symbol}` }, `${m.maxLeverage}x`)), h('div', { class: 'sub' }, `Vol $${compact(m.volume)}`)),
+      h('div', {}, h('div', { class: 'name', 'data-no-translate': '' }, m.base, h('span', { class: 'muted small' }, `-${m.quote}`), m.maxLeverage ? h('span', { class: 'lev-tag', id: `lev-${m.symbol}` }, `${m.maxLeverage}x`) : null), h('div', { class: 'sub' }, `Vol $${compact(m.volume)}`)),
       h('div', { class: 'right' }, h('div', { class: 'amt' }, px(m.price)), h('div', { class: `sub ${m.change >= 0 ? 'up' : 'down'}` }, `${m.change >= 0 ? '+' : ''}${m.change.toFixed(2)}%`)))) : [h('p', { class: 'empty' }, 'No market matches.')]));
   };
   search.addEventListener('input', () => { perpSearch = search.value; paintMarkets(); });
@@ -2685,7 +2700,7 @@ async function renderPerpMarket(symbol: string, keep?: TradeState): Promise<void
   const body = h('div', { class: 'scroll perp-trade', id: 'perp-trade' }, h('p', { class: 'empty' }, 'Loading…'));
   show('send', h('div', { class: 'bar' },
     h('button', { class: 'icon-btn', id: 'back', 'aria-label': 'Back', onclick: () => void renderPerps() }, icon('back')),
-    h('h2', { 'data-no-translate': '' }, `${symbol}-USD`), h('span', {})), body);
+    h('h2', { 'data-no-translate': '' }, symbol), h('span', {})), body);
   let info: any; let ready = false; let acct: any = null;
   try {
     [info, ready, acct] = await Promise.all([wallet.perpsMarket(symbol), wallet.perpsInfo().then((i: any) => i.ready), wallet.perpsAccount().catch(() => null)]);
@@ -2826,10 +2841,10 @@ async function renderPerpMarket(symbol: string, keep?: TradeState): Promise<void
     h('div', { class: 'panel order-panel' },
       h('div', { class: 'segs' }, ...kindBtns),
       priceRow,
-      h('div', { class: 'slider-head' }, h('span', {}, 'Margin (USDC)'), h('span', { class: 'small muted', id: 'perp-free' }, `Free ${usdc(free)}`)),
+      h('div', { class: 'slider-head' }, h('span', {}, 'Margin (USDT)'), h('span', { class: 'small muted', id: 'perp-free' }, `Free ${usdc(free)}`)),
       marginRange,
       h('div', { class: 'ticks' }, ...['0%', '25%', '50%', '75%', '100%'].map((t) => h('span', {}, t))),
-      h('label', { class: 'num-row' }, margin, h('span', { class: 'unit' }, 'USDC')),
+      h('label', { class: 'num-row' }, margin, h('span', { class: 'unit' }, 'USDT')),
       h('div', { class: 'slider-head' }, h('span', {}, 'Leverage'), h('span', { class: 'small muted' }, `Max ${maxLev}x`)),
       levRange,
       h('div', { class: 'ticks' }, ...levTicks.map((t) => h('button', { type: 'button', class: 'tick', id: `lev-pick-${t}`, onclick: () => { levRange.value = String(t); paint(); } }, `${t}x`))),
@@ -2901,23 +2916,27 @@ async function renderPerpClose(symbol: string): Promise<void> {
     box.el, go));
 }
 
-function renderPerpDeposit(): void {
+/** Coins the futures account takes, on the chains it takes them on. */
+const PERP_DEPOSIT_ASSETS: Asset[] = ['USDTB', 'USDCB', 'USDTA', 'USDCA', 'USDTE', 'USDCE'];
+
+function renderPerpDeposit(pick: Asset = 'USDTB'): void {
   const amount = h('input', { id: 'perp-dep-amount', inputmode: 'decimal', autocomplete: 'off', placeholder: '0.00' });
   const box = errorBox();
   const go = h('button', { class: 'primary', id: 'perp-dep-review', type: 'submit' }, 'Review deposit');
   const form = h('form', { onsubmit: (e: Event) => {
     e.preventDefault();
-    busy(go, 'Checking…', box, async () => renderPerpDepositReview(await wallet.perpsDepositPrepare(amount.value)));
+    busy(go, 'Checking…', box, async () => renderPerpDepositReview(await wallet.perpsDepositPrepare(pick, amount.value), pick));
   } },
-  h('div', { class: 'list' }, h('div', { class: 'asset on', id: 'dep-USDCA' }, coin('USDCA'), h('div', {}, h('div', { class: 'name' }, coinName('USDCA'))), h('div', { class: 'right' }, h('div', { class: 'amt' }, balanceText('USDCA'))))),
-  h('p', { class: 'small muted' }, 'USDC on Arbitrum goes to the perps bridge and arrives in your perps account in about a minute. At least 5 USDC: a smaller deposit is never credited. ETH (Arb) pays the network fee.'),
-  h('label', { class: 'field' }, h('span', {}, 'Amount (USDC)'), amount),
-  h('button', { type: 'button', class: 'link', id: 'perp-dep-max', onclick: () => { amount.value = String(overview?.balances?.USDCA?.spendable ?? '').replace(/,/g, ''); } }, 'Use all'),
+  h('div', { class: 'list' }, ...PERP_DEPOSIT_ASSETS.map((a) => h('button', { type: 'button', class: `asset${a === pick ? ' on' : ''}`, id: `dep-${a}`, onclick: () => renderPerpDeposit(a) },
+    coin(a), h('div', {}, h('div', { class: 'name' }, coinName(a))), h('div', { class: 'right' }, h('div', { class: 'amt' }, balanceText(a)))))),
+  h('p', { class: 'small muted' }, 'The coin goes to the futures exchange\'s deposit contract on its chain and shows in your futures account once the chain confirms it. A first deposit of a token also approves the contract to take it, in the same review. The network fee is paid in that chain\'s own coin.'),
+  h('label', { class: 'field' }, h('span', {}, 'Amount'), amount),
+  h('button', { type: 'button', class: 'link', id: 'perp-dep-max', onclick: () => { amount.value = String(overview?.balances?.[pick]?.spendable ?? '').replace(/,/g, ''); } }, 'Use all'),
   box.el, go);
   show('send', subBar('Deposit to Perps', () => void renderPerps()), h('div', { class: 'scroll' }, form));
 }
 
-function renderPerpDepositReview(p: any): void {
+function renderPerpDepositReview(p: any, pick: Asset): void {
   const pw = h('input', { type: 'password', id: 'perp-dep-pw', autocomplete: 'current-password' });
   const box = errorBox();
   const go = h('button', { class: 'primary', id: 'perp-dep-confirm', type: 'submit' }, 'Deposit');
@@ -2927,8 +2946,8 @@ function renderPerpDepositReview(p: any): void {
       const r = await wallet.perpsDepositConfirm(p.id, pw.value);
       pw.value = '';
       show('receive', subBar('Deposit sent', () => void renderPerps()), h('div', { class: 'scroll' },
-        h('h2', { id: 'perp-dep-sent' }, `${p.amount} USDC → Perps`),
-        h('p', { class: 'muted' }, 'Sent to the network. It shows in your perps account about a minute after Arbitrum confirms it.'),
+        h('h2', { id: 'perp-dep-sent' }, `${p.amount} ${coinName(p.asset)} → Perps`),
+        h('p', { class: 'muted' }, 'Sent to the network. It shows in your futures account once the chain confirms it.'),
         ...r.hashes.map((hash: string) => h('div', { class: 'panel' }, h('div', { class: 'mono' }, hash), h('br'),
           h('div', { class: 'row' }, h('button', { onclick: () => wallet.copy(hash) }, 'Copy'), h('button', { onclick: () => void openExplorer(p.asset, hash) }, 'View in explorer')))),
         h('button', { class: 'primary', onclick: () => void renderPerps() }, 'Back to Perps')));
@@ -2936,24 +2955,31 @@ function renderPerpDepositReview(p: any): void {
     });
   } },
   h('div', { class: 'panel' }, h('table', { class: 'review-table' }, h('tbody', {},
-    h('tr', {}, h('th', {}, 'Deposit'), h('td', { id: 'perp-dep-r-amount' }, `${p.amount} USDC (Arb)`)),
-    h('tr', {}, h('th', {}, 'To'), h('td', {}, 'Your perps account')),
+    h('tr', {}, h('th', {}, 'Deposit'), h('td', { id: 'perp-dep-r-amount' }, `${p.amount} ${coinName(p.asset)}`)),
+    h('tr', {}, h('th', {}, 'To'), h('td', {}, 'Your futures account')),
+    h('tr', {}, h('th', {}, 'Transactions'), h('td', {}, String(p.steps))),
     h('tr', {}, h('th', {}, 'Network fee'), h('td', {}, reviewFee(p.fee, p.feeAsset)))))),
   box.el, h('label', { class: 'field' }, h('span', {}, 'Password'), pw), go);
-  show('send', subBar('Review deposit', () => { void wallet.cancelSend(p.id); renderPerpDeposit(); }), h('div', { class: 'scroll' }, form));
+  show('send', subBar('Review deposit', () => { void wallet.cancelSend(p.id); renderPerpDeposit(pick); }), h('div', { class: 'scroll' }, form));
   pw.focus();
 }
 
+const PERP_PAYOUT: { chainId: number; name: string }[] = [{ chainId: 56, name: 'BNB Chain' }, { chainId: 42161, name: 'Arbitrum' }, { chainId: 1, name: 'Ethereum' }];
+
 function renderPerpWithdraw(available: number): void {
   const amount = h('input', { id: 'perp-wd-amount', inputmode: 'decimal', autocomplete: 'off', placeholder: '0.00' });
+  const chain = h('select', { id: 'perp-wd-chain', 'aria-label': 'Network' }, ...PERP_PAYOUT.map((c) => h('option', { value: String(c.chainId) }, c.name))) as HTMLSelectElement;
+  const token = h('select', { id: 'perp-wd-token', 'aria-label': 'Coin' }, h('option', { value: 'USDT' }, 'USDT'), h('option', { value: 'USDC' }, 'USDC')) as HTMLSelectElement;
   const box = errorBox();
   const go = h('button', { class: 'primary', id: 'perp-wd-review', type: 'submit' }, 'Review withdrawal');
   const form = h('form', { onsubmit: (e: Event) => {
     e.preventDefault();
-    busy(go, 'Checking…', box, async () => renderPerpWithdrawReview(await wallet.perpsWithdrawPrepare(amount.value), available));
+    busy(go, 'Checking…', box, async () => renderPerpWithdrawReview(await wallet.perpsWithdrawPrepare(Number(chain.value), token.value, amount.value), available));
   } },
-  h('p', { class: 'small muted' }, `Free to withdraw: ${usdc(available)}. It goes to this wallet's own address as USDC on Arbitrum, usually within a few minutes. The withdrawal fee is 1 USDC.`),
-  h('label', { class: 'field' }, h('span', {}, 'Amount (USDC)'), amount),
+  h('p', { class: 'small muted' }, `Free to withdraw: ${usdc(available)}. It goes to this wallet's own address on the network you choose, usually within a few minutes. The exchange charges a withdrawal fee, shown before you confirm.`),
+  h('label', { class: 'field' }, h('span', {}, 'Network'), chain),
+  h('label', { class: 'field' }, h('span', {}, 'Coin'), token),
+  h('label', { class: 'field' }, h('span', {}, 'Amount'), amount),
   h('button', { type: 'button', class: 'link', id: 'perp-wd-max', onclick: () => { amount.value = String(Math.floor(available * 100) / 100); } }, 'Use all'),
   box.el, go);
   show('send', subBar('Withdraw from Perps', () => void renderPerps()), h('div', { class: 'scroll' }, form));
@@ -2973,10 +2999,10 @@ function renderPerpWithdrawReview(p: any, available: number): void {
     });
   } },
   h('div', { class: 'panel' }, h('table', { class: 'review-table' }, h('tbody', {},
-    h('tr', {}, h('th', {}, 'Withdraw'), h('td', {}, `${p.amount} USDC`)),
-    h('tr', {}, h('th', {}, 'Network'), h('td', {}, 'Arbitrum')),
-    h('tr', {}, h('th', {}, 'Withdrawal fee'), h('td', {}, `${p.fee} USDC`)),
-    h('tr', {}, h('th', {}, 'You receive'), h('td', { id: 'perp-wd-receive' }, `${p.receive} USDC`)),
+    h('tr', {}, h('th', {}, 'Withdraw'), h('td', {}, `${p.amount} ${p.token}`)),
+    h('tr', {}, h('th', {}, 'Network'), h('td', {}, PERP_PAYOUT.find((c) => c.chainId === p.chainId)?.name ?? String(p.chainId))),
+    h('tr', {}, h('th', {}, 'Withdrawal fee'), h('td', {}, `${p.fee} ${p.token}`)),
+    h('tr', {}, h('th', {}, 'You receive'), h('td', { id: 'perp-wd-receive' }, `${p.receive} ${p.token}`)),
     h('tr', {}, h('th', {}, 'To'), h('td', { class: 'mono' }, p.to))))),
   box.el, h('label', { class: 'field' }, h('span', {}, 'Password'), pw), go);
   show('send', subBar('Review withdrawal', () => renderPerpWithdraw(available)), h('div', { class: 'scroll' }, form));

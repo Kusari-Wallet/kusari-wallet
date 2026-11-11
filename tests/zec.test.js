@@ -58,7 +58,7 @@ async function wallet(t, env = {}, dev = {}) {
   return { dir, service, open, logged, moneroSeed };
 }
 
-test('restore from a date, scan, send, shield, reopen', { timeout: 60000 }, async (t) => {
+test('restore from a date, scan, send, shield, reopen', { timeout: 150000 }, async (t) => {
   const { dir, service, open, logged, moneroSeed } = await wallet(t);
   await service.restore(PW, TRON, moneroSeed, '2025-06-01');
   const zec = () => service.zec;

@@ -17,15 +17,22 @@ const TOKEN_PROGRAM = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
 const TOKEN_2022_PROGRAM = 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb';
 const ATA_PROGRAM = 'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL';
 const SYSTEM_ID = '11111111111111111111111111111111';
-export type SplAsset = 'USDTS' | 'USDCS' | 'JUP' | 'RAY';
-export interface SplToken { asset: SplAsset; mint: string; decimals: number; symbol: string; dust: bigint }
+export type SplAsset = 'USDTS' | 'USDCS' | 'JUP' | 'RAY' | 'ORCA' | 'PUMP';
+/** `token2022`: the token lives in the newer Token-2022 program, whose accounts and instructions use its own id. */
+export interface SplToken { asset: SplAsset; mint: string; decimals: number; symbol: string; dust: bigint; token2022?: boolean }
 // Classic SPL tokens (the original Token program), each checked against Trust Wallet's and the issuers' own lists.
 export const SPL_TOKENS: Record<SplAsset, SplToken> = {
   USDTS: { asset: 'USDTS', mint: SOL_USDT_MINT, decimals: 6, symbol: 'USDT', dust: 10_000n },
   USDCS: { asset: 'USDCS', mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', decimals: 6, symbol: 'USDC', dust: 10_000n },
   JUP: { asset: 'JUP', mint: 'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN', decimals: 6, symbol: 'JUP', dust: 10_000n },
   RAY: { asset: 'RAY', mint: '4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R', decimals: 6, symbol: 'RAY', dust: 10_000n },
+  ORCA: { asset: 'ORCA', mint: 'orcaEKTdK7LKz57vaAYr9QeNsVEPfiu6QeMU1kektZE', decimals: 6, symbol: 'ORCA', dust: 10_000n },
+  // pump.fun's PUMP is a Token-2022 token. Its transfer hook is switched off; a send checks that it still is.
+  PUMP: { asset: 'PUMP', mint: 'pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn', decimals: 6, symbol: 'PUMP', dust: 1_000_000n, token2022: true },
 };
+const programOf = (t: SplToken) => (t.token2022 ? TOKEN_2022_PROGRAM : TOKEN_PROGRAM);
+/** Token-2022 accounts carry extensions, so opening one costs a little more rent than a classic one. */
+const accountSizeOf = (t: SplToken) => (t.token2022 ? 200 : TOKEN_ACCOUNT_SIZE);
 const TOKEN_ACCOUNT_SIZE = 165;
 const CACHE_MS = 60_000;
 const HISTORY_LIMIT = 15;
@@ -105,8 +112,8 @@ function onCurve(key: Uint8Array): boolean {
 }
 
 /** The account a wallet holds a token in, as every Solana wallet works it out. */
-export function tokenAccountOf(owner: string, mint = SOL_USDT_MINT): string {
-  const seeds = [base58.decode(owner), base58.decode(TOKEN_PROGRAM), base58.decode(mint)] as Uint8Array[];
+export function tokenAccountOf(owner: string, mint = SOL_USDT_MINT, program = TOKEN_PROGRAM): string {
+  const seeds = [base58.decode(owner), base58.decode(program), base58.decode(mint)] as Uint8Array[];
   for (let bump = 255; bump >= 0; bump--) {
     const hash = getBytes(sha256(join([...seeds, Uint8Array.from([bump]), base58.decode(ATA_PROGRAM), toUtf8Bytes('ProgramDerivedAddress')])));
     if (!onCurve(hash)) return base58.encode(hash);
@@ -132,7 +139,8 @@ export function signSolUsdtTransfer(mnemonic: string, draft: SolUsdtDraft, recen
   const token = SPL_TOKENS[draft.asset ?? 'USDTS'];
   if (!isSolAddress(draft.to)) throw new Error('The receiving address is not a SOL address.');
   if (draft.amount <= 0n) throw new Error('The amount must be more than zero.');
-  if (draft.toAccount !== tokenAccountOf(draft.to, token.mint)) throw new Error('The receiving token account does not match the address.');
+  const program = programOf(token);
+  if (draft.toAccount !== tokenAccountOf(draft.to, token.mint, program)) throw new Error('The receiving token account does not match the address.');
   const secret = deriveSecret(mnemonic);
   const me = base58.encode(ed25519.getPublicKey(secret));
   const instructions: Instruction[] = [];
@@ -141,7 +149,7 @@ export function signSolUsdtTransfer(mnemonic: string, draft: SolUsdtDraft, recen
       program: ATA_PROGRAM,
       accounts: [
         { key: me, signer: true, writable: true }, { key: draft.toAccount, signer: false, writable: true }, { key: draft.to, signer: false, writable: false },
-        { key: token.mint, signer: false, writable: false }, { key: SYSTEM_ID, signer: false, writable: false }, { key: TOKEN_PROGRAM, signer: false, writable: false },
+        { key: token.mint, signer: false, writable: false }, { key: SYSTEM_ID, signer: false, writable: false }, { key: program, signer: false, writable: false },
       ],
       data: Uint8Array.from([1]), // CreateIdempotent: does nothing if someone opened it in the meantime
     });
@@ -151,9 +159,9 @@ export function signSolUsdtTransfer(mnemonic: string, draft: SolUsdtDraft, recen
   new DataView(data.buffer).setBigUint64(1, draft.amount, true);
   data[9] = token.decimals;
   instructions.push({
-    program: TOKEN_PROGRAM,
+    program,
     accounts: [
-      { key: tokenAccountOf(me, token.mint), signer: false, writable: true }, { key: token.mint, signer: false, writable: false },
+      { key: tokenAccountOf(me, token.mint, program), signer: false, writable: true }, { key: token.mint, signer: false, writable: false },
       { key: draft.toAccount, signer: false, writable: true }, { key: me, signer: true, writable: false },
     ],
     data,
@@ -227,7 +235,7 @@ export class SolClient {
     const r = await this.rpc('getTokenAccountsByOwner', [account, { mint: token.mint }, { encoding: 'jsonParsed', commitment: 'confirmed' }]);
     if (!Array.isArray(r?.value)) throw new Error('The SOL server gave an unexpected answer.');
     // Only the standard account is spent from and shown, the one every wallet sends to.
-    const mine = tokenAccountOf(account, token.mint);
+    const mine = tokenAccountOf(account, token.mint, programOf(token));
     const row = r.value.find((v: any) => v?.pubkey === mine);
     if (!row) return 0n;
     const info = row.account?.data?.parsed?.info;
@@ -247,7 +255,17 @@ export class SolClient {
   async draftUsdt(to: string, amount: bigint | 'max', asset: SplAsset = 'USDTS'): Promise<SolUsdtDraft> {
     const token = SPL_TOKENS[asset];
     if (!isSolAddress(to)) throw new Error('Not a Solana address.');
-    if (to === this.address || to === tokenAccountOf(this.address, token.mint)) throw new Error('You cannot send to your own address.');
+    const program = programOf(token);
+    if (to === this.address || to === tokenAccountOf(this.address, token.mint, program)) throw new Error('You cannot send to your own address.');
+    if (token.token2022) {
+      // A transfer hook would need accounts this wallet doesn't add, and could run code on every transfer.
+      const mint = (await this.rpc('getAccountInfo', [token.mint, { encoding: 'jsonParsed', commitment: 'confirmed' }]))?.value;
+      const ext = mint?.data?.parsed?.info?.extensions;
+      if (mint?.owner !== TOKEN_2022_PROGRAM || !Array.isArray(ext)) throw new Error('The SOL server gave an unexpected answer.');
+      if (ext.some((e: any) => e?.extension === 'transferHook' && e?.state?.programId) || ext.some((e: any) => e?.extension === 'transferFeeConfig' || e?.extension === 'confidentialTransferMint' || e?.extension === 'pausableConfig' && e?.state?.paused)) {
+        throw new Error(`${token.symbol} now has extra transfer rules this wallet does not handle, so nothing was sent.`);
+      }
+    }
     this.tokenCache.delete(asset);
     this.cache = null;
     const [held, sol, target] = await Promise.all([this.getUsdtBalance(asset), this.getBalance(), this.rpc('getAccountInfo', [to, { encoding: 'base64', commitment: 'confirmed' }])]);
@@ -257,15 +275,15 @@ export class SolClient {
     const value = amount === 'max' ? held : amount;
     if (value <= 0n) throw new Error(`No ${token.symbol} to send.`);
     if (value > held) throw new Error(`Not enough ${token.symbol}.`);
-    const toAccount = tokenAccountOf(to, token.mint);
+    const toAccount = tokenAccountOf(to, token.mint, program);
     const existing = (await this.rpc('getAccountInfo', [toAccount, { encoding: 'jsonParsed', commitment: 'confirmed' }]))?.value;
     if (existing) {
       const info = existing.data?.parsed?.info;
-      if (existing.owner !== TOKEN_PROGRAM || info?.mint !== token.mint || info?.owner !== to) throw new Error(`The receiver's ${token.symbol} account looks wrong. Nothing was sent.`);
+      if (existing.owner !== program || info?.mint !== token.mint || info?.owner !== to) throw new Error(`The receiver's ${token.symbol} account looks wrong. Nothing was sent.`);
     }
     let fee = SOL_FEE;
     if (!existing) {
-      const rent = await this.rpc('getMinimumBalanceForRentExemption', [TOKEN_ACCOUNT_SIZE]);
+      const rent = await this.rpc('getMinimumBalanceForRentExemption', [accountSizeOf(token)]);
       if (!Number.isSafeInteger(rent) || rent <= 0 || rent > 10_000_000) throw new Error('The SOL server gave an unexpected answer.');
       fee += BigInt(rent);
     }
@@ -292,7 +310,7 @@ export class SolClient {
 
   async getUsdtHistory(asset: SplAsset = 'USDTS') {
     const token = SPL_TOKENS[asset];
-    const account = tokenAccountOf(this.address, token.mint);
+    const account = tokenAccountOf(this.address, token.mint, programOf(token));
     const list: any[] = await this.rpc('getSignaturesForAddress', [account, { limit: HISTORY_LIMIT }]);
     const rows = (Array.isArray(list) ? list : []).filter((s) => !s.err && typeof s.signature === 'string');
     const held = (balances: any[] | undefined) => {

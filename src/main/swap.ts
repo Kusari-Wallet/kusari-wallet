@@ -9,6 +9,18 @@ export const SWAP_BASE = 'https://exolix.com/api/v2';
 export const SWAP_PROVIDER = 'Exolix';
 
 const COIN: Record<Asset, { coin: string; network: RegExp; fallback: string }> = {
+  SHIB: { coin: 'SHIB', network: /^(eth|ethereum|erc-?20)$/i, fallback: 'ETH' },
+  SHIBB: { coin: 'SHIB', network: /^(bsc|bnb|bep-?20|binance.?smart.?chain|bnbsmartchain)$/i, fallback: 'BSC' },
+  LINKB: { coin: 'LINK', network: /^(bsc|bnb|bep-?20|binance.?smart.?chain|bnbsmartchain)$/i, fallback: 'BSC' },
+  UNIB: { coin: 'UNI', network: /^(bsc|bnb|bep-?20|binance.?smart.?chain|bnbsmartchain)$/i, fallback: 'BSC' },
+  AAVEB: { coin: 'AAVE', network: /^(bsc|bnb|bep-?20|binance.?smart.?chain|bnbsmartchain)$/i, fallback: 'BSC' },
+  LINKP: { coin: 'LINK', network: /^(pol|polygon|matic)$/i, fallback: 'POLYGON' },
+  UNIP: { coin: 'UNI', network: /^(pol|polygon|matic)$/i, fallback: 'POLYGON' },
+  AAVEP: { coin: 'AAVE', network: /^(pol|polygon|matic)$/i, fallback: 'POLYGON' },
+  LINKA: { coin: 'LINK', network: /^(arb|arbitrum|arbitrum one)$/i, fallback: 'ARBITRUM' },
+  UNIA: { coin: 'UNI', network: /^(arb|arbitrum|arbitrum one)$/i, fallback: 'ARBITRUM' },
+  ORCA: { coin: 'ORCA', network: /^(sol|solana|spl)$/i, fallback: 'SOL' },
+  PUMP: { coin: 'PUMP', network: /^(sol|solana|spl)$/i, fallback: 'SOL' },
   BTC: { coin: 'BTC', network: /^(btc|bitcoin)$/i, fallback: 'BTC' },
   XMR: { coin: 'XMR', network: /^(xmr|monero)$/i, fallback: 'XMR' },
   TRX: { coin: 'TRX', network: /^(trx|tron|trc-?20)$/i, fallback: 'TRX' },
@@ -190,6 +202,19 @@ export { BUILTIN_SWAP_KEYS } from './swap-keys.generated';
 
 export const SIMPLESWAP_BASE = 'https://api.simpleswap.io';
 const SIMPLE_COIN: Record<Asset, { ticker: string; network: string }> = {
+  // Each checked against SimpleSwap's list by contract. Not listed there: UNI and AAVE on Polygon.
+  SHIB: { ticker: 'shib', network: 'eth' },
+  SHIBB: { ticker: 'shib', network: 'bsc' },
+  LINKB: { ticker: 'link', network: 'bsc' },
+  UNIB: { ticker: 'uni', network: 'bsc' },
+  AAVEB: { ticker: 'aave', network: 'bsc' },
+  LINKP: { ticker: 'link', network: 'matic' },
+  UNIP: { ticker: '', network: '' },
+  AAVEP: { ticker: '', network: '' },
+  LINKA: { ticker: 'link', network: 'arbitrum' },
+  UNIA: { ticker: 'uni', network: 'arbitrum' },
+  ORCA: { ticker: 'orca', network: 'sol' },
+  PUMP: { ticker: 'pump', network: 'sol' },
   BTC: { ticker: 'btc', network: 'btc' },
   XMR: { ticker: 'xmr', network: 'xmr' },
   TRX: { ticker: 'trx', network: 'trx' },
@@ -233,7 +258,8 @@ const SIMPLE_COIN: Record<Asset, { ticker: string; network: string }> = {
   SSCRT: { ticker: '', network: '' },
   // HYPE has two homes: Hyperliquid's own chain (HyperCore) and HyperEVM. This wallet holds it on HyperEVM, so only
   // services that pay out there are used: SimpleSwap and ChangeNOW list it as hype/hyperevm (checked with live
-  // quotes). Exolix lists HyperCore only; ETZ, CCECash and GhostSwap don't list HyperEVM.
+  // quotes). Exolix lists HyperCore only; ETZ and CCECash don't list HyperEVM. GhostSwap's
+  // hype is paid on HyperEVM (its explorer is hyperevmscan.io).
   HYPE: { ticker: 'hype', network: 'hyperevm' },
 };
 
@@ -299,35 +325,28 @@ export class SimpleSwapClient implements SwapProvider {
 // ---- GhostSwap ----
 
 export const GHOSTSWAP_BASE = 'https://partners-api.ghostswap.io';
-// Coins whose GhostSwap ticker depends on the chain: read from their list by coin and chain, never guessed.
-type LookedUp = 'USDTE' | 'LINK' | 'WLD' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA' | 'ETHP' | 'UNI' | 'PEPE' | 'AAVE' | 'BNB' | 'USDTB' | 'ASTER' | 'CAKE' | 'JUP' | 'RAY' | 'USDCE' | 'USDCB' | 'USDCS' | 'USDCP' | 'USDCA';
-const GHOST_LOOKUP: Record<LookedUp, { ticker: RegExp; chain: RegExp; label: string }> = {
-  USDTE: { ticker: /^usdt/i, chain: /^(eth|ethereum|erc-?20)$/i, label: 'USDT (Eth)' },
-  USDTS: { ticker: /^usdt/i, chain: /^(sol|solana|spl)$/i, label: 'USDT (Sol)' },
-  LINK: { ticker: /^link/i, chain: /^(eth|ethereum|erc-?20)$/i, label: 'LINK' },
-  WLD: { ticker: /^wld/i, chain: /^(eth|ethereum|erc-?20)$/i, label: 'WLD' },
-  POL: { ticker: /^(pol|matic)/i, chain: /^(pol|polygon|matic)$/i, label: 'POL' },
-  USDTP: { ticker: /^usdt/i, chain: /^(pol|polygon|matic)$/i, label: 'USDT (Pol)' },
-  ARB: { ticker: /^arb/i, chain: /^(arb|arbitrum)$/i, label: 'ARB' },
-  ETHA: { ticker: /^eth/i, chain: /^(arb|arbitrum)$/i, label: 'ETH (Arb)' },
-  USDTA: { ticker: /^usdt/i, chain: /^(arb|arbitrum)$/i, label: 'USDT (Arb)' },
-  ETHP: { ticker: /^(w?eth)(matic|pol|polygon)?$/i, chain: /^(pol|polygon|matic)$/i, label: 'ETH (Pol)' },
-  UNI: { ticker: /^uni(erc-?20|eth)?$/i, chain: /^(eth|ethereum|erc-?20)$/i, label: 'UNI' },
-  PEPE: { ticker: /^pepe(erc-?20|eth)?$/i, chain: /^(eth|ethereum|erc-?20)$/i, label: 'PEPE' },
-  AAVE: { ticker: /^aave(erc-?20|eth)?$/i, chain: /^(eth|ethereum|erc-?20)$/i, label: 'AAVE' },
-  BNB: { ticker: /^bnb(bsc|bep-?20)?$/i, chain: /^(bsc|bnb|bep-?20|binance.?smart.?chain|bnbsmartchain)$/i, label: 'BNB' },
-  USDTB: { ticker: /^usdt(bsc|bep-?20)?$/i, chain: /^(bsc|bnb|bep-?20|binance.?smart.?chain|bnbsmartchain)$/i, label: 'USDT (BNB)' },
-  ASTER: { ticker: /^aster(bsc|bep-?20)?$/i, chain: /^(bsc|bnb|bep-?20|binance.?smart.?chain|bnbsmartchain)$/i, label: 'ASTER' },
-  CAKE: { ticker: /^cake(bsc|bep-?20)?$/i, chain: /^(bsc|bnb|bep-?20|binance.?smart.?chain|bnbsmartchain)$/i, label: 'CAKE' },
-  JUP: { ticker: /^jup(sol|spl)?$/i, chain: /^(sol|solana|spl)$/i, label: 'JUP' },
-  RAY: { ticker: /^ray(sol|spl)?$/i, chain: /^(sol|solana|spl)$/i, label: 'RAY' },
-  USDCE: { ticker: /^usdc(erc-?20|eth)?$/i, chain: /^(eth|ethereum|erc-?20)$/i, label: 'USDC (Eth)' },
-  USDCB: { ticker: /^usdc(bsc|bep-?20)?$/i, chain: /^(bsc|bnb|bep-?20|binance.?smart.?chain|bnbsmartchain)$/i, label: 'USDC (BNB)' },
-  USDCS: { ticker: /^usdc(sol|spl)?$/i, chain: /^(sol|solana|spl)$/i, label: 'USDC (Sol)' },
-  USDCP: { ticker: /^usdc(matic|pol|polygon)?$/i, chain: /^(pol|polygon|matic)$/i, label: 'USDC (Pol)' },
-  USDCA: { ticker: /^usdc(arb|arbitrum)?$/i, chain: /^(arb|arbitrum)$/i, label: 'USDC (Arb)' },
+// Native coins by their GhostSwap ticker. Tokens are found in their list by contract address and the chain's
+// explorer, so a token of the same name on another chain is never picked. Empty: GhostSwap doesn't offer it.
+const GHOST_NATIVE: Partial<Record<Asset, string>> = {
+  BTC: 'btc', XMR: 'xmr', ETH: 'eth', TRX: 'trx', DASH: 'dash', SOL: 'sol', BCH: 'bch', LTC: 'ltc', DOGE: 'doge', ZEC: 'zec',
+  POL: 'pol', BNB: 'bnbbsc', ETHA: 'etharb', HYPE: 'hype',
 };
-const GHOST_TICKER: Record<Exclude<Asset, LookedUp>, string> = { HYPE: '', NEAR: 'near', BTC: 'btc', XMR: 'xmr', ETH: 'eth', TRX: 'trx', USDT: 'usdtrx', DASH: 'dash', FIRO: 'firo', SOL: 'sol', BCH: 'bch', LTC: 'ltc', DOGE: 'doge', ZEC: 'zec', ZANO: 'zano', ARRR: 'arrr', SCRT: 'scrt', SSCRT: '' };
+const GHOST_FIXED: Partial<Record<Asset, string>> = { USDT: 'usdtrx' };
+const EXPLORER_HOST: Record<string, RegExp> = { '1': /(^|\.)etherscan\.io$/, '137': /(^|\.)polygonscan\.com$/, '42161': /(^|\.)arbiscan\.io$/, '56': /(^|\.)bscscan\.com$/, sol: /(^|\.)solscan\.io$/ };
+
+/** The contract (or SPL mint) of a token and its chain, from the wallet's own tables. */
+function tokenContract(asset: Asset): { contract: string; chain: string } | null {
+  const { ETHEREUM, POLYGON, ARBITRUM, BSC } = require('./eth');
+  for (const c of [ETHEREUM, POLYGON, ARBITRUM, BSC]) {
+    const t = c.tokens?.[asset];
+    if (t) return { contract: String(t.contract).toLowerCase(), chain: String(c.id) };
+  }
+  const { SPL_TOKENS } = require('./sol');
+  const spl = SPL_TOKENS[asset];
+  return spl ? { contract: spl.mint, chain: 'sol' } : null;
+}
+
+const hostOf = (u: unknown) => { try { return new URL(String(u).replace('%1$s', 'x')).hostname; } catch { return ''; } };
 
 export class GhostSwapClient implements SwapProvider {
   constructor(private readonly base: string, private readonly bearer: string, private readonly agent?: Agent, private readonly timeoutMs = 30_000) {}
@@ -336,31 +355,50 @@ export class GhostSwapClient implements SwapProvider {
     return requestJson(this.base + path, { method, body, agent: this.agent, timeoutMs: this.timeoutMs, headers: { Authorization: `Bearer ${this.bearer}`, ...extra } });
   }
 
-  private usdtTickers: Partial<Record<Asset, string>> = {};
+  private list: Promise<any[]> | null = null;
 
-  /** Their docs name only Tron's USDT ticker, so chain-specific ones are read from their list and never guessed. */
-  private async ticker(asset: Asset): Promise<string> {
-    if (!(asset in GHOST_LOOKUP)) {
-      const t = GHOST_TICKER[asset as Exclude<Asset, LookedUp>];
-      if (!t) throw new Error('GhostSwap doesn\'t offer this coin.');
-      return t;
+  private currencies(): Promise<any[]> {
+    if (!this.list) {
+      this.list = this.call('GET', '/v1/currencies').then((res) => {
+        if (res.status >= 400) throw new Error(res.status === 401 || res.status === 403 ? 'Check the GhostSwap API key.' : `GhostSwap's coin list failed (${res.status}).`);
+        const body = res.body;
+        return Array.isArray(body) ? body : Array.isArray(body?.currencies) ? body.currencies : [];
+      });
+      this.list.catch(() => { this.list = null; });
     }
-    const known = this.usdtTickers[asset];
-    if (known) return known;
-    const want = GHOST_LOOKUP[asset as LookedUp];
-    const res = await this.call('GET', '/v1/currencies');
-    const list: any[] = Array.isArray(res.body?.currencies) ? res.body.currencies : [];
-    const row = list.find((c) => want.ticker.test(String(c?.ticker)) && want.chain.test(String(c?.blockchain)) && c?.enabled !== false);
-    if (!row) throw new Error(`GhostSwap doesn't list ${want.label}.`);
-    this.usdtTickers[asset] = String(row.ticker);
-    return this.usdtTickers[asset]!;
+    return this.list;
+  }
+
+  /** Every ticker is checked against their list; tokens are matched by contract on the right chain, never by name. */
+  private async ticker(asset: Asset): Promise<string> {
+    const list = await this.currencies();
+    const usable = (c: any) => c && c.enabled !== false && !c.requiresExtraId;
+    const fixed = GHOST_NATIVE[asset] ?? GHOST_FIXED[asset];
+    if (fixed) {
+      const row = list.find((c) => String(c?.ticker).toLowerCase() === fixed);
+      if (!usable(row)) throw new Error('GhostSwap doesn\'t offer this coin.');
+      if (GHOST_FIXED[asset] === 'usdtrx' && String(row.contractAddress) !== 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t') throw new Error('GhostSwap doesn\'t offer this coin.');
+      return fixed;
+    }
+    const tok = tokenContract(asset);
+    if (!tok) throw new Error('GhostSwap doesn\'t offer this coin.');
+    const host = EXPLORER_HOST[tok.chain];
+    const row = list.find((c) => usable(c) && typeof c.contractAddress === 'string'
+      && (tok.chain === 'sol' ? c.contractAddress === tok.contract : c.contractAddress.toLowerCase() === tok.contract)
+      && host?.test(hostOf(c.transactionUrl ?? c.addressUrl)));
+    if (!row) throw new Error('GhostSwap doesn\'t offer this coin.');
+    return String(row.ticker);
   }
 
   async quote(from: Asset, to: Asset, amount: string): Promise<SwapQuote> {
-    const res = await this.call('POST', '/v1/quotes', { from: await this.ticker(from), to: await this.ticker(to), amountFrom: amount, mode: 'float' });
+    const base = { from, to, amount, provider: 'GhostSwap', providerId: 'ghostswap' as const, approximate: true };
+    let pair: [string, string];
+    try { pair = [await this.ticker(from), await this.ticker(to)]; } catch (e) {
+      return { ...base, receive: '0', rate: '0', min: null, max: null, problem: (e as Error).message };
+    }
+    const res = await this.call('POST', '/v1/quotes', { from: pair[0], to: pair[1], amountFrom: amount, mode: 'float' });
     const q = res.body?.quote ?? {};
     const receive = num(q.amountUserReceives);
-    const base = { from, to, amount, provider: 'GhostSwap', providerId: 'ghostswap' as const, approximate: true };
     if (res.status === 401 || res.status === 403) return { ...base, receive: '0', rate: '0', min: null, max: null, problem: 'Check the GhostSwap API key.' };
     const min = num(q.min);
     const max = num(q.max);
@@ -519,6 +557,16 @@ export class EtzSwapClient implements SwapProvider {
 export const CHANGENOW_BASE = 'https://api.changenow.io';
 // Their v2 names a coin by ticker plus network, e.g. USDT on Tron is usdt on trx.
 const CN_COIN: Partial<Record<Asset, { ticker: string; network: string }>> = {
+  // Checked against ChangeNOW's list by contract. Not listed there: AAVE on BNB Chain and Polygon, UNI on Polygon.
+  SHIB: { ticker: 'shib', network: 'eth' },
+  SHIBB: { ticker: 'shib', network: 'bsc' },
+  LINKB: { ticker: 'link', network: 'bsc' },
+  UNIB: { ticker: 'uni', network: 'bsc' },
+  LINKP: { ticker: 'link', network: 'matic' },
+  LINKA: { ticker: 'link', network: 'arbitrum' },
+  UNIA: { ticker: 'uni', network: 'arbitrum' },
+  ORCA: { ticker: 'orca', network: 'sol' },
+  PUMP: { ticker: 'pump', network: 'sol' },
   HYPE: { ticker: 'hype', network: 'hyperevm' }, // HyperEVM, not HyperCore: checked with a live quote
   BTC: { ticker: 'btc', network: 'btc' },
   XMR: { ticker: 'xmr', network: 'xmr' },
