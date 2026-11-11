@@ -16,7 +16,6 @@ const keys = {
   changenow: process.env.CHANGENOW_KEY || local.changenow || '',
   uniswap: process.env.UNISWAP_KEY || local.uniswap || '',
   // WalletConnect (Reown) project ID. Not a secret, but kept out of the source like the rest.
-  walletconnect: process.env.WALLETCONNECT_PROJECT_ID || local.walletconnect || '',
   ccecashSecret: process.env.CCECASH_SECRET || local.ccecashSecret || '',
   ccecashRefCode: process.env.CCECASH_REF_CODE || local.ccecashRefCode || '',
 };

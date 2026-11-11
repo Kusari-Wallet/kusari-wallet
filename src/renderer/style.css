@@ -260,7 +260,6 @@ label.field > span { display: block; margin-bottom: 6px; font-size: 14px; font-w
 .skip-backup { width: 100%; margin-top: 10px; }
 .offer-net { display: block; margin-top: 2px; font-weight: 600; color: #bff0d3; }
 
-
 .fold { display: inline-grid; place-items: center; vertical-align: middle; margin-left: 4px; padding: 4px; margin-block: -4px; border-radius: 6px; color: var(--muted); cursor: pointer; }
 .fold:hover, .fold:focus-visible { color: var(--text); background: rgba(255,255,255,.06); }
 .fold svg.icon { width: 18px; height: 18px; transition: transform .15s; }
@@ -297,58 +296,6 @@ label.field > span { display: block; margin-bottom: 6px; font-size: 14px; font-w
 .chip.on { background: var(--orange); color: #111; }
 
 button.link { background: none; border: 0; padding: 0; color: var(--orange); text-decoration: underline; cursor: pointer; font: inherit; }
-.wc-session { display: grid; gap: 4px; }
-
-/* Confirmation windows over the current screen (WalletConnect) */
-.modal { position: absolute; inset: 0; z-index: 40; background: rgba(0, 0, 0, .62); display: flex; align-items: flex-end; justify-content: center; padding: 16px; animation: modal-fade .15s ease-out; }
-.modal-card { width: 100%; max-width: 440px; max-height: calc(100% - 32px); overflow-y: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 18px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 18px 50px #000; animation: modal-rise .18s ease-out; }
-.modal-card form { display: flex; flex-direction: column; gap: 12px; }
-.modal-head { display: flex; flex-direction: column; gap: 3px; }
-.modal-head h3 { margin: 0; font-size: 18px; }
-.modal-card .btn-row { margin-top: 4px; }
-.modal-card .review-table { width: 100%; }
-.wc-detail { max-height: 160px; overflow: auto; word-break: break-all; white-space: pre-wrap; }
-.fold-more summary { cursor: pointer; color: var(--muted); font-size: 13px; }
-.ok-text { color: var(--green); }
-.wc-session { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.wc-session-name { display: flex; flex-direction: column; min-width: 0; }
-.wc-session-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.chip.dapps { cursor: pointer; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font: inherit; font-size: 12px; padding: 5px 10px; border-radius: 999px; }
-@media (min-height: 700px) { .modal { align-items: center; } }
-@keyframes modal-fade { from { opacity: 0; } }
-@keyframes modal-rise { from { transform: translateY(16px); opacity: 0; } }
-@media (prefers-reduced-motion: reduce) { .modal, .modal-card { animation: none; } }
-
-/* Connection request, laid out the way MetaMask and other wallets show it */
-.dapp-head { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; padding-top: 6px; }
-.dapp-head h3 { margin: 6px 0 0; font-size: 22px; font-weight: 700; word-break: break-all; }
-.dapp-head p { margin: 0; }
-.dapp-badge { --hue: 160; width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; font-size: 24px; font-weight: 700; color: hsl(var(--hue) 80% 72%); background: hsl(var(--hue) 35% 16%); border: 1px solid hsl(var(--hue) 40% 28%); }
-.verify-row { display: flex; justify-content: center; }
-.verify { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 10px; background: var(--surface-2); font-size: 13px; font-weight: 600; }
-.verify .icon { width: 15px; height: 15px; }
-.verify.ok { color: #b5f23d; }
-.verify.bad { color: var(--danger-text); background: var(--danger-bg); }
-.verify.unknown { color: var(--warn-text); }
-.modal-section { display: flex; flex-direction: column; gap: 8px; }
-.modal-label { color: var(--muted); font-size: 13px; }
-.acct-card { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 14px; background: var(--surface-2); }
-.acct-icon { width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; background: var(--orange); color: #fff; flex: none; }
-.acct-icon .icon { width: 22px; height: 22px; }
-.acct-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.acct-text strong { font-size: 16px; }
-.perms { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
-.perms li { display: flex; align-items: center; gap: 12px; font-size: 14px; }
-.perm-mark { width: 18px; flex: none; text-align: center; font-weight: 700; }
-.perms li.yes .perm-mark { color: #b5f23d; }
-.perms li.no .perm-mark { color: var(--danger-text); }
-.pill-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 6px; }
-.pill { border: 0; border-radius: 999px; padding: 15px 12px; font: inherit; font-size: 16px; font-weight: 700; cursor: pointer; }
-.pill:disabled { opacity: .6; cursor: default; }
-.pill-dark { background: var(--surface-2); color: var(--text); }
-.pill-light { background: #fff; color: #000; }
-.pill:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
-#wc-proposal .modal-card, #wc-request .modal-card { background: #0b0b0b; }
 
 /* sSCRT: a lock on the SCRT icon marks the private form */
 .coin-badge.private-badge { display: grid; place-items: center; background: #111; color: #b5f23d; border-radius: 50%; }

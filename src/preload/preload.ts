@@ -1,11 +1,10 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
 const call = (name: string) => (...args: unknown[]) => ipcRenderer.invoke(`wallet:${name}`, ...args);
-const methods = ['status', 'generateSeeds', 'finishCreate', 'restore', 'unlock', 'lock', 'overview', 'history', 'zecInfo', 'zanoInfo', 'arrrInfo', 'arrrRescan', 'zecShield', 'prepareScrtPrivate', 'prepareLtcPrivate', 'prepareFiroPrivate', 'prepareDashMix', 'prepareDashPrivate', 'coinjoinPause', 'dexQuote', 'dexPrepare', 'dexConfirm', 'walletMode', 'setWalletMode', 'wcInfo', 'wcPair', 'wcApprove', 'wcReject', 'wcDisconnect', 'wcDisconnectAll', 'wcDecline', 'wcRequestInfo', 'wcConfirm', 'wcPopupTake', 'devWcPopup', 'wcClipboard', 'wcScanScreen', 'wcTakeLink', 'wcRegisterLinks', 'zecRescan',
-  'hypeCore', 'hypeToCorePrepare', 'hypeToCoreConfirm', 'hypeToEvmPrepare', 'hypeToEvmConfirm',
+const methods = ['status', 'generateSeeds', 'finishCreate', 'restore', 'unlock', 'lock', 'overview', 'history', 'zecInfo', 'zanoInfo', 'arrrInfo', 'arrrRescan', 'zecShield', 'prepareScrtPrivate', 'prepareLtcPrivate', 'prepareFiroPrivate', 'prepareDashMix', 'prepareDashPrivate', 'coinjoinPause', 'dexQuote', 'dexPrepare', 'dexConfirm', 'zecRescan',
   'moneroAddresses', 'newSubaddress', 'qr', 'prepareSend', 'cancelSend', 'confirmSend', 'revealSeeds',
   'changePassword', 'getSettings', 'updateSettings', 'deleteWallet', 'openExplorer', 'openBuy', 'activity', 'copy', 'prices', 'paste', 'addresses', 'torInfo', 'installTor', 'connectionLog', 'swapQuote', 'swapPrepare', 'swapConfirm', 'swapRefresh', 'swapList', 'privacyQuote', 'privacyPrepare', 'privacyRefresh', 'privacySecondQuote', 'privacySecond', 'privacyList', 'walletsList', 'walletRename', 'walletSwitch', 'walletBeginAdd', 'walletCancelAdd', 'feeEstimate', 'tornadoInfo', 'tornadoCheck', 'tornadoDepositPrepare', 'tornadoDepositConfirm', 'tornadoExport', 'tornadoWithdrawQuote', 'tornadoWithdraw', 'tornadoRecover'];
-const events = ['monero-state', 'balance-changed', 'tron-tx', 'locked', 'tor-state', 'tor-install', 'tornado-progress', 'wc-proposal', 'wc-request', 'wc-sessions', 'wc-link', 'wc-refused', 'wc-popup-more'];
+const events = ['monero-state', 'balance-changed', 'tron-tx', 'locked', 'tor-state', 'tor-install', 'tornado-progress'];
 
 contextBridge.exposeInMainWorld('wallet', {
   ...Object.fromEntries(methods.map((m) => [m, call(m)])),

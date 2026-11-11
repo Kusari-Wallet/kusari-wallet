@@ -274,29 +274,7 @@ async function withSplash(message: string, task: () => Promise<void>): Promise<v
   try { await task(); } finally { el.remove(); }
 }
 
-// Chosen before a wallet is made or restored: whether it ever talks to dApps.
-let chosenMode: 'private' | 'walletconnect' | null = null;
-
-/** Off for now: new wallets are maximum privacy only. Existing WalletConnect wallets keep working. */
-let newWalletConnect = false;
-
-function chooseMode(): void {
-  if (!newWalletConnect) { chosenMode = 'private'; welcome(); return; }
-  const pick = (m: 'private' | 'walletconnect') => () => { chosenMode = m; welcome(); };
-  const addingBack = h('button', { type: 'button', class: 'ghost', id: 'wallet-add-cancel', hidden: true, onclick: async () => { await wallet.walletCancelAdd(); await boot(); } }, 'Cancel adding a wallet');
-  void wallet.walletsList().then((r: any) => { addingBack.hidden = !r.adding; });
-  entry(
-    entryLogo(),
-    h('h2', {}, 'How will you use this wallet?'),
-    addingBack,
-    h('button', { class: 'choice', id: 'mode-private', onclick: pick('private') },
-      h('strong', {}, 'Maximum privacy'), h('span', { class: 'muted small' }, 'Never connects to dApps. Nothing about this wallet goes to a connection service. Recommended.')),
-    h('button', { class: 'choice', id: 'mode-walletconnect', onclick: pick('walletconnect') },
-      h('strong', {}, 'Use WalletConnect'), h('span', { class: 'muted small' }, 'Connects to dApps such as exchanges and NFT sites. Only the Ethereum, Polygon, Arbitrum and BNB address is shared with them, and connections go through the WalletConnect relay, outside Tor. For dApps, a separate wallet is safer than your main one.')));
-}
-
 function welcome(): void {
-  if (!chosenMode) return chooseMode();
   const addingBack = h('button', { type: 'button', class: 'ghost', id: 'wallet-add-cancel', hidden: true, onclick: async () => { await wallet.walletCancelAdd(); await boot(); } }, 'Cancel adding a wallet');
   void wallet.walletsList().then((r: any) => { addingBack.hidden = !r.adding; });
   entry(
@@ -304,7 +282,6 @@ function welcome(): void {
     h('h2', {}, 'Get started'),
     addingBack,
     h('p', { class: 'lead' }, 'Seeds and keys are stored encrypted on this device only. This is mainnet, with real coins.'),
-    newWalletConnect && h('p', { class: 'small muted', id: 'mode-chosen' }, chosenMode === 'walletconnect' ? 'Mode: WalletConnect. ' : 'Mode: Maximum privacy. ', h('button', { type: 'button', class: 'link', id: 'mode-change', onclick: () => { chosenMode = null; chooseMode(); } }, 'Change')),
     h('button', { class: 'choice', onclick: createStep1 },
       h('strong', {}, 'Create a new wallet'), h('span', { class: 'muted small' }, 'Generates new seed phrases.')),
     h('button', { class: 'choice', onclick: restoreForm },
@@ -396,9 +373,7 @@ function createSkip(password: string, back: () => void): void {
   const box = errorBox();
   const go = h('button', { class: 'danger', id: 'skip-confirm', onclick: () => busy(go, 'Creating the wallet…', box, async () => {
     await withSplash('Creating the wallet…', async () => {
-      await wallet.setWalletMode(chosenMode ?? 'private'); // before the wallet exists, so its first session already follows it
       await wallet.finishCreate(password);
-      chosenMode = null; // the next wallet added asks again
       await enterWallet();
     });
   }) }, 'Skip and create wallet');
@@ -418,9 +393,7 @@ function createStep3(password: string, seeds: { tronMnemonic: string; moneroSeed
   const done = h('button', { class: 'primary', id: 'next', onclick: () => busy(done, 'Creating the wallet…', box, async () => {
     for (const q of qs) if (q.input.value.trim().toLowerCase() !== q.words[q.i]) throw new Error(`${q.label}: word ${q.i + 1} does not match.`);
     await withSplash('Creating the wallet…', async () => {
-      await wallet.setWalletMode(chosenMode ?? 'private'); // before the wallet exists, so its first session already follows it
       await wallet.finishCreate(password);
-      chosenMode = null; // the next wallet added asks again
       await enterWallet();
     });
   }) }, 'Create wallet');
@@ -439,9 +412,7 @@ function restoreForm(): void {
   const go = h('button', { class: 'primary', id: 'next', onclick: () => busy(go, 'Restoring…', box, async () => {
     const pw = f.check();
     await withSplash('Restoring the wallet…', async () => {
-      await wallet.setWalletMode(chosenMode ?? 'private'); // before the wallet exists, so its first session already follows it
       await wallet.restore(pw, tron.value, xmr.value, from.value);
-      chosenMode = null; // the next wallet added asks again
       await enterWallet();
     });
   }) }, 'Restore');
@@ -615,8 +586,6 @@ function renderHome(): void {
     onclick: () => { homeTab = id; renderHome(); paint(); },
   }, label);
   const list = h('div', { class: 'list', id: 'asset-list' });
-  const dappSlot = h('div', { class: 'row', id: 'dapp-slot' });
-  void paintDappsChip(dappSlot);
 
   function paint(): void {
     const t = totalUsd();
@@ -633,14 +602,14 @@ function renderHome(): void {
   }
 
   show('home',
-    h('div', { class: 'top' }, h('div', { class: 'acct' }, walletButton(), torChip), dappSlot),
+    h('div', { class: 'top' }, h('div', { class: 'acct' }, walletButton(), torChip)),
     h('div', { class: 'total' }, totalValue, spin, eye),
     note,
     h('div', { class: 'actions' },
       h('button', { class: 'action', id: 'go-send', onclick: () => renderSend() }, h('span', { class: 'box' }, icon('send')), 'Send'),
       h('button', { class: 'action', id: 'go-receive', onclick: () => void renderReceive() }, h('span', { class: 'box' }, icon('receive')), 'Receive'),
       h('button', { class: 'action swap-action', id: 'go-swap', onclick: () => void renderSwap() }, h('span', { class: 'box' }, icon('swap')), 'Swap'),
-      h('button', { class: 'action', id: 'go-buy', onclick: () => void renderBuy() }, h('span', { class: 'box' }, icon('buy')), 'Buy')),
+      h('button', { class: 'action', id: 'go-buy', onclick: () => void openBuyPage() }, h('span', { class: 'box' }, icon('buy')), 'Buy')),
     h('div', { class: 'tabs', role: 'tablist' }, tab('assets', 'Assets'), tab('history', 'History')),
     body,
     bottomNav('home'));
@@ -788,7 +757,6 @@ async function renderAsset(): Promise<void> {
       (a === 'SCRT' || a === 'SSCRT') && h('div', { class: 'btn-row', id: 'sscrt-actions' },
         h('button', { class: 'secondary', id: 'sscrt-wrap', onclick: () => renderScrtPrivate('wrap') }, 'Make private'),
         h('button', { class: 'secondary', id: 'sscrt-unwrap', onclick: () => renderScrtPrivate('unwrap') }, 'Make public')),
-      a === 'HYPE' && wcOn && hypeCorePanel(),
       a === 'ZEC' && h('button', { class: 'ghost', id: 'zec-rescan', onclick: () => renderZecRescan() }, 'Rescan past history'),
       a === 'ARRR' && h('button', { class: 'ghost', id: 'arrr-rescan', onclick: () => renderZecRescan('ARRR') }, 'Rescan past history'),
       hist));
@@ -1165,7 +1133,7 @@ function parseScanned(asset: Asset, raw: string): { address: string; amount: str
 
 let closeScanner: (() => void) | null = null;
 
-/** custom reads something other than an address (a WalletConnect link): parse returns it, or null with the wrong message. */
+/** custom reads something other than an address: parse returns it, or null with the wrong message. */
 async function openScanner(asset: Asset, onFound: (found: { address: string; amount: string }) => void, custom?: { parse: (text: string) => string | null; wrong: string; onText: (text: string) => void }): Promise<void> {
   closeScanner?.();
   const video = h('video', { playsinline: 'true', muted: 'true', autoplay: 'true', 'aria-label': 'Camera view' });
@@ -1343,43 +1311,12 @@ wallet.on('tron-tx', (t: { txid: string; status: string }) => {
 
 // ---- buy ----
 
-async function renderBuy(): Promise<void> {
-  const asset = selected;
-  const addressEl = h('div', { class: 'mono', id: 'buy-address' }, 'Loading…');
-  const status = h('span', { class: 'status', role: 'status' });
-  const box = errorBox();
-  let address = '';
-  const copy = h('button', { class: 'icon-btn', id: 'buy-copy', disabled: true, 'aria-label': 'Copy address', title: 'Copy address', onclick: async () => {
-    await wallet.copy(address); status.textContent = 'Copied. It clears from the clipboard in 60 seconds.';
-  } }, icon('copy'));
-  const tor = Boolean((await wallet.torInfo().catch(() => null))?.enabled);
-  const open = h('button', { class: 'primary', id: 'buy-open', onclick: () => busy(open, 'Opening…', box, async () => {
-    await wallet.openBuy(asset);
-    status.textContent = 'LocalCoinSwap opened in your browser. Give this address to the seller as the receiving address.';
-  }) }, 'Buy on LocalCoinSwap');
-  if (asset === 'SSCRT') { (open as HTMLButtonElement).disabled = true; status.textContent = 'sSCRT isn\'t sold anywhere. Buy SCRT, then make it private on the SCRT screen.'; }
-  show('send', subBar('Buy', renderHome), h('div', { class: 'scroll' },
-    picker(() => void renderBuy()),
-    h('div', { class: 'panel' },
-      h('span', { class: 'label' }, `Your ${coinName(asset)} receiving address`),
-      h('div', { class: 'addr-box' }, addressEl, copy),
-      status),
-    h('p', { class: 'small muted' }, 'Copy the address and use it as the receiving address on LocalCoinSwap. Check that the coin and network there match.'),
-    h('p', { class: 'small muted' }, 'LocalCoinSwap is a peer-to-peer marketplace: you buy from other people, with the payment methods they offer, and its escrow holds the coins until the trade is done. LocalCoinSwap sets its own rules and fees and may not list every coin. This wallet adds no fee and sends them nothing.'),
-    tor && h('p', { class: 'small muted' }, 'Your browser isn\'t behind Tor, so they can see your IP address.'),
-    box.el,
-    open));
+/** Straight to LocalCoinSwap in the browser; the receiving address comes from Receive, as on any exchange. */
+async function openBuyPage(): Promise<void> {
   try {
-    const list = await wallet.addresses();
-    // Sellers pay Zcash to transparent addresses.
-    address = asset === 'ZEC' ? list?.ZEC_T ?? '' : list?.[asset] ?? '';
-    if (!address) throw new Error(asset === 'ZEC' ? 'The Zcash wallet is getting ready. See the Zcash engine section in Settings for progress.' : 'Could not load the address. Open this again.');
-    if (!addressEl.isConnected) return;
-    addressEl.textContent = address;
-    copy.disabled = false;
-  } catch (e) {
-    box.show(e);
-  }
+    await wallet.openBuy('BTC');
+    toast('LocalCoinSwap opened in your browser. Use your address from Receive as the receiving address there.');
+  } catch (e) { toast(errMsg(e)); }
 }
 
 /**
@@ -1742,241 +1679,6 @@ function renderSwapStatus(record: any): void {
   if (!done(record.status)) void poll();
 }
 
-// ---- WalletConnect ----
-
-/** A small window over whatever is on screen, the way other wallets ask for a confirmation. */
-function modal(id: string, ...kids: Child[]): { el: HTMLElement; close: () => void } {
-  document.getElementById(id)?.remove();
-  const card = h('div', { class: 'modal-card', role: 'dialog', 'aria-modal': 'true' }, ...kids);
-  const el = h('div', { class: 'modal', id }, card);
-  (document.querySelector('.screen') ?? document.body).append(el);
-  return { el, close: () => el.remove() };
-}
-
-/** Other wallets' networks a dApp may ask for, by their CAIP-2 name: solana:… → Solana, eip155:10 → network 10. */
-const chainLabel = (caip: string): string => {
-  const [ns, ref] = caip.split(':');
-  const known: Record<string, string> = { solana: 'Solana', bip122: 'Bitcoin', cosmos: 'Cosmos', polkadot: 'Polkadot', tron: 'Tron', near: 'NEAR', stellar: 'Stellar', sui: 'Sui', ton: 'TON' };
-  return ns === 'eip155' ? (WC_NETWORK[caip] ?? `EVM network ${ref}`) : known[ns] ?? ns;
-};
-const WC_NETWORK: Record<string, string> = { 'eip155:1': 'Ethereum', 'eip155:137': 'Polygon', 'eip155:42161': 'Arbitrum', 'eip155:56': 'BNB Smart Chain' };
-let wcOn = false; // this unlocked wallet is a WalletConnect wallet (they never use Tor)
-let wcSeen = '';  // the last link taken from the clipboard, so the same one isn't used twice
-let onWcSessions: ((s: any[]) => void) | null = null;
-
-/** Opens a pairing; the dApp's connection request then shows up as its own window. */
-async function wcPairNow(uri: string): Promise<void> {
-  wcSeen = uri;
-  await wallet.wcPair(uri);
-  toast('Connecting to the dApp…');
-}
-
-/**
- * One button: a wc: link already copied is used; otherwise the computer's screen is read for the dApp's QR code;
- * on a phone the camera opens. Typing the link is only the last resort.
- */
-async function connectDapp(box: ReturnType<typeof errorBox>): Promise<void> {
-  const copied = String(await wallet.wcClipboard?.().catch(() => '') ?? '');
-  if (copied && copied !== wcSeen) return wcPairNow(copied);
-  if (wallet.wcScanScreen) {
-    const found = String(await wallet.wcScanScreen().catch(() => '') ?? '');
-    if (found) return wcPairNow(found);
-  }
-  wcHelp(box);
-}
-
-function wcHelp(box: ReturnType<typeof errorBox>): void {
-  const uri = h('input', { id: 'wc-uri', placeholder: 'wc:…', spellcheck: 'false', autocomplete: 'off' });
-  const local = errorBox();
-  const go = h('button', { class: 'secondary', id: 'wc-connect-link', onclick: () => busy(go, 'Connecting…', local, async () => { await wcPairNow(uri.value.trim()); m.close(); }) }, 'Connect');
-  const cam = h('button', { class: 'primary', id: 'wc-camera', onclick: () => {
-    m.close();
-    void openScanner('ETH', () => undefined, { parse: (t) => (/^wc:[0-9a-f]{64}@2\?/i.test(t.trim()) ? t.trim() : null), wrong: 'This is not a WalletConnect QR code. Try the one the dApp shows.', onText: (t) => { wcPairNow(t).catch((e) => box.show(e)); } });
-  } }, icon('scan'), 'Scan with the camera');
-  const m = modal('wc-help',
-    h('h3', {}, 'Connect a dApp'),
-    h('p', { class: 'small muted' }, wallet.wcScanScreen
-      ? 'No WalletConnect QR code was found on the screen. Open the dApp, press its Connect Wallet button and choose WalletConnect, so the QR code is visible, then press Connect again.'
-      : 'On the dApp, press Connect Wallet and choose WalletConnect. Scan the QR code it shows, or on this phone pick Kusari Wallet when the dApp offers to open a wallet.'),
-    local.el, cam,
-    h('details', { class: 'fold-more' }, h('summary', {}, 'Paste a link instead'), h('label', { class: 'field' }, h('span', {}, 'Connection link'), uri), go),
-    h('button', { class: 'ghost', id: 'wc-help-close', onclick: () => m.close() }, 'Close'));
-}
-
-/** The connected dApps, each with Disconnect, plus Connect and the switch for WalletConnect itself. */
-async function walletConnectSection(after: () => void = () => void renderSettings()): Promise<HTMLElement | null> {
-  const info = await wallet.wcInfo().catch(() => null);
-  const box = errorBox();
-  const sec = h('div', { class: 'section', id: 'wc-section' }, h('h3', {}, 'WalletConnect'));
-  if (!info || !info.available) return null;
-  // A maximum-privacy wallet doesn't offer WalletConnect at all; a wallet for dApps is made with "Add wallet".
-  if (info.mode !== 'walletconnect') return null;
-  void wallet.wcRegisterLinks?.().catch(() => undefined);
-  const go = h('button', { class: 'primary', id: 'wc-connect', onclick: () => busy(go, 'Looking for the QR code…', box, () => connectDapp(box)) }, 'Connect a dApp');
-  const off = h('button', { class: 'ghost', id: 'wc-disconnect-all', onclick: () => busy(off, 'Disconnecting…', box, async () => { await wallet.wcDisconnectAll(); after(); }) }, 'Disconnect all dApps');
-  const list = h('div', { id: 'wc-sessions' });
-  const paint = (sessions: any[]) => setKids(list, ...(sessions.length ? sessions.map((x: any) => {
-    const cut: HTMLButtonElement = h('button', { class: 'secondary wc-disconnect', onclick: () => busy(cut, 'Disconnecting…', box, () => wallet.wcDisconnect(x.topic)) }, 'Disconnect');
-    return h('div', { class: 'panel wc-session' }, h('div', { class: 'wc-session-name' }, h('strong', {}, x.name), h('span', { class: 'small muted mono' }, x.url)), cut);
-  }) : [h('p', { class: 'small muted' }, 'No dApps connected.')]));
-  paint(info.sessions);
-  onWcSessions = paint;
-  sec.append(box.el,
-    info.tor ? h('div', { class: 'warn' }, 'Tor is on, so WalletConnect is off: its relay can\'t be reached through Tor.')
-      : h('p', { class: 'small muted' }, wallet.wcScanScreen
-        ? 'Open the dApp, press its Connect Wallet button and choose WalletConnect. Then press Connect a dApp: the wallet reads the QR code from the screen. A copied wc: link works too.'
-        : 'Press Connect a dApp and scan the dApp\'s QR code, or in this phone\'s browser choose WalletConnect and pick Kusari Wallet.'),
-    info.tor ? null : go, h('h4', {}, 'Connected dApps'), list, off);
-  return sec;
-}
-
-async function renderDapps(): Promise<void> {
-  const sec = await walletConnectSection(() => void renderHome());
-  show('send', subBar('dApps', () => renderHome()), h('div', { class: 'scroll' }, sec));
-}
-
-/** Home shows a dApps button in wallets that use WalletConnect, with how many are connected. */
-async function paintDappsChip(slot: HTMLElement): Promise<void> {
-  const info = await wallet.wcInfo().catch(() => null);
-  wcOn = Boolean(info?.available && info.mode === 'walletconnect');
-  if (!info?.available || info.mode !== 'walletconnect') return;
-  void wallet.wcRegisterLinks?.().catch(() => undefined);
-  const n = info.sessions.length;
-  setKids(slot, h('button', { class: 'chip dapps', id: 'go-dapps', onclick: () => void renderDapps() }, n ? `dApps · ${n}` : 'dApps'));
-  void takeWcLink();
-}
-
-/** A wc: link the system handed over (a dApp's "open in wallet"). */
-async function takeWcLink(): Promise<void> {
-  if (!wcOn) return;
-  const link = String(await wallet.wcTakeLink?.().catch(() => '') ?? '');
-  if (link) await wcPairNow(link).catch((e) => toast(errMsg(e)));
-}
-wallet.on('wc-link', () => void takeWcLink());
-
-// On a computer, coming back to the wallet with a wc: link copied connects it right away, no pasting.
-window.addEventListener('focus', () => {
-  if (!wcOn || !wallet.wcScanScreen || location.hash === '#wc-popup') return;
-  void (async () => {
-    const copied = String(await wallet.wcClipboard?.().catch(() => '') ?? '');
-    if (copied && copied !== wcSeen) await wcPairNow(copied).catch(() => undefined);
-  })();
-});
-
-wallet.on('wc-sessions', (s: any[]) => {
-  onWcSessions?.(s);
-  const chip = document.getElementById('go-dapps');
-  if (chip) chip.textContent = s.length ? `dApps · ${s.length}` : 'dApps';
-});
-
-/** The site's host name, as the person will recognize it in the browser. */
-function dappHost(url: string, name: string): string {
-  try { return new URL(url).host || name; } catch { return name; }
-}
-
-/** A letter badge instead of the dApp's own icon: loading that picture would tell its server this wallet's IP. */
-function dappHead(p: { name: string; url: string }, line: string): HTMLElement {
-  const host = dappHost(p.url, p.name);
-  const letter = (p.name.trim()[0] ?? host[0] ?? '?').toUpperCase();
-  let hue = 0;
-  for (const c of host) hue = (hue * 31 + c.charCodeAt(0)) % 360;
-  const badge = h('div', { class: 'dapp-badge', 'aria-hidden': 'true' }, letter);
-  badge.style.setProperty('--hue', String(hue)); // set through the DOM: the page's rules allow no inline styles
-  return h('div', { class: 'dapp-head' },
-    badge,
-    h('h3', { id: 'wc-dapp' }, host), h('p', { class: 'small muted' }, line));
-}
-
-/** A dApp asks to connect: who it says it is, which account it gets, and what that allows. */
-/** dApp windows open only in an unlocked WalletConnect wallet; anything else is turned down unseen. */
-async function inWcWallet(): Promise<boolean> {
-  if (wcOn) return true;
-  const info = await wallet.wcInfo().catch(() => null);
-  wcOn = Boolean(info?.available && info.mode === 'walletconnect');
-  return wcOn;
-}
-
-async function showProposal(p: any): Promise<void> {
-  if (!overview) await refresh(); // the account's value, in the request window too
-  if (!(await inWcWallet())) { void wallet.wcReject(p.id).catch(() => undefined); return; }
-  const box = errorBox();
-  const yes = h('button', { class: 'pill pill-light', id: 'wc-approve', onclick: () => busy(yes, 'Connecting…', box, async () => { await wallet.wcApprove(p.id); m.close(); toast(`Connected to ${dappHost(p.url, p.name)}.`); }) }, 'Connect');
-  const no = h('button', { class: 'pill pill-dark', id: 'wc-reject', onclick: () => { void wallet.wcReject(p.id).catch(() => undefined); m.close(); } }, 'Cancel');
-  const badge = p.scam ? h('span', { class: 'verify bad' }, icon('close'), 'Known scam')
-    : p.verified === 'VALID' ? h('span', { class: 'verify ok', id: 'wc-verified' }, icon('shield'), 'Verified')
-      : p.verified === 'INVALID' ? h('span', { class: 'verify bad' }, icon('close'), 'Domain mismatch')
-        : h('span', { class: 'verify unknown' }, icon('shield'), 'Not verified');
-  const warning = p.scam ? h('div', { class: 'error' }, 'WalletConnect flags this site as a known scam. Reject it.')
-    : p.verified === 'INVALID' ? h('div', { class: 'warn' }, 'The site doesn\'t match the domain this dApp registered. It may be an impostor.')
-      : p.verified === 'VALID' ? null : h('div', { class: 'warn' }, 'WalletConnect couldn\'t check this site. Make sure you opened the real one.');
-  const nets = p.chains.length ? p.chains.map((c: string) => WC_NETWORK[c] ?? c).join(', ') : 'Ethereum';
-  const acctName = h('strong', {}, 'My wallet');
-  void wallet.walletsList().then((r: any) => { acctName.textContent = r.list.find((w: any) => w.id === r.active)?.name ?? 'My wallet'; }).catch(() => undefined);
-  const perm = (ok: boolean, text: string) => h('li', { class: ok ? 'yes' : 'no' }, h('span', { class: 'perm-mark', 'aria-hidden': 'true' }, ok ? '✓' : '✕'), text);
-  const m = modal('wc-proposal',
-    dappHead(p, 'This site is asking for:'),
-    h('div', { class: 'verify-row' }, badge),
-    warning,
-    h('div', { class: 'modal-section' }, h('span', { class: 'modal-label' }, 'Account'),
-      h('div', { class: 'acct-card' }, h('span', { class: 'acct-icon' }, icon('wallet')), h('div', { class: 'acct-text' }, acctName, h('span', { class: 'small muted' }, totalUsd().value)))),
-    h('div', { class: 'modal-section' }, h('span', { class: 'modal-label' }, 'Permissions'),
-      h('ul', { class: 'perms' },
-        perm(true, `See your address, balance and activity on ${nets}`),
-        perm(true, 'Send transaction and signature requests'),
-        perm(false, 'Can\'t move funds without your approval'))),
-    p.unsupported.length ? h('p', { class: 'small muted' }, `Not offered: ${[...new Set(p.unsupported.map(chainLabel))].join(', ')}.`) : null,
-    box.el,
-    h('div', { class: 'pill-row' }, no, yes));
-  void m;
-}
-wallet.on('wc-proposal', (p: any) => void showProposal(p));
-
-/** Something a dApp asked for was turned down: said in a small window, never silently. */
-function wcNotice(dapp: string, url: string, text: string): void {
-  const m = modal('wc-notice', dappHead({ name: dapp, url }, 'Request turned down'), h('div', { class: 'warn', id: 'wc-notice-text' }, text),
-    h('button', { class: 'pill pill-light', id: 'wc-notice-ok', onclick: () => m.close() }, 'OK'));
-}
-
-async function showRefused(r: any): Promise<void> {
-  if (!(await inWcWallet())) return;
-  wcNotice(r.dapp, r.url, r.network
-    ? `${r.dapp} asked to use ${r.network}, which this wallet doesn't connect to dApps. Only Ethereum, Polygon, Arbitrum and BNB Smart Chain are offered.`
-    : `${r.dapp} asked for ${r.method || 'something'}, which this wallet doesn't do.`);
-}
-wallet.on('wc-refused', (r: any) => void showRefused(r));
-
-/** A dApp asks for a signature or a transaction. Nothing happens without the password. */
-async function showRequest(q: any): Promise<void> {
-  if (!(await inWcWallet())) { void wallet.wcDecline(q.id).catch(() => undefined); return; }
-  let info: any;
-  try { info = await wallet.wcRequestInfo(q.id); } catch (e) {
-    void wallet.wcDecline(q.id).catch(() => undefined);
-    wcNotice(q.dapp, q.url, `${q.dapp} sent a request that was turned down: ${errMsg(e)}`);
-    return;
-  }
-  const box = errorBox();
-  const tx = info.kind === 'transaction';
-  const pw = h('input', { type: 'password', id: 'wc-pw', autocomplete: 'current-password', placeholder: 'Password' });
-  const ok = h('button', { class: 'pill pill-light', id: 'wc-confirm', type: 'submit' }, tx ? 'Confirm' : 'Sign');
-  const rows: [string, string][] = tx
-    ? [['Action', info.action], ['To', info.to], ['Amount', `${info.value} ${info.symbol}`], ['Estimated fee', reviewFee(info.fee, info.symbol)]]
-    : info.kind === 'typed' ? [['Type', info.type], ['For', `${info.domain} ${info.contract}`.trim()]]
-      : [['Message', info.message]];
-  const detail = tx ? info.data : info.kind === 'typed' ? info.message : '';
-  const decline = () => { void wallet.wcDecline(q.id).catch(() => undefined); m.close(); };
-  const m = modal('wc-request', h('form', { onsubmit: (e: Event) => {
-    e.preventDefault();
-    busy(ok, tx ? 'Sending…' : 'Signing…', box, async () => { await wallet.wcConfirm(q.id, pw.value); pw.value = ''; m.close(); toast(tx ? 'Sent.' : 'Signed.'); void refresh(); });
-  } },
-  dappHead({ name: info.dapp, url: info.url }, `${tx ? 'Transaction request' : 'Signature request'} · ${info.network}`),
-  ...info.warnings.map((w: string) => h('div', { class: 'warn' }, w)),
-  h('table', { class: 'review-table' }, h('tbody', {}, ...rows.map(([k, v]) => h('tr', {}, h('th', {}, k), h('td', { class: k === 'To' || k === 'Message' ? 'mono small' : '' }, v))))),
-  detail ? h('details', { class: 'fold-more' }, h('summary', {}, 'Details'), h('div', { class: 'mono small wc-detail' }, detail)) : null,
-  box.el, pw,
-  h('div', { class: 'pill-row' }, h('button', { type: 'button', class: 'pill pill-dark', id: 'wc-decline', onclick: decline }, 'Reject'), ok)));
-  pw.focus();
-}
-wallet.on('wc-request', (q: any) => void showRequest(q));
 
 // ---- several wallets ----
 
@@ -2355,7 +2057,6 @@ async function renderSettings(): Promise<void> {
         h('label', { class: 'field' }, h('span', {}, 'TronGrid API key'), key, h('div', { class: 'hint' }, 'Works without one. Add a free key if lookups are often limited.')),
         h('label', { class: 'field' }, h('span', {}, 'Auto-lock (minutes)'), auto),
         h('label', { class: 'check' }, showPrices, h('span', {}, 'Show USD prices', h('div', { class: 'hint' }, 'Prices come from CoinGecko, then from other price services and exchanges if it\'s blocked or a coin is missing. Addresses and balances aren\'t sent, but your IP can be seen.'))),
-        // Tor is only in maximum-privacy wallets; a WalletConnect wallet doesn't show or use it.
         tor.allowed === false ? copyLog : h('div', { class: 'tor-block', id: 'tor-block' },
           h('h3', {}, 'Tor'), torBox.el, torProgress, torRouteNote,
           h('label', { class: 'check' }, useTor, h('span', {}, 'Connect through Tor',
@@ -2385,7 +2086,6 @@ async function renderSettings(): Promise<void> {
         h('label', { class: 'field' }, h('span', {}, 'Current password'), curPw),
         h('label', { class: 'field' }, h('span', {}, 'New password (at least 10 characters)'), newPw),
         h('div', { class: 'row' }, chg, chgDone)),
-      await walletConnectSection(),
       h('div', { class: 'section', id: 'support-section' }, h('h3', {}, 'Support'),
         h('button', { class: 'ghost', id: 'support', 'aria-expanded': 'false', onclick: (e: Event) => {
           const note = document.getElementById('support-note');
@@ -2418,7 +2118,6 @@ wallet.on('monero-state', (m: any) => {
 wallet.on('balance-changed', () => void refresh());
 wallet.on('locked', () => {
   closeScanner?.();
-  wcOn = false;
   document.querySelectorAll('.modal').forEach((m) => m.remove());
   window.clearInterval(pollTimer);
   overview = null;
@@ -2435,95 +2134,10 @@ for (const type of ['mousedown', 'keydown']) {
   }, { passive: true });
 }
 
-/**
- * The request window the desktop app opens over the dApp's browser: it shows one dApp request after another, then
- * closes. Closing it unanswered turns the request down.
- */
-async function runRequestWindow(): Promise<void> {
-  show('send', h('div', { class: 'scroll popup-shell' }));
-  wcOn = true;
-  void refresh();
-  let taking = false;
-  const next = async () => {
-    if (taking || document.querySelector('.modal')) return;
-    taking = true;
-    try {
-      const item = await wallet.wcPopupTake();
-      if (!item) { window.close(); return; }
-      if (item.e === 'wc-proposal') await showProposal(item.d);
-      else if (item.e === 'wc-request') await showRequest(item.d);
-      else await showRefused(item.d);
-    } finally { taking = false; }
-  };
-  new MutationObserver(() => { if (!document.querySelector('.modal')) void next(); }).observe(root, { childList: true, subtree: true });
-  wallet.on('wc-popup-more', () => void next());
-  await next();
-}
-
 async function boot(first = false): Promise<void> {
   const [s] = await Promise.all([wallet.status(), first ? new Promise((r) => setTimeout(r, 900)) : null]);
-  newWalletConnect = s.newWalletConnect === true;
   if (!s.hasWallet) welcome();
   else if (s.unlocked) await enterWallet();
   else unlockScreen();
 }
-if (location.hash === '#wc-popup') void runRequestWindow(); else void boot(true);
-
-// ---- HYPE between HyperEVM (this wallet) and HyperCore: WalletConnect wallets ----
-
-function hypeCorePanel(): HTMLElement {
-  const line = h('p', { class: 'small', id: 'hype-core-balance' }, 'HyperCore balance: …');
-  const panel = h('div', { class: 'panel', id: 'hype-core' },
-    line,
-    h('p', { class: 'small muted' }, 'HyperCore is the trading side of the same chain, with a separate balance at this same address. HYPE moves between the two in about a minute.'),
-    h('div', { class: 'btn-row' },
-      h('button', { class: 'secondary', id: 'hype-to-core', onclick: () => renderHypeMove('core') }, 'Move to HyperCore'),
-      h('button', { class: 'secondary', id: 'hype-to-evm', onclick: () => renderHypeMove('evm') }, 'Move to HyperEVM')));
-  void wallet.hypeCore().then((c: any) => { line.textContent = `HyperCore balance: ${hideBalance ? '••••' : shortAmount(String(c.available))} HYPE`; }, () => { line.textContent = 'HyperCore balance: not available right now'; });
-  return panel;
-}
-
-function renderHypeMove(dir: 'core' | 'evm'): void {
-  const amount = h('input', { id: 'hype-move-amount', inputmode: 'decimal', autocomplete: 'off', placeholder: '0.00' });
-  const box = errorBox();
-  const go = h('button', { class: 'primary', id: 'hype-move-review', type: 'submit' }, 'Review');
-  const useAll = h('button', { type: 'button', class: 'link', id: 'hype-move-max' }, 'Use all');
-  useAll.onclick = async () => {
-    if (dir === 'core') { amount.value = String(overview?.balances?.HYPE?.spendable ?? '').replace(/,/g, ''); return; }
-    try { const c = await wallet.hypeCore(); amount.value = String(Math.max(0, Math.floor((c.available - c.reserve) * 1e6) / 1e6)); } catch (e) { box.show(e); }
-  };
-  const form = h('form', { onsubmit: (e: Event) => {
-    e.preventDefault();
-    busy(go, 'Checking…', box, async () => renderHypeMoveReview(dir === 'core' ? await wallet.hypeToCorePrepare(amount.value) : await wallet.hypeToEvmPrepare(amount.value)));
-  } },
-  h('p', { class: 'small muted' }, dir === 'core'
-    ? 'From this wallet (HyperEVM) to HyperCore, at the same address. HyperEVM\'s network fee is paid in HYPE.'
-    : 'From HyperCore to this wallet (HyperEVM), at the same address. HyperCore keeps 0.001 HYPE for the move\'s gas.'),
-  h('label', { class: 'field' }, h('span', {}, 'Amount (HYPE)'), amount), useAll, box.el, go);
-  show('send', subBar(dir === 'core' ? 'Move to HyperCore' : 'Move to HyperEVM', () => { selected = 'HYPE'; void renderAsset(); }), h('div', { class: 'scroll' }, form));
-}
-
-function renderHypeMoveReview(p: any): void {
-  const pw = h('input', { type: 'password', id: 'hype-move-pw', autocomplete: 'current-password' });
-  const box = errorBox();
-  const go = h('button', { class: 'primary', id: 'hype-move-confirm', type: 'submit' }, 'Move');
-  const form = h('form', { onsubmit: (e: Event) => {
-    e.preventDefault();
-    busy(go, 'Sending…', box, async () => {
-      if (p.direction === 'core') await wallet.hypeToCoreConfirm(p.id, pw.value); else await wallet.hypeToEvmConfirm(p.id, pw.value);
-      pw.value = '';
-      toast(p.direction === 'core' ? 'Sent. It shows on HyperCore in about a minute.' : 'Sent. It shows in this wallet in about a minute.');
-      selected = 'HYPE';
-      void refresh();
-      await renderAsset();
-    });
-  } },
-  h('div', { class: 'panel' }, h('table', { class: 'review-table' }, h('tbody', {},
-    h('tr', {}, h('th', {}, 'Move'), h('td', { id: 'hype-move-r-amount' }, `${p.amount} HYPE`)),
-    h('tr', {}, h('th', {}, 'From'), h('td', {}, p.direction === 'core' ? 'HyperEVM (this wallet)' : 'HyperCore')),
-    h('tr', {}, h('th', {}, 'To'), h('td', {}, p.direction === 'core' ? 'HyperCore' : 'HyperEVM (this wallet)')),
-    p.direction === 'core' && h('tr', {}, h('th', {}, 'Network fee'), h('td', {}, reviewFee(p.fee, 'HYPE')))))),
-  box.el, h('label', { class: 'field' }, h('span', {}, 'Password'), pw), go);
-  show('send', subBar('Review move', () => renderHypeMove(p.direction)), h('div', { class: 'scroll' }, form));
-  pw.focus();
-}
+void boot(true);

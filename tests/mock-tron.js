@@ -18,46 +18,6 @@ ENCLAVE.pub = x25519.getPublicKey(ENCLAVE.priv);
 const SCRT_SALT = Uint8Array.from(Buffer.from('000000000000000000024bead8df69990852c202db0e0097c1a12ea637d7e96d', 'hex'));
 const enclaveKey = (nonce, theirs) => hkdf(sha256Bytes, Buffer.concat([x25519.getSharedSecret(ENCLAVE.priv, theirs), nonce]), SCRT_SALT, new Uint8Array(), 32);
 
-// Hyperliquid: enough of /info and /exchange to walk through turning on trading and placing orders.
-function hlMock(state, req, body, res) {
-  const a = (state.hl = state.hl ?? { agents: [], builder: 0, placed: [], positions: [], orders: [], withdrawals: [], leverage: [] });
-  const j = body ? JSON.parse(body) : {};
-  const send = (o) => { res.setHeader('content-type', 'application/json'); res.end(JSON.stringify(o)); };
-  if (req.url === '/hl/info') {
-    if (j.type === 'extraAgents') return send(a.agents.map((address) => ({ address, name: 'Kusari', validUntil: Date.now() + 1e10 })));
-    if (j.type === 'maxBuilderFee') return send(a.builder);
-    if (j.type === 'metaAndAssetCtxs') return send([{ universe: [{ name: 'BTC', szDecimals: 5, maxLeverage: 40 }, { name: 'ETH', szDecimals: 4, maxLeverage: 25 }, { name: 'OLD', szDecimals: 0, maxLeverage: 3, isDelisted: true }] },
-      [{ markPx: '60000', midPx: '60000', oraclePx: '60012', prevDayPx: '59100', dayNtlVlm: '900000000', funding: '0.0000125', openInterest: '40000' }, { markPx: '3000', midPx: '3000', prevDayPx: '3024', dayNtlVlm: '400000000', funding: '-0.00001', openInterest: '90000' }, { markPx: '1' }]]);
-    if (j.type === 'l2Book') return send({ coin: j.coin, levels: [[{ px: '59999', sz: '1.2', n: 3 }, { px: '59998', sz: '0.4', n: 1 }, { px: '59990', sz: '2.5', n: 4 }], [{ px: '60001', sz: '0.9', n: 2 }, { px: '60003', sz: '1.6', n: 2 }, { px: '60010', sz: '0.3', n: 1 }]] });
-    if (j.type === 'candleSnapshot') return send(Array.from({ length: 40 }, (_, i) => ({ t: Date.now() - (40 - i) * 3600e3, o: String(58000 + i * 50), c: String(58000 + i * 50 + (i % 3 ? 80 : -60)), h: String(58200 + i * 50), l: String(57900 + i * 50), v: '10' })));
-    if (j.type === 'userFees') return send({ userAddRate: '0.00015', userCrossRate: '0.00045' });
-    if (j.type === 'clearinghouseState') return send({ marginSummary: { accountValue: '262.5', totalRawUsd: '250' }, withdrawable: '200', assetPositions: a.positions.map((position) => ({ position })) });
-    if (j.type === 'frontendOpenOrders') return send(a.orders);
-    if (j.type === 'spotMeta') return send({ tokens: [{ name: 'USDC', tokenId: '0x6d1e7cde53ba9467b783cb7c530ce054' }, { name: 'HYPE', tokenId: '0x0d01dc56dcaaca66ad901c959b4011ec' }] });
-    if (j.type === 'spotClearinghouseState') return send({ balances: [{ coin: 'HYPE', token: 150, total: String(a.coreHype ?? 3), hold: '0.5' }] });
-    return send(null);
-  }
-  const act = j.action ?? {};
-  if (act.type === 'approveAgent') { a.agents.push(act.agentAddress); return send({ status: 'ok', response: { type: 'default' } }); }
-  if (act.type === 'approveBuilderFee') { a.builder = Math.round(parseFloat(act.maxFeeRate) * 1000); return send({ status: 'ok', response: { type: 'default' } }); }
-  if (act.type === 'withdraw3') { a.withdrawals.push(act); return send({ status: 'ok', response: { type: 'default' } }); }
-  if (act.type === 'spotSend') { (a.spotSends = a.spotSends ?? []).push(act); a.coreHype = (a.coreHype ?? 3) - Number(act.amount); return send({ status: 'ok', response: { type: 'default' } }); }
-  if (act.type === 'updateLeverage') { a.leverage.push(act); return send({ status: 'ok', response: { type: 'default' } }); }
-  if (act.type === 'cancel') { a.orders = a.orders.filter((o) => o.oid !== act.cancels[0].o); return send({ status: 'ok', response: { type: 'cancel', data: { statuses: ['success'] } } }); }
-  if (act.type === 'order') {
-    const o = act.orders[0];
-    a.placed.push({ ...o, builder: act.builder });
-    if (act.builder.f > a.builder) return send({ status: 'ok', response: { type: 'order', data: { statuses: [{ error: 'Builder fee has not been approved.' }] } } });
-    if (o.t.limit.tif === 'Ioc') {
-      a.positions = o.r ? [] : [{ coin: 'BTC', szi: (o.b ? '' : '-') + o.s, entryPx: '60000', positionValue: String(Number(o.s) * 60500), unrealizedPnl: '5', liquidationPx: '54321', leverage: { type: 'isolated', value: 10 }, marginUsed: '10' }];
-      return send({ status: 'ok', response: { type: 'order', data: { statuses: [{ filled: { oid: 42, avgPx: '60010', totalSz: o.s } }] } } });
-    }
-    a.orders.push({ coin: 'BTC', side: o.b ? 'B' : 'A', limitPx: o.p, sz: o.s, origSz: o.s, oid: 9, timestamp: Date.now(), reduceOnly: o.r, tif: o.t.limit.tif });
-    return send({ status: 'ok', response: { type: 'order', data: { statuses: [{ resting: { oid: 9 } }] } } });
-  }
-  return send({ status: 'err', response: 'unknown action' });
-}
-
 function mockNode() {
   const state = { broadcast: [], balance: 50_000_000, usdt: 10_000_000n, energyUsed: 64285, recipientExists: true, tamper: null };
   const server = http.createServer((req, res) => {
@@ -65,7 +25,6 @@ function mockNode() {
     const rawChunks = [];
     req.on('data', (c) => { body += c; rawChunks.push(Buffer.from(c)); });
     req.on('end', () => {
-      if (req.url.startsWith('/hl/')) return hlMock(state, req, body, res);
       if (req.url.startsWith('/ada/')) {
         // Koios, enough for a balance and one payment; the payment is checked with Cardano's own library.
         const p = req.url.replace(/^\/ada/, '').split('?')[0];

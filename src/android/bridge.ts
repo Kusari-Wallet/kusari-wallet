@@ -5,7 +5,6 @@ import { Buffer } from 'buffer';
 import { WalletService } from '../main/service';
 import { kvDelPrefix, kvGet, kvSet } from './kv';
 import { route } from './request';
-import { isWcLink } from '../main/wc-link';
 
 declare const __TEST__: boolean;
 const native: any = (window as any).VaultNative;
@@ -71,9 +70,6 @@ service.on('tron-tx', (t) => emit('tron-tx', t));
 service.on('locked', () => emit('locked'));
 service.on('tor-state', (s) => emit('tor-state', s));
 service.on('tornado-progress', (m) => emit('tornado-progress', m));
-for (const e of ['wc-proposal', 'wc-request', 'wc-sessions', 'wc-refused']) service.on(e, (d) => emit(e, d));
-// MainActivity calls this when a dApp opens a wc: link while the app is running.
-(window as any).__wcLink = () => emit('wc-link');
 
 let lockTimer: ReturnType<typeof setTimeout> | undefined;
 const bump = () => {
@@ -158,25 +154,6 @@ const bioCall = (fn: (id: number) => void) => new Promise<string>((resolve, reje
   dexQuote: call((f: any, t: any, a: string, b: number) => service.dexQuote(f, t, a, b)),
   dexPrepare: call((f: any, t: any, a: string, id: any, b: number) => service.dexPrepare(f, t, a, id, b)),
   dexConfirm: call((id: string, pw: string) => service.dexConfirm(id, pw)),
-  walletMode: call(() => service.walletMode()),
-  setWalletMode: call((m: any) => service.setWalletMode(m)),
-  wcInfo: call(() => service.wcInfo()),
-  wcPair: call((uri: string) => service.wcPair(uri)),
-  wcApprove: call((id: number) => service.wcApprove(id)),
-  wcReject: call((id: number) => service.wcReject(id)),
-  wcDisconnect: call((topic: string) => service.wcDisconnect(topic)),
-  wcDisconnectAll: call(() => service.wcDisconnectAll()),
-  wcDecline: call((id: number) => service.wcDecline(id)),
-  wcRequestInfo: call((id: number) => service.wcRequestInfo(id)),
-  wcConfirm: call((id: number, pw: string) => service.wcConfirm(id, pw)),
-  wcClipboard: call(async () => { if ((await service.walletMode()) !== 'walletconnect') return ''; const t = String(native.paste() ?? '').trim(); return isWcLink(t) ? t : ''; }),
-  wcTakeLink: call(async () => { if ((await service.walletMode()) !== 'walletconnect') return ''; const t = String(native.wcTakeLink?.() ?? '').trim(); return isWcLink(t) ? t : ''; }),
-  wcRegisterLinks: call(() => undefined), // the manifest already sends wc: links here
-  hypeCore: call(() => service.hypeCore()),
-  hypeToCorePrepare: call((a: string) => service.hypeToCorePrepare(a)),
-  hypeToCoreConfirm: call((id: string, pw: string) => service.hypeToCoreConfirm(id, pw)),
-  hypeToEvmPrepare: call((a: string) => service.hypeToEvmPrepare(a)),
-  hypeToEvmConfirm: call((id: string, pw: string) => service.hypeToEvmConfirm(id, pw)),
   prepareLtcPrivate: call(() => service.prepareLtcPrivate()),
   prepareFiroPrivate: call(() => service.prepareFiroPrivate()),
   prepareDashMix: call((amount: string) => service.prepareDashMix(amount)),

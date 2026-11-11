@@ -54,9 +54,10 @@ const PASSWORD = 'correct horse battery';
   const connectionsToNode = [];
   server.on('connection', (c) => connectionsToNode.push(c.remotePort));
   const data = fs.mkdtempSync(path.join(os.tmpdir(), 'vw-ui-'));
+  const externalLog = path.join(data, 'external-links.txt');
   const launch = () => _electron.launch({
     args: ['--no-sandbox', '--use-fake-device-for-media-stream', `--use-file-for-fake-video-capture=${camVideo}`, path.join(__dirname, '..')],
-    env: { ...process.env, VAULT_WALLET_DATA: data, VAULT_DEV_ALLOW_WC: '1', VAULT_DEV_TRON_HOST: `http://127.0.0.1:${server.address().port}`, VAULT_DEV_SOCKS: socks.uri, VAULT_DEV_BTC_API: `http://127.0.0.1:${server.address().port}/btc`, VAULT_DEV_TORNADO: JSON.stringify({ 0.1: '0x12D66f87A04A9E220743712cE6d9bB1B5616B8Fc', 1: '0x47CE0C6eD5B0Ce3d3A51fdb1C52DC66a7c3c2936' }), VAULT_DEV_DASH_API: `http://127.0.0.1:${server.address().port}/dash`, VAULT_DEV_SOL_RPC: `http://127.0.0.1:${server.address().port}/sol`, VAULT_DEV_DOGE_API: `http://127.0.0.1:${server.address().port}/doge`, VAULT_DEV_ADA_API: `http://127.0.0.1:${server.address().port}/ada`, VAULT_DEV_FIRO_API: `http://127.0.0.1:${server.address().port}/dash-firo`, VAULT_DEV_ZEC_BIN: path.join(__dirname, 'fake-zec-engine.js'), VAULT_DEV_ZANO_BIN: path.join(__dirname, 'fake-zano-engine.js'), VAULT_DEV_ARRR_BIN: path.join(__dirname, 'fake-arrr-engine.js'), VAULT_DEV_MWEB_BIN: path.join(__dirname, 'fake-mweb-engine.js'), ...(spark ? { VAULT_DEV_SPARK_BIN: SPARK_ENGINE, VAULT_DEV_SPARK_SERVER: `127.0.0.1:${spark.port}` } : {}), VAULT_DEV_ETH_RPC: `http://127.0.0.1:${server.address().port}/eth/rpc`, VAULT_DEV_ETH_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_LTC_API: `http://127.0.0.1:${server.address().port}/btc`, VAULT_DEV_BCH_API: `http://127.0.0.1:${server.address().port}/bch`, VAULT_DEV_SCRT_LCD: `http://127.0.0.1:${server.address().port}/scrt,http://localhost:${server.address().port}/scrt`, VAULT_DEV_NEAR_RPC: `http://127.0.0.1:${server.address().port}/near/rpc`, VAULT_DEV_HL_API: `http://127.0.0.1:${server.address().port}/hl`, VAULT_DEV_NEAR_HISTORY: `http://127.0.0.1:${server.address().port}/near/history`, VAULT_DEV_POL_RPC: `http://127.0.0.1:${server.address().port}/pol/rpc`, VAULT_DEV_POL_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_ARB_RPC: `http://127.0.0.1:${server.address().port}/arb/rpc`, VAULT_DEV_ARB_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_BSC_RPC: `http://127.0.0.1:${server.address().port}/bsc/rpc`, VAULT_DEV_HYPE_RPC: `http://127.0.0.1:${server.address().port}/hype/rpc`, VAULT_DEV_UNISWAP_BASE: `http://127.0.0.1:${server.address().port}/uniswap`, VAULT_DEV_UNISWAP_KEY: 'test-key', VAULT_DEV_BSC_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_SIMPLESWAP_BASE: `http://127.0.0.1:${server.address().port}/simple`, VAULT_DEV_GHOSTSWAP_BASE: `http://127.0.0.1:${server.address().port}/ghost`, VAULT_DEV_SWAP_BASE: `http://127.0.0.1:${server.address().port}/swap`, VAULT_DEV_PRICE_URL: `http://127.0.0.1:${server.address().port}/simple/price`, NO_PROXY: '*' },
+    env: { ...process.env, VAULT_WALLET_DATA: data, VAULT_DEV_EXTERNAL_LOG: externalLog, VAULT_DEV_TRON_HOST: `http://127.0.0.1:${server.address().port}`, VAULT_DEV_SOCKS: socks.uri, VAULT_DEV_BTC_API: `http://127.0.0.1:${server.address().port}/btc`, VAULT_DEV_TORNADO: JSON.stringify({ 0.1: '0x12D66f87A04A9E220743712cE6d9bB1B5616B8Fc', 1: '0x47CE0C6eD5B0Ce3d3A51fdb1C52DC66a7c3c2936' }), VAULT_DEV_DASH_API: `http://127.0.0.1:${server.address().port}/dash`, VAULT_DEV_SOL_RPC: `http://127.0.0.1:${server.address().port}/sol`, VAULT_DEV_DOGE_API: `http://127.0.0.1:${server.address().port}/doge`, VAULT_DEV_ADA_API: `http://127.0.0.1:${server.address().port}/ada`, VAULT_DEV_FIRO_API: `http://127.0.0.1:${server.address().port}/dash-firo`, VAULT_DEV_ZEC_BIN: path.join(__dirname, 'fake-zec-engine.js'), VAULT_DEV_ZANO_BIN: path.join(__dirname, 'fake-zano-engine.js'), VAULT_DEV_ARRR_BIN: path.join(__dirname, 'fake-arrr-engine.js'), VAULT_DEV_MWEB_BIN: path.join(__dirname, 'fake-mweb-engine.js'), ...(spark ? { VAULT_DEV_SPARK_BIN: SPARK_ENGINE, VAULT_DEV_SPARK_SERVER: `127.0.0.1:${spark.port}` } : {}), VAULT_DEV_ETH_RPC: `http://127.0.0.1:${server.address().port}/eth/rpc`, VAULT_DEV_ETH_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_LTC_API: `http://127.0.0.1:${server.address().port}/btc`, VAULT_DEV_BCH_API: `http://127.0.0.1:${server.address().port}/bch`, VAULT_DEV_SCRT_LCD: `http://127.0.0.1:${server.address().port}/scrt,http://localhost:${server.address().port}/scrt`, VAULT_DEV_NEAR_RPC: `http://127.0.0.1:${server.address().port}/near/rpc`, VAULT_DEV_NEAR_HISTORY: `http://127.0.0.1:${server.address().port}/near/history`, VAULT_DEV_POL_RPC: `http://127.0.0.1:${server.address().port}/pol/rpc`, VAULT_DEV_POL_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_ARB_RPC: `http://127.0.0.1:${server.address().port}/arb/rpc`, VAULT_DEV_ARB_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_BSC_RPC: `http://127.0.0.1:${server.address().port}/bsc/rpc`, VAULT_DEV_HYPE_RPC: `http://127.0.0.1:${server.address().port}/hype/rpc`, VAULT_DEV_UNISWAP_BASE: `http://127.0.0.1:${server.address().port}/uniswap`, VAULT_DEV_UNISWAP_KEY: 'test-key', VAULT_DEV_BSC_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_SIMPLESWAP_BASE: `http://127.0.0.1:${server.address().port}/simple`, VAULT_DEV_GHOSTSWAP_BASE: `http://127.0.0.1:${server.address().port}/ghost`, VAULT_DEV_SWAP_BASE: `http://127.0.0.1:${server.address().port}/swap`, VAULT_DEV_PRICE_URL: `http://127.0.0.1:${server.address().port}/simple/price`, NO_PROXY: '*' },
   });
   let app = await launch();
   let page = await app.firstWindow();
@@ -68,8 +69,9 @@ const PASSWORD = 'correct horse battery';
   // create flow up to the seed screen
   await page.locator('#splash img').waitFor({ timeout: 800 }).catch(() => {});
   await shot('0-splash');
-  await page.click('#mode-private');
+  // No mode to choose: every wallet is a maximum-privacy wallet.
   await page.getByText('Get started').waitFor();
+  assert.equal(await page.locator('#mode-walletconnect, #mode-private').count(), 0);
   assert.equal(await page.locator('.entry-logo').count(), 1, 'logo on the welcome screen');
   assert.equal(await page.locator('.entry .coin').count(), 0, 'coin images removed from entry');
   assert.equal(await page.locator('#net').count(), 0, 'no network choice');
@@ -136,7 +138,6 @@ const PASSWORD = 'correct horse battery';
   await shot('5-settings');
   await page.fill('#del-pw', PASSWORD);
   await page.click('#delete');
-  await page.locator('#mode-private').click({ timeout: 30000 });
   await page.getByText('Get started').waitFor({ timeout: 30000 });
   assert.ok(!fs.existsSync(path.join(data, 'vault.json')));
   console.log('ok reveal requires password, delete wipes the vault');
@@ -178,12 +179,10 @@ const PASSWORD = 'correct horse battery';
   assert.match(await page.locator('#asset-USDT').innerText(), /\$10\.00/);
   await shot('home');
   assert.deepEqual(await page.locator('.actions .action').allInnerTexts(), ['Send', 'Receive', 'Swap', 'Buy']);
+  // Buy goes straight to LocalCoinSwap with the referral link, no screen in between.
   await page.click('#go-buy');
-  await page.locator('#buy-copy:not([disabled])').waitFor({ timeout: 30000 });
-  assert.match(await page.locator('#buy-address').innerText(), /\S{20,}/);
-  assert.match(await page.locator('.screen').innerText(), /LocalCoinSwap/);
-  await shot('buy');
-  await page.click('#back');
+  await page.getByText(/LocalCoinSwap opened in your browser/).waitFor({ timeout: 15000 });
+  assert.deepEqual(fs.readFileSync(externalLog, 'utf8').trim().split('\n'), ['https://localcoinswap.com/?rc=FE969A35']);
   await page.locator('#go-buy').waitFor();
 
   // sSCRT: folded under SCRT; its balance needs the viewing key once, then SCRT can be made private.
@@ -821,7 +820,7 @@ const PASSWORD = 'correct horse battery';
   await page.locator('#wallet-main', { hasText: 'Savings' }).waitFor();
   await page.fill('#wallet-new-name', 'Second wallet');
   await page.click('#wallet-add');
-  await page.locator('#mode-private').waitFor({ timeout: 20000 });
+  await page.getByText('Get started').waitFor({ timeout: 20000 });
   await page.locator('#wallet-add-cancel:visible').waitFor();
   await page.click('#wallet-add-cancel');
   await page.locator('#unlock').waitFor({ timeout: 15000 });
@@ -832,9 +831,6 @@ const PASSWORD = 'correct horse battery';
   assert.equal(await page.locator('.wallet-row').count(), 1, 'giving up left nothing');
   await page.fill('#wallet-new-name', 'Second wallet');
   await page.click('#wallet-add');
-  await shot('wallet-mode');
-  await page.click('#mode-walletconnect'); // a wallet for dApps
-  await page.locator('#mode-chosen', { hasText: 'WalletConnect' }).waitFor();
   await page.getByText('Restore from seeds').click();
   await page.fill('#tron-seed', 'legal winner thank year wave sausage worth useful legal winner thank yellow');
   await page.fill('#xmr-seed', xmrSeed.join(' '));
@@ -844,67 +840,14 @@ const PASSWORD = 'correct horse battery';
   await page.locator('#wallet-name', { hasText: 'Second wallet' }).waitFor({ timeout: 90000 });
   const secondEth = await page.evaluate(() => window.wallet.addresses().then((a) => a.ETH));
   assert.notEqual(secondEth, firstEth, 'a different wallet');
-  assert.equal(await page.evaluate(() => window.wallet.walletMode()), 'walletconnect', 'the choice is kept for that wallet');
-  if ((await page.evaluate(() => window.wallet.wcInfo())).available) {
-    await page.click('#go-dapps'); // home has a dApps button in a WalletConnect wallet
-    await page.locator('#wc-connect', { hasText: 'Connect a dApp' }).waitFor();
-    await page.getByText('No dApps connected.').waitFor();
-    await shot('dapps');
-    await page.click('#back');
-    await page.locator('#go-dapps').waitFor();
-  }
-  // Outside the wallet, a dApp's request opens in its own small window on top, like other wallets' confirmations.
-  if ((await page.evaluate(() => window.wallet.wcInfo())).available) {
-    const opened = app.waitForEvent('window');
-    await page.evaluate(() => window.wallet.devWcPopup('wc-proposal', { id: 77, name: 'Example DEX', url: 'https://dex.example', description: '', chains: ['eip155:1', 'eip155:42161'], unsupported: [], verified: 'VALID', scam: false }));
-    const pop = await opened;
-    await pop.locator('#wc-proposal #wc-dapp', { hasText: 'dex.example' }).waitFor({ timeout: 20000 });
-    assert.match(await pop.locator('#wc-proposal').innerText(), /Ethereum, Arbitrum/);
-    await pop.waitForTimeout(400);
-    await pop.screenshot({ path: path.join(shots, 'wc-popup.png') });
-    const closed = pop.waitForEvent('close');
-    await pop.click('#wc-reject');
-    await closed; // answered, so the window goes away
-    console.log('ok dApp request in its own window');
-  }
-  assert.equal(await page.locator('#nav-perps').count(), 0, 'no perps, even in a WalletConnect wallet');
-  // HYPE between this wallet (HyperEVM) and HyperCore.
-  await page.click('#nav-home');
+  // No dApps, no perps, no HyperCore moves, and Tor is there in every wallet.
+  assert.equal(await page.locator('#go-dapps, #nav-perps').count(), 0);
+  assert.deepEqual(await page.evaluate(() => ['walletMode', 'setWalletMode', 'wcInfo', 'wcPair', 'hypeCore', 'perpsInfo'].map((m) => typeof window.wallet[m])), Array(6).fill('undefined'));
   await page.click('#asset-HYPE');
-  await page.locator('#hype-core-balance', { hasText: '2.5 HYPE' }).waitFor({ timeout: 20000 });
-  await page.click('#hype-to-evm');
-  await page.click('#hype-move-max');
-  assert.equal(await page.inputValue('#hype-move-amount'), '2.499', 'HyperCore keeps 0.001 HYPE for the gas');
-  await page.fill('#hype-move-amount', '3');
-  await page.click('#hype-move-review');
-  await page.getByText('0.001 HYPE stays on HyperCore').waitFor();
-  await page.fill('#hype-move-amount', '1.25');
-  await page.click('#hype-move-review');
-  await page.fill('#hype-move-pw', 'second wallet password');
-  await page.click('#hype-move-confirm');
-  await page.locator('#hype-core-balance').waitFor({ timeout: 20000 });
-  const spot = state.hl.spotSends.at(-1);
-  assert.deepEqual([spot.destination, spot.token, spot.amount], ['0x2222222222222222222222222222222222222222', 'HYPE:0x0d01dc56dcaaca66ad901c959b4011ec', '1.25']);
-  await page.click('#hype-to-core');
-  await page.fill('#hype-move-amount', '1');
-  await page.click('#hype-move-review');
-  await page.fill('#hype-move-pw', 'second wallet password');
-  await page.click('#hype-move-confirm');
-  await page.locator('#hype-core-balance').waitFor({ timeout: 20000 });
-  assert.equal(state.hypeSent.length, 1, 'one HYPE send on HyperEVM, to the system address');
-  const sent = require('ethers').Transaction.from(state.hypeSent[0]);
-  assert.deepEqual([sent.to, sent.value, sent.chainId], ['0x2222222222222222222222222222222222222222', 10n ** 18n, 999n]);
-  await shot('hype-core');
+  assert.equal(await page.locator('#hype-core').count(), 0);
   await page.click('#back');
-  console.log('ok HYPE between HyperEVM and HyperCore; no perps screen');
-
-  // A WalletConnect wallet has no Tor, and its mode can't be switched afterwards.
   await page.click('#open-settings');
-  await page.locator('#copy-connection-log').waitFor();
-  assert.equal(await page.locator('#set-tor, #tor-block').count(), 0, 'no Tor in a WalletConnect wallet');
-  await assert.rejects(page.evaluate(() => window.wallet.updateSettings({ torEnabled: true })), /only in maximum-privacy wallets/);
-  await assert.rejects(page.evaluate(() => window.wallet.setWalletMode('private')), /can't be changed/);
-  assert.equal((await page.evaluate(() => window.wallet.torInfo())).enabled, false);
+  await page.locator('#set-tor').waitFor();
   await page.click('#nav-home');
   await page.click('#wallet-switch');
   await shot('wallets');
@@ -926,7 +869,6 @@ const PASSWORD = 'correct horse battery';
   await page.click('#wallet-switch');
   await page.fill('#wallet-new-name', 'Third');
   await page.click('#wallet-add');
-  await page.click('#mode-private');
   await page.getByText('Create a new wallet').click();
   await page.fill('#pw', 'third wallet password');
   await page.fill('#pw2', 'third wallet password');

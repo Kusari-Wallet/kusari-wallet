@@ -9,8 +9,6 @@ import { MIN_PASSWORD, Secrets, Vault } from './vault';
 import { TronClient, TronTransfer, deriveTronAccount, generateTronMnemonic, isTronAddress } from './tron';
 import { socksAgent, getJson, requestJson, newTorRoute } from './request';
 import { AAVE_MARKETS, aaveCall, readAave } from './aave';
-import { WC_CHAINS, WalletConnectManager } from './walletconnect';
-import { HYPE_CORE_RESERVE, HYPE_SYSTEM, HlClient } from './hyperliquid';
 import type { Wallet as EvmWallet } from 'ethers';
 import { DexCall, DexId, DexQuote, NATIVE, UNISWAP_CHAINS, UniswapClient, approvalCalls, narrowPermit, pancakeQuote, pancakeSwapCall } from './dex';
 import { NearClient, NearDraft, isNearAccount, nearPublicKey } from './near';
@@ -52,17 +50,6 @@ const QUOTE_DEADLINE_TOR_MS = 40_000;
 const QUOTE_EXTRAS_MS = 8_000;
 // Shown without its bitcoincash: prefix, as most wallets and exchanges show it; both forms are the same address.
 const bareBch = (a: string) => a.replace(/^bitcoincash:/, '');
-/** Typed-data requests come as [address, data]; some dApps send them the other way round, and the data as text. */
-function typedRequest(params: any): { who: string; data: any } {
-  const [a, b] = Array.isArray(params) ? params : [];
-  const isAddr = (x: unknown) => typeof x === 'string' && /^0x[0-9a-fA-F]{40}$/.test(x);
-  const [who, raw] = isAddr(a) ? [a, b] : isAddr(b) ? [b, a] : ['', b];
-  if (Array.isArray(raw)) throw new Error('The dApp asked for an old kind of signature this wallet doesn\'t make.');
-  let data: any;
-  try { data = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch { throw new Error('The dApp sent a message this wallet can\'t read.'); }
-  if (!data || typeof data !== 'object' || !data.types || !data.primaryType) throw new Error('The dApp sent a message this wallet can\'t read.');
-  return { who: String(who), data };
-}
 
 const SWAP_NAMES: Record<SwapProviderId, string> = { exolix: 'Exolix', simpleswap: 'SimpleSwap', ghostswap: 'GhostSwap', etzswap: 'ETZ Swap', ccecash: 'CCECash', changenow: 'ChangeNOW' };
 
@@ -122,7 +109,6 @@ interface Preview {
   zano?: ZanoDraft;
   arrr?: ArrrDraft;
   dex?: { quote: DexQuote; from: Asset; to: Asset; calls: DexCall[] };
-  hypeCalls?: { calls: DexCall[] };
 }
 
 export interface BalanceView { ok: boolean; stale?: boolean; pending?: boolean; total: string; spendable: string; error?: string }
@@ -158,11 +144,7 @@ export class WalletService extends EventEmitter {
   private arb: EthClient | null = null;
   private bsc: EthClient | null = null;
   private hype: EthClient | null = null;
-  private wc: WalletConnectManager | null = null;
-  /** HyperCore, for moving HYPE to and from the trading side of its chain. WalletConnect wallets only. */
-  private hl: HlClient | null = null;
-  private readonly hypePreviews = new Map<string, { hypeOut: string; expires: number }>();
-  /** Whether this session goes through Tor: the Tor setting is on and this is a maximum-privacy wallet. */
+  /** Whether this session goes through Tor. */
   private torActive = false;
   get torOn(): boolean { return this.torActive; }
   private dash: DashClient | null = null;
@@ -197,7 +179,7 @@ export class WalletService extends EventEmitter {
   settings: Settings = { ...DEFAULT_SETTINGS };
 
   constructor(private readonly baseDir: string, private readonly kdf?: { N: number; r: number; p: number }, private readonly dev: {
-    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; bchApi?: string; ltcApi?: string; scrtLcd?: string; nearRpc?: string; nearHistory?: string; polRpc?: string; polScout?: string; polUsdt?: string; arbRpc?: string; arbScout?: string; arbUsdt?: string; bscRpc?: string; bscScout?: string; hypeRpc?: string; uniswapKey?: string; uniswapBase?: string; wcProjectId?: string; allowNewWalletConnect?: boolean; dashApi?: string; dashSeeds?: string[]; dashConnect?: string; firoApi?: string; solRpc?: string; dogeApi?: string; adaApi?: string; zecBin?: string; hlApi?: string; zecServers?: string[]; zanoBin?: string; zanoNode?: string; arrrBin?: string; arrrServers?: string[]; mwebBin?: string; mwebConnect?: string; sparkBin?: string; sparkServer?: string; sparkConnect?: string; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; etzSwapBase?: string; cceCashBase?: string; changeNowBase?: string; quoteDeadlineMs?: number; btcApi?: string;
+    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; bchApi?: string; ltcApi?: string; scrtLcd?: string; nearRpc?: string; nearHistory?: string; polRpc?: string; polScout?: string; polUsdt?: string; arbRpc?: string; arbScout?: string; arbUsdt?: string; bscRpc?: string; bscScout?: string; hypeRpc?: string; uniswapKey?: string; uniswapBase?: string; dashApi?: string; dashSeeds?: string[]; dashConnect?: string; firoApi?: string; solRpc?: string; dogeApi?: string; adaApi?: string; zecBin?: string; zecServers?: string[]; zanoBin?: string; zanoNode?: string; arrrBin?: string; arrrServers?: string[]; mwebBin?: string; mwebConnect?: string; sparkBin?: string; sparkServer?: string; sparkConnect?: string; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; etzSwapBase?: string; cceCashBase?: string; changeNowBase?: string; quoteDeadlineMs?: number; btcApi?: string;
     /** Android: every outside address goes through the app's local forwarder. */
     route?: (url: string) => string;
     moneroStore?: (net: NetworkId, walletId: string) => MoneroOptions['store'];
@@ -309,7 +291,7 @@ export class WalletService extends EventEmitter {
   }
 
   async status() {
-    return { hasWallet: await this.vault.exists(), unlocked: this.tron !== null, network: this.settings.network, newWalletConnect: this.newWalletConnect };
+    return { hasWallet: await this.vault.exists(), unlocked: this.tron !== null, network: this.settings.network };
   }
 
   // ---- wallet creation ----
@@ -382,8 +364,7 @@ export class WalletService extends EventEmitter {
     this.torProxy = undefined;
     this.routes.clear();
     let proxyUri: string | undefined;
-    // Tor belongs to maximum-privacy wallets only: a WalletConnect wallet never starts or uses it.
-    this.torActive = this.settings.torEnabled && (await this.walletMode()) === 'private';
+    this.torActive = this.settings.torEnabled;
     if (this.torActive) {
       const socks = await this.tor.allocate();
       if (!this.dev.nativeTor) {
@@ -427,10 +408,9 @@ export class WalletService extends EventEmitter {
     this.arb = new EthClient(this.dev.arbRpc ? [this.dev.arbRpc] : ARB_RPCS, this.dev.arbScout ?? ARB_SCOUT, this.dev.arbUsdt ?? '', evmAddress, this.torRoute('arb'), slow ? 60_000 : 15_000, ARBITRUM);
     this.bsc = new EthClient(this.dev.bscRpc ? [this.dev.bscRpc] : BSC_RPCS, this.dev.bscScout ?? BSC_SCOUT, '', evmAddress, this.torRoute('bsc'), slow ? 60_000 : 15_000, BSC);
     this.hype = new EthClient(this.dev.hypeRpc ? [this.dev.hypeRpc] : HYPE_RPCS, HYPE_SCOUT, '', evmAddress, this.torRoute('hype'), slow ? 60_000 : 15_000, HYPEREVM);
-    void this.startWalletConnect(evmAddress);
-    if ((await this.walletMode()) === 'walletconnect') {
-      this.hl = new HlClient(evmAddress, { api: route(this.dev.hlApi ?? 'https://api.hyperliquid.xyz') });
-    }
+    // WalletConnect wallets are gone: one made before opens as a maximum-privacy wallet, same seed, same addresses.
+    void fs.rm(path.join(this.dir, 'mode.json'), { force: true }).catch(() => undefined);
+    void fs.rm(path.join(this.dir, 'walletconnect.json'), { force: true }).catch(() => undefined);
     const monero = new MoneroClient({
       type: net.monero.type,
       dir: this.moneroDir(net.id),
@@ -606,10 +586,6 @@ export class WalletService extends EventEmitter {
     this.arb = null;
     this.bsc = null;
     this.hype = null;
-    void this.wc?.stop();
-    this.wc = null;
-    this.hl = null;
-    this.hypePreviews.clear();
     this.dash = null;
     this.mixer?.stop();
     this.mixer = null;
@@ -837,7 +813,7 @@ export class WalletService extends EventEmitter {
   }
 
   async torInfo() {
-    return { updatable: !this.dev.nativeTor, enabled: this.torActive, setting: this.settings.torEnabled, allowed: (await this.walletMode()) === 'private', installed: this.tor.isInstalled(), state: this.tor.state };
+    return { updatable: !this.dev.nativeTor, enabled: this.torActive, setting: this.settings.torEnabled, allowed: true, installed: this.tor.isInstalled(), state: this.tor.state };
   }
 
   async installTor() {
@@ -1004,197 +980,6 @@ export class WalletService extends EventEmitter {
     }
     const hashes = await client.sendCalls([...calls, swap], account.wallet, quote.gasUnits + 60_000n);
     return { hashes, explorer: hashes.map((h) => this.explorerUrl(from, h)) };
-  }
-
-  // ---- HYPE between HyperEVM (this wallet) and HyperCore (the trading engine) ----
-
-  private hyperCore(): HlClient {
-    if (!this.hl) throw new Error('HyperCore moves are only in WalletConnect wallets.');
-    return this.hl;
-  }
-
-  async hypeCore() {
-    const hl = this.hyperCore();
-    return { ...(await hl.hypeOnCore()), reserve: HYPE_CORE_RESERVE };
-  }
-
-  /** HyperEVM to HyperCore: native HYPE sent to the system address, with HyperEVM's usual fee. */
-  async hypeToCorePrepare(amountInput: string) {
-    this.hyperCore();
-    const client = this.evm('HYPE');
-    const amount = parseAmount(amountInput, 18);
-    if (amount <= 0n) throw new Error('Enter an amount.');
-    const calls: DexCall[] = [{ label: 'swap', to: HYPE_SYSTEM, data: '0x', value: amount, gas: 60_000n }];
-    const cost = await client.costOf(calls, 60_000n);
-    const have = await client.balanceOf('HYPE' as EthAsset, true);
-    if (amount + cost.most > have) throw new Error(`Not enough HYPE. Up to ${formatAmount(cost.most, 18)} HYPE is needed for the fee on top of the amount.`);
-    const preview = this.storePreview({ asset: 'HYPE', to: HYPE_SYSTEM, amount, fee: cost.likely, hypeCalls: { calls } });
-    return { id: preview.id, amount: formatAmount(amount, 18), fee: formatAmount(cost.likely, 18), direction: 'core' as const };
-  }
-
-  async hypeToCoreConfirm(id: string, password: string) {
-    const preview = this.previews.get(id);
-    if (!preview?.hypeCalls || preview.expires < Date.now()) { this.previews.delete(id); throw new Error('The review expired. Try again.'); }
-    const secrets = await this.vault.open(password);
-    this.previews.delete(id);
-    this.balanceMemo.clear();
-    const hashes = await this.evm(preview.asset).sendCalls(preview.hypeCalls.calls, deriveEthAccount(secrets.tronMnemonic).wallet, 60_000n);
-    return { hashes, explorer: hashes.map((h) => this.explorerUrl(preview.asset, h)) };
-  }
-
-  /** HyperCore to HyperEVM: a spot send signed by this wallet's key; HyperCore keeps a little HYPE for the gas. */
-  async hypeToEvmPrepare(amountInput: string) {
-    const hl = this.hyperCore();
-    const amount = Math.floor(Number(amountInput) * 1e8) / 1e8;
-    if (!(amount > 0)) throw new Error('Enter an amount.');
-    const core = await hl.hypeOnCore();
-    if (amount > core.available - HYPE_CORE_RESERVE + 1e-12) throw new Error(`Only ${Math.max(0, core.available - HYPE_CORE_RESERVE).toFixed(4)} HYPE can be moved: ${HYPE_CORE_RESERVE} HYPE stays on HyperCore for the move's gas.`);
-    const id = randomUUID();
-    const value = amount.toFixed(8).replace(/0+$/, '').replace(/\.$/, '');
-    this.hypePreviews.set(id, { hypeOut: value, expires: Date.now() + 5 * 60_000 });
-    return { id, amount: value, direction: 'evm' as const };
-  }
-
-  async hypeToEvmConfirm(id: string, password: string) {
-    const hl = this.hyperCore();
-    const p = this.hypePreviews.get(id);
-    if (!p?.hypeOut || p.expires < Date.now()) { this.hypePreviews.delete(id); throw new Error('The review expired. Try again.'); }
-    const secrets = await this.vault.open(password);
-    this.hypePreviews.delete(id);
-    await hl.hypeToEvm(deriveEthAccount(secrets.tronMnemonic).wallet, p.hypeOut);
-    this.balanceMemo.clear();
-    return { ok: true };
-  }
-
-  // ---- WalletConnect: only in wallets made for it ----
-
-  private get modePath() { return path.join(this.dir, 'mode.json'); }
-
-  /** 'private' (the default, and every wallet made before this choice existed) or 'walletconnect'. */
-  async walletMode(): Promise<'private' | 'walletconnect'> {
-    try { return JSON.parse(await fs.readFile(this.modePath, 'utf8') as unknown as string).mode === 'walletconnect' ? 'walletconnect' : 'private'; } catch { return 'private'; }
-  }
-
-  /**
-   * New wallets are maximum privacy only for now. WalletConnect wallets made before keep working, and the
-   * code stays so the choice can come back.
-   */
-  private get newWalletConnect(): boolean { return this.dev.allowNewWalletConnect === true; }
-
-  async setWalletMode(mode: 'private' | 'walletconnect'): Promise<void> {
-    if (mode !== 'private' && mode !== 'walletconnect') throw new Error('Unknown mode.');
-    if (mode === 'walletconnect' && !this.newWalletConnect) throw new Error('New wallets are maximum privacy only.');
-    // A wallet's mode is chosen when it is made and never changes: a WalletConnect wallet's address has been shown to
-    // dApps, and a maximum-privacy wallet must never start talking to them.
-    if (await this.vault.exists()) throw new Error('A wallet\'s mode is chosen when it is made and can\'t be changed.');
-    await fs.mkdir(this.dir, { recursive: true });
-    await fs.writeFile(this.modePath, JSON.stringify({ mode }), { mode: 0o600 });
-    if (mode === 'private') {
-      await this.wc?.stop();
-      this.wc = null;
-      await fs.rm(path.join(this.dir, 'walletconnect.json'), { force: true }); // the dApp sessions go with it
-    } else if (this.eth) {
-      await this.startWalletConnect(this.eth.address);
-    }
-  }
-
-  private wcProjectId(): string { return this.dev.wcProjectId ?? (BUILTIN_SWAP_KEYS as { walletconnect?: string }).walletconnect ?? ''; }
-
-  private async startWalletConnect(address: string): Promise<void> {
-    if (this.wc || (await this.walletMode()) !== 'walletconnect' || this.torActive || !this.wcProjectId()) return;
-    this.wc = new WalletConnectManager(this.wcProjectId(), path.join(this.dir, 'walletconnect.json'), address, (event, data) => this.emit(event, data));
-    await this.wc.resume().catch(() => undefined);
-  }
-
-  private walletConnect(): WalletConnectManager {
-    this.session();
-    if (this.torActive) throw new Error('WalletConnect can\'t go through Tor, so it is off while Tor is on.');
-    if (!this.wc) throw new Error(this.wcProjectId() ? 'WalletConnect is only in wallets made for it. Choose it when adding a wallet.' : 'WalletConnect isn\'t set up in this build.');
-    return this.wc;
-  }
-
-  async wcInfo() {
-    return { mode: await this.walletMode(), tor: this.torActive, available: Boolean(this.wcProjectId()), sessions: this.wc?.sessions() ?? [] };
-  }
-  async wcPair(uri: string) { await this.walletConnect().pair(uri); }
-  async wcApprove(id: number) { await this.walletConnect().approve(id); }
-  async wcReject(id: number) { await this.walletConnect().reject(id); }
-  async wcDisconnect(topic: string) { await this.walletConnect().disconnect(topic); }
-  /** Ends every dApp connection; the wallet stays a WalletConnect wallet. */
-  async wcDisconnectAll() {
-    const wc = this.walletConnect();
-    for (const s of wc.sessions()) await wc.disconnect(s.topic).catch(() => undefined);
-  }
-  async wcDecline(id: number) { await this.wc?.decline(id); }
-
-  private evmByChain(id: bigint): EthClient {
-    const c = id === POLYGON.id ? this.pol : id === ARBITRUM.id ? this.arb : id === BSC.id ? this.bsc : id === HYPEREVM.id ? this.hype : id === 1n ? this.eth : null;
-    if (!c) throw new Error('This wallet doesn\'t support that network.');
-    return c;
-  }
-
-  /** What a dApp asks for, spelled out: who, which network, and what signing it would do. */
-  async wcRequestInfo(id: number) {
-    const r = this.walletConnect().request(id);
-    const chain = WC_CHAINS.find((c) => c.id === r.chainId)!;
-    const me = this.session().eth.address.toLowerCase();
-    const warnings: string[] = [];
-    const base = { id, dapp: r.dapp, url: r.url, network: chain.name, method: r.method };
-    if (r.method === 'personal_sign') {
-      const [msg, who] = r.params ?? [];
-      if (String(who ?? '').toLowerCase() !== me) warnings.push('The dApp named a different address.');
-      const bytes = /^0x[0-9a-fA-F]*$/.test(String(msg)) ? Buffer.from(String(msg).slice(2), 'hex') : Buffer.from(String(msg), 'utf8');
-      const text = bytes.toString('utf8');
-      return { ...base, kind: 'message', message: /^[\x09\x0a\x0d\x20-\x7e\u00a0-\uffff]*$/.test(text) ? text : `0x${bytes.toString('hex')}`, warnings };
-    }
-    if (r.method.startsWith('eth_signTypedData')) {
-      const { who, data } = typedRequest(r.params);
-      if (who.toLowerCase() !== me) warnings.push('The dApp named a different address.');
-      if (/permit/i.test(String(data?.primaryType))) warnings.push('This is a permit: signing it lets the dApp move your tokens without another confirmation.');
-      if (data?.domain?.chainId !== undefined && BigInt(data.domain.chainId) !== r.chainId) warnings.push('The message names a different network.');
-      return { ...base, kind: 'typed', type: String(data?.primaryType ?? ''), domain: String(data?.domain?.name ?? ''), contract: String(data?.domain?.verifyingContract ?? ''), message: JSON.stringify(data?.message ?? {}, null, 1).slice(0, 2000), warnings };
-    }
-    const tx = r.params?.[0] ?? {};
-    if (String(tx.from ?? '').toLowerCase() !== me) throw new Error('The dApp asked to send from a different address.');
-    const client = this.evmByChain(r.chainId);
-    const value = BigInt(tx.value ?? 0);
-    const data = String(tx.data ?? tx.input ?? '0x');
-    let action = value ? `Send ${formatAmount(value, 18)} ${client.chain.symbol}` : 'Contract call';
-    if (data.startsWith('0x095ea7b3') && data.length >= 138) {
-      const amount = BigInt('0x' + data.slice(74, 138));
-      action = `Allow ${'0x' + data.slice(34, 74)} to spend a token`;
-      if (amount >= 2n ** 255n) warnings.push('This approval has no limit: the contract could take all of this token, now or later.');
-    }
-    const gas = tx.gas ? BigInt(tx.gas) : await client.estimateCall({ to: tx.to, data, value }).catch(() => 300_000n);
-    const cost = await client.costOf([{ value, gas }], gas);
-    return { ...base, kind: 'transaction', to: String(tx.to ?? ''), value: formatAmount(value, 18), symbol: client.chain.symbol, action, data: data.slice(0, 74), fee: formatAmount(cost.likely, 18), warnings };
-  }
-
-  async wcConfirm(id: number, password: string): Promise<{ result: string }> {
-    const wc = this.walletConnect();
-    const r = wc.request(id);
-    const secrets = await this.vault.open(password);
-    const account = deriveEthAccount(secrets.tronMnemonic);
-    let result: string;
-    if (r.method === 'personal_sign') {
-      const msg = String(r.params?.[0] ?? '');
-      result = await account.wallet.signMessage(/^0x[0-9a-fA-F]*$/.test(msg) ? Buffer.from(msg.slice(2), 'hex') : msg);
-    } else if (r.method.startsWith('eth_signTypedData')) {
-      const { data } = typedRequest(r.params);
-      const { EIP712Domain: _d, ...types } = data.types ?? {};
-      result = await account.wallet.signTypedData(data.domain ?? {}, types, data.message ?? {});
-    } else {
-      const tx = r.params?.[0] ?? {};
-      const client = this.evmByChain(r.chainId);
-      const value = BigInt(tx.value ?? 0);
-      const data = String(tx.data ?? tx.input ?? '0x');
-      const gas = tx.gas ? BigInt(tx.gas) : await client.estimateCall({ to: tx.to, data, value });
-      if (gas > 3_000_000n) throw new Error('This transaction asks for an abnormal amount of gas, so it was stopped.');
-      [result] = await client.sendCalls([{ to: String(tx.to), data, value, gas }], account.wallet, gas);
-      this.balanceMemo.clear();
-    }
-    await wc.respond(id, result);
-    return { result };
   }
 
   /** The client for the chain an EVM coin or token lives on. */
@@ -2169,7 +1954,6 @@ export class WalletService extends EventEmitter {
     if (typeof patch.simpleSwapKey === 'string') next.simpleSwapKey = patch.simpleSwapKey.trim();
     if (typeof patch.ghostSwapKey === 'string') next.ghostSwapKey = patch.ghostSwapKey.trim();
     if (typeof patch.torEnabled === 'boolean') {
-      if (patch.torEnabled !== this.settings.torEnabled && (await this.walletMode()) !== 'private') throw new Error('Tor is only in maximum-privacy wallets.');
       if (patch.torEnabled && !this.tor.isInstalled()) throw new Error('Install Tor first.');
       next.torEnabled = patch.torEnabled;
     }
