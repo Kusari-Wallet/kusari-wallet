@@ -277,7 +277,11 @@ async function withSplash(message: string, task: () => Promise<void>): Promise<v
 // Chosen before a wallet is made or restored: whether it ever talks to dApps.
 let chosenMode: 'private' | 'walletconnect' | null = null;
 
+/** Off for now: new wallets are maximum privacy only. Existing WalletConnect wallets keep working. */
+let newWalletConnect = false;
+
 function chooseMode(): void {
+  if (!newWalletConnect) { chosenMode = 'private'; welcome(); return; }
   const pick = (m: 'private' | 'walletconnect') => () => { chosenMode = m; welcome(); };
   const addingBack = h('button', { type: 'button', class: 'ghost', id: 'wallet-add-cancel', hidden: true, onclick: async () => { await wallet.walletCancelAdd(); await boot(); } }, 'Cancel adding a wallet');
   void wallet.walletsList().then((r: any) => { addingBack.hidden = !r.adding; });
@@ -300,7 +304,7 @@ function welcome(): void {
     h('h2', {}, 'Get started'),
     addingBack,
     h('p', { class: 'lead' }, 'Seeds and keys are stored encrypted on this device only. This is mainnet, with real coins.'),
-    h('p', { class: 'small muted', id: 'mode-chosen' }, chosenMode === 'walletconnect' ? 'Mode: WalletConnect. ' : 'Mode: Maximum privacy. ', h('button', { type: 'button', class: 'link', id: 'mode-change', onclick: () => { chosenMode = null; chooseMode(); } }, 'Change')),
+    newWalletConnect && h('p', { class: 'small muted', id: 'mode-chosen' }, chosenMode === 'walletconnect' ? 'Mode: WalletConnect. ' : 'Mode: Maximum privacy. ', h('button', { type: 'button', class: 'link', id: 'mode-change', onclick: () => { chosenMode = null; chooseMode(); } }, 'Change')),
     h('button', { class: 'choice', onclick: createStep1 },
       h('strong', {}, 'Create a new wallet'), h('span', { class: 'muted small' }, 'Generates new seed phrases.')),
     h('button', { class: 'choice', onclick: restoreForm },
@@ -2448,6 +2452,7 @@ async function runRequestWindow(): Promise<void> {
 
 async function boot(first = false): Promise<void> {
   const [s] = await Promise.all([wallet.status(), first ? new Promise((r) => setTimeout(r, 900)) : null]);
+  newWalletConnect = s.newWalletConnect === true;
   if (!s.hasWallet) welcome();
   else if (s.unlocked) await enterWallet();
   else unlockScreen();

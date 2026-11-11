@@ -213,7 +213,7 @@ export class WalletService extends EventEmitter {
   settings: Settings = { ...DEFAULT_SETTINGS };
 
   constructor(private readonly baseDir: string, private readonly kdf?: { N: number; r: number; p: number }, private readonly dev: {
-    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; bchApi?: string; ltcApi?: string; scrtLcd?: string; nearRpc?: string; nearHistory?: string; polRpc?: string; polScout?: string; polUsdt?: string; arbRpc?: string; arbScout?: string; arbUsdt?: string; bscRpc?: string; bscScout?: string; hypeRpc?: string; kindexBase?: string; uniswapKey?: string; uniswapBase?: string; wcProjectId?: string; dashApi?: string; dashSeeds?: string[]; dashConnect?: string; firoApi?: string; solRpc?: string; dogeApi?: string; adaApi?: string; zecBin?: string; hlApi?: string; asterApi?: string; asterBapi?: string; zecServers?: string[]; zanoBin?: string; zanoNode?: string; arrrBin?: string; arrrServers?: string[]; mwebBin?: string; mwebConnect?: string; sparkBin?: string; sparkServer?: string; sparkConnect?: string; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; etzSwapBase?: string; cceCashBase?: string; changeNowBase?: string; quoteDeadlineMs?: number; btcApi?: string;
+    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; bchApi?: string; ltcApi?: string; scrtLcd?: string; nearRpc?: string; nearHistory?: string; polRpc?: string; polScout?: string; polUsdt?: string; arbRpc?: string; arbScout?: string; arbUsdt?: string; bscRpc?: string; bscScout?: string; hypeRpc?: string; kindexBase?: string; uniswapKey?: string; uniswapBase?: string; wcProjectId?: string; allowNewWalletConnect?: boolean; dashApi?: string; dashSeeds?: string[]; dashConnect?: string; firoApi?: string; solRpc?: string; dogeApi?: string; adaApi?: string; zecBin?: string; hlApi?: string; asterApi?: string; asterBapi?: string; zecServers?: string[]; zanoBin?: string; zanoNode?: string; arrrBin?: string; arrrServers?: string[]; mwebBin?: string; mwebConnect?: string; sparkBin?: string; sparkServer?: string; sparkConnect?: string; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; etzSwapBase?: string; cceCashBase?: string; changeNowBase?: string; quoteDeadlineMs?: number; btcApi?: string;
     /** Android: every outside address goes through the app's local forwarder. */
     route?: (url: string) => string;
     moneroStore?: (net: NetworkId, walletId: string) => MoneroOptions['store'];
@@ -325,7 +325,7 @@ export class WalletService extends EventEmitter {
   }
 
   async status() {
-    return { hasWallet: await this.vault.exists(), unlocked: this.tron !== null, network: this.settings.network };
+    return { hasWallet: await this.vault.exists(), unlocked: this.tron !== null, network: this.settings.network, newWalletConnect: this.newWalletConnect };
   }
 
   // ---- wallet creation ----
@@ -1345,8 +1345,15 @@ export class WalletService extends EventEmitter {
     try { return JSON.parse(await fs.readFile(this.modePath, 'utf8') as unknown as string).mode === 'walletconnect' ? 'walletconnect' : 'private'; } catch { return 'private'; }
   }
 
+  /**
+   * New wallets are maximum privacy only for now. WalletConnect wallets made before keep working, and the
+   * code stays so the choice can come back.
+   */
+  private get newWalletConnect(): boolean { return this.dev.allowNewWalletConnect === true; }
+
   async setWalletMode(mode: 'private' | 'walletconnect'): Promise<void> {
     if (mode !== 'private' && mode !== 'walletconnect') throw new Error('Unknown mode.');
+    if (mode === 'walletconnect' && !this.newWalletConnect) throw new Error('New wallets are maximum privacy only.');
     // A wallet's mode is chosen when it is made and never changes: a WalletConnect wallet's address has been shown to
     // dApps, and a maximum-privacy wallet must never start talking to them.
     if (await this.vault.exists()) throw new Error('A wallet\'s mode is chosen when it is made and can\'t be changed.');

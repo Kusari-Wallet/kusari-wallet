@@ -174,8 +174,11 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
   await page.goto(origin + '/index.html');
   await page.locator('#splash img').waitFor({ timeout: 900 }).catch(() => {});
   await shot('splash');
-  await page.locator('#mode-private').click({ timeout: 15000 });
-  await page.getByText('Get started').waitFor({ timeout: 15000 });
+  // New wallets are maximum privacy only: no mode to choose, straight to getting started.
+  await page.getByText('Get started').waitFor({ timeout: 15000 }).catch(async (e) => { await shot('no-start'); console.log('page errors:', errors, await page.locator('body').innerText()); throw e; });
+  assert.equal(await page.locator('#mode-walletconnect').count(), 0);
+  assert.equal(await page.locator('#mode-chosen').count(), 0);
+  await assert.rejects(page.evaluate(() => window.wallet.setWalletMode('walletconnect')), /maximum privacy only/);
   await page.evaluate((n) => window.wallet.updateSettings({ customMoneroNode: n }), holeUp);
   await page.getByText('Restore from seeds').click();
   await page.fill('#tron-seed', MNEMONIC);
