@@ -840,6 +840,9 @@ const PASSWORD = 'correct horse battery';
   await page.locator('#perps-setup').waitFor();
   await page.locator('#mkt-BTCUSDT').waitFor({ timeout: 20000 });
   assert.match(await page.locator('#perps-fee-note').innerText(), /0\.01%.*0\.02%/);
+  // Leverage limits come from Aster's public list, so every market shows one before trading is on and before it's opened.
+  await page.locator('#lev-BTCUSDT', { hasText: '200x' }).waitFor({ timeout: 20000 });
+  await page.locator('#lev-ETHUSDT', { hasText: '100x' }).waitFor();
   await shot('perps-setup');
   await page.fill('#perps-pw', 'wrong password');
   await page.click('#perps-enable');

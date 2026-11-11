@@ -1282,5 +1282,7 @@
 "{0} · entry {1}": "{0} · 建値 {1}",
 "{0}, order {1}": "{0}、注文 {1}",
 "{0}. Enter your password.": "{0}。パスワードを入力してください。",
-"{0}: word {1} does not match.": "{0}: {1} 番目の語が一致しません。"
+"{0}: word {1} does not match.": "{0}: {1} 番目の語が一致しません。",
+"{0} lookup failed, so the total leaves it out. Retrying automatically.": "{0} の照会に失敗したため、合計に含まれていません。自動で再試行します。",
+"Loading {0} balances. The total doesn't include them yet.": "{0} の残高を読み込み中です。まだ合計には含まれていません。"
 }

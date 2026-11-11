@@ -1282,5 +1282,7 @@
 "{0} · entry {1}": "{0} · entrada {1}",
 "{0}, order {1}": "{0}, ordem {1}",
 "{0}. Enter your password.": "{0}. Digite sua senha.",
-"{0}: word {1} does not match.": "{0}: a palavra {1} não corresponde."
+"{0}: word {1} does not match.": "{0}: a palavra {1} não corresponde.",
+"{0} lookup failed, so the total leaves it out. Retrying automatically.": "A consulta de {0} falhou, então o total não a inclui. Tentando novamente automaticamente.",
+"Loading {0} balances. The total doesn't include them yet.": "Carregando saldos de {0}. O total ainda não os inclui."
 }

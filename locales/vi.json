@@ -1282,5 +1282,7 @@
 "{0} · entry {1}": "{0} · giá vào {1}",
 "{0}, order {1}": "{0}, lệnh {1}",
 "{0}. Enter your password.": "{0}. Hãy nhập mật khẩu.",
-"{0}: word {1} does not match.": "{0}: từ {1} không khớp."
+"{0}: word {1} does not match.": "{0}: từ {1} không khớp.",
+"{0} lookup failed, so the total leaves it out. Retrying automatically.": "Tra cứu {0} thất bại nên tổng chưa tính phần này. Đang tự thử lại.",
+"Loading {0} balances. The total doesn't include them yet.": "Đang tải số dư {0}. Tổng chưa tính phần này."
 }

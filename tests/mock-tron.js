@@ -79,6 +79,9 @@ function asterMock(state, req, body, res) {
   if (p === '/fapi/v3/approveBuilder') { a.builder = q.get('maxFeeRate'); return send(200, { code: 200, msg: 'success' }); }
   if (p === '/fapi/v3/remainingOpenableNotionalValue') return Number(q.get('leverage')) >= 1 && Number(q.get('leverage')) <= 75 ? send(200, { remainingOpenableNotionalValue: '1000000' }) : send(400, { code: -4028, msg: 'Invalid leverage' });
   if (p.startsWith('/bapi/futures/v1/public/future/aster/estimate-withdraw-fee')) return send(200, { code: '000000', data: { gasCost: 0.3 }, success: true });
+  if (p === '/bapi/futures/v1/friendly/future/common/brackets') return send(200, { code: '000000', success: true, data: { brackets: ['BTCUSDT', 'ETHUSDT'].map((symbol) => ({ symbol, riskBrackets: [
+    { bracketSeq: 1, bracketNotionalFloor: 0, bracketNotionalCap: 50000, bracketMaintenanceMarginRate: 0.004, cumFastMaintenanceAmount: 0, minOpenPosLeverage: 101, maxOpenPosLeverage: symbol === 'ETHUSDT' ? 100 : 200 },
+    { bracketSeq: 2, bracketNotionalFloor: 50000, bracketNotionalCap: 1e12, bracketMaintenanceMarginRate: 0.01, cumFastMaintenanceAmount: 300, minOpenPosLeverage: 1, maxOpenPosLeverage: 50 }] })) } });
   if (!a.registered || q.get('signer') !== a.registered) return send(401, { code: -1022, msg: 'Signature for this request is not valid.' });
   if (p === '/fapi/v3/leverageBrackets') return send(200, (q.get('symbol') ? [q.get('symbol')] : ['BTCUSDT', 'ETHUSDT']).map((symbol) => ({ symbol, brackets: [{ bracket: 1, initialLeverage: symbol === 'ETHUSDT' ? 100 : 200, notionalCap: 50000, notionalFloor: 0, maintMarginRatio: 0.004, cum: 0 }] })));
   if (p === '/fapi/v3/commissionRate') return send(200, { symbol: q.get('symbol'), makerCommissionRate: '0', takerCommissionRate: '0.0004' });

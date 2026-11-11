@@ -6,6 +6,10 @@ import { formatAmount } from './amount';
 const GAP_RECEIVE = 20;
 const GAP_CHANGE = 5;
 const CACHE_MS = 60_000;
+/** How long a balance read before a failed refresh is still shown, so a server's brief rate limit doesn't blank it. */
+const STALE_OK_MS = 60 * 60_000;
+/** After a failed refresh, how long to show the last scan before asking again, to stay under rate limits. */
+const RETRY_AFTER_FAILURE_MS = 2 * 60_000;
 
 export interface InsightUtxo { txid: string; vout: number; value: bigint; address: string; chain: number; index: number }
 export interface InsightDraft { to: string; amount: bigint; fee: bigint; change: bigint; changeAddress: string; changeIndex: number; inputs: InsightUtxo[] }
@@ -20,6 +24,7 @@ export interface InsightCoin<S extends string> {
 export abstract class InsightWallet<S extends string> {
   private state: { at: number; utxos: InsightUtxo[]; total: bigint; spendable: bigint; txs: any[]; nextReceive: number; nextChange: number; mine: Map<string, [number, number]> } | null = null;
   private inFlight: Promise<void> | null = null;
+  private failedAt = 0;
 
   constructor(private readonly cfg: InsightCoin<S>, protected readonly apis: string[], protected readonly agent?: Agent, protected readonly timeoutMs = 30_000) {}
 
@@ -101,8 +106,20 @@ export abstract class InsightWallet<S extends string> {
   /** The next read asks the server again, for after a send. */
   protected forget(): void { this.state = null; }
 
+  /** A refresh for display: if it fails, the last good scan is kept while it's recent. Sends always read afresh. */
+  private async refreshForView(): Promise<void> {
+    const before = this.state;
+    const usable = before && Date.now() - before.at <= STALE_OK_MS;
+    if (usable && Date.now() - this.failedAt < RETRY_AFTER_FAILURE_MS) return;
+    try { await this.refresh(); this.failedAt = 0; } catch (e) {
+      this.failedAt = Date.now();
+      if (!usable) throw e;
+      this.state = before;
+    }
+  }
+
   async getBalance(): Promise<{ total: bigint; spendable: bigint }> {
-    await this.refresh();
+    await this.refreshForView();
     return { total: this.state!.total, spendable: this.state!.spendable };
   }
 
@@ -165,7 +182,7 @@ export abstract class InsightWallet<S extends string> {
   }
 
   async getHistory(): Promise<InsightHistoryItem<S>[]> {
-    await this.refresh();
+    await this.refreshForView();
     const { txs, mine } = this.state!;
     const atoms = (v: unknown) => BigInt(Math.round(Number(v ?? 0) * 1e8));
     const items: InsightHistoryItem<S>[] = [];

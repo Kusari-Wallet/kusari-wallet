@@ -175,6 +175,30 @@ test('a wallet key that is not the account\'s cannot register a trading key', as
   await assert.rejects(c.registerAgent(Wallet.createRandom(), asterAgent(DEMO.privateKey), 1), /does not match/);
 });
 
+test('every market\'s leverage brackets come from Aster\'s public list, oldest bracket first', async (t) => {
+  const http = require('node:http');
+  const srv = http.createServer((q, r) => {
+    let b = '';
+    q.on('data', (d) => { b += d; });
+    q.on('end', () => {
+      assert.equal(q.method, 'POST');
+      assert.equal(q.url, '/bapi/futures/v1/friendly/future/common/brackets');
+      r.setHeader('content-type', 'application/json');
+      r.end(JSON.stringify({ code: '000000', success: true, data: { brackets: [
+        { symbol: 'BTCUSDT', riskBrackets: [
+          { bracketSeq: 2, bracketNotionalFloor: 50000, bracketNotionalCap: 1e12, bracketMaintenanceMarginRate: 0.01, cumFastMaintenanceAmount: 300, maxOpenPosLeverage: 50 },
+          { bracketSeq: 1, bracketNotionalFloor: 0, bracketNotionalCap: 50000, bracketMaintenanceMarginRate: 0.004, cumFastMaintenanceAmount: 0, maxOpenPosLeverage: 200 }] },
+        { symbol: 'BADUSDT', riskBrackets: [{ bracketNotionalFloor: 0, bracketNotionalCap: 'x', maxOpenPosLeverage: 0 }] }] } }));
+    });
+  });
+  await new Promise((res) => srv.listen(0, '127.0.0.1', res));
+  t.after(() => srv.close());
+  const c = new AsterClient('0x' + '1'.repeat(40), { bapi: `http://127.0.0.1:${srv.address().port}` });
+  const all = await c.publicBrackets();
+  assert.deepEqual([...all.keys()], ['BTCUSDT'], 'a market with unreadable brackets is left out');
+  assert.deepEqual(all.get('BTCUSDT').map((b) => [b.initialLeverage, b.notionalFloor, b.maintMarginRatio, b.cum]), [[200, 0, 0.004, 0], [50, 50000, 0.01, 300]]);
+});
+
 test('the highest leverage is found from Aster\'s public check, even an unusual one', async () => {
   for (const max of [200, 88, 1, 1000]) {
     const calls = [];

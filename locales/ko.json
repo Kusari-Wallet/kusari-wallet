@@ -1282,5 +1282,7 @@
 "{0} · entry {1}": "{0} · 진입가 {1}",
 "{0}, order {1}": "{0}, 주문 {1}",
 "{0}. Enter your password.": "{0}. 비밀번호를 입력하세요.",
-"{0}: word {1} does not match.": "{0}: {1}번째 단어가 일치하지 않습니다."
+"{0}: word {1} does not match.": "{0}: {1}번째 단어가 일치하지 않습니다.",
+"{0} lookup failed, so the total leaves it out. Retrying automatically.": "{0} 조회 실패로 총액에서 빠졌습니다. 자동으로 다시 시도합니다.",
+"Loading {0} balances. The total doesn't include them yet.": "{0} 잔액을 불러오는 중입니다. 아직 총액에 포함되지 않았습니다."
 }

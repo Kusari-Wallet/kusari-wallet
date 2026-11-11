@@ -1,5 +1,5 @@
 import type { Agent } from 'node:http';
-import { requestForm } from './request';
+import { requestForm, requestJson } from './request';
 import { BaseWallet, Interface, Wallet, concat, getBytes, keccak256, toUtf8Bytes } from 'ethers';
 
 /**
@@ -317,6 +317,20 @@ export class AsterClient {
     const out = new Map<string, AsterBracket[]>();
     for (const one of Array.isArray(r) ? r : []) {
       out.set(String(one.symbol), (one.brackets ?? []).map((b: any) => ({ initialLeverage: Number(b.initialLeverage), notionalCap: Number(b.notionalCap), notionalFloor: Number(b.notionalFloor), maintMarginRatio: Number(b.maintMarginRatio), cum: Number(b.cum ?? 0) })));
+    }
+    return out;
+  }
+
+  /** Every market's leverage brackets from Aster's public web API, no account needed. */
+  async publicBrackets(): Promise<Map<string, AsterBracket[]>> {
+    const r = await requestJson(`${this.bapi}/bapi/futures/v1/friendly/future/common/brackets`, { method: 'POST', body: {}, agent: this.opts.agent, timeoutMs: this.opts.timeoutMs ?? 20_000 });
+    if (r.status >= 400 || r.body?.success !== true || !Array.isArray(r.body?.data?.brackets)) throw new AsterError('Aster did not give leverage limits right now.', 0);
+    const out = new Map<string, AsterBracket[]>();
+    for (const one of r.body.data.brackets) {
+      const list: AsterBracket[] = (Array.isArray(one?.riskBrackets) ? one.riskBrackets : [])
+        .map((b: any) => ({ initialLeverage: Number(b.maxOpenPosLeverage), notionalCap: Number(b.bracketNotionalCap), notionalFloor: Number(b.bracketNotionalFloor), maintMarginRatio: Number(b.bracketMaintenanceMarginRate), cum: Number(b.cumFastMaintenanceAmount ?? 0) }))
+        .filter((b: AsterBracket) => [b.initialLeverage, b.notionalCap, b.notionalFloor, b.maintMarginRatio, b.cum].every(Number.isFinite) && b.initialLeverage >= 1);
+      if (typeof one?.symbol === 'string' && list.length) out.set(one.symbol, list.sort((a, b) => a.notionalFloor - b.notionalFloor));
     }
     return out;
   }

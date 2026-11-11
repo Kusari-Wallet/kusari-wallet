@@ -1282,5 +1282,7 @@
 "{0} · entry {1}": "{0} · вход {1}",
 "{0}, order {1}": "{0}, заказ {1}",
 "{0}. Enter your password.": "{0}. Введите пароль.",
-"{0}: word {1} does not match.": "{0}: слово {1} не совпадает."
+"{0}: word {1} does not match.": "{0}: слово {1} не совпадает.",
+"{0} lookup failed, so the total leaves it out. Retrying automatically.": "Ошибка запроса {0}, поэтому он не учтён в общей сумме. Автоматический повтор.",
+"Loading {0} balances. The total doesn't include them yet.": "Загрузка балансов {0}. Общая сумма их пока не учитывает."
 }

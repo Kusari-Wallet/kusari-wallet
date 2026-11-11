@@ -145,6 +145,28 @@ test('a retry after a rate limit asks only for what is missing', async (t) => {
   assert.equal(m.log.length, 4 + 4, 'the three answered addresses are not asked again');
 });
 
+test('a rate limit after a good read keeps the last balance and waits before asking again', async (t) => {
+  const mine = new DogeClient(xpub, []).addressAt(0, 1);
+  let limited = false;
+  const m = await server({ [mine]: () => (limited ? { status: 429, body: { error: 'Limits reached.' } } : { body: funded(mine) }) });
+  close(t, m);
+  const c = new DogeClient(xpub, [m.url], undefined, 5000, fast);
+  assert.deepEqual(await c.getBalance(), { total: 700000000n, spendable: 500000000n });
+  limited = true;
+  c.state.at -= 11 * 60_000; // the scan has expired
+  const asked = m.log.length;
+  assert.deepEqual(await c.getBalance(), { total: 700000000n, spendable: 500000000n }, 'the last good read is shown');
+  assert.equal((await c.getHistory()).length, 4);
+  const afterFailure = m.log.length;
+  assert.ok(afterFailure > asked, 'it did try');
+  await c.getBalance();
+  assert.equal(m.log.length, afterFailure, 'no new requests right after a failure');
+  await assert.rejects(c.draft(OTHER, 100000000n), /429/, 'a send never uses an old read');
+  c.state.at -= 61 * 60_000;
+  c.failedAt = 0;
+  await assert.rejects(c.getBalance(), /429/, 'a read over an hour old is not shown');
+});
+
 test('an address with long history gets its coins from a second request', async (t) => {
   const mine = new DogeClient(xpub, []).addressAt(0, 0);
   const page = { ...empty(mine), balance: 500000000, final_balance: 500000000, n_tx: 80, final_n_tx: 80, hasMore: true, txrefs: funded(mine).txrefs.slice(1) };

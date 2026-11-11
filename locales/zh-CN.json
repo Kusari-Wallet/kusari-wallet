@@ -1282,5 +1282,7 @@
 "{0} · entry {1}": "{0} · 开仓 {1}",
 "{0}, order {1}": "{0},订单 {1}",
 "{0}. Enter your password.": "{0}。请输入密码。",
-"{0}: word {1} does not match.": "{0}:第 {1} 个单词不匹配。"
+"{0}: word {1} does not match.": "{0}:第 {1} 个单词不匹配。",
+"{0} lookup failed, so the total leaves it out. Retrying automatically.": "{0} 查询失败,总额暂不包含它。正在自动重试。",
+"Loading {0} balances. The total doesn't include them yet.": "正在加载 {0} 余额,总额暂未包含。"
 }

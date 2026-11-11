@@ -1019,10 +1019,10 @@ export class WalletService extends EventEmitter {
     const { aster } = this.perps();
     if (this.perpMarkets && Date.now() - this.perpMarkets.at < 15_000) return this.perpMarkets.list;
     const list = await aster.markets();
-    // With trading on, one call gives every market's leverage limits.
-    if (Date.now() - this.perpBracketsAt > 3_600_000 && (await this.asterReady()).ready) {
+    // One public call gives every market's leverage limits; with trading on, the account's own call is the fallback.
+    if (Date.now() - this.perpBracketsAt > 3_600_000) {
       try {
-        const all = await aster.allBrackets(this.perps().agent);
+        const all = await aster.publicBrackets().catch(async (e) => { if ((await this.asterReady()).ready) return aster.allBrackets(this.perps().agent); throw e; });
         for (const [sym, b] of all) { this.perpBrackets.set(sym, b); if (b[0]) this.perpMaxLev.set(sym, { at: Date.now(), lev: b[0].initialLeverage }); }
         this.perpBracketsAt = Date.now();
       } catch { /* the list still shows; leverage fills in per market */ }
