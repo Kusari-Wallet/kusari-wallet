@@ -84,7 +84,7 @@ public class MainActivity extends Activity {
             @Override public void onLine(String line) { toPage("window.__zecLine&&window.__zecLine(" + JSONObject.quote(line) + ")"); }
             @Override public void onExit() { toPage("window.__zecExit&&window.__zecExit()"); }
         });
-        tor = new TorProcess(new File(getApplicationInfo().nativeLibraryDir, "libtor.so"), new File(getFilesDir(), "tor"), new TorProcess.Listener() {
+        tor = new TorProcess(new File(getApplicationInfo().nativeLibraryDir, "libtor.so"), new File(getApplicationInfo().nativeLibraryDir, "liblyrebird.so"), new File(getFilesDir(), "tor"), new TorProcess.Listener() {
             @Override public void onState(String phase, int percent, String error) {
                 final String script = "window.__torState&&window.__torState(" + JSONObject.quote(phase) + "," + percent + "," + JSONObject.quote(error) + ")";
                 runOnUiThread(new Runnable() { @Override public void run() { if (web != null) web.evaluateJavascript(script, null); } });
@@ -331,6 +331,16 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface public void torNewRoute() { proxy.newRoutes(); }
         @JavascriptInterface public void torStart() { tor.start(); }
+        /** Bridge lines as a JSON array, for the next start; false if any is refused. */
+        @JavascriptInterface public boolean torBridges(String json) {
+            try {
+                org.json.JSONArray a = new org.json.JSONArray(json);
+                java.util.List<String> lines = new java.util.ArrayList<>();
+                for (int i = 0; i < a.length(); i++) lines.add(a.getString(i));
+                return tor.setBridges(lines);
+            } catch (org.json.JSONException e) { return false; }
+        }
+        @JavascriptInterface public boolean torHasBridges() { return new File(getApplicationInfo().nativeLibraryDir, "liblyrebird.so").exists(); }
         @JavascriptInterface public void torStop() { tor.stop(); }
         @JavascriptInterface public void torDirect() { tor.stop(); proxy.setSocksPort(0); tcp.setSocksPort(0); torSocksPort = 0; }
 

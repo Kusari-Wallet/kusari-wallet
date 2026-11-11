@@ -40,6 +40,9 @@ const aliasPlugin = {
   for (const f of ['locales.js', 'i18n.js', 'app.js', 'jsQR.js', 'style.css', 'logo.png', 'PretendardVariable.woff2']) fs.copyFileSync(path.join(r, f), path.join(out, f));
   fs.cpSync(path.join(r, 'coins'), path.join(out, 'coins'), { recursive: true });
   fs.copyFileSync(path.join(android, 'index.html'), path.join(out, 'index.html'));
+  // Tor's default bridges, from the same signed bundle as the bridge program (scripts/fetch-lyrebird-android.sh).
+  const pt = path.join(root, 'android/pt_config.json');
+  if (fs.existsSync(pt)) fs.copyFileSync(pt, path.join(out, 'pt_config.json'));
   fs.copyFileSync(path.join(root, 'node_modules/monero-ts/dist/monero.worker.js'), path.join(out, 'monero.worker.js'));
   await require('./build-tornado-worker').browser(path.join(out, 'tornado.worker.js'), path.join(android, 'shim-empty.js'), path.join(android, 'shim-globals.js'));
   fs.cpSync(path.join(root, 'assets/tornado'), path.join(out, 'tornado'), { recursive: true });

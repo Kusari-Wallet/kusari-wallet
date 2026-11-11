@@ -2251,16 +2251,27 @@ async function renderSettings(): Promise<void> {
   const torBox = errorBox();
   const useTor = h('input', { type: 'checkbox', id: 'set-tor', checked: tor.setting ?? tor.enabled });
   const torProgress = h('div', { class: 'tor-status', id: 'tor-status' });
+  const BRIDGE_NAMES: Record<string, string> = { auto: 'Automatic (recommended)', none: 'Tor directly', snowflake: 'Snowflake', obfs4: 'obfs4 bridges', custom: 'My own bridges' };
+  const ROUTE_DONE: Record<string, string> = { snowflake: 'Connected through Snowflake.', obfs4: 'Connected through obfs4 bridges.', custom: 'Connected through your bridges.' };
+  const routeConnecting = (route: string, percent: number) => route === 'snowflake' ? `Connecting through Snowflake ${percent}%` : route === 'obfs4' ? `Connecting through obfs4 bridges ${percent}%` : route === 'custom' ? `Connecting through your bridges ${percent}%` : `Connecting ${percent}%`;
+  const torRouteNote = h('div', { class: 'tor-status', id: 'tor-route' });
+  const bridge = h('select', { id: 'set-tor-bridge' }, ...Object.entries(BRIDGE_NAMES).map(([v, n]) => h('option', { value: v, selected: v === (s.torBridge ?? 'auto') }, n))) as HTMLSelectElement;
+  const bridgeLines = h('textarea', { id: 'set-tor-bridge-lines', rows: '3', spellcheck: 'false', placeholder: 'obfs4 1.2.3.4:443 FINGERPRINT cert=… iat-mode=0' }, s.torBridgeLines ?? '') as HTMLTextAreaElement;
+  const bridgeLinesRow = h('label', { class: 'field', id: 'set-tor-bridge-lines-row', hidden: bridge.value !== 'custom' }, h('span', {}, 'Bridge lines'), bridgeLines,
+    h('div', { class: 'hint' }, 'One per line. Get them from bridges.torproject.org or from the Tor Project\'s Telegram bot @GetBridgesBot.'));
+  bridge.addEventListener('change', () => { bridgeLinesRow.hidden = bridge.value !== 'custom'; });
   const paintTor = (info: { enabled: boolean; installed: boolean; state: any }) => {
     const st = info.state;
     let text = info.installed ? `Ready${st.installedVersion ? ` (bundled ${st.installedVersion})` : ''}. It's off.` : 'Not installed yet. Turning it on downloads the official files and checks their signature before installing.';
     if (info.enabled && st.phase === 'starting') text = `Connecting ${st.percent}%`;
     if (info.enabled && st.phase === 'error') text = st.error ?? 'Connection failed';
+    if (info.enabled && st.phase === 'starting' && st.route) text = routeConnecting(st.route, st.percent);
     if (info.enabled && st.phase === 'ready') {
       text = st.verified === true ? `Tor connection verified. Visible IP: ${st.exitIp}`
         : st.verified === false ? 'Warning: the check service says this isn\'t a Tor connection.' : 'Connected. Waiting for the Tor check service to answer.';
     }
     torProgress.textContent = text;
+    torRouteNote.textContent = info.enabled && st.phase === 'ready' ? ROUTE_DONE[st.route] ?? '' : '';
   };
   paintTor(tor);
   onTorInstallMessage = (m) => { torProgress.textContent = m; };
@@ -2280,7 +2291,7 @@ async function renderSettings(): Promise<void> {
       await wallet.installTor();
       tor.installed = true;
     }
-    const relocked = await wallet.updateSettings({ customMoneroNode: node.value, tronApiKey: key.value, autoLockMinutes: Number(auto.value), showPrices: showPrices.checked, ...(tor.allowed === false ? {} : { torEnabled: useTor.checked }) });
+    const relocked = await wallet.updateSettings({ customMoneroNode: node.value, tronApiKey: key.value, autoLockMinutes: Number(auto.value), showPrices: showPrices.checked, ...(tor.allowed === false ? {} : { torEnabled: useTor.checked, torBridge: bridge.value, torBridgeLines: bridgeLines.value }) });
     if (!relocked) { saved.textContent = 'Saved.'; void refresh(); }
   }) }, 'Save');
 
@@ -2350,10 +2361,13 @@ async function renderSettings(): Promise<void> {
         h('label', { class: 'check' }, showPrices, h('span', {}, 'Show USD prices', h('div', { class: 'hint' }, 'Prices come from CoinGecko, then from other price services and exchanges if it\'s blocked or a coin is missing. Addresses and balances aren\'t sent, but your IP can be seen.'))),
         // Tor is only in maximum-privacy wallets; a WalletConnect wallet doesn't show or use it.
         tor.allowed === false ? copyLog : h('div', { class: 'tor-block', id: 'tor-block' },
-          h('h3', {}, 'Tor'), torBox.el, torProgress,
+          h('h3', {}, 'Tor'), torBox.el, torProgress, torRouteNote,
           h('label', { class: 'check' }, useTor, h('span', {}, 'Connect through Tor',
             h('div', { class: 'hint' }, 'Sends node, TronGrid and price connections through Tor to hide your IP. It doesn\'t hide public Tron history, and lookups and sync get slower.'),
             h('div', { class: 'hint' }, tor.updatable === false ? 'If Tor drops, connections stop rather than falling back to the plain internet.' : 'If Tor drops, connections stop rather than falling back to the plain internet. Only the first install uses the plain internet, to download the files.'))),
+          h('label', { class: 'field', id: 'set-tor-bridge-row' }, h('span', {}, 'How Tor connects'), bridge,
+            h('div', { class: 'hint', id: 'tor-bridge-note' }, 'Automatic connects to Tor directly and switches to Snowflake, then obfs4, only if Tor is blocked where you are. Snowflake makes Tor look like a video call, so it gets through censorship, but connections are slower while it\'s in use. Your IP stays hidden from the servers either way.')),
+          bridgeLinesRow,
           updateTor, copyLog),
         h('div', { class: 'row' }, saveBtn, saved),
         h('p', { class: 'hint' }, tor.allowed === false ? 'Changing the node or API key locks the wallet. It applies when reopened.' : 'Changing the node, API key or Tor locks the wallet. It applies when reopened.')),

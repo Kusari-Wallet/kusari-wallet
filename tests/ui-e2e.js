@@ -1132,6 +1132,29 @@ const PASSWORD = 'correct horse battery';
   for (const p of afterTor) assert.ok(socks.outboundPorts.has(p), `direct connection to the Tron node from ${p}`);
   console.log('ok Tor on: Tron and price traffic through the proxy, XMR uses onion nodes');
 
+  // How Tor connects: automatic by default, own bridge lines checked, a change doesn't lock the wallet.
+  await page.click('#open-settings');
+  await page.locator('#set-tor-bridge').waitFor();
+  assert.equal(await page.locator('#set-tor-bridge').inputValue(), 'auto');
+  assert.match(await page.locator('#tor-bridge-note').innerText(), /Snowflake.*slower/);
+  assert.ok(await page.locator('#set-tor-bridge-lines-row').isHidden());
+  await page.selectOption('#set-tor-bridge', 'custom');
+  await page.locator('#set-tor-bridge-lines').waitFor();
+  await page.fill('#set-tor-bridge-lines', 'obfs4 bridge.example:443 AAAA');
+  await page.click('#save-settings');
+  await page.getByText(/Bridge line 1 isn't one this wallet can use/).waitFor({ timeout: 10000 });
+  await shot('tor-bridges-error');
+  await page.selectOption('#set-tor-bridge', 'snowflake');
+  await page.click('#save-settings');
+  await page.getByText('Saved.').waitFor({ timeout: 10000 });
+  assert.equal((await page.evaluate(() => window.wallet.getSettings())).torBridge, 'snowflake');
+  assert.equal(await page.locator('#unlock').count(), 0, 'still unlocked');
+  await page.selectOption('#set-tor-bridge', 'auto');
+  await page.click('#save-settings');
+  await page.getByText('Saved.').waitFor({ timeout: 10000 });
+  await page.click('#nav-home');
+  console.log('ok Tor connection method: automatic by default, own bridges checked, no lock on change');
+
   // Sent screen must not open a browser in Tor mode
   await page.click('#tab-history');
   await page.locator('#hist .hist-row').first().click();

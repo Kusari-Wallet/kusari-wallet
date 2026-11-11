@@ -69,6 +69,9 @@ test('WalletConnect is refused in a private wallet, and Tor in a WalletConnect w
   s.wc = null;
   await assert.rejects(s.wcPair('wc:' + 'a'.repeat(64) + '@2?relay-protocol=irn&symKey=' + 'b'.repeat(64)), /only in wallets made for it|isn't set up/);
   assert.equal(await s.walletMode(), 'private', 'a wallet made before the choice is private');
+  // New wallets are maximum privacy only, unless the development switch is on.
+  await assert.rejects(s.setWalletMode('walletconnect'), /maximum privacy only/);
+  s.dev.allowNewWalletConnect = true;
   // A WalletConnect wallet never gets Tor: the setting is refused there.
   await s.setWalletMode('walletconnect');
   await assert.rejects(s.updateSettings({ torEnabled: true }), /only in maximum-privacy wallets/);

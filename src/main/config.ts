@@ -124,6 +124,9 @@ export interface Settings {
   autoLockMinutes: number;
   showPrices: boolean;
   torEnabled: boolean;
+  /** How Tor connects: auto, straight, or through Snowflake, obfs4 or the user's own bridges. */
+  torBridge: 'auto' | 'none' | 'snowflake' | 'obfs4' | 'custom';
+  torBridgeLines: string;
   simpleSwapKey: string;
   ghostSwapKey: string;
   tornadoRelayer: string;
@@ -136,6 +139,8 @@ export const DEFAULT_SETTINGS: Settings = {
   autoLockMinutes: 10,
   showPrices: true,
   torEnabled: false,
+  torBridge: 'auto',
+  torBridgeLines: '',
   simpleSwapKey: '',
   ghostSwapKey: '',
   tornadoRelayer: '',

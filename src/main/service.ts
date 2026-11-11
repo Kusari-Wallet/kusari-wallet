@@ -42,6 +42,7 @@ import { tcpDial } from './dash-net';
 import type { InsightUtxo } from './insight';
 import { ARBITRUM, BSC, HYPEREVM, EvmChain, EthAsset, EthClient, EthDraft, POLYGON, chainOf, deriveEthAccount, isEthAddress } from './eth';
 import { TorManager } from './tor';
+import { TOR_BRIDGES, TorBridge, parseCustomBridges } from './tor-bridges';
 import { BUILTIN_SWAP_KEYS, CCECASH_BASE, CHANGENOW_BASE, CceCashClient, ChangeNowClient, ETZSWAP_BASE, EtzSwapClient, GHOSTSWAP_BASE, GhostSwapClient, NOT_SWAPPABLE, PRIVACY_ASSETS, PrivacySwap, SIMPLESWAP_BASE, SWAP_BASE, SWAP_DEAD, SWAP_DONE, SimpleSwapClient, SwapClient, SwapProvider, SwapProviderId, SwapRecord } from './swap';
 import { MoneroClient, MoneroDraft, MoneroOptions, generateMoneroSeed, validateMoneroSeed } from './monero';
 
@@ -410,7 +411,7 @@ export class WalletService extends EventEmitter {
     } else {
       this.tor.useDirect();
     }
-    if (this.torActive) this.tor.start(); // Before anything tries to use it.
+    if (this.torActive) { this.applyBridge(); this.tor.start(); } // Before anything tries to use it.
     const net = NETWORKS[this.settings.network];
     const account = deriveTronAccount(secrets.tronMnemonic);
     const route = this.dev.route ?? ((u: string) => u);
@@ -694,6 +695,13 @@ export class WalletService extends EventEmitter {
   }
 
   /** Each coin leaves Tor on its own route, so one exit neither sees them together nor takes them down together. */
+  private applyBridge(): void {
+    const b = this.settings.torBridge ?? 'auto';
+    let custom: string[] = [];
+    if (b === 'custom') { try { custom = parseCustomBridges(this.settings.torBridgeLines ?? ''); } catch { custom = []; } }
+    this.tor.setBridge(b, custom);
+  }
+
   private torRoute(name: string): ReturnType<typeof socksAgent> | undefined {
     if (!this.torProxy) return undefined;
     const agent = socksAgent(this.torProxy);
@@ -2443,6 +2451,14 @@ export class WalletService extends EventEmitter {
       if (patch.torEnabled && !this.tor.isInstalled()) throw new Error('Install Tor first.');
       next.torEnabled = patch.torEnabled;
     }
+    if (typeof patch.torBridge === 'string' || typeof patch.torBridgeLines === 'string') {
+      const bridge = (patch.torBridge ?? next.torBridge) as TorBridge;
+      if (!TOR_BRIDGES.includes(bridge)) throw new Error('Unknown Tor connection method.');
+      const lines = typeof patch.torBridgeLines === 'string' ? patch.torBridgeLines : next.torBridgeLines;
+      if (bridge === 'custom') parseCustomBridges(lines); // says what's wrong before anything is saved
+      next.torBridge = bridge;
+      next.torBridgeLines = lines.trim();
+    }
     if (typeof patch.tronApiKey === 'string') next.tronApiKey = patch.tronApiKey.trim();
     if (typeof patch.autoLockMinutes === 'number' && patch.autoLockMinutes >= 1 && patch.autoLockMinutes <= 240) {
       next.autoLockMinutes = Math.floor(patch.autoLockMinutes);
@@ -2451,9 +2467,12 @@ export class WalletService extends EventEmitter {
       || next.customMoneroNode !== this.settings.customMoneroNode
       || next.tronApiKey !== this.settings.tronApiKey
       || next.torEnabled !== this.settings.torEnabled;
+    const bridgeChanged = next.torBridge !== this.settings.torBridge || next.torBridgeLines !== this.settings.torBridgeLines;
     this.settings = next;
     await fs.mkdir(this.dir, { recursive: true });
     await fs.writeFile(this.settingsPath, JSON.stringify(next, null, 2), { mode: 0o600 });
+    // A new way in only restarts Tor; the wallet stays open, and traffic waits for Tor as at any restart.
+    if (bridgeChanged && this.torActive) this.applyBridge();
     if (reconnect && this.tron) await this.lock();
     return reconnect;
   }

@@ -7,6 +7,7 @@ import path from 'node:path';
 const openpgp: any = require('openpgp');
 import * as tar from 'tar';
 import { getJson, socksAgent } from './request';
+import { AUTO_WAIT_MS, DefaultBridges, TorBridge, TorRoute, autoFirst, autoNext, bridgeArgs, readPtConfig } from './tor-bridges';
 
 /** Tor Browser Developers signing key, as published on support.torproject.org. */
 export const TOR_SIGNING_FINGERPRINT = 'ef6e286dda85ea2a4ba7de684e2c6e8793298290';
@@ -44,6 +45,8 @@ export interface TorState {
   exitIp: string | null;
   error: string | null;
   installedVersion: string | null;
+  /** How Tor is getting in right now: straight, or through a bridge. */
+  route?: TorRoute | null;
 }
 
 async function download(url: string, onProgress?: (bytes: number) => void): Promise<Buffer> {
@@ -94,7 +97,12 @@ export class TorManager extends EventEmitter {
   private restartTimer: NodeJS.Timeout | null = null;
   private quickExits = 0;
   private lastProblem = '';
-  state: TorState = { phase: 'off', percent: 0, verified: null, exitIp: null, error: null, installedVersion: null };
+  private bridge: TorBridge = 'auto';
+  private custom: string[] = [];
+  private route: TorRoute | null = null;
+  private autoTimer: NodeJS.Timeout | null = null;
+  private switching = false;
+  state: TorState = { phase: 'off', percent: 0, verified: null, exitIp: null, error: null, installedVersion: null, route: null };
 
   constructor(private readonly dir: string, private readonly opts: {
     sources?: TorSources;
@@ -102,6 +110,8 @@ export class TorManager extends EventEmitter {
     binPath?: string;
     /** Development: use this SOCKS proxy and run no tor at all. */
     socksOverride?: string;
+    /** Tests: shorter waits before auto tries the next way in. */
+    autoWaitMs?: number;
   } = {}) { super(); }
 
   private get sources() { return this.opts.sources ?? DEFAULT_SOURCES; }
@@ -210,6 +220,44 @@ export class TorManager extends EventEmitter {
 
   recentLog(): string[] { return [...this.log]; }
 
+  /**
+   * How Tor connects: auto tries straight first, then Snowflake, then obfs4, and remembers what worked. A change
+   * restarts a running Tor, which drops its connections for a moment, as any Tor restart does.
+   */
+  setBridge(bridge: TorBridge, custom: string[] = []): void {
+    const changed = bridge !== this.bridge || custom.join('\n') !== this.custom.join('\n');
+    this.bridge = bridge;
+    this.custom = custom;
+    if (!changed) return;
+    this.route = null;
+    if (this.proc) this.restartProc();
+  }
+
+  private get torDir() { return path.dirname(this.binPath); }
+  private get routeFile() { return path.join(this.dir, 'route.json'); }
+
+  private lastWorked(): TorRoute | null {
+    try { return JSON.parse(readFileSync(this.routeFile, 'utf8')).route ?? null; } catch { return null; }
+  }
+
+  private defaultBridges(): DefaultBridges {
+    try { return readPtConfig(readFileSync(path.join(this.torDir, 'pluggable_transports', 'pt_config.json'), 'utf8')); } catch { return { snowflake: [], obfs4: [] }; }
+  }
+
+  /** lyrebird, relative to Tor's working folder (see bridgeArgs), or null when this Tor came without it. */
+  private plugin(): string | null {
+    const exe = process.platform === 'win32' ? 'lyrebird.exe' : 'lyrebird';
+    if (!existsSync(path.join(this.torDir, 'pluggable_transports', exe))) return null;
+    return process.platform === 'win32' ? `pluggable_transports\\${exe}` : `./pluggable_transports/${exe}`;
+  }
+
+  /** Stops the running Tor and starts it again right away, on the route now chosen. */
+  private restartProc(): void {
+    if (!this.proc) { this.start(); return; }
+    this.switching = true;
+    this.proc.kill();
+  }
+
   start(): void {
     if (this.opts.socksOverride) { this.patch({ phase: 'ready', percent: 100, error: null }); void this.check(); return; }
     if (this.proc) return;
@@ -220,13 +268,29 @@ export class TorManager extends EventEmitter {
     // A Tor left running by an earlier run that closed badly keeps the data folder locked, and a new one quits at once.
     this.killLeftover();
     const startedAt = Date.now();
+    const route: TorRoute = this.bridge === 'auto' ? (this.route ?? autoFirst(this.lastWorked())) : this.bridge;
+    this.route = route;
+    let bridges: string[];
+    try {
+      const plugin = this.plugin();
+      if (route !== 'none' && !plugin) throw new Error('This Tor came without its bridge program. Update Tor in Settings to use bridges.');
+      bridges = bridgeArgs(route, this.defaultBridges(), this.custom, plugin ?? '');
+    } catch (e) {
+      // Auto moves on to a way in that can start; a chosen bridge that can't is a problem to show.
+      if (this.bridge === 'auto' && route !== 'none') { this.route = autoNext(route); this.start(); return; }
+      this.patch({ phase: 'error', percent: 0, error: (e as Error).message, route });
+      return;
+    }
+    this.patch({ route });
     const proc = spawn(this.binPath, [
       '--ignore-missing-torrc', '-f', path.join(this.dir, 'no-torrc'),
       '--SocksPort', `127.0.0.1:${this.port}`,
       '--DataDirectory', dataDir,
       '--ClientOnly', '1',
       '--Log', 'notice stdout',
+      ...bridges,
     ], {
+      cwd: this.torDir,
       windowsHide: true,
       stdio: ['ignore', 'pipe', 'pipe'],
       env: { ...process.env, LD_LIBRARY_PATH: path.dirname(this.binPath) },
@@ -244,17 +308,33 @@ export class TorManager extends EventEmitter {
         const m = line.match(/Bootstrapped (\d+)%/);
         if (!m) continue;
         const percent = Number(m[1]);
-        if (percent >= 100) { this.patch({ phase: 'ready', percent: 100 }); void this.check(); }
-        else this.patch({ phase: 'starting', percent });
+        if (percent >= 100) {
+          this.clearAuto();
+          this.patch({ phase: 'ready', percent: 100 });
+          void fs.writeFile(this.routeFile, JSON.stringify({ route })).catch(() => undefined);
+          void this.check();
+        } else this.patch({ phase: 'starting', percent });
       }
     };
     proc.stdout?.on('data', onData);
     proc.stderr?.on('data', onData);
     proc.on('error', (e) => { this.patch({ phase: 'error', error: `Could not start Tor. ${e.message}` }); });
+    // Auto: no way through in time, so the next way in is tried.
+    if (this.bridge === 'auto') {
+      this.clearAuto();
+      this.autoTimer = setTimeout(() => {
+        if (this.proc !== proc || this.state.phase === 'ready') return;
+        this.route = autoNext(route);
+        this.restartProc();
+      }, this.opts.autoWaitMs ?? AUTO_WAIT_MS[route]);
+      this.autoTimer.unref?.();
+    }
     proc.on('exit', (code) => {
       this.proc = null;
+      this.clearAuto();
       void fs.rm(this.pidPath, { force: true }).catch(() => undefined);
       if (this.stopping) return;
+      if (this.switching) { this.switching = false; this.patch({ phase: 'starting', percent: 0, verified: null, exitIp: null }); this.start(); return; }
       // Quitting again and again right after starting is a problem to show, with longer waits between tries.
       this.quickExits = Date.now() - startedAt < 60_000 ? this.quickExits + 1 : 0;
       const wait = [5, 15, 30, 60][Math.min(this.quickExits, 3)] * 1000;
@@ -299,8 +379,12 @@ export class TorManager extends EventEmitter {
     } catch { /* could not check it: leave it alone */ }
   }
 
+  private clearAuto(): void { if (this.autoTimer) clearTimeout(this.autoTimer); this.autoTimer = null; }
+
   async stop(): Promise<void> {
     this.stopping = true;
+    this.switching = false;
+    this.clearAuto();
     if (this.restartTimer) clearTimeout(this.restartTimer);
     const proc = this.proc;
     this.proc = null;
