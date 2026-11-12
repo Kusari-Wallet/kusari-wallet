@@ -14,28 +14,27 @@ test('each new token sits on its own chain with the contract and decimals from t
   assert.equal(chainOf('BNB'), BSC);
   assert.equal(BSC.id, 56n);
   assert.equal(BSC.tokens.USDTB.decimals, 18, 'USDT on BNB Smart Chain has 18 decimals');
-  assert.equal(ETHEREUM.tokens.NEARE, undefined, 'NEAR is native now, not the Ethereum token');
+  for (const a of ['ASTER', 'UNIB', 'CAKE']) assert.equal(BSC.tokens[a], undefined, `${a} was taken out`);
   assert.equal(POLYGON.tokens.ETHP.contract, '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619', 'ETH on Polygon');
   assert.equal(chainOf('ETHP'), POLYGON);
   for (const a of ['UNI', 'PEPE', 'AAVE']) assert.equal(chainOf(a), ETHEREUM, a);
-  assert.equal(SPL_TOKENS.JUP.decimals, 6);
+  assert.equal(SPL_TOKENS.ORCA.decimals, 6);
   // Circle's native USDC on each chain, as the chains report it; BNB Smart Chain's has 18 decimals.
   assert.equal(chainOf('USDCE'), ETHEREUM); assert.equal(ETHEREUM.tokens.USDCE.contract, '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'); assert.equal(ETHEREUM.tokens.USDCE.decimals, 6);
   assert.equal(chainOf('USDCB'), BSC); assert.equal(BSC.tokens.USDCB.contract, '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d'); assert.equal(BSC.tokens.USDCB.decimals, 18);
   assert.equal(chainOf('USDCP'), POLYGON); assert.equal(POLYGON.tokens.USDCP.contract, '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359');
   assert.equal(chainOf('USDCA'), ARBITRUM); assert.equal(ARBITRUM.tokens.USDCA.contract, '0xaf88d065e77c8cC2239327C5EDb3A432268e5831');
   assert.equal(SPL_TOKENS.USDCS.mint, 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'); assert.equal(SPL_TOKENS.USDCS.decimals, 6);
-  assert.equal(SPL_TOKENS.RAY.mint, '4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R');
 });
 
-test('a JUP send names the JUP mint, its decimals and JUP token accounts, never USDT\'s', () => {
+test('an ORCA send names the ORCA mint, its decimals and ORCA token accounts, never USDT\'s', () => {
   const to = 'GsbwXfJraMomNxBcjYLcG3mxkBUiyWXAB32fGbSMQRdW';
-  const draft = { to, toAccount: tokenAccountOf(to, SPL_TOKENS.JUP.mint), create: false, amount: 1234n, fee: 5000n, asset: 'JUP' };
+  const draft = { to, toAccount: tokenAccountOf(to, SPL_TOKENS.ORCA.mint), create: false, amount: 1234n, fee: 5000n, asset: 'ORCA' };
   const { base64 } = signSolUsdtTransfer(M, draft, '11111111111111111111111111111111');
   const raw = Buffer.from(base64, 'base64');
   const has = (b58) => raw.includes(Buffer.from(require('@scure/base').base58.decode(b58)));
-  assert.ok(has(SPL_TOKENS.JUP.mint));
-  assert.ok(has(tokenAccountOf(solAddress(M), SPL_TOKENS.JUP.mint)));
+  assert.ok(has(SPL_TOKENS.ORCA.mint));
+  assert.ok(has(tokenAccountOf(solAddress(M), SPL_TOKENS.ORCA.mint)));
   assert.ok(!has(SPL_TOKENS.USDTS.mint));
   assert.throws(() => signSolUsdtTransfer(M, { ...draft, toAccount: tokenAccountOf(to) }, '11111111111111111111111111111111'), /does not match/);
 });

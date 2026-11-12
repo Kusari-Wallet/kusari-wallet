@@ -37,7 +37,9 @@ const aliasPlugin = {
     inject: [path.join(android, 'shim-globals.js')],
   });
   const r = path.join(root, 'dist/renderer');
-  for (const f of ['locales.js', 'i18n.js', 'app.js', 'jsQR.js', 'style.css', 'logo.png', 'PretendardVariable.woff2']) fs.copyFileSync(path.join(r, f), path.join(out, f));
+  // The screen code, in the order index.html loads it.
+  const RENDERER_SCRIPTS = ['ui.js', 'screens-start.js', 'screens-home.js', 'screens-private.js', 'screens-send.js', 'screens-swap.js', 'screens-tornado.js', 'app.js'];
+  for (const f of ['locales.js', 'i18n.js', ...RENDERER_SCRIPTS, 'jsQR.js', 'style.css', 'logo.png', 'PretendardVariable.woff2']) fs.copyFileSync(path.join(r, f), path.join(out, f));
   fs.cpSync(path.join(r, 'coins'), path.join(out, 'coins'), { recursive: true });
   fs.copyFileSync(path.join(android, 'index.html'), path.join(out, 'index.html'));
   fs.copyFileSync(path.join(root, 'THIRD-PARTY-NOTICES.md'), path.join(out, 'THIRD-PARTY-NOTICES.md'));

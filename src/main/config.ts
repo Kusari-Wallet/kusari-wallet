@@ -3,11 +3,16 @@ export type NetworkId = 'mainnet' | 'testnet';
  * USDT is the Tron token, USDTE the Ethereum one, USDTS Solana's, USDTP Polygon's and USDTA Arbitrum's.
  * ETHA is ETH on Arbitrum, which pays Arbitrum's fees; ARB is the token.
  */
-export type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'LINK' | 'WLD' | 'SOL' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA' | 'BCH' | 'LTC' | 'DOGE' | 'DASH' | 'FIRO' | 'ZEC' | 'ZANO' | 'ARRR' | 'SCRT' | 'SSCRT' | 'ETHP' | 'UNI' | 'PEPE' | 'AAVE' | 'BNB' | 'USDTB' | 'ASTER' | 'JUP' | 'RAY' | 'NEAR' | 'USDCE' | 'USDCB' | 'USDCS' | 'USDCP' | 'USDCA' | 'HYPE' | 'SHIB' | 'UNIB' | 'ORCA' | 'PUMP' | 'ADA';
+export type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'LINK' | 'WLD' | 'SOL' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA' | 'BCH' | 'LTC' | 'DOGE' | 'DASH' | 'FIRO' | 'ZEC' | 'ZANO' | 'ARRR' | 'SCRT' | 'SSCRT' | 'ETHP' | 'UNI' | 'PEPE' | 'AAVE' | 'BNB' | 'USDTB' | 'USDCE' | 'USDCB' | 'USDCS' | 'USDCP' | 'USDCA' | 'SHIB' | 'ORCA' | 'PUMP' | 'ADA';
 
-export const DECIMALS: Record<Asset, number> = { ADA: 6, SHIB: 18, UNIB: 18, ORCA: 6, PUMP: 6, HYPE: 18, USDCE: 6, USDCB: 18, USDCS: 6, USDCP: 6, USDCA: 6, BTC: 8, XMR: 12, ETH: 18, TRX: 6, USDT: 6, USDTE: 6, LINK: 18, WLD: 18, SOL: 9, USDTS: 6, POL: 18, USDTP: 6, ARB: 18, ETHA: 18, USDTA: 6, BCH: 8, LTC: 8, DOGE: 8, DASH: 8, FIRO: 8, ZEC: 8, ZANO: 12, ARRR: 8, SCRT: 6, SSCRT: 6, ETHP: 18, UNI: 18, PEPE: 18, AAVE: 18, BNB: 18, USDTB: 18, ASTER: 18, JUP: 6, RAY: 6, NEAR: 24 };
+export const DECIMALS: Record<Asset, number> = { ADA: 6, SHIB: 18, ORCA: 6, PUMP: 6, USDCE: 6, USDCB: 18, USDCS: 6, USDCP: 6, USDCA: 6, BTC: 8, XMR: 12, ETH: 18, TRX: 6, USDT: 6, USDTE: 6, LINK: 18, WLD: 18, SOL: 9, USDTS: 6, POL: 18, USDTP: 6, ARB: 18, ETHA: 18, USDTA: 6, BCH: 8, LTC: 8, DOGE: 8, DASH: 8, FIRO: 8, ZEC: 8, ZANO: 12, ARRR: 8, SCRT: 6, SSCRT: 6, ETHP: 18, UNI: 18, PEPE: 18, AAVE: 18, BNB: 18, USDTB: 18 };
 
 export const BTC_APIS = ['https://mempool.space/api', 'https://blockstream.info/api'];
+/**
+ * The same two explorers' own onion services (from their Onion-Location headers). Over Tor these come first: no exit
+ * node in between, so nothing for the site to block and no exit to time out.
+ */
+export const BTC_ONION_APIS = ['http://mempoolhqx4isw62xs7abwphsq7ldayuidyx2v2oethdhhj6mlo2r6ad.onion/api', 'http://explorerzydxu5ecjrkwceayqybizmpjjznk5izmitf2modhcusuqlid.onion/api'];
 export const BTC_EXPLORER_TX = 'https://mempool.space/tx/';
 
 export const SOL_RPCS = ['https://api.mainnet-beta.solana.com', 'https://api.mainnet.solana.com', 'https://solana-rpc.publicnode.com'];
@@ -21,11 +26,6 @@ export const LTC_APIS = ['https://litecoinspace.org/api', 'blockbook+https://lit
 export const LTC_EXPLORER_TX = 'https://litecoinspace.org/tx/';
 // Public Secret Network REST (LCD) servers, from the Cosmos chain registry. Each is checked to be on secret-4 before use.
 export const SCRT_LCDS = ['https://rest.lavenderfive.com:443/secretnetwork', 'https://lcd-secret.keplr.app', 'https://secretnetwork-api.lavenderfive.com:443', 'https://rest-secret.01node.com'];
-// NEAR's own RPC keeps no history; NearBlocks' public API does, without a key.
-export const NEAR_RPCS = ['https://free.rpc.fastnear.com', 'https://rpc.mainnet.near.org', 'https://rpc.mainnet.fastnear.com'];
-export const NEAR_HISTORY = 'https://api.nearblocks.io/v1';
-export const NEAR_HISTORY_BACKUP = 'https://api3.nearblocks.io/v1';
-export const NEAR_EXPLORER_TX = 'https://nearblocks.io/txns/';
 export const SCRT_EXPLORER_TX = 'https://www.mintscan.io/secret/tx/';
 export const BCH_APIS = ['https://api.bitcore.io/api/BCH/mainnet', 'blockbook+https://blockbook.bch.zelcore.io'];
 export const BCH_EXPLORER_TX = 'https://blockchair.com/bitcoin-cash/transaction/';
@@ -62,11 +62,6 @@ export const BSC_RPCS = ['https://bsc-rpc.publicnode.com', 'https://bsc-dataseed
 // supported', Etherscan's free tier excludes it, Blockchair blocks without a key). Empty means no history list.
 export const BSC_SCOUT = '';
 export const BSC_EXPLORER_TX = 'https://bscscan.com/tx/';
-// HyperEVM, Hyperliquid's EVM chain (id 999), whose gas coin is HYPE. Like BNB Smart Chain, no keyless history
-// service covers it (no Blockscout; HyperEVMScan wants a key), so there is no history list.
-export const HYPE_RPCS = ['https://rpc.hyperliquid.xyz/evm', 'https://hyperliquid-rpc.publicnode.com', 'https://hyperliquid.drpc.org'];
-export const HYPE_SCOUT = '';
-export const HYPE_EXPLORER_TX = 'https://hyperevmscan.io/tx/';
 
 export interface NetworkConfig {
   id: NetworkId;

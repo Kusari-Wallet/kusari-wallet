@@ -234,9 +234,6 @@ test('GhostSwap: token tickers come from their list by contract and chain, never
   const m = await ghost(); closing(t, m.server);
   const fromOf = async (a) => { m.log.length = 0; const q = await m.client.quote(a, 'XMR', '10'); return q.problem ?? m.log.find((l) => l.path === '/v1/quotes').body.from; };
   assert.equal(await fromOf('USDTE'), 'usdt20', 'same contract on BNB is skipped by its explorer');
-  assert.equal(await fromOf('JUP'), 'jup');
-  assert.equal(await fromOf('HYPE'), 'hype');
-  assert.match(await fromOf('RAY'), /doesn't offer/, 'switched off in their list');
   assert.match(await fromOf('USDTB'), /doesn't offer/, 'no BNB row with that contract');
   assert.match(await fromOf('FIRO'), /doesn't offer/);
   assert.equal(m.log.filter((l) => l.path === '/v1/currencies').length, 0, 'the list is read once');

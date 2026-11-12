@@ -21,7 +21,6 @@ export function mirror(p: Partial<Record<Asset, Row | undefined>>): void {
   // USDC is one coin on every chain.
   if (p.USDCE) for (const a of ['USDCB', 'USDCS', 'USDCP', 'USDCA'] as const) p[a] = p.USDCE;
   // The same tokens on other chains, pegged one to one.
-  if (p.UNI) for (const a of ['UNIB'] as const) p[a] = p.UNI;
 }
 
 function all(btc: Row, eth: Row, trx: Row, usdt: Row, xmr: Row, dash?: Row, zec?: Row, zano?: Row, arrr?: Row, firo?: Row, sol?: Row, doge?: Row, more: Partial<Record<Asset, Row | undefined>> = {}): PriceMap {
@@ -38,7 +37,7 @@ export const coingecko = (url: string): PriceSource => ({
   name: 'CoinGecko', url,
   parse: (j) => {
     const r = (id: string) => row(j[id]?.usd, j[id]?.usd_24h_change);
-    return all(r('bitcoin'), r('ethereum'), r('tron'), r('tether'), r('monero'), optional(() => r('dash')), optional(() => r('zcash')), optional(() => r('zano')), optional(() => r('pirate-chain')), optional(() => r('zcoin')), optional(() => r('solana')), optional(() => r('dogecoin')), { LINK: optional(() => r('chainlink')), WLD: optional(() => r('worldcoin-wld')), POL: optional(() => r('polygon-ecosystem-token')), ARB: optional(() => r('arbitrum')), BCH: optional(() => r('bitcoin-cash')), LTC: optional(() => r('litecoin')), SCRT: optional(() => r('secret')), UNI: optional(() => r('uniswap')), PEPE: optional(() => r('pepe')), AAVE: optional(() => r('aave')), NEAR: optional(() => r('near')), BNB: optional(() => r('binancecoin')), ASTER: optional(() => r('aster-2')), HYPE: optional(() => r('hyperliquid')), JUP: optional(() => r('jupiter-exchange-solana')), RAY: optional(() => r('raydium')), USDCE: optional(() => r('usd-coin')), SHIB: optional(() => r('shiba-inu')), ADA: optional(() => r('cardano')), ORCA: optional(() => r('orca')), PUMP: optional(() => r('pump-fun')) });
+    return all(r('bitcoin'), r('ethereum'), r('tron'), r('tether'), r('monero'), optional(() => r('dash')), optional(() => r('zcash')), optional(() => r('zano')), optional(() => r('pirate-chain')), optional(() => r('zcoin')), optional(() => r('solana')), optional(() => r('dogecoin')), { LINK: optional(() => r('chainlink')), WLD: optional(() => r('worldcoin-wld')), POL: optional(() => r('polygon-ecosystem-token')), ARB: optional(() => r('arbitrum')), BCH: optional(() => r('bitcoin-cash')), LTC: optional(() => r('litecoin')), SCRT: optional(() => r('secret')), UNI: optional(() => r('uniswap')), PEPE: optional(() => r('pepe')), AAVE: optional(() => r('aave')), BNB: optional(() => r('binancecoin')), USDCE: optional(() => r('usd-coin')), SHIB: optional(() => r('shiba-inu')), ADA: optional(() => r('cardano')), ORCA: optional(() => r('orca')), PUMP: optional(() => r('pump-fun')) });
   },
 });
 
@@ -60,11 +59,11 @@ export const cryptocompare = (url: string): PriceSource => ({
   name: 'CryptoCompare', url,
   parse: (j) => {
     const r = (s: string) => row(j?.RAW?.[s]?.USD?.PRICE, j?.RAW?.[s]?.USD?.CHANGEPCT24HOUR);
-    return all(r('BTC'), r('ETH'), r('TRX'), r('USDT'), r('XMR'), optional(() => r('DASH')), optional(() => r('ZEC')), optional(() => r('ZANO')), optional(() => r('ARRR')), optional(() => r('FIRO')), optional(() => r('SOL')), optional(() => r('DOGE')), { LINK: optional(() => r('LINK')), WLD: optional(() => r('WLD')), POL: optional(() => r('POL')), ARB: optional(() => r('ARB')), BCH: optional(() => r('BCH')), LTC: optional(() => r('LTC')), SCRT: optional(() => r('SCRT')), UNI: optional(() => r('UNI')), PEPE: optional(() => r('PEPE')), AAVE: optional(() => r('AAVE')), NEAR: optional(() => r('NEAR')), BNB: optional(() => r('BNB')), ASTER: optional(() => r('ASTER')), HYPE: optional(() => r('HYPE')), JUP: optional(() => r('JUP')), RAY: optional(() => r('RAY')), SHIB: optional(() => r('SHIB')), ADA: optional(() => r('ADA')), ORCA: optional(() => r('ORCA')) });
+    return all(r('BTC'), r('ETH'), r('TRX'), r('USDT'), r('XMR'), optional(() => r('DASH')), optional(() => r('ZEC')), optional(() => r('ZANO')), optional(() => r('ARRR')), optional(() => r('FIRO')), optional(() => r('SOL')), optional(() => r('DOGE')), { LINK: optional(() => r('LINK')), WLD: optional(() => r('WLD')), POL: optional(() => r('POL')), ARB: optional(() => r('ARB')), BCH: optional(() => r('BCH')), LTC: optional(() => r('LTC')), SCRT: optional(() => r('SCRT')), UNI: optional(() => r('UNI')), PEPE: optional(() => r('PEPE')), AAVE: optional(() => r('AAVE')), BNB: optional(() => r('BNB')), SHIB: optional(() => r('SHIB')), ADA: optional(() => r('ADA')), ORCA: optional(() => r('ORCA')) });
   },
 });
 
-const EXCHANGE_COINS: Asset[] = ['BTC', 'ETH', 'TRX', 'XMR', 'SOL', 'LINK', 'WLD', 'POL', 'ARB', 'BCH', 'LTC', 'DOGE', 'DASH', 'ZEC', 'FIRO', 'ZANO', 'ARRR', 'SCRT', 'UNI', 'PEPE', 'AAVE', 'BNB', 'ASTER', 'JUP', 'RAY', 'NEAR', 'USDCE', 'HYPE', 'SHIB', 'ORCA', 'PUMP', 'ADA'];
+const EXCHANGE_COINS: Asset[] = ['BTC', 'ETH', 'TRX', 'XMR', 'SOL', 'LINK', 'WLD', 'POL', 'ARB', 'BCH', 'LTC', 'DOGE', 'DASH', 'ZEC', 'FIRO', 'ZANO', 'ARRR', 'SCRT', 'UNI', 'PEPE', 'AAVE', 'BNB', 'USDCE', 'SHIB', 'ORCA', 'PUMP', 'ADA'];
 // Where the wallet's name for a coin isn't the market's.
 const MARKET_SYMBOL: Partial<Record<Asset, string>> = { USDCE: 'USDC' };
 
@@ -128,8 +127,8 @@ const KRAKEN_PAIRS: [Asset, string][] = [
   ['BTC', 'XXBTZUSD'], ['ETH', 'XETHZUSD'], ['TRX', 'TRXUSD'], ['XMR', 'XXMRZUSD'], ['SOL', 'SOLUSD'], ['DOGE', 'XDGUSD'],
   ['LTC', 'XLTCZUSD'], ['BCH', 'BCHUSD'], ['LINK', 'LINKUSD'], ['DASH', 'DASHUSD'], ['ZEC', 'XZECZUSD'], ['ADA', 'ADAUSD'],
   ['POL', 'POLUSD'], ['ARB', 'ARBUSD'], ['UNI', 'UNIUSD'], ['AAVE', 'AAVEUSD'], ['PEPE', 'PEPEUSD'], ['SHIB', 'SHIBUSD'],
-  ['WLD', 'WLDUSD'], ['NEAR', 'NEARUSD'], ['SCRT', 'SCRTUSD'], ['USDCE', 'USDCUSD'], ['JUP', 'JUPUSD'], ['RAY', 'RAYUSD'],
-  ['HYPE', 'HYPEUSD'], ['BNB', 'BNBUSD'], ['ASTER', 'ASTERUSD'], ['ORCA', 'ORCAUSD'], ['PUMP', 'PUMPUSD'], ['USDT', 'USDTZUSD'],
+  ['WLD', 'WLDUSD'], ['SCRT', 'SCRTUSD'], ['USDCE', 'USDCUSD'], 
+  ['BNB', 'BNBUSD'], ['ORCA', 'ORCAUSD'], ['PUMP', 'PUMPUSD'], ['USDT', 'USDTZUSD'],
 ];
 
 /** Every coin Kraken lists, in one small answer (a few KB). */
@@ -171,7 +170,7 @@ export const mexcOne = (coin: Asset, url: string): PriceSource => ({
  * gets an answer; the large all-market lists that used to time out over Tor are gone, except OKX as a last resort.
  */
 export const PRICE_TIERS: PriceSource[][] = [
-  [coingecko('https://api.coingecko.com/api/v3/simple/price?ids=usd-coin,bitcoin,ethereum,tron,tether,monero,dash,zcash,zano,pirate-chain,zcoin,solana,dogecoin,polygon-ecosystem-token,arbitrum,bitcoin-cash,chainlink,worldcoin-wld,litecoin,secret,uniswap,pepe,aave,binancecoin,aster-2,jupiter-exchange-solana,raydium,near,hyperliquid,shiba-inu,orca,pump-fun,cardano&vs_currencies=usd&include_24hr_change=true')],
+  [coingecko('https://api.coingecko.com/api/v3/simple/price?ids=usd-coin,bitcoin,ethereum,tron,tether,monero,dash,zcash,zano,pirate-chain,zcoin,solana,dogecoin,polygon-ecosystem-token,arbitrum,bitcoin-cash,chainlink,worldcoin-wld,litecoin,secret,uniswap,pepe,aave,binancecoin,shiba-inu,orca,pump-fun,cardano&vs_currencies=usd&include_24hr_change=true')],
   [
     krakenAll(`https://api.kraken.com/0/public/Ticker?pair=${KRAKEN_PAIRS.map(([, p]) => p).join(',')}`),
     ...(['FIRO', 'ZANO', 'ARRR'] as Asset[]).map((c) => mexcOne(c, `https://api.mexc.com/api/v3/ticker/24hr?symbol=${c}USDT`)),

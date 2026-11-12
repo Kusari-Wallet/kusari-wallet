@@ -17,15 +17,13 @@ const TOKEN_PROGRAM = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
 const TOKEN_2022_PROGRAM = 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb';
 const ATA_PROGRAM = 'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL';
 const SYSTEM_ID = '11111111111111111111111111111111';
-export type SplAsset = 'USDTS' | 'USDCS' | 'JUP' | 'RAY' | 'ORCA' | 'PUMP';
+export type SplAsset = 'USDTS' | 'USDCS' | 'ORCA' | 'PUMP';
 /** `token2022`: the token lives in the newer Token-2022 program, whose accounts and instructions use its own id. */
 export interface SplToken { asset: SplAsset; mint: string; decimals: number; symbol: string; dust: bigint; token2022?: boolean }
 // Classic SPL tokens (the original Token program), each checked against Trust Wallet's and the issuers' own lists.
 export const SPL_TOKENS: Record<SplAsset, SplToken> = {
   USDTS: { asset: 'USDTS', mint: SOL_USDT_MINT, decimals: 6, symbol: 'USDT', dust: 10_000n },
   USDCS: { asset: 'USDCS', mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', decimals: 6, symbol: 'USDC', dust: 10_000n },
-  JUP: { asset: 'JUP', mint: 'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN', decimals: 6, symbol: 'JUP', dust: 10_000n },
-  RAY: { asset: 'RAY', mint: '4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R', decimals: 6, symbol: 'RAY', dust: 10_000n },
   ORCA: { asset: 'ORCA', mint: 'orcaEKTdK7LKz57vaAYr9QeNsVEPfiu6QeMU1kektZE', decimals: 6, symbol: 'ORCA', dust: 10_000n },
   // pump.fun's PUMP is a Token-2022 token. Its transfer hook is switched off; a send checks that it still is.
   PUMP: { asset: 'PUMP', mint: 'pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn', decimals: 6, symbol: 'PUMP', dust: 1_000_000n, token2022: true },

@@ -65,7 +65,7 @@ test('never known and still failing says so; too old a value is not shown', asyn
   assert.equal(first.balances.TRX.ok, false);
   v.fail = false;
   await s.overview();
-  s.balanceMemo.get('TRX').at -= 31 * 60_000;
+  s.balanceMemo.get('TRX').at -= 6 * 3600_000 + 60_000; // a recent value shows for up to 6 hours
   v.fail = true;
   assert.equal((await s.overview()).balances.TRX.ok, false);
 });

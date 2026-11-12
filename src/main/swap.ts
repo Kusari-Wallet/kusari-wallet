@@ -11,7 +11,6 @@ export const SWAP_PROVIDER = 'Exolix';
 const COIN: Record<Asset, { coin: string; network: RegExp; fallback: string }> = {
   ADA: { coin: 'ADA', network: /^(ada|cardano)$/i, fallback: 'ADA' },
   SHIB: { coin: 'SHIB', network: /^(eth|ethereum|erc-?20)$/i, fallback: 'ETH' },
-  UNIB: { coin: 'UNI', network: /^(bsc|bnb|bep-?20|binance.?smart.?chain|bnbsmartchain)$/i, fallback: 'BSC' },
   ORCA: { coin: 'ORCA', network: /^(sol|solana|spl)$/i, fallback: 'SOL' },
   PUMP: { coin: 'PUMP', network: /^(sol|solana|spl)$/i, fallback: 'SOL' },
   BTC: { coin: 'BTC', network: /^(btc|bitcoin)$/i, fallback: 'BTC' },
@@ -27,9 +26,6 @@ const COIN: Record<Asset, { coin: string; network: RegExp; fallback: string }> =
   AAVE: { coin: 'AAVE', network: /^(eth|ethereum|erc-?20)$/i, fallback: 'ETH' },
   BNB: { coin: 'BNB', network: /^(bsc|bnb|bep-?20|binance.?smart.?chain|bnbsmartchain)$/i, fallback: 'BSC' },
   USDTB: { coin: 'USDT', network: /^(bsc|bnb|bep-?20|binance.?smart.?chain|bnbsmartchain)$/i, fallback: 'BSC' },
-  ASTER: { coin: 'ASTER', network: /^(bsc|bnb|bep-?20|binance.?smart.?chain|bnbsmartchain)$/i, fallback: 'BSC' },
-  JUP: { coin: 'JUP', network: /^(sol|solana|spl)$/i, fallback: 'SOL' },
-  RAY: { coin: 'RAY', network: /^(sol|solana|spl)$/i, fallback: 'SOL' },
   USDCE: { coin: 'USDC', network: /^(eth|ethereum|erc-?20)$/i, fallback: 'ETH' },
   USDCB: { coin: 'USDC', network: /^(bsc|bnb|bep-?20|binance.?smart.?chain|bnbsmartchain)$/i, fallback: 'BSC' },
   USDCS: { coin: 'USDC', network: /^(sol|solana|spl)$/i, fallback: 'SOL' },
@@ -52,9 +48,7 @@ const COIN: Record<Asset, { coin: string; network: RegExp; fallback: string }> =
   ZANO: { coin: 'ZANO', network: /^zano$/i, fallback: 'ZANO' },
   ARRR: { coin: 'ARRR', network: /^(arrr|pirate)/i, fallback: 'ARRR' },
   SCRT: { coin: 'SCRT', network: /^(scrt|secret)/i, fallback: 'SCRT' },
-  NEAR: { coin: 'NEAR', network: /^near$/i, fallback: 'NEAR' },
   SSCRT: { coin: '', network: /^$/, fallback: '' }, // never offered: see NOT_SWAPPABLE
-  HYPE: { coin: '', network: /^$/, fallback: '' },
 };
 
 /** Ethereum addresses differ only in checksum casing, which services often drop. */
@@ -197,7 +191,6 @@ const SIMPLE_COIN: Record<Asset, { ticker: string; network: string }> = {
   ADA: { ticker: 'ada', network: 'ada' },
   // Each checked against SimpleSwap's list by contract. Not listed there: UNI and AAVE on Polygon.
   SHIB: { ticker: 'shib', network: 'eth' },
-  UNIB: { ticker: 'uni', network: 'bsc' },
   ORCA: { ticker: 'orca', network: 'sol' },
   PUMP: { ticker: 'pump', network: 'sol' },
   BTC: { ticker: 'btc', network: 'btc' },
@@ -213,9 +206,6 @@ const SIMPLE_COIN: Record<Asset, { ticker: string; network: string }> = {
   AAVE: { ticker: 'aave', network: 'eth' },
   BNB: { ticker: 'bnb-bsc', network: 'bsc' },
   USDTB: { ticker: 'usdt', network: 'bsc' },
-  ASTER: { ticker: 'aster', network: 'bsc' },
-  JUP: { ticker: 'jup', network: 'sol' },
-  RAY: { ticker: 'ray', network: 'sol' },
   USDCE: { ticker: 'usdc', network: 'eth' },
   USDCB: { ticker: 'usdc', network: 'bsc' },
   USDCS: { ticker: 'usdc', network: 'sol' },
@@ -238,13 +228,7 @@ const SIMPLE_COIN: Record<Asset, { ticker: string; network: string }> = {
   ZANO: { ticker: 'zano', network: 'zano' },
   ARRR: { ticker: 'arrr', network: 'arrr' },
   SCRT: { ticker: 'scrt', network: 'scrt' },
-  NEAR: { ticker: 'near', network: 'near' },
   SSCRT: { ticker: '', network: '' },
-  // HYPE has two homes: Hyperliquid's own chain (HyperCore) and HyperEVM. This wallet holds it on HyperEVM, so only
-  // services that pay out there are used: SimpleSwap and ChangeNOW list it as hype/hyperevm (checked with live
-  // quotes). Exolix lists HyperCore only; ETZ and CCECash don't list HyperEVM. GhostSwap's
-  // hype is paid on HyperEVM (its explorer is hyperevmscan.io).
-  HYPE: { ticker: 'hype', network: 'hyperevm' },
 };
 
 export class SimpleSwapClient implements SwapProvider {
@@ -313,7 +297,7 @@ export const GHOSTSWAP_BASE = 'https://partners-api.ghostswap.io';
 // explorer, so a token of the same name on another chain is never picked. Empty: GhostSwap doesn't offer it.
 const GHOST_NATIVE: Partial<Record<Asset, string>> = {
   BTC: 'btc', XMR: 'xmr', ETH: 'eth', TRX: 'trx', DASH: 'dash', SOL: 'sol', BCH: 'bch', LTC: 'ltc', DOGE: 'doge', ZEC: 'zec',
-  POL: 'pol', BNB: 'bnbbsc', ETHA: 'etharb', HYPE: 'hype', ADA: 'ada',
+  POL: 'pol', BNB: 'bnbbsc', ETHA: 'etharb', ADA: 'ada',
 };
 const GHOST_FIXED: Partial<Record<Asset, string>> = { USDT: 'usdtrx' };
 const EXPLORER_HOST: Record<string, RegExp> = { '1': /(^|\.)etherscan\.io$/, '137': /(^|\.)polygonscan\.com$/, '42161': /(^|\.)arbiscan\.io$/, '56': /(^|\.)bscscan\.com$/, sol: /(^|\.)solscan\.io$/ };
@@ -456,7 +440,6 @@ const ETZ_COIN: Partial<Record<Asset, { coin: string; network: string }>> = {
   USDTP: { coin: 'USDT', network: 'MATIC' },
   BNB: { coin: 'BNB', network: 'BSC' },
   USDTB: { coin: 'USDT', network: 'BSC' },
-  NEAR: { coin: 'NEAR', network: 'NEAR' },
   USDCE: { coin: 'USDC', network: 'ETH' },
   USDCB: { coin: 'USDC', network: 'BSC' },
   USDCS: { coin: 'USDC', network: 'SOL' },
@@ -544,10 +527,8 @@ const CN_COIN: Partial<Record<Asset, { ticker: string; network: string }>> = {
   ADA: { ticker: 'ada', network: 'ada' },
   // Checked against ChangeNOW's list by contract. Not listed there: AAVE on BNB Chain and Polygon, UNI on Polygon.
   SHIB: { ticker: 'shib', network: 'eth' },
-  UNIB: { ticker: 'uni', network: 'bsc' },
   ORCA: { ticker: 'orca', network: 'sol' },
   PUMP: { ticker: 'pump', network: 'sol' },
-  HYPE: { ticker: 'hype', network: 'hyperevm' }, // HyperEVM, not HyperCore: checked with a live quote
   BTC: { ticker: 'btc', network: 'btc' },
   XMR: { ticker: 'xmr', network: 'xmr' },
   ETH: { ticker: 'eth', network: 'eth' },
@@ -559,9 +540,6 @@ const CN_COIN: Partial<Record<Asset, { ticker: string; network: string }>> = {
   PEPE: { ticker: 'pepe', network: 'eth' },
   BNB: { ticker: 'bnb', network: 'bsc' },
   USDTB: { ticker: 'usdt', network: 'bsc' },
-  ASTER: { ticker: 'aster', network: 'bsc' },
-  JUP: { ticker: 'jup', network: 'sol' },
-  RAY: { ticker: 'ray', network: 'sol' },
   WLD: { ticker: 'wld', network: 'eth' },
   USDTS: { ticker: 'usdt', network: 'sol' },
   USDCE: { ticker: 'usdc', network: 'eth' },
@@ -585,7 +563,6 @@ const CN_COIN: Partial<Record<Asset, { ticker: string; network: string }>> = {
   ZANO: { ticker: 'zano', network: 'zano' },
   ARRR: { ticker: 'arrr', network: 'arrr' },
   ETHP: { ticker: 'weth', network: 'matic' }, // WETH (Polygon) in their list, the same contract
-  NEAR: { ticker: 'near', network: 'near' },
   // No SCRT: ChangeNOW doesn't list it.
 };
 
@@ -680,7 +657,6 @@ const CCE_COIN: Partial<Record<Asset, { abbr: string; chain: string }>> = {
   UNI: { abbr: 'UNI', chain: 'Ethereum' },
   PEPE: { abbr: 'PEPE', chain: 'Ethereum' },
   AAVE: { abbr: 'AAVE', chain: 'Ethereum' },
-  JUP: { abbr: 'JUP', chain: 'Solana' },
   BNB: { abbr: 'BNB', chain: 'BNB Smart Chain' },
   USDTB: { abbr: 'USDT', chain: 'BNB Smart Chain' },
   USDCE: { abbr: 'USDC', chain: 'Ethereum' },

@@ -27,7 +27,12 @@ Java WebView (`android/java`) running the same code as an esbuild bundle (`src/a
 
 ## Map
 
-- `src/main/service.ts`: the wallet service (sessions, balances, sends, settings) used by both platforms.
+- The wallet service used by both platforms, one class in layers: `src/main/service-core.ts` (wallets, sessions,
+  engines, Tor routes, balances, prices) → `service-send.ts` (sends, fees, Tornado, private transfers, settings) →
+  `service.ts` (`WalletService`: swaps). Shared helpers and types are in `service-common.ts`.
+- `src/renderer/`: plain scripts sharing one scope, loaded in the order `index.html` lists them (`ui.ts` first,
+  `screens-*.ts`, `app.ts` last, which wires events and boots). `src/android/index.html` and
+  `scripts/build-android-web.js` list the same files.
 - `src/main/btc.ts`: Bitcoin (taproot, BIP86), coin control, CoinJoin account `m/86'/0'/1'`.
 - `src/main/wabisabi/`: WabiSabi CoinJoin client (credentials, round, decomposer); `src/main/btc-mix.ts` runs it.
   `tests/fixtures/wabisabi-*.json` are vectors from the reference implementation and live coordinators.

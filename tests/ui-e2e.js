@@ -167,20 +167,17 @@ const PASSWORD = 'correct horse battery';
   await page.fill('#from', '');
   await page.click('#next');
   await page.locator('#asset-TRX').waitFor({ timeout: 90000 });
-  assert.deepEqual(await page.locator('.asset').evaluateAll((els) => els.map((e) => e.id)), ['asset-XMR', 'asset-BTC', 'asset-ETH', 'asset-ZEC', 'asset-SOL', 'asset-TRX', 'asset-HYPE', 'asset-BNB', 'asset-POL', 'asset-ARB', 'asset-BCH', 'asset-LTC', 'asset-ADA', 'asset-NEAR', 'asset-SCRT', 'asset-DOGE', 'asset-DASH', 'asset-FIRO', 'asset-ZANO', 'asset-ARRR'], 'tokens start folded under their chain');
+  assert.deepEqual(await page.locator('.asset').evaluateAll((els) => els.map((e) => e.id)), ['asset-XMR', 'asset-BTC', 'asset-ETH', 'asset-ZEC', 'asset-SOL', 'asset-TRX', 'asset-BNB', 'asset-POL', 'asset-ARB', 'asset-BCH', 'asset-LTC', 'asset-ADA', 'asset-SCRT', 'asset-DOGE', 'asset-DASH', 'asset-FIRO', 'asset-ZANO', 'asset-ARRR'], 'tokens start folded under their chain');
   for (const parent of ['ETH', 'SOL', 'TRX', 'BNB', 'POL', 'ARB']) await page.click(`#fold-${parent}`);
   await page.evaluate(() => document.getElementById('fold-ARB').scrollIntoView({ block: 'center' }));
   const scrolled = await page.evaluate(() => document.querySelector('.scroll').scrollTop);
   await page.click('#fold-ARB'); await page.click('#fold-ARB');
   assert.equal(await page.evaluate(() => document.querySelector('.scroll').scrollTop), scrolled, 'folding keeps the list where it was');
-  assert.deepEqual(await page.locator('.asset').evaluateAll((els) => els.map((e) => e.id)), ['asset-XMR', 'asset-BTC', 'asset-ETH', 'asset-USDTE', 'asset-USDCE', 'asset-LINK', 'asset-WLD', 'asset-UNI', 'asset-PEPE', 'asset-AAVE', 'asset-SHIB', 'asset-ZEC', 'asset-SOL', 'asset-USDTS', 'asset-USDCS', 'asset-JUP', 'asset-RAY', 'asset-ORCA', 'asset-PUMP', 'asset-TRX', 'asset-USDT', 'asset-HYPE', 'asset-BNB', 'asset-USDTB', 'asset-USDCB', 'asset-ASTER', 'asset-UNIB', 'asset-POL', 'asset-ETHP', 'asset-USDTP', 'asset-USDCP', 'asset-ARB', 'asset-ETHA', 'asset-USDTA', 'asset-USDCA', 'asset-BCH', 'asset-LTC', 'asset-ADA', 'asset-NEAR', 'asset-SCRT', 'asset-DOGE', 'asset-DASH', 'asset-FIRO', 'asset-ZANO', 'asset-ARRR']);
-  await page.locator('#asset-HYPE', { hasText: '2.5' }).waitFor({ timeout: 30000 }); // HYPE on HyperEVM, above BNB
+  assert.deepEqual(await page.locator('.asset').evaluateAll((els) => els.map((e) => e.id)), ['asset-XMR', 'asset-BTC', 'asset-ETH', 'asset-USDTE', 'asset-USDCE', 'asset-LINK', 'asset-WLD', 'asset-UNI', 'asset-PEPE', 'asset-AAVE', 'asset-SHIB', 'asset-ZEC', 'asset-SOL', 'asset-USDTS', 'asset-USDCS', 'asset-ORCA', 'asset-PUMP', 'asset-TRX', 'asset-USDT', 'asset-BNB', 'asset-USDTB', 'asset-USDCB', 'asset-POL', 'asset-ETHP', 'asset-USDTP', 'asset-USDCP', 'asset-ARB', 'asset-ETHA', 'asset-USDTA', 'asset-USDCA', 'asset-BCH', 'asset-LTC', 'asset-ADA', 'asset-SCRT', 'asset-DOGE', 'asset-DASH', 'asset-FIRO', 'asset-ZANO', 'asset-ARRR']);
   assert.match(await page.locator('#asset-USDTA').innerText(), /USDT \(Arb\)/);
   assert.match(await page.locator('#asset-ETHA').innerText(), /ETH \(Arb\)/);
   assert.match(await page.locator('#asset-USDTB').innerText(), /USDT \(BNB\)/);
   for (const [id, label] of [['USDCE', 'USDC (Eth)'], ['USDCB', 'USDC (BNB)'], ['USDCS', 'USDC (Sol)'], ['USDCP', 'USDC (Pol)'], ['USDCA', 'USDC (Arb)']]) assert.ok((await page.locator(`#asset-${id}`).innerText()).includes(label), label);
-  assert.doesNotMatch(await page.locator('#asset-NEAR').innerText(), /\(Eth\)/);
-  await page.waitForFunction(() => /1\.6/.test(document.querySelector('#asset-NEAR')?.textContent ?? ''), null, { timeout: 30000 }); // native NEAR, read from the NEAR RPC
   assert.match(await page.locator('#asset-ETHP').innerText(), /ETH \(Pol\)/);
   await page.waitForFunction(() => /2\.5/.test(document.querySelector('#asset-SCRT')?.textContent ?? ''), null, { timeout: 30000 }); // the SCRT balance, read from the server
   assert.match(await page.locator('#asset-USDTE').innerText(), /USDT \(Eth\)/);
@@ -857,7 +854,7 @@ const PASSWORD = 'correct horse battery';
   // No dApps, no perps, no HyperCore moves, and Tor is there in every wallet.
   assert.equal(await page.locator('#go-dapps, #nav-perps').count(), 0);
   assert.deepEqual(await page.evaluate(() => ['walletMode', 'setWalletMode', 'wcInfo', 'wcPair', 'hypeCore', 'perpsInfo'].map((m) => typeof window.wallet[m])), Array(6).fill('undefined'));
-  await page.click('#asset-HYPE');
+  await page.click('#asset-BNB');
   assert.equal(await page.locator('#hype-core').count(), 0);
   await page.click('#back');
   await page.click('#open-settings');
