@@ -68,7 +68,8 @@ Monero's own unit tests are not built: many of them check Monero's genesis, chec
    every node has to be given peers with `--add-peer` or `--seed-node`.
 3. Mine from the start yourself, or announce the launch time so others can. A new chain with little hashrate can be
    rewritten by anyone with more, so wait for real hashrate before anyone treats coins as final.
-4. The wallet app does not list KUS yet. `monero-ts` reads Monero's prefixes from its WebAssembly build, so KUS in the
-   app needs `monero-ts` built from this source, a public `kusarid` node and its own coin entry.
+4. Run a public `kusarid` node and put it in `KUSARI_NODE` in `src/main/config.ts`, so people don't have to set one.
+   Until then the app lists KUS (desktop only) when the build has `native-bin/kusari/kusari-wallet-rpc`, from the
+   workflow's `kusari-app-*` artifacts, and KUS needs a node in Settings.
 5. A Monero hard fork needs the same work here: move the tag in `params.json`, rerun `prepare.js`, and add the new
    version to `hardForks` at a future height.

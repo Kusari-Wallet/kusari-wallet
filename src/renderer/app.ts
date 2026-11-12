@@ -1,11 +1,11 @@
 declare const wallet: any;
 declare const jsQR: any;
 
-type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'LINK' | 'WLD' | 'SOL' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA' | 'BCH' | 'LTC' | 'DOGE' | 'DASH' | 'FIRO' | 'ZEC' | 'ZANO' | 'ARRR' | 'SCRT' | 'ETHP' | 'UNI' | 'PEPE' | 'AAVE' | 'BNB' | 'USDTB' | 'ASTER' | 'CAKE' | 'JUP' | 'RAY' | 'NEAR' | 'USDCE' | 'USDCB' | 'USDCS' | 'USDCP' | 'USDCA' | 'SSCRT' | 'HYPE' | 'SHIB' | 'SHIBB' | 'LINKB' | 'UNIB' | 'AAVEB' | 'ORCA' | 'PUMP' | 'ADA';
+type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'LINK' | 'WLD' | 'SOL' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA' | 'BCH' | 'LTC' | 'DOGE' | 'DASH' | 'FIRO' | 'ZEC' | 'ZANO' | 'KUS' | 'ARRR' | 'SCRT' | 'ETHP' | 'UNI' | 'PEPE' | 'AAVE' | 'BNB' | 'USDTB' | 'ASTER' | 'CAKE' | 'JUP' | 'RAY' | 'NEAR' | 'USDCE' | 'USDCB' | 'USDCS' | 'USDCP' | 'USDCA' | 'SSCRT' | 'HYPE' | 'SHIB' | 'SHIBB' | 'LINKB' | 'UNIB' | 'AAVEB' | 'ORCA' | 'PUMP' | 'ADA';
 type Attrs = Record<string, any>;
 type Child = Node | string | null | undefined | false;
 
-const ALL_ASSETS: Asset[] = ['XMR', 'BTC', 'ETH', 'USDTE', 'USDCE', 'LINK', 'WLD', 'UNI', 'PEPE', 'AAVE', 'SHIB', 'ZEC', 'SOL', 'USDTS', 'USDCS', 'JUP', 'RAY', 'ORCA', 'PUMP', 'TRX', 'USDT', 'HYPE', 'BNB', 'USDTB', 'USDCB', 'ASTER', 'CAKE', 'SHIBB', 'LINKB', 'UNIB', 'AAVEB', 'POL', 'ETHP', 'USDTP', 'USDCP', 'ARB', 'ETHA', 'USDTA', 'USDCA', 'BCH', 'LTC', 'ADA', 'NEAR', 'SCRT', 'SSCRT', 'DOGE', 'DASH', 'FIRO', 'ZANO', 'ARRR'];
+const ALL_ASSETS: Asset[] = ['XMR', 'BTC', 'ETH', 'USDTE', 'USDCE', 'LINK', 'WLD', 'UNI', 'PEPE', 'AAVE', 'SHIB', 'ZEC', 'SOL', 'USDTS', 'USDCS', 'JUP', 'RAY', 'ORCA', 'PUMP', 'TRX', 'USDT', 'HYPE', 'BNB', 'USDTB', 'USDCB', 'ASTER', 'CAKE', 'SHIBB', 'LINKB', 'UNIB', 'AAVEB', 'POL', 'ETHP', 'USDTP', 'USDCP', 'ARB', 'ETHA', 'USDTA', 'USDCA', 'BCH', 'LTC', 'ADA', 'NEAR', 'SCRT', 'SSCRT', 'DOGE', 'DASH', 'FIRO', 'ZANO', 'ARRR', 'KUS'];
 /** Tokens shown under the coin of their chain on the home screen, folded until opened. */
 const GROUPS: Partial<Record<Asset, Asset[]>> = { ETH: ['USDTE', 'USDCE', 'LINK', 'WLD', 'UNI', 'PEPE', 'AAVE', 'SHIB'], SOL: ['USDTS', 'USDCS', 'JUP', 'RAY', 'ORCA', 'PUMP'], TRX: ['USDT'], BNB: ['USDTB', 'USDCB', 'ASTER', 'CAKE', 'SHIBB', 'LINKB', 'UNIB', 'AAVEB'], POL: ['ETHP', 'USDTP', 'USDCP'], ARB: ['ETHA', 'USDTA', 'USDCA'], SCRT: ['SSCRT'] };
 const IN_GROUP = new Set(Object.values(GROUPS).flat());
@@ -14,7 +14,7 @@ const EVM_ASSETS: Asset[] = ['ETH', 'USDTE', 'USDCE', 'LINK', 'WLD', 'ETHP', 'UN
 const SPL_ASSETS: Asset[] = ['USDTS', 'USDCS', 'JUP', 'RAY', 'ORCA', 'PUMP'];
 const BSC_ASSETS: Asset[] = ['BNB', 'USDTB', 'USDCB', 'ASTER', 'CAKE', 'SHIBB', 'LINKB', 'UNIB', 'AAVEB'];
 // These need their engines, which aren't in every build or on every phone.
-let ASSETS: Asset[] = ALL_ASSETS.filter((a) => a !== 'ZEC' && a !== 'ZANO' && a !== 'ARRR');
+let ASSETS: Asset[] = ALL_ASSETS.filter((a) => a !== 'ZEC' && a !== 'ZANO' && a !== 'ARRR' && a !== 'KUS');
 let zecInSession = false;
 let refreshNote = 'no answer yet';
 const COIN: Record<Asset, { label: string; file: string; note: string }> = {
@@ -35,6 +35,7 @@ const COIN: Record<Asset, { label: string; file: string; note: string }> = {
   DASH: { label: 'DASH', file: 'coins/dash.png', note: 'Dash mainnet only. The fee is paid in DASH.' },
   ARRR: { label: 'ARRR', file: 'coins/arrr.png', note: 'Every Pirate Chain transaction is shielded. The fee is paid in ARRR.' },
   ZANO: { label: 'ZANO', file: 'coins/zano.png', note: 'Received coins can be used after 10 confirmations. The fee is a fixed 0.01 ZANO.' },
+  KUS: { label: 'KUS', file: 'coins/kus.png', note: 'Kusari, a coin made from Monero\'s code with its own chain. Received coins can be used after 10 confirmations.' },
   ZEC: { label: 'ZEC', file: 'coins/zec.png', note: 'Sent from your shielded balance. The fee is paid in ZEC.' },
   ETH: { label: 'ETH', file: 'coins/eth.png', note: 'The fee for sending USDT (Eth) is also paid in ETH.' },
   USDTE: { label: 'USDT (Eth)', file: 'coins/usdt.png', note: 'Ethereum network only. ETH is needed for the fee. Don\'t send to addresses on other chains.' },
@@ -285,7 +286,7 @@ function welcome(): void {
     h('button', { class: 'choice', onclick: createStep1 },
       h('strong', {}, 'Create a new wallet'), h('span', { class: 'muted small' }, 'Generates new seed phrases.')),
     h('button', { class: 'choice', onclick: restoreForm },
-      h('strong', {}, 'Restore from seeds'), h('span', { class: 'muted small' }, 'Needs both the BIP39 seed (BTC, ETH, TRX, USDT, SOL, DOGE, DASH, FIRO, ZEC, ZANO, ARRR) and the 25-word Monero seed.')));
+      h('strong', {}, 'Restore from seeds'), h('span', { class: 'muted small' }, 'Needs both the BIP39 seed (BTC, ETH, TRX, USDT, SOL, DOGE, DASH, FIRO, ZEC, ZANO, ARRR, KUS) and the 25-word Monero seed.')));
 }
 
 function passwordFields() {
@@ -357,7 +358,7 @@ function createStep2(password: string, seeds: { tronMnemonic: string; moneroSeed
   entry(
     h('h2', {}, 'Write both seed phrases on paper'),
     h('p', { class: 'lead' }, 'Anyone with these seeds can take all your coins. Don\'t save them in photos, cloud storage or messengers.'),
-    seedCard('BTC·ETH·Tron·SOL·DOGE·DASH seed, 12 words', 'For BTC, ETH, TRX, USDT, SOL, DOGE, DASH, FIRO, ZEC, ZANO, ARRR. Restores in BIP39 wallets such as Sparrow, MetaMask, TronLink and Phantom.', seeds.tronMnemonic),
+    seedCard('BTC·ETH·Tron·SOL·DOGE·DASH seed, 12 words', 'For BTC, ETH, TRX, USDT, SOL, DOGE, DASH, FIRO, ZEC, ZANO, ARRR, KUS. Restores in BIP39 wallets such as Sparrow, MetaMask, TronLink and Phantom.', seeds.tronMnemonic),
     seedCard('Monero seed, 25 words', 'For XMR. Works with Monero GUI and Cake Wallet.', seeds.moneroSeed),
     seedQrCard(seeds),
     h('label', { class: 'check' }, ok, h('span', {}, 'I wrote down both seeds.')),
@@ -481,7 +482,8 @@ async function enterWallet(): Promise<void> {
   zecInSession = await wallet.zecInfo().then((i: any) => Boolean(i.started)).catch(() => false);
   const zanoInSession = await wallet.zanoInfo().then((i: any) => Boolean(i.started)).catch(() => false);
   const arrrInSession = await wallet.arrrInfo().then((i: any) => Boolean(i.started)).catch(() => false);
-  ASSETS = ALL_ASSETS.filter((a) => (a !== 'ZEC' || zecInSession) && (a !== 'ZANO' || zanoInSession) && (a !== 'ARRR' || arrrInSession));
+  const kusInSession = await wallet.kusariInfo().then((i: any) => Boolean(i.started)).catch(() => false);
+  ASSETS = ALL_ASSETS.filter((a) => (a !== 'ZEC' || zecInSession) && (a !== 'ZANO' || zanoInSession) && (a !== 'ARRR' || arrrInSession) && (a !== 'KUS' || kusInSession));
   torState = (await wallet.torInfo().catch(() => null))?.enabled ? (await wallet.torInfo()).state : null;
   renderHome();
   void refresh(); // Balances fill in on the home screen; a slow node or Tor must not hold it back.
@@ -657,7 +659,7 @@ function assetRow(a: Asset, child = false, toggle?: HTMLElement): HTMLElement {
     ? (moneroBusy() ? syncLabel() : status)
     : p
       ? h('span', {}, usdFormat(p.usd), p.change !== null && h('span', { class: p.change >= 0 ? 'up' : 'down' }, `${p.change >= 0 ? '+' : ''}${p.change.toFixed(2)}%`))
-      : a === 'BTC' ? 'Bitcoin' : a === 'HYPE' ? 'Hyperliquid' : a === 'SOL' ? 'Solana' : a === 'DOGE' ? 'Dogecoin' : a === 'ADA' ? 'Cardano' : a === 'BCH' ? 'Bitcoin Cash' : a === 'LTC' ? 'Litecoin' : a === 'SCRT' || a === 'SSCRT' ? 'Secret' : a === 'DASH' ? 'Dash' : a === 'FIRO' ? 'Firo' : a === 'ZEC' ? 'Zcash' : a === 'ZANO' ? 'Zano' : a === 'ARRR' ? 'Pirate Chain' : a === 'ETH' || a === 'ETHA' ? 'Ethereum' : a === 'POL' ? 'Polygon' : a === 'LINK' ? 'Chainlink' : a === 'WLD' ? 'Worldcoin' : a === 'ARB' ? 'Arbitrum' : a === 'UNI' ? 'Uniswap' : a === 'PEPE' ? 'Pepe' : a === 'AAVE' ? 'Aave' : a === 'NEAR' ? 'NEAR Protocol' : a === 'ETHP' ? 'Ethereum' : a === 'BNB' ? 'BNB Smart Chain' : a === 'ASTER' ? 'Aster' : a === 'CAKE' ? 'PancakeSwap' : a === 'JUP' ? 'Jupiter' : a === 'RAY' ? 'Raydium' : a === 'SHIB' || a === 'SHIBB' ? 'Shiba Inu' : a === 'LINKB' ? 'Chainlink' : a === 'UNIB' ? 'Uniswap' : a === 'AAVEB' ? 'Aave' : a === 'ORCA' ? 'Orca' : a === 'PUMP' ? 'pump.fun' : a === 'USDT' || a === 'USDTE' || a === 'USDTS' || a === 'USDTP' || a === 'USDTA' ? 'Tether' : a === 'TRX' ? 'Tron' : 'Monero';
+      : a === 'BTC' ? 'Bitcoin' : a === 'HYPE' ? 'Hyperliquid' : a === 'SOL' ? 'Solana' : a === 'DOGE' ? 'Dogecoin' : a === 'ADA' ? 'Cardano' : a === 'BCH' ? 'Bitcoin Cash' : a === 'LTC' ? 'Litecoin' : a === 'SCRT' || a === 'SSCRT' ? 'Secret' : a === 'DASH' ? 'Dash' : a === 'FIRO' ? 'Firo' : a === 'ZEC' ? 'Zcash' : a === 'ZANO' ? 'Zano' : a === 'KUS' ? 'Kusari' : a === 'ARRR' ? 'Pirate Chain' : a === 'ETH' || a === 'ETHA' ? 'Ethereum' : a === 'POL' ? 'Polygon' : a === 'LINK' ? 'Chainlink' : a === 'WLD' ? 'Worldcoin' : a === 'ARB' ? 'Arbitrum' : a === 'UNI' ? 'Uniswap' : a === 'PEPE' ? 'Pepe' : a === 'AAVE' ? 'Aave' : a === 'NEAR' ? 'NEAR Protocol' : a === 'ETHP' ? 'Ethereum' : a === 'BNB' ? 'BNB Smart Chain' : a === 'ASTER' ? 'Aster' : a === 'CAKE' ? 'PancakeSwap' : a === 'JUP' ? 'Jupiter' : a === 'RAY' ? 'Raydium' : a === 'SHIB' || a === 'SHIBB' ? 'Shiba Inu' : a === 'LINKB' ? 'Chainlink' : a === 'UNIB' ? 'Uniswap' : a === 'AAVEB' ? 'Aave' : a === 'ORCA' ? 'Orca' : a === 'PUMP' ? 'pump.fun' : a === 'USDT' || a === 'USDTE' || a === 'USDTS' || a === 'USDTP' || a === 'USDTA' ? 'Tether' : a === 'TRX' ? 'Tron' : 'Monero';
   const usd = assetUsd(a);
   return h('button', { class: `asset${child ? ' child' : ''}`, id: `asset-${a}`, onclick: () => { selected = a; void renderAsset(); } },
     coin(a),
@@ -723,6 +725,7 @@ async function renderAsset(): Promise<void> {
       a === 'ARRR' && overview?.arrr?.scanning && h('div', { class: 'sync-banner', id: 'arrr-scan' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), `Scanning Pirate Chain blocks. ${overview.arrr.percent}%`),
       a === 'ARRR' && b?.ok && b.total !== b.spendable && h('div', { class: 'warn' }, `${b.spendable} ARRR can be sent now. The rest is waiting for confirmations.`),
       a === 'ZANO' && b?.ok && b.total !== b.spendable && h('div', { class: 'warn' }, `${b.spendable} ZANO can be sent now. Received coins can be used after 10 confirmations.`),
+      a === 'KUS' && b?.ok && b.total !== b.spendable && h('div', { class: 'warn' }, `${b.spendable} KUS can be sent now. Received coins can be used after 10 confirmations, and mined coins after 60.`),
       a === 'ZEC' && b?.ok && b.total !== b.spendable && h('div', { class: 'warn' }, `${b.spendable} ZEC can be sent now. The rest is waiting for confirmations or for shielding.`),
       a === 'ZEC' && overview?.zec?.canShield && h('div', { class: 'panel', id: 'zec-shield-panel' },
         h('p', { class: 'small' }, `You have ${overview.zec.transparent} ZEC in transparent balance. It's public on the chain and can't be sent directly. ZEC received from swaps arrives here too.`), h('br'),
@@ -1151,10 +1154,10 @@ function coinControl(): { el: HTMLElement; chosen: Set<string> } {
 /** Reads an address out of a QR code. Accepts a bare address or a wallet link such as monero:4...?tx_amount=1. */
 function parseScanned(asset: Asset, raw: string): { address: string; amount: string } | null {
   const text = raw.trim();
-  const m = text.match(/^(?:(bitcoincash|bitcoin|btc|litecoin|ltc|secret|scrt|solana|sol|dogecoin|doge|dash|firo|zcash|zec|zano|pirate|arrr|ethereum|eth|tron|trx|usdt|monero|xmr)(?::\/\/|:))?([0-9A-Za-z]+)(?:@1)?(?:\?(.*))?$/i);
+  const m = text.match(/^(?:(bitcoincash|bitcoin|btc|litecoin|ltc|secret|scrt|solana|sol|dogecoin|doge|dash|firo|zcash|zec|zano|kusari|kus|pirate|arrr|ethereum|eth|tron|trx|usdt|monero|xmr)(?::\/\/|:))?([0-9A-Za-z]+)(?:@1)?(?:\?(.*))?$/i);
   if (!m) return null;
   const scheme = (m[1] ?? '').toLowerCase();
-  const family = (a: Asset) => (a === 'BCH' ? ['bitcoincash'] : a === 'LTC' ? ['litecoin', 'ltc'] : a === 'SCRT' || a === 'SSCRT' ? ['secret', 'scrt'] : a === 'NEAR' ? ['near'] : a === 'SOL' ? ['solana', 'sol'] : SPL_ASSETS.includes(a) ? ['solana', 'sol', 'usdt', 'spl'] : BSC_ASSETS.includes(a) ? ['ethereum', 'bnb', 'bsc', 'usdt'] : a === 'POL' || a === 'USDTP' || a === 'ETHP' ? ['ethereum', 'polygon', 'pol', 'matic', 'usdt'] : a === 'ARB' || a === 'ETHA' || a === 'USDTA' ? ['ethereum', 'arbitrum', 'arb', 'eth', 'usdt'] : a === 'DOGE' ? ['dogecoin', 'doge'] : a === 'DASH' ? ['dash'] : a === 'FIRO' ? ['firo'] : a === 'ZEC' ? ['zcash', 'zec'] : a === 'ZANO' ? ['zano'] : a === 'ARRR' ? ['pirate', 'arrr'] : a === 'BTC' ? ['bitcoin', 'btc'] : a === 'XMR' ? ['monero', 'xmr'] : a === 'ETH' || a === 'USDTE' ? ['ethereum', 'eth', 'usdt'] : ['tron', 'trx', 'usdt']);
+  const family = (a: Asset) => (a === 'BCH' ? ['bitcoincash'] : a === 'LTC' ? ['litecoin', 'ltc'] : a === 'SCRT' || a === 'SSCRT' ? ['secret', 'scrt'] : a === 'NEAR' ? ['near'] : a === 'SOL' ? ['solana', 'sol'] : SPL_ASSETS.includes(a) ? ['solana', 'sol', 'usdt', 'spl'] : BSC_ASSETS.includes(a) ? ['ethereum', 'bnb', 'bsc', 'usdt'] : a === 'POL' || a === 'USDTP' || a === 'ETHP' ? ['ethereum', 'polygon', 'pol', 'matic', 'usdt'] : a === 'ARB' || a === 'ETHA' || a === 'USDTA' ? ['ethereum', 'arbitrum', 'arb', 'eth', 'usdt'] : a === 'DOGE' ? ['dogecoin', 'doge'] : a === 'DASH' ? ['dash'] : a === 'FIRO' ? ['firo'] : a === 'ZEC' ? ['zcash', 'zec'] : a === 'ZANO' ? ['zano'] : a === 'KUS' ? ['kusari', 'kus'] : a === 'ARRR' ? ['pirate', 'arrr'] : a === 'BTC' ? ['bitcoin', 'btc'] : a === 'XMR' ? ['monero', 'xmr'] : a === 'ETH' || a === 'USDTE' ? ['ethereum', 'eth', 'usdt'] : ['tron', 'trx', 'usdt']);
   if (scheme && !family(asset).includes(scheme)) return null;
   // Bech32 QR codes are often in upper case to make them smaller.
   const address = asset === 'BTC' && /^BC1/.test(m[2]) ? m[2].toLowerCase() : m[2];
@@ -1170,6 +1173,7 @@ function parseScanned(asset: Asset, raw: string): { address: string; amount: str
     : asset === 'DASH' ? /^[X7][1-9A-HJ-NP-Za-km-z]{33}$/.test(address)
     : asset === 'ARRR' ? /^(zs1[02-9ac-hj-np-z]{75}|pirate1[02-9ac-hj-np-z]{40,})$/.test(address)
     : asset === 'ZANO' ? /^(Zx|iZ|aZ|ai)[1-9A-HJ-NP-Za-km-z]{90,120}$/.test(address)
+    : asset === 'KUS' ? /^[KL][1-9A-HJ-NP-Za-km-z]{94}$|^K[1-9A-HJ-NP-Za-km-z]{105}$/.test(address)
     : asset === 'ZEC' ? /^(t[13][1-9A-HJ-NP-Za-km-z]{33}|zs1[02-9ac-hj-np-z]{75}|u1[02-9ac-hj-np-z]{100,}|tex1[02-9ac-hj-np-z]{30,})$/.test(address)
     : asset === 'XMR' ? /^[48][1-9A-HJ-NP-Za-km-z]{94}([1-9A-HJ-NP-Za-km-z]{11})?$/.test(address)
       : EVM_ASSETS.includes(asset) ? /^0x[0-9a-fA-F]{40}$/.test(address)
@@ -1249,7 +1253,7 @@ async function openScanner(asset: Asset, onFound: (found: { address: string; amo
         }
         const found = parseScanned(asset, code.data);
         if (found) { close(); onFound(found); return; }
-        status.textContent = `This is not a ${asset === 'XMR' ? 'Monero' : asset === 'SOL' || SPL_ASSETS.includes(asset) ? 'Solana' : asset === 'DOGE' ? 'Dogecoin' : asset === 'BCH' ? 'Bitcoin Cash' : asset === 'LTC' ? 'Litecoin' : asset === 'SCRT' || asset === 'SSCRT' ? 'Secret Network' : asset === 'NEAR' ? 'NEAR' : asset === 'DASH' ? 'Dash' : asset === 'FIRO' ? 'Firo' : asset === 'ZEC' ? 'Zcash' : asset === 'ZANO' ? 'Zano' : asset === 'ARRR' ? 'Pirate Chain' : asset === 'BTC' ? 'Bitcoin' : EVM_ASSETS.includes(asset) ? 'Ethereum' : 'Tron'} address QR. Try another one.`;
+        status.textContent = `This is not a ${asset === 'XMR' ? 'Monero' : asset === 'SOL' || SPL_ASSETS.includes(asset) ? 'Solana' : asset === 'DOGE' ? 'Dogecoin' : asset === 'BCH' ? 'Bitcoin Cash' : asset === 'LTC' ? 'Litecoin' : asset === 'SCRT' || asset === 'SSCRT' ? 'Secret Network' : asset === 'NEAR' ? 'NEAR' : asset === 'DASH' ? 'Dash' : asset === 'FIRO' ? 'Firo' : asset === 'ZEC' ? 'Zcash' : asset === 'ZANO' ? 'Zano' : asset === 'KUS' ? 'Kusari' : asset === 'ARRR' ? 'Pirate Chain' : asset === 'BTC' ? 'Bitcoin' : EVM_ASSETS.includes(asset) ? 'Ethereum' : 'Tron'} address QR. Try another one.`;
       }
     }
     timer = window.setTimeout(tick, 180);
@@ -1403,6 +1407,7 @@ async function renderReceive(current?: string): Promise<void> {
   } }, icon('copy'));
   const note = asset === 'ARRR' ? 'Receives ARRR on Pirate Chain mainnet only. Amounts and addresses don\'t show on the chain. Received coins can be used after confirmations.'
     : asset === 'ZANO' ? 'Receives ZANO on Zano mainnet only. Amounts and addresses don\'t show on the chain. Received coins can be used after 10 confirmations.'
+    : asset === 'KUS' ? 'Receives KUS on the Kusari chain only. Never send XMR here: Monero addresses start with 4 or 8, Kusari ones with K or L. Amounts and addresses don\'t show on the chain.'
     : asset === 'ZEC' ? (address.startsWith('t') ? 'This is a transparent address. The amount and address are public on the chain. Coins must be shielded after arrival before they can be sent.' : 'This is a shielded address. The amount and address don\'t show on the chain. Received ZEC can be used after a few confirmations. If a provider can\'t pay this address, use the transparent one.')
     : asset === 'SOL' ? 'The same address as USDT (Sol). Receives SOL on Solana mainnet only. Other Solana tokens aren\'t shown.'
     : asset === 'USDTS' ? 'Receives USDT on the Solana network (SPL) only. Sending needs a little SOL at this address for the fee.'
@@ -1508,14 +1513,14 @@ const SWAP_STATUS: Record<string, string> = {
 };
 
 function coinSelect(id: string, current: Asset, onPick: (a: Asset) => void): HTMLElement {
-  const menu = h('div', { class: 'menu', hidden: true, id: `${id}-menu` }, ...coinMenu(id, ASSETS.filter((a) => a !== 'SSCRT'), current, onPick));
+  const menu = h('div', { class: 'menu', hidden: true, id: `${id}-menu` }, ...coinMenu(id, ASSETS.filter((a) => a !== 'SSCRT' && a !== 'KUS'), current, onPick));
   return h('div', { class: 'coin-select' },
     h('button', { type: 'button', id, class: 'coin-select-btn', 'aria-label': `Choose a coin, currently ${coinName(current)}`, onclick: () => { menu.hidden = !menu.hidden; } }, coin(current), h('span', {}, coinName(current)), icon('down')),
     menu);
 }
 
 // Every coin except XMR itself can go out through XMR and come back as another coin.
-const PRIVACY_ASSETS: Asset[] = ALL_ASSETS.filter((a) => a !== 'XMR' && a !== 'SSCRT');
+const PRIVACY_ASSETS: Asset[] = ALL_ASSETS.filter((a) => a !== 'XMR' && a !== 'SSCRT' && a !== 'KUS');
 
 async function renderSwap(from: Asset = selected, to: Asset = selected === 'XMR' ? 'BTC' : 'XMR', keep = '', privacy = false): Promise<void> {
   // sSCRT doesn't trade anywhere; from its screen, swapping starts from plain SCRT.
@@ -1990,11 +1995,13 @@ async function renderSettings(): Promise<void> {
   const node = h('input', { id: 'set-node', value: s.customMoneroNode, placeholder: 'http://127.0.0.1:18081', spellcheck: 'false' });
   const btcServer = h('input', { id: 'set-btc-server', value: s.customBtcServer ?? '', placeholder: 'http://umbrel.local:3006/api', spellcheck: 'false' });
   const zanoNode = h('input', { id: 'set-zano-node', value: s.customZanoNode ?? '', placeholder: '192.168.1.5:11211', spellcheck: 'false' });
+  const kusNode = h('input', { id: 'set-kusari-node', value: s.customKusariNode ?? '', placeholder: '192.168.1.5:21081', spellcheck: 'false' });
   const key = h('input', { id: 'set-key', value: s.tronApiKey, spellcheck: 'false', autocomplete: 'off' });
   const auto = h('input', { id: 'set-auto', type: 'number', min: '1', max: '240', value: String(s.autoLockMinutes) });
   const showPrices = h('input', { type: 'checkbox', id: 'set-prices', checked: s.showPrices });
   const zecInfo = await wallet.zecInfo();
   const zanoInfo = await wallet.zanoInfo();
+  const kusInfo = await wallet.kusariInfo();
   const arrrInfo = await wallet.arrrInfo();
   const tor = await wallet.torInfo();
   const torBox = errorBox();
@@ -2040,7 +2047,7 @@ async function renderSettings(): Promise<void> {
       await wallet.installTor();
       tor.installed = true;
     }
-    const relocked = await wallet.updateSettings({ customMoneroNode: node.value, customBtcServer: btcServer.value, customZanoNode: zanoNode.value, tronApiKey: key.value, autoLockMinutes: Number(auto.value), showPrices: showPrices.checked, ...(tor.allowed === false ? {} : { torEnabled: useTor.checked, torBridge: bridge.value, torBridgeLines: bridgeLines.value }) });
+    const relocked = await wallet.updateSettings({ customMoneroNode: node.value, customBtcServer: btcServer.value, customZanoNode: zanoNode.value, customKusariNode: kusNode.value, tronApiKey: key.value, autoLockMinutes: Number(auto.value), showPrices: showPrices.checked, ...(tor.allowed === false ? {} : { torEnabled: useTor.checked, torBridge: bridge.value, torBridgeLines: bridgeLines.value }) });
     if (!relocked) { saved.textContent = 'Saved.'; void refresh(); }
   }) }, 'Save');
 
@@ -2106,6 +2113,7 @@ async function renderSettings(): Promise<void> {
       h('div', { class: 'section' }, h('h3', {}, 'Connections'), netBox.el,
         h('label', { class: 'field' }, h('span', {}, 'Your own Bitcoin server'), btcServer, h('div', { class: 'hint' }, 'The Esplora or mempool API of your own node (for example on Umbrel or Start9), as https://, .onion, or an address on your network. Then only your server learns your Bitcoin addresses. Empty uses public servers.')),
         h('label', { class: 'field' }, h('span', {}, 'Your own Zano node'), zanoNode, h('div', { class: 'hint' }, 'host:port of a Zano node you run. Empty uses the public node.')),
+        kusInfo.available && h('label', { class: 'field' }, h('span', {}, 'Kusari node'), kusNode, h('div', { class: 'hint' }, 'host:port of a Kusari node (kusarid, RPC port 21081). Kusari has no public node yet, so KUS needs one here.')),
         h('label', { class: 'field' }, h('span', {}, 'Custom Monero node'), node, h('div', { class: 'hint' }, 'Enter your own node if you have one. Empty chooses a public node automatically. Public nodes can see your IP.')),
         h('label', { class: 'field' }, h('span', {}, 'TronGrid API key'), key, h('div', { class: 'hint' }, 'Works without one. Add a free key if lookups are often limited.')),
         h('label', { class: 'field' }, h('span', {}, 'Auto-lock (minutes)'), auto),
@@ -2128,6 +2136,9 @@ async function renderSettings(): Promise<void> {
       h('div', { class: 'section', id: 'zano-info' }, h('h3', {}, 'Zano engine'),
         h('p', { class: 'small', id: 'zano-info-state' }, zanoInfo.available ? (zanoInfo.started ? `Running: ${zanoInfo.phase}` : 'Found but not running') : 'Not found'),
         zanoInfo.error && h('p', { class: 'small' }, zanoInfo.error)),
+      h('div', { class: 'section', id: 'kusari-info' }, h('h3', {}, 'Kusari engine'),
+        h('p', { class: 'small', id: 'kusari-info-state' }, kusInfo.available ? (kusInfo.started ? `Running: ${kusInfo.phase}` : 'Found but not running') : 'Not found'),
+        kusInfo.error && h('p', { class: 'small' }, kusInfo.error)),
       h('div', { class: 'section', id: 'zec-info' }, h('h3', {}, 'Zcash engine'),
         h('p', { class: 'small', id: 'zec-info-state' }, zecInfo.available ? (zecInfo.started ? `Running: ${zecInfo.phase}` : 'Found but not running') : 'Not found'),
         zecInfo.error && h('p', { class: 'small' }, zecInfo.error),

@@ -1,10 +1,10 @@
 # Kusari Wallet
 
-A self-custody wallet for Windows and Android that sends and receives XMR, BTC, ETH, TRX, USDT (ERC-20, TRC-20, SPL, Polygon, Arbitrum), SOL, POL, ARB, ETH on Arbitrum, LINK, WLD, BCH, LTC, SCRT, DOGE, DASH, FIRO, ZEC, ZANO and ARRR. There is no account server: seeds are encrypted and stored on your device.
+A self-custody wallet for Windows and Android that sends and receives XMR, BTC, ETH, TRX, USDT (ERC-20, TRC-20, SPL, Polygon, Arbitrum), SOL, POL, ARB, ETH on Arbitrum, LINK, WLD, BCH, LTC, SCRT, DOGE, DASH, FIRO, ZEC, ZANO, ARRR and KUS (Kusari, this project's own Monero fork). There is no account server: seeds are encrypted and stored on your device.
 
 You can add several wallets and rename them. Each wallet has its own seeds, password and records. Settings and Tor are shared.
 
-ZEC, ZANO and ARRR need native engines, which are built separately and are not stored in this repository. A build or device without an engine doesn't list that coin. 32-bit Android devices don't have these three.
+ZEC, ZANO, ARRR and KUS need native engines, which are built separately and are not stored in this repository. A build or device without an engine doesn't list that coin. KUS has no Android engine yet. 32-bit Android devices don't have these three.
 
 This wallet has not had an external security audit. If your device has malware, no software wallet is safe.
 
@@ -47,7 +47,7 @@ This is mainnet only. These are real coins, so start with amounts you can afford
 
 ## Why there are two seeds
 
-- BTC, ETH, Tron, SOL, DOGE, DASH, FIRO, ZEC, ZANO, ARRR: one BIP39 12-word seed.
+- BTC, ETH, Tron, SOL, DOGE, DASH, FIRO, ZEC, ZANO, ARRR, KUS: one BIP39 12-word seed.
   - BTC uses `m/86'/0'/0'` only (Taproot, BIP86). Addresses from `m/84'/0'/0'` (`bc1q`) in older versions don't appear in the app. If they hold coins, move them by entering the same seed in another wallet.
   - ETH uses `m/44'/60'/0'/0/0` (the same as MetaMask's first account). Tron uses `m/44'/195'/0'/0/0`.
 - Monero: the standard 25 words, which restore in Monero GUI and Cake Wallet.
@@ -58,7 +58,7 @@ They are separate because a single combined seed couldn't restore XMR in other w
 
 - Seeds: encrypted with scrypt (N=2^17) and AES-256-GCM, in `vault.json` in the app data folder.
 - Monero wallet file: encrypted with a random password stored inside the vault.
-- ZEC, ZANO and ARRR wallet data: encrypted with keys derived from random vault secrets.
+- ZEC, ZANO, ARRR and KUS wallet data: encrypted with keys derived from random vault secrets.
 - Tron private key: decrypted with the password only when sending, and not kept. JavaScript strings can't be erased, so it may stay in memory until garbage collection.
 - Monero keys: in the wallet engine's memory while unlocked, as syncing needs them. They close on lock.
 - Tron transactions: built locally, and the recipient, amount, contract and fee limit are compared with what was approved before signing. If an API server changes the contents, nothing is signed.
@@ -68,6 +68,7 @@ They are separate because a single combined seed couldn't restore XMR in other w
 ## Privacy
 
 - Public Monero nodes can see your IP. You can set your own node in Settings. The default node uses HTTP, so traffic isn't encrypted. Keys are never sent.
+- KUS runs `kusari-wallet-rpc`, Kusari's wallet server built from `native/kusari-coin`, on 127.0.0.1 with a random login for each start. The spend key is HMAC-SHA512 of the BIP39 seed (`kusari/kus/v1`), reduced as a Monero key, and the view key comes from it as in Monero, so the same key restores in `kusari-wallet-cli`. Kusari has no public node yet: KUS needs a node (`host:port`, RPC port 21081) in Settings, and that node can see your IP. With Tor on, the wallet server reaches the node only through Tor. No swap service, price source or explorer lists KUS.
 - DASH uses plain addresses at `m/44'/5'/0'`. There is no CoinJoin. Lookups and sends use insight.dash.org.
 - POL, ARB and ETH on Arbitrum use the same 0x address as ETH, through public Polygon and Arbitrum RPC servers, with Blockscout for history. Every node is checked for the right chain id before it's used, and fees on Arbitrum are paid in ETH on Arbitrum.
 - LTC uses BIP84 (`m/84'/2'/0'`, ltc1q addresses) and litecoinspace.org, which has the mempool.space API, so it shares the Bitcoin code. Addresses starting with 3 are refused because they look like Bitcoin ones. LINK and WLD are Ethereum tokens on the ETH address.
@@ -146,5 +147,6 @@ Native engines are built by the workflows in `.github/workflows`, which only run
 - `android/`: the Android app (Java)
 - `native/`: native engine sources
 - `native/kusari-coin/`: Kusari (KUS), a coin made from Monero's code with its own chain. See its README.
+- `src/main/kusari.ts`, `kusari-process.ts`: KUS in the app, through Kusari's own wallet server
 
 `monero-ts` needs updating when Monero has a hard fork.

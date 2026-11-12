@@ -151,6 +151,7 @@ const bioCall = (fn: (id: number) => void) => new Promise<string>((resolve, reje
   arrrInfo: call(() => service.arrrInfo()),
   arrrRescan: call((d: string, pw: string) => service.arrrRescan(d, pw)),
   zanoInfo: call(() => service.zanoInfo()),
+  kusariInfo: call(() => service.kusariInfo()),
   zecInfo: call(() => service.zecInfo()),
   zecShield: call((pw: string) => service.zecShield(pw)),
   dexQuote: call((f: any, t: any, a: string, b: number) => service.dexQuote(f, t, a, b)),

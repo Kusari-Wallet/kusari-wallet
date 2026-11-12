@@ -3,9 +3,9 @@ export type NetworkId = 'mainnet' | 'testnet';
  * USDT is the Tron token, USDTE the Ethereum one, USDTS Solana's, USDTP Polygon's and USDTA Arbitrum's.
  * ETHA is ETH on Arbitrum, which pays Arbitrum's fees; ARB is the token.
  */
-export type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'LINK' | 'WLD' | 'SOL' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA' | 'BCH' | 'LTC' | 'DOGE' | 'DASH' | 'FIRO' | 'ZEC' | 'ZANO' | 'ARRR' | 'SCRT' | 'SSCRT' | 'ETHP' | 'UNI' | 'PEPE' | 'AAVE' | 'BNB' | 'USDTB' | 'ASTER' | 'CAKE' | 'JUP' | 'RAY' | 'NEAR' | 'USDCE' | 'USDCB' | 'USDCS' | 'USDCP' | 'USDCA' | 'HYPE' | 'SHIB' | 'SHIBB' | 'LINKB' | 'UNIB' | 'AAVEB' | 'ORCA' | 'PUMP' | 'ADA';
+export type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'LINK' | 'WLD' | 'SOL' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA' | 'BCH' | 'LTC' | 'DOGE' | 'DASH' | 'FIRO' | 'ZEC' | 'ZANO' | 'KUS' | 'ARRR' | 'SCRT' | 'SSCRT' | 'ETHP' | 'UNI' | 'PEPE' | 'AAVE' | 'BNB' | 'USDTB' | 'ASTER' | 'CAKE' | 'JUP' | 'RAY' | 'NEAR' | 'USDCE' | 'USDCB' | 'USDCS' | 'USDCP' | 'USDCA' | 'HYPE' | 'SHIB' | 'SHIBB' | 'LINKB' | 'UNIB' | 'AAVEB' | 'ORCA' | 'PUMP' | 'ADA';
 
-export const DECIMALS: Record<Asset, number> = { ADA: 6, SHIB: 18, SHIBB: 18, LINKB: 18, UNIB: 18, AAVEB: 18, ORCA: 6, PUMP: 6, HYPE: 18, USDCE: 6, USDCB: 18, USDCS: 6, USDCP: 6, USDCA: 6, BTC: 8, XMR: 12, ETH: 18, TRX: 6, USDT: 6, USDTE: 6, LINK: 18, WLD: 18, SOL: 9, USDTS: 6, POL: 18, USDTP: 6, ARB: 18, ETHA: 18, USDTA: 6, BCH: 8, LTC: 8, DOGE: 8, DASH: 8, FIRO: 8, ZEC: 8, ZANO: 12, ARRR: 8, SCRT: 6, SSCRT: 6, ETHP: 18, UNI: 18, PEPE: 18, AAVE: 18, BNB: 18, USDTB: 18, ASTER: 18, CAKE: 18, JUP: 6, RAY: 6, NEAR: 24 };
+export const DECIMALS: Record<Asset, number> = { ADA: 6, SHIB: 18, SHIBB: 18, LINKB: 18, UNIB: 18, AAVEB: 18, ORCA: 6, PUMP: 6, HYPE: 18, USDCE: 6, USDCB: 18, USDCS: 6, USDCP: 6, USDCA: 6, BTC: 8, XMR: 12, ETH: 18, TRX: 6, USDT: 6, USDTE: 6, LINK: 18, WLD: 18, SOL: 9, USDTS: 6, POL: 18, USDTP: 6, ARB: 18, ETHA: 18, USDTA: 6, BCH: 8, LTC: 8, DOGE: 8, DASH: 8, FIRO: 8, ZEC: 8, ZANO: 12, KUS: 12, ARRR: 8, SCRT: 6, SSCRT: 6, ETHP: 18, UNI: 18, PEPE: 18, AAVE: 18, BNB: 18, USDTB: 18, ASTER: 18, CAKE: 18, JUP: 6, RAY: 6, NEAR: 24 };
 
 export const BTC_APIS = ['https://mempool.space/api', 'https://blockstream.info/api'];
 export const BTC_EXPLORER_TX = 'https://mempool.space/tx/';
@@ -45,6 +45,8 @@ export const ARRR_SERVERS = ['https://pirate.mathnodes.com:443', 'https://lightw
 export const ARRR_EXPLORER_TX = 'https://explorer.pirate.black/tx/';
 export const ZANO_NODE = '37.27.100.59:10500';
 export const ZANO_EXPLORER_TX = 'https://explorer.zano.org/transaction/';
+/** Kusari (native/kusari-coin) has no public node or explorer yet. Until one is set here, a node is set in Settings. */
+export const KUSARI_NODE = '';
 export const ZEC_SERVERS = ['https://zec.rocks:443', 'https://na.zec.rocks:443', 'https://eu.zec.rocks:443', 'https://ap.zec.rocks:443', 'https://sa.zec.rocks:443'];
 export const ZEC_EXPLORER_TX = 'https://blockchair.com/zcash/transaction/';
 export const ETH_RPCS = ['https://ethereum-rpc.publicnode.com', 'https://eth.llamarpc.com', 'https://cloudflare-eth.com', 'https://1rpc.io/eth'];
@@ -127,6 +129,8 @@ export interface Settings {
   /** The person's own servers: a BTC Esplora/mempool API, a Zano node. Empty uses the public ones. */
   customBtcServer: string;
   customZanoNode: string;
+  /** host:port of a Kusari node (kusarid). Kusari has no public node yet. */
+  customKusariNode: string;
   tronApiKey: string;
   autoLockMinutes: number;
   showPrices: boolean;
@@ -144,6 +148,7 @@ export const DEFAULT_SETTINGS: Settings = {
   customMoneroNode: '',
   customBtcServer: '',
   customZanoNode: '',
+  customKusariNode: '',
   tronApiKey: '',
   autoLockMinutes: 10,
   showPrices: true,
