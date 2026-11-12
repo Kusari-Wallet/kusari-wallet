@@ -736,6 +736,7 @@ async function renderAsset(): Promise<void> {
           : h('p', { class: 'small', id: 'mweb-sync' }, overview.mweb.error ? `Private (MWEB) balance: ${overview.mweb.error}` : `Syncing the private (MWEB) balance… ${overview.mweb.percent}%`),
         overview.mweb.ready && h('button', { class: 'secondary', id: 'mweb-pegin', onclick: () => void ltcPrivateStep() }, 'Make public LTC private')),
       a === 'DASH' && overview?.coinjoin && coinjoinPanel(overview.coinjoin),
+      a === 'BTC' && overview?.btcMix && btcMixPanel(overview.btcMix),
       a === 'FIRO' && overview?.spark && h('div', { class: 'panel', id: 'spark-panel' },
         overview.spark.ready && overview.spark.balance
           ? h('p', { class: 'small' }, `Private (Spark): ${shortAmount(overview.spark.balance.total)} FIRO. Its amounts and addresses are hidden on the chain.`)
@@ -885,6 +886,85 @@ function coinjoinPanel(cj: any): HTMLElement {
       has && (cj.running
         ? h('button', { class: 'ghost', id: 'cj-pause', onclick: () => void pause(true) }, 'Pause mixing')
         : h('button', { class: 'ghost', id: 'cj-resume', onclick: () => void pause(false) }, 'Resume mixing'))));
+}
+
+// ---- Bitcoin CoinJoin ----
+
+/** Kept in step with COINJOIN_COORDINATORS in btc-mix.ts. */
+const COORDINATORS: [string, string][] = [['https://coinjoin.kruw.io/', 'Kruw'], ['https://api.opencoordinator.org/', 'OpenCoordinator'], ['https://coinjoin.nl/', 'Noderunners']];
+
+function btcMixStatusText(m: any): string {
+  const n = m.inputs ?? 0;
+  if (m.running) {
+    if (m.stage === 'waiting') return m.detail === 'tor' ? 'Waiting for Tor to connect.' : 'Waiting for a round to start.';
+    if (m.stage === 'registering') return 'Registering your coins in a round.';
+    if (m.stage === 'confirming') return `Your coins are in a round (${n} inputs so far). Waiting for it to fill up.`;
+    if (m.stage === 'outputs') return `The round is full (${n} inputs). Registering the mixed outputs.`;
+    if (m.stage === 'signing') return `Checking the transaction (${n} inputs) and signing it.`;
+    if (m.stage === 'failed') return `That round didn't finish: ${m.detail ?? ''} Trying the next one.`;
+    return 'Starting…';
+  }
+  if (m.stage === 'done') return 'Mixing finished.';
+  if (m.last?.ok) return 'The last round finished. The mixed coins arrive once the transaction is in a block.';
+  if (m.last && !m.last.ok) return `The last round didn't finish: ${m.last.reason ?? ''}`;
+  return '';
+}
+
+/** Mixed BTC, what the mixer is doing, and its controls. */
+function btcMixPanel(m: any): HTMLElement {
+  const mixed = Number(m.mixed) > 0;
+  const stop = async () => { try { await wallet.btcMixStop(); await refresh(); void renderAsset(); } catch (e) { toast(errMsg(e)); } };
+  const text = btcMixStatusText(m);
+  return h('div', { class: 'panel', id: 'btc-coinjoin-panel' },
+    mixed
+      ? h('p', { class: 'small', id: 'btc-cj-balance' }, `Mixed (CoinJoin): ${shortAmount(m.mixed)} BTC.`)
+      : h('p', { class: 'small', id: 'btc-cj-intro' }, 'CoinJoin mixes your BTC with other people\'s in one transaction, the way Wasabi Wallet does, so which coins are yours can\'t be told apart on the chain. It runs over Tor while the wallet is open, and a round can take an hour or more.'),
+    text && h('p', { class: 'small muted', id: 'btc-cj-step' }, text),
+    h('br'),
+    h('div', { class: 'btn-row' },
+      m.running
+        ? h('button', { class: 'ghost', id: 'btc-cj-stop', onclick: () => void stop() }, 'Stop mixing')
+        : h('button', { class: 'secondary', id: 'btc-cj-mix', onclick: () => void renderBtcMix() }, 'Mix BTC')));
+}
+
+/** The coins to mix (all regular coins that aren't frozen, or the ones picked), then the password to start. */
+async function renderBtcMix(): Promise<void> {
+  const coins = coinControl('mix');
+  const pw = h('input', { type: 'password', id: 'confirm-pw', autocomplete: 'current-password' });
+  const box = errorBox();
+  const summary = h('div', { class: 'panel', id: 'btc-cj-summary' }, h('div', { class: 'small muted' }, 'Loading…'));
+  const go = h('button', { class: 'primary', id: 'btc-cj-start', type: 'submit' }, 'Start mixing');
+  const paint = async () => {
+    try {
+      const info = await wallet.btcMixInfo(coins.chosen.size ? [...coins.chosen] : undefined);
+      setKids(summary, h('table', { class: 'review-table' }, h('tbody', {},
+        h('tr', {}, h('th', {}, 'To mix'), h('td', { id: 'btc-cj-amount' }, `${info.amount} BTC`)),
+        h('tr', {}, h('th', {}, 'Coins'), h('td', { id: 'btc-cj-count' }, String(info.count))),
+        h('tr', {}, h('th', {}, 'Coordinator'), h('td', { id: 'btc-cj-coordinator' }, info.coordinator)))),
+        info.count > info.perRound && h('p', { class: 'small muted' }, `Up to ${info.perRound} coins go into each round; the rest follow in later rounds.`),
+        !info.tor && h('div', { class: 'warn', id: 'btc-cj-no-tor' }, 'CoinJoin needs Tor. Turn it on in Settings first.'));
+      go.disabled = !info.count || !info.tor;
+    } catch (e) { box.show(e); }
+  };
+  coins.onChange = () => void paint();
+  const form = h('form', { onsubmit: (e: Event) => {
+    e.preventDefault();
+    busy(go, 'Starting…', box, async () => {
+      await wallet.btcMixStart(pw.value, coins.chosen.size ? [...coins.chosen] : undefined);
+      pw.value = '';
+      toast('Mixing started. Keep the wallet open until it finishes.');
+      await refresh();
+      void renderAsset();
+    });
+  } },
+  box.el,
+  h('p', { class: 'small muted' }, 'Your coins are split into common amounts together with everyone else\'s, and come back in your CoinJoin balance. The coordinator charges nothing; the mining fee is shared by everyone in the round. Each request leaves on its own Tor route, and nothing is signed until the transaction pays your outputs in full.'),
+  summary,
+  coins.el,
+  h('label', { class: 'field' }, h('span', {}, 'Password'), pw),
+  go);
+  show('send', subBar('Mix BTC', () => void renderAsset()), h('div', { class: 'scroll' }, form));
+  await paint();
 }
 
 /** How much regular DASH to split into CoinJoin's sizes, then a review. */
@@ -1061,6 +1141,9 @@ function renderSend(keep?: { to: string; amount: string }): void {
   const mixed = asset === 'DASH' ? Number(overview?.coinjoin?.mixed ?? 0) : 0;
   const fromMixed = mixed > 0 ? h('input', { type: 'checkbox', id: 'cj-from-mixed' }) as HTMLInputElement : null;
   const coins = asset === 'BTC' ? coinControl() : null;
+  const btcMixed = asset === 'BTC' && Number(overview?.btcMix?.mixedSpendable ?? 0) > 0;
+  const fromMixedBtc = btcMixed ? h('input', { type: 'checkbox', id: 'btc-from-mixed' }) as HTMLInputElement : null;
+  fromMixedBtc?.addEventListener('change', () => { if (coins) coins.el.hidden = fromMixedBtc.checked; });
   const update = () => {
     next.disabled = !to.value.trim() || !amount.value.trim();
     const p = prices?.[asset]?.usd;
@@ -1075,7 +1158,7 @@ function renderSend(keep?: { to: string; amount: string }): void {
     busy(next, asset === 'XMR' ? 'Creating the transaction…' : 'Calculating the fee…', box, async () => {
       const preview = asset === 'DASH' && fromMixed?.checked
         ? await wallet.prepareDashPrivate(to.value, amount.value)
-        : await wallet.prepareSend(asset, to.value, amount.value, coins?.chosen.size ? { coins: [...coins.chosen] } : undefined);
+        : await wallet.prepareSend(asset, to.value, amount.value, fromMixedBtc?.checked ? { fromMixed: true } : coins?.chosen.size ? { coins: [...coins.chosen] } : undefined);
       renderReview(preview, { to: to.value, amount: amount.value });
     });
   } },
@@ -1091,6 +1174,7 @@ function renderSend(keep?: { to: string; amount: string }): void {
     h('div', { class: 'input-wrap' }, amount, h('span', { class: 'unit' }, unitOf(asset)),
       h('button', { type: 'button', class: 'max', id: 'max', onclick: () => { amount.value = 'max'; update(); } }, 'Max'))),
   usd,
+  fromMixedBtc && h('label', { class: 'check', id: 'btc-from-mixed-row' }, fromMixedBtc, h('span', {}, `Send from mixed coins (CoinJoin, ${shortAmount(overview.btcMix.mixedSpendable)} BTC)`)),
   coins?.el,
   fromMixed && h('label', { class: 'check', id: 'cj-from-mixed-row' }, fromMixed, h('span', {}, `Send from mixed coins (CoinJoin, ${shortAmount(overview.coinjoin.mixed)} DASH)`)),
   feeLine(asset, 'send-fee', (f) => `Estimated fee: ${feeText(f)}. It depends on the amount and address, and the next screen shows the exact value.`),
@@ -1105,8 +1189,9 @@ function renderSend(keep?: { to: string; amount: string }): void {
 // ---- Bitcoin coin control ----
 
 /** Choosing which Bitcoin coins pay, with your labels, and freezing coins so they're never picked on their own. */
-function coinControl(): { el: HTMLElement; chosen: Set<string> } {
+function coinControl(purpose: 'send' | 'mix' = 'send'): { el: HTMLElement; chosen: Set<string>; onChange?: () => void } {
   const chosen = new Set<string>();
+  const ctl: { el: HTMLElement; chosen: Set<string>; onChange?: () => void } = { el: null as any, chosen };
   const list = h('div', { id: 'coin-list', hidden: true });
   const summary = h('div', { class: 'small muted', id: 'coin-summary' }, 'The wallet picks the coins.');
   const box = errorBox();
@@ -1114,7 +1199,10 @@ function coinControl(): { el: HTMLElement; chosen: Set<string> } {
   let all: { id: string; amount: string; frozen: boolean }[] = [];
   const sum = () => {
     const total = all.filter((c) => chosen.has(c.id)).reduce((s, c) => s + sats(c.amount), 0);
-    summary.textContent = chosen.size ? `Chosen: ${chosen.size}, ${shortAmount(String(total / 1e8))} BTC. Only these are spent, all of them, and what's left comes back as change.` : 'The wallet picks the coins. Frozen coins are left out.';
+    summary.textContent = purpose === 'mix'
+      ? (chosen.size ? `Chosen: ${chosen.size}, ${shortAmount(String(total / 1e8))} BTC. Only these are mixed.` : 'Every coin that isn\'t frozen is mixed.')
+      : (chosen.size ? `Chosen: ${chosen.size}, ${shortAmount(String(total / 1e8))} BTC. Only these are spent, all of them, and what's left comes back as change.` : 'The wallet picks the coins. Frozen coins are left out.');
+    ctl.onChange?.();
   };
   const load = async () => {
     list.replaceChildren(h('div', { class: 'small muted' }, 'Loading coins…'));
@@ -1145,8 +1233,9 @@ function coinControl(): { el: HTMLElement; chosen: Set<string> } {
     if (!list.hidden) void load();
   } }, 'Choose coins');
   sum();
-  return { chosen, el: h('div', { class: 'panel', id: 'coin-panel' }, h('div', { class: 'row-between' }, h('span', { class: 'label' }, 'Coins'), toggle), summary, box.el, list,
-    h('p', { class: 'small muted' }, 'Spending coins together shows they belong to one person. Keep coins from different sources apart, and freeze ones you don\'t want spent.')) };
+  ctl.el = h('div', { class: 'panel', id: 'coin-panel' }, h('div', { class: 'row-between' }, h('span', { class: 'label' }, 'Coins'), toggle), summary, box.el, list,
+    purpose === 'send' && h('p', { class: 'small muted' }, 'Spending coins together shows they belong to one person. Keep coins from different sources apart, and freeze ones you don\'t want spent.'));
+  return ctl;
 }
 
 // ---- QR scan ----
@@ -1996,6 +2085,11 @@ async function renderSettings(): Promise<void> {
   const btcServer = h('input', { id: 'set-btc-server', value: s.customBtcServer ?? '', placeholder: 'http://umbrel.local:3006/api', spellcheck: 'false' });
   const zanoNode = h('input', { id: 'set-zano-node', value: s.customZanoNode ?? '', placeholder: '192.168.1.5:11211', spellcheck: 'false' });
   const kusNode = h('input', { id: 'set-kusari-node', value: s.customKusariNode ?? '', placeholder: '192.168.1.5:21081', spellcheck: 'false' });
+  const known = COORDINATORS.some(([url]) => url === s.coinjoinCoordinator);
+  const coordinator = h('select', { id: 'set-coordinator' }, ...COORDINATORS.map(([url, name]) => h('option', { value: url, selected: url === (known ? s.coinjoinCoordinator : COORDINATORS[0][0]) }, name)), h('option', { value: 'custom', selected: !known && Boolean(s.coinjoinCoordinator) }, 'Another coordinator')) as HTMLSelectElement;
+  const coordinatorUrl = h('input', { id: 'set-coordinator-url', value: known ? '' : s.coinjoinCoordinator ?? '', placeholder: 'https://coordinator.example/', spellcheck: 'false' }) as HTMLInputElement;
+  const coordinatorRow = h('label', { class: 'field', id: 'set-coordinator-url-row', hidden: coordinator.value !== 'custom' }, h('span', {}, 'Coordinator address'), coordinatorUrl);
+  coordinator.addEventListener('change', () => { coordinatorRow.hidden = coordinator.value !== 'custom'; });
   const key = h('input', { id: 'set-key', value: s.tronApiKey, spellcheck: 'false', autocomplete: 'off' });
   const auto = h('input', { id: 'set-auto', type: 'number', min: '1', max: '240', value: String(s.autoLockMinutes) });
   const showPrices = h('input', { type: 'checkbox', id: 'set-prices', checked: s.showPrices });
@@ -2047,7 +2141,7 @@ async function renderSettings(): Promise<void> {
       await wallet.installTor();
       tor.installed = true;
     }
-    const relocked = await wallet.updateSettings({ customMoneroNode: node.value, customBtcServer: btcServer.value, customZanoNode: zanoNode.value, customKusariNode: kusNode.value, tronApiKey: key.value, autoLockMinutes: Number(auto.value), showPrices: showPrices.checked, ...(tor.allowed === false ? {} : { torEnabled: useTor.checked, torBridge: bridge.value, torBridgeLines: bridgeLines.value }) });
+    const relocked = await wallet.updateSettings({ customMoneroNode: node.value, customBtcServer: btcServer.value, customZanoNode: zanoNode.value, customKusariNode: kusNode.value, coinjoinCoordinator: coordinator.value === 'custom' ? coordinatorUrl.value : coordinator.value, tronApiKey: key.value, autoLockMinutes: Number(auto.value), showPrices: showPrices.checked, ...(tor.allowed === false ? {} : { torEnabled: useTor.checked, torBridge: bridge.value, torBridgeLines: bridgeLines.value }) });
     if (!relocked) { saved.textContent = 'Saved.'; void refresh(); }
   }) }, 'Save');
 
@@ -2114,6 +2208,8 @@ async function renderSettings(): Promise<void> {
         h('label', { class: 'field' }, h('span', {}, 'Your own Bitcoin server'), btcServer, h('div', { class: 'hint' }, 'The Esplora or mempool API of your own node (for example on Umbrel or Start9), as https://, .onion, or an address on your network. Then only your server learns your Bitcoin addresses. Empty uses public servers.')),
         h('label', { class: 'field' }, h('span', {}, 'Your own Zano node'), zanoNode, h('div', { class: 'hint' }, 'host:port of a Zano node you run. Empty uses the public node.')),
         kusInfo.available && h('label', { class: 'field' }, h('span', {}, 'Kusari node'), kusNode, h('div', { class: 'hint' }, 'host:port of a Kusari node (kusarid, RPC port 21081). Kusari has no public node yet, so KUS needs one here.')),
+        h('label', { class: 'field' }, h('span', {}, 'Bitcoin CoinJoin coordinator'), coordinator, h('div', { class: 'hint' }, 'The server that runs the CoinJoin rounds. It sees which coins are in a round, but not which outputs belong to whom. These charge no fee.')),
+        coordinatorRow,
         h('label', { class: 'field' }, h('span', {}, 'Custom Monero node'), node, h('div', { class: 'hint' }, 'Enter your own node if you have one. Empty chooses a public node automatically. Public nodes can see your IP.')),
         h('label', { class: 'field' }, h('span', {}, 'TronGrid API key'), key, h('div', { class: 'hint' }, 'Works without one. Add a free key if lookups are often limited.')),
         h('label', { class: 'field' }, h('span', {}, 'Auto-lock (minutes)'), auto),

@@ -94,7 +94,7 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
     r.write('{"tls":'); r.end('true}'); // two writes make it a chunked reply
   });
   await new Promise((r) => tlsServer.listen(0, '127.0.0.1', r));
-  const plain = http.createServer((q, r) => { let b = ''; q.on('data', (c) => { b += c; }); q.on('end', () => { r.write(JSON.stringify({ method: q.method, url: q.url, body: b, key: q.headers['x-api-key'], sig: q.headers['x-api-signature'], secret: q.headers['x-api-secret-key'], ref: q.headers['ref-code'], auth: q.headers.authorization, idem: q.headers['idempotency-key'] })); r.end(); }); });
+  const plain = http.createServer((q, r) => { let b = ''; q.on('data', (c) => { b += c; }); q.on('end', () => { r.write(JSON.stringify({ method: q.method, url: q.url, body: b, key: q.headers['x-api-key'], sig: q.headers['x-api-signature'], secret: q.headers['x-api-secret-key'], ref: q.headers['ref-code'], auth: q.headers.authorization, idem: q.headers['idempotency-key'], ua: q.headers['user-agent'], accept: q.headers.accept, route: q.headers['x-kusari-route'], type: q.headers['content-type'] })); r.end(); }); });
   await new Promise((r) => plain.listen(0, '127.0.0.1', r));
   const fwd = await mockSocks({ 'plain.invalid': '127.0.0.1', 'tron.invalid': '127.0.0.1', 'wrong.invalid': '127.0.0.1' });
   const pPlain = await open(`http://plain.invalid:${plain.address().port}`);
@@ -104,7 +104,7 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
   assert.equal((await proxied(pPlain, '/x')).status, 502, 'unresolvable name fails while direct');
   await open(`socks:${new URL(fwd.uri).port}`);
   const echoed = await (await proxied(pPlain, '/json_rpc?a=1', { method: 'POST', body: 'hello', headers: { 'Content-Type': 'application/json', 'X-Api-Signature': 'sig', 'X-API-SECRET-KEY': 'sec', 'Ref-Code': 'ref', 'x-api-key': 'K1', Authorization: 'Bearer a:b', 'Idempotency-Key': 'I1' } })).json();
-  assert.deepEqual(echoed, { method: 'POST', url: '/json_rpc?a=1', body: 'hello', key: 'K1', sig: 'sig', secret: 'sec', ref: 'ref', auth: 'Bearer a:b', idem: 'I1' });
+  assert.deepEqual(echoed, { method: 'POST', url: '/json_rpc?a=1', body: 'hello', key: 'K1', sig: 'sig', secret: 'sec', ref: 'ref', auth: 'Bearer a:b', idem: 'I1', ua: 'KusariWallet', accept: 'application/json', type: 'application/json' });
   assert.deepEqual(await (await proxied(pTls, '/p')).json(), { tls: true });
   assert.ok(fwd.log.every((d) => d.type === 'domain'), 'hostnames reach the proxy unresolved');
   assert.ok(fwd.log.every((d) => d.user), 'every connection names its Tor route');
@@ -113,10 +113,20 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
   await open('newroutes');
   await proxied(pPlain, '/again');
   assert.notEqual(fwd.log.filter((d) => d.host === 'plain.invalid').pop().user, routeBefore, 'a new route after renewing');
+  // CoinJoin requests: each named route its own Tor route, and nothing beyond the plain headers goes out.
+  const cj = (route) => proxied(pPlain, '/wabisabi/status', { method: 'POST', body: '{}', headers: { 'Content-Type': 'application/json; charset=utf-8', 'X-Kusari-Route': route, 'x-api-key': 'K1' } }).then((r) => r.json());
+  const cjFrom = fwd.log.length;
+  const one = await cj('alice-1'); await cj('bob-2'); await cj('alice-1');
+  assert.deepEqual(one, { method: 'POST', url: '/wabisabi/status', body: '{}', type: 'application/json; charset=utf-8' }, 'no user agent, accept, keys or route name sent on');
+  const users = fwd.log.slice(cjFrom).map((d) => d.user);
+  assert.ok(users[0] !== users[1] && users[0] === users[2], 'one Tor route per route name');
+  assert.ok(users.every((u) => u !== routeBefore));
   assert.equal((await proxied(pWrong, '/p')).status, 502, 'certificate for another host is refused');
   await fwd.close();
   assert.equal((await proxied(pPlain, '/x')).status, 502, 'proxy gone: fails, no direct connection');
   await open('socks:0');
+  const tDirect = `http://127.0.0.1:${map[tronUp]}`;
+  assert.equal((await fetch(`${tDirect}/wabisabi/status`, { method: 'POST', body: '{}', headers: { Origin: origin, 'X-Kusari-Route': 'alice-1' } })).status, 502, 'CoinJoin requests never go out without Tor');
   tlsServer.close(); plain.close();
   console.log('ok forwarder over SOCKS: hostnames unresolved, TLS verified, chunked replies, no fallback');
 

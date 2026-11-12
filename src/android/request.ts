@@ -19,10 +19,12 @@ export async function getJson(url: string, opts: { headers?: Record<string, stri
   return res.json();
 }
 
-export async function requestJson(url: string, opts: { method?: 'GET' | 'POST'; body?: unknown; timeoutMs?: number; headers?: Record<string, string> } = {}): Promise<{ status: number; body: any }> {
+export async function requestJson(url: string, opts: { method?: 'GET' | 'POST'; body?: unknown; timeoutMs?: number; headers?: Record<string, string>; plain?: boolean; route?: string } = {}): Promise<{ status: number; body: any }> {
+  // A route name gets its own Tor route in the forwarder, which then sends only the plain headers (see LocalProxy).
+  const routing: Record<string, string> = opts.route ? { 'X-Kusari-Route': opts.route } : {};
   const res = await fetch(route(url), {
     method: opts.method ?? 'GET',
-    headers: { Accept: 'application/json', ...(opts.body === undefined ? {} : { 'Content-Type': 'application/json' }), ...opts.headers },
+    headers: { Accept: 'application/json', ...(opts.body === undefined ? {} : { 'Content-Type': opts.plain ? 'application/json; charset=utf-8' : 'application/json' }), ...opts.headers, ...routing },
     body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
     signal: AbortSignal.timeout(Math.max(opts.timeoutMs ?? 30_000, 45_000)),
   });

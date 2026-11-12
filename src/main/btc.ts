@@ -9,6 +9,8 @@ const { mnemonicToSeedSync } = require('@scure/bip39');
 const btc = require('@scure/btc-signer');
 
 export const BTC_PATH = "m/86'/0'/0'"; // taproot
+/** Coins out of a CoinJoin live in their own account, so they're never spent together with unmixed ones by accident. */
+export const BTC_MIXED_PATH = "m/86'/0'/1'";
 const GAP = 20;
 const GAP_CHANGE = 5;
 const GAP_RECHECK = 3; // past the last used address, on the quick rechecks
@@ -27,12 +29,14 @@ export interface UtxoCoin {
   sign: (draft: BtcDraft, mnemonic: string) => { hex: string; id: string };
   /** Virtual bytes of one input, the largest output, and dust. */
   inputVb: number; outputVb: number; dust: bigint; maxFeeRate: bigint;
+  /** How far past the last used receiving address a full scan looks. */
+  gap?: number;
 }
 export interface BtcHistoryItem { asset: 'BTC' | 'LTC'; hash: string; direction: 'in' | 'out' | 'self'; amount: string; counterparty: string; timestamp: number; status: 'confirmed' | 'pending'; dust: boolean }
 
 /** Public keys only: enough to find addresses and balances, not to spend. */
-export function btcAccountXpub(mnemonic: string): string {
-  return HDKey.fromMasterSeed(mnemonicToSeedSync(mnemonic)).derive(BTC_PATH).publicExtendedKey;
+export function btcAccountXpub(mnemonic: string, path = BTC_PATH): string {
+  return HDKey.fromMasterSeed(mnemonicToSeedSync(mnemonic)).derive(path).publicExtendedKey;
 }
 
 const xOnly = (publicKey: Uint8Array) => publicKey.slice(1);
@@ -127,6 +131,8 @@ export class BtcClient {
   }
 
   get receiveAddress(): string { return this.addressAt(0, this.state?.nextReceive ?? 0); }
+  /** The first receiving address index not seen in use, as of the last scan. */
+  get nextReceiveIndex(): number { return this.state?.nextReceive ?? this.nexts.get('taproot0') ?? 0; }
 
   /** A server that said "too many requests" is left alone for a while. */
   private async get(path: string): Promise<any> {
@@ -152,7 +158,7 @@ export class BtcClient {
   /** Full: every address up to the gap. Otherwise only addresses seen in use, plus a few after them. */
   private async scanChain(chain: number, out: { utxos: BtcUtxo[]; total: bigint; addresses: Map<string, [number, number]>; used: Set<string> }, full: boolean, usedBefore: Set<string>): Promise<number> {
     const key = `taproot${chain}`;
-    const fullGap = chain === 0 ? GAP : GAP_CHANGE;
+    const fullGap = chain === 0 ? this.coin.gap ?? GAP : GAP_CHANGE;
     const gap = full ? fullGap : GAP_RECHECK;
     const known = this.nexts.get(key) ?? 0;
     let next = full ? 0 : known;
@@ -298,8 +304,8 @@ export class BtcClient {
   }
 }
 
-export function signBtcDraft(draft: BtcDraft, mnemonic: string): { hex: string; id: string } {
-  const taproot = HDKey.fromMasterSeed(mnemonicToSeedSync(mnemonic)).derive(BTC_PATH);
+export function signBtcDraft(draft: BtcDraft, mnemonic: string, path = BTC_PATH): { hex: string; id: string } {
+  const taproot = HDKey.fromMasterSeed(mnemonicToSeedSync(mnemonic)).derive(path);
   const tx = new btc.Transaction();
   const keys: Uint8Array[] = [];
   for (const u of draft.inputs) {
@@ -323,10 +329,12 @@ export function signBtcDraft(draft: BtcDraft, mnemonic: string): { hex: string; 
 }
 
 export const BITCOIN: UtxoCoin = {
-  symbol: 'BTC', address: (pub) => btc.p2tr(xOnly(pub)).address, sign: signBtcDraft,
+  symbol: 'BTC', address: (pub) => btc.p2tr(xOnly(pub)).address, sign: (d, m) => signBtcDraft(d, m),
   // A higher fee rate from an API is treated as broken.
   inputVb: 57.5, outputVb: 43, dust: DUST, maxFeeRate: 300n,
 };
+/** The CoinJoin account: rounds that fail leave unused addresses behind, so it looks further ahead. */
+export const BITCOIN_MIXED: UtxoCoin = { ...BITCOIN, sign: (d, m) => signBtcDraft(d, m, BTC_MIXED_PATH), gap: 100 };
 
 // ---- Litecoin ----
 

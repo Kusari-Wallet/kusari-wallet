@@ -1,12 +1,12 @@
 {
   "name": "kusari-wallet",
-  "version": "0.51.0",
+  "version": "0.52.0",
   "description": "XMR, BTC, ETH, TRX, USDT wallet",
   "main": "dist/main/main.js",
   "scripts": {
     "build": "node scripts/gen-keys.js && tsc -p tsconfig.json && tsc -p tsconfig.renderer.json && node scripts/copy-assets.js",
     "start": "npm run build && electron .",
-    "test": "npm run build && node --test tests/unit.test.js tests/tron.test.js tests/monero-busy.test.js tests/tor.test.js tests/swap.test.js tests/btc.test.js tests/eth.test.js tests/privacy.test.js tests/tornado.test.js tests/wallets.test.js tests/prices.test.js tests/buy.test.js tests/bch.test.js tests/ltc.test.js tests/scrt.test.js tests/tokens.test.js tests/dex.test.js tests/near.test.js tests/mweb.test.js tests/balances.test.js tests/dash.test.js tests/firo.test.js tests/locales.test.js tests/doge.test.js tests/sol.test.js tests/zec.test.js tests/zano.test.js tests/arrr.test.js tests/spark.test.js tests/ada.test.js tests/coinjoin.test.js tests/tcp-bridge.test.js tests/tor-bridges.test.js tests/kusari-coin.test.js tests/kusari.test.js tests/kusari-zano.test.js",
+    "test": "npm run build && node --test tests/unit.test.js tests/tron.test.js tests/monero-busy.test.js tests/tor.test.js tests/swap.test.js tests/btc.test.js tests/eth.test.js tests/privacy.test.js tests/tornado.test.js tests/wallets.test.js tests/prices.test.js tests/buy.test.js tests/bch.test.js tests/ltc.test.js tests/scrt.test.js tests/tokens.test.js tests/dex.test.js tests/near.test.js tests/mweb.test.js tests/balances.test.js tests/dash.test.js tests/firo.test.js tests/locales.test.js tests/doge.test.js tests/sol.test.js tests/zec.test.js tests/zano.test.js tests/arrr.test.js tests/spark.test.js tests/ada.test.js tests/coinjoin.test.js tests/tcp-bridge.test.js tests/tor-bridges.test.js tests/wabisabi.test.js tests/btc-mix.test.js tests/kusari-coin.test.js tests/kusari.test.js tests/kusari-zano.test.js",
     "test:monero": "npm run build && node tests/monero-regtest.js",
     "dist:win": "npm run build && electron-builder --win",
     "dist:linux": "npm run build && electron-builder --linux dir",
@@ -120,6 +120,10 @@
         "filter": [
           "**/*"
         ]
+      },
+      {
+        "from": "THIRD-PARTY-NOTICES.md",
+        "to": "THIRD-PARTY-NOTICES.md"
       }
     ],
     "win": {

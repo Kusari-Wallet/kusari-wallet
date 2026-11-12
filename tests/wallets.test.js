@@ -165,3 +165,18 @@ test('your own Bitcoin server and Zano node are checked and kept', async (t) => 
   await s.updateSettings({ customBtcServer: '', customZanoNode: '' });
   assert.equal(s.settings.customBtcServer, '');
 });
+
+test('CoinJoin: needs an open wallet, and the coordinator setting takes known ones, https or .onion only', async (t) => {
+  const { s } = await make(t);
+  await makeOldWallet(s, PW1, 'one');
+  await assert.rejects(s.btcMixStart(PW1), /locked/, 'nothing happens without an open wallet');
+  assert.equal(s.settings.coinjoinCoordinator, 'https://coinjoin.kruw.io/');
+  await s.updateSettings({ coinjoinCoordinator: 'https://coinjoin.nl/' });
+  assert.equal(s.settings.coinjoinCoordinator, 'https://coinjoin.nl/');
+  await s.updateSettings({ coinjoinCoordinator: 'https://my.coordinator.example' });
+  assert.equal(s.settings.coinjoinCoordinator, 'https://my.coordinator.example/');
+  await s.updateSettings({ coinjoinCoordinator: 'http://abcdefghijklmnopqrstuvwxyz234567abcdefghijklmnopqrstuv.onion' });
+  assert.match(s.settings.coinjoinCoordinator, /\.onion\/$/);
+  await assert.rejects(s.updateSettings({ coinjoinCoordinator: 'http://192.168.1.2:37127' }), /https:\/\/ or an \.onion/);
+  await assert.rejects(s.updateSettings({ coinjoinCoordinator: '' }), /Choose a CoinJoin coordinator/);
+});

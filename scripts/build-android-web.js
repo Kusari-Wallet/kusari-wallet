@@ -40,6 +40,7 @@ const aliasPlugin = {
   for (const f of ['locales.js', 'i18n.js', 'app.js', 'jsQR.js', 'style.css', 'logo.png', 'PretendardVariable.woff2']) fs.copyFileSync(path.join(r, f), path.join(out, f));
   fs.cpSync(path.join(r, 'coins'), path.join(out, 'coins'), { recursive: true });
   fs.copyFileSync(path.join(android, 'index.html'), path.join(out, 'index.html'));
+  fs.copyFileSync(path.join(root, 'THIRD-PARTY-NOTICES.md'), path.join(out, 'THIRD-PARTY-NOTICES.md'));
   // Tor's default bridges, from the same signed bundle as the bridge program (scripts/fetch-lyrebird-android.sh).
   const pt = path.join(root, 'android/pt_config.json');
   if (fs.existsSync(pt)) fs.copyFileSync(pt, path.join(out, 'pt_config.json'));

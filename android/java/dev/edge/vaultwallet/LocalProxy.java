@@ -28,6 +28,8 @@ import javax.net.ssl.SSLSocketFactory;
 final class LocalProxy {
     private static final int MAX_BODY = 64 * 1024 * 1024;
     private static final int MAX_HEADER = 64 * 1024;
+    /** Not a header that's sent: a route name, for requests that must each leave on a Tor route of their own (CoinJoin). */
+    static final String ROUTE = "\u0000route";
 
     private final String allowedOrigin;
     private final Map<String, Integer> ports = new ConcurrentHashMap<>();
@@ -109,6 +111,7 @@ final class LocalProxy {
                 else if ("x-api-signature".equals(name)) swap.put("X-Api-Signature", value);
                 else if ("ref-code".equals(name)) swap.put("Ref-Code", value);
                 else if ("x-changenow-api-key".equals(name)) swap.put("x-changenow-api-key", value);
+                else if ("x-kusari-route".equals(name) && value.matches("[A-Za-z0-9-]{1,64}")) swap.put(ROUTE, value);
                 else if ("content-length".equals(name)) length = Long.parseLong(value);
             }
             if (allowedOrigin != null && origin != null && !allowedOrigin.equals(origin)) { respond(out, 403, null, new byte[0]); return; }
@@ -126,6 +129,8 @@ final class LocalProxy {
 
     private void forward(OutputStream out, String url, String method, String contentType, String apiKey, Map<String, String> swap, byte[] body, String origin) throws IOException {
         int socks = socksPort;
+        // Routed requests are CoinJoin's: they only ever leave through Tor.
+        if (socks <= 0 && swap.containsKey(ROUTE)) { respond(out, 502, origin, new byte[0]); return; }
         if (socks > 0) {
             try {
                 forwardSocks(out, socks, new URL(url), method, contentType, apiKey, swap, body, origin);
@@ -183,7 +188,8 @@ final class LocalProxy {
             int chosen = si.read();
             if (chosen == 2) {
                 // Tor keeps different logins on different routes, so each host gets its own. The login goes no further than the local Tor.
-                byte[] user = (Integer.toHexString(host.hashCode()) + "-" + routeGeneration).getBytes(StandardCharsets.US_ASCII);
+                String routeName = swap.get(ROUTE);
+                byte[] user = (Integer.toHexString(host.hashCode()) + "-" + routeGeneration + (routeName != null ? "-" + routeName : "")).getBytes(StandardCharsets.US_ASCII);
                 ByteArrayOutputStream login = new ByteArrayOutputStream();
                 login.write(new byte[] { 1, (byte) user.length });
                 login.write(user);
@@ -222,10 +228,12 @@ final class LocalProxy {
             boolean defaultPort = url.getPort() <= 0;
             StringBuilder h = new StringBuilder(method).append(' ').append(path).append(" HTTP/1.1\r\n");
             h.append("Host: ").append(host).append(defaultPort ? "" : ":" + port).append("\r\n");
-            h.append("User-Agent: KusariWallet\r\nAccept: application/json\r\nAccept-Encoding: identity\r\nConnection: close\r\n");
+            boolean routed = swap.containsKey(ROUTE);
+            // A routed (CoinJoin) request carries only what Wasabi's own client sends, so it can't be told apart.
+            if (!routed) h.append("User-Agent: KusariWallet\r\nAccept: application/json\r\nAccept-Encoding: identity\r\nConnection: close\r\n");
             if (contentType != null) h.append("Content-Type: ").append(contentType).append("\r\n");
-            if (apiKey != null) h.append("TRON-PRO-API-KEY: ").append(apiKey).append("\r\n");
-            for (Map.Entry<String, String> e : swap.entrySet()) h.append(e.getKey()).append(": ").append(e.getValue()).append("\r\n");
+            if (apiKey != null && !routed) h.append("TRON-PRO-API-KEY: ").append(apiKey).append("\r\n");
+            for (Map.Entry<String, String> e : swap.entrySet()) if (!routed && !ROUTE.equals(e.getKey())) h.append(e.getKey()).append(": ").append(e.getValue()).append("\r\n");
             if ("POST".equals(method)) h.append("Content-Length: ").append(body.length).append("\r\n");
             h.append("\r\n");
             o.write(h.toString().getBytes(StandardCharsets.ISO_8859_1));

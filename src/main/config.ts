@@ -131,6 +131,8 @@ export interface Settings {
   customZanoNode: string;
   /** host:port of a Kusari node (kusarid). Kusari has no public node yet. */
   customKusariNode: string;
+  /** The CoinJoin coordinator for Bitcoin, as its address. */
+  coinjoinCoordinator: string;
   tronApiKey: string;
   autoLockMinutes: number;
   showPrices: boolean;
@@ -149,6 +151,7 @@ export const DEFAULT_SETTINGS: Settings = {
   customBtcServer: '',
   customZanoNode: '',
   customKusariNode: '',
+  coinjoinCoordinator: 'https://coinjoin.kruw.io/',
   tronApiKey: '',
   autoLockMinutes: 10,
   showPrices: true,
