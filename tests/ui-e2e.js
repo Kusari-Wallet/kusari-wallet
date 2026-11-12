@@ -51,13 +51,27 @@ const PASSWORD = 'correct horse battery';
   const camVideo = path.join(os.tmpdir(), `vw-cam-${process.pid}.y4m`);
   qrVideo(`tron:${RECIPIENT}?amount=2.5`, camVideo);
   const socks = await mockSocks();
+  // A stand-in CoinJoin coordinator; the round itself is made when the test starts mixing.
+  let cjCoord = null;
+  const cjServer = require('node:http').createServer((q, r) => {
+    let b = ''; q.on('data', (c) => { b += c; });
+    q.on('end', async () => {
+      r.setHeader('content-type', 'application/json; charset=utf-8');
+      try {
+        if (!cjCoord) { r.end(JSON.stringify({ roundStates: [] })); return; }
+        const out = await cjCoord.transport.post(q.url.replace(/^\/wabisabi\//, ''), JSON.parse(b || '{}'), q.headers['user-agent'] ? 'ua-sent' : 'plain');
+        r.end(JSON.stringify(out));
+      } catch (e) { r.statusCode = 500; r.end(JSON.stringify({ type: 'wabisabi-protocol-violation', errorCode: e.code ?? 'Error', description: e.message, exceptionData: { Type: 'EmptyExceptionData' } })); }
+    });
+  });
+  await new Promise((res) => cjServer.listen(0, '127.0.0.1', res));
   const connectionsToNode = [];
   server.on('connection', (c) => connectionsToNode.push(c.remotePort));
   const data = fs.mkdtempSync(path.join(os.tmpdir(), 'vw-ui-'));
   const externalLog = path.join(data, 'external-links.txt');
   const launch = () => _electron.launch({
     args: ['--no-sandbox', '--use-fake-device-for-media-stream', `--use-file-for-fake-video-capture=${camVideo}`, path.join(__dirname, '..')],
-    env: { ...process.env, VAULT_WALLET_DATA: data, VAULT_DEV_EXTERNAL_LOG: externalLog, VAULT_DEV_TRON_HOST: `http://127.0.0.1:${server.address().port}`, VAULT_DEV_SOCKS: socks.uri, VAULT_DEV_BTC_API: `http://127.0.0.1:${server.address().port}/btc`, VAULT_DEV_TORNADO: JSON.stringify({ 0.1: '0x12D66f87A04A9E220743712cE6d9bB1B5616B8Fc', 1: '0x47CE0C6eD5B0Ce3d3A51fdb1C52DC66a7c3c2936' }), VAULT_DEV_DASH_API: `http://127.0.0.1:${server.address().port}/dash`, VAULT_DEV_SOL_RPC: `http://127.0.0.1:${server.address().port}/sol`, VAULT_DEV_DOGE_API: `http://127.0.0.1:${server.address().port}/doge`, VAULT_DEV_ADA_API: `http://127.0.0.1:${server.address().port}/ada`, VAULT_DEV_FIRO_API: `http://127.0.0.1:${server.address().port}/dash-firo`, VAULT_DEV_ZEC_BIN: path.join(__dirname, 'fake-zec-engine.js'), VAULT_DEV_ZANO_BIN: path.join(__dirname, 'fake-zano-engine.js'), VAULT_DEV_ARRR_BIN: path.join(__dirname, 'fake-arrr-engine.js'), VAULT_DEV_MWEB_BIN: path.join(__dirname, 'fake-mweb-engine.js'), ...(spark ? { VAULT_DEV_SPARK_BIN: SPARK_ENGINE, VAULT_DEV_SPARK_SERVER: `127.0.0.1:${spark.port}` } : {}), VAULT_DEV_ETH_RPC: `http://127.0.0.1:${server.address().port}/eth/rpc`, VAULT_DEV_ETH_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_LTC_API: `http://127.0.0.1:${server.address().port}/btc`, VAULT_DEV_BCH_API: `http://127.0.0.1:${server.address().port}/bch`, VAULT_DEV_SCRT_LCD: `http://127.0.0.1:${server.address().port}/scrt,http://localhost:${server.address().port}/scrt`, VAULT_DEV_NEAR_RPC: `http://127.0.0.1:${server.address().port}/near/rpc`, VAULT_DEV_NEAR_HISTORY: `http://127.0.0.1:${server.address().port}/near/history`, VAULT_DEV_POL_RPC: `http://127.0.0.1:${server.address().port}/pol/rpc`, VAULT_DEV_POL_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_ARB_RPC: `http://127.0.0.1:${server.address().port}/arb/rpc`, VAULT_DEV_ARB_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_BSC_RPC: `http://127.0.0.1:${server.address().port}/bsc/rpc`, VAULT_DEV_HYPE_RPC: `http://127.0.0.1:${server.address().port}/hype/rpc`, VAULT_DEV_UNISWAP_BASE: `http://127.0.0.1:${server.address().port}/uniswap`, VAULT_DEV_UNISWAP_KEY: 'test-key', VAULT_DEV_BSC_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_SIMPLESWAP_BASE: `http://127.0.0.1:${server.address().port}/simple`, VAULT_DEV_GHOSTSWAP_BASE: `http://127.0.0.1:${server.address().port}/ghost`, VAULT_DEV_SWAP_BASE: `http://127.0.0.1:${server.address().port}/swap`, VAULT_DEV_PRICE_URL: `http://127.0.0.1:${server.address().port}/simple/price`, NO_PROXY: '*' },
+    env: { ...process.env, VAULT_WALLET_DATA: data, VAULT_DEV_EXTERNAL_LOG: externalLog, VAULT_DEV_TRON_HOST: `http://127.0.0.1:${server.address().port}`, VAULT_DEV_SOCKS: socks.uri, VAULT_DEV_BTC_API: `http://127.0.0.1:${server.address().port}/btc`, VAULT_DEV_COINJOIN: `http://127.0.0.1:${cjServer.address().port}/`, VAULT_DEV_COINJOIN_TEST: JSON.stringify({ pollMs: 300, registrationMarginMs: 2000, minInputs: 3 }), VAULT_DEV_TORNADO: JSON.stringify({ 0.1: '0x12D66f87A04A9E220743712cE6d9bB1B5616B8Fc', 1: '0x47CE0C6eD5B0Ce3d3A51fdb1C52DC66a7c3c2936' }), VAULT_DEV_DASH_API: `http://127.0.0.1:${server.address().port}/dash`, VAULT_DEV_SOL_RPC: `http://127.0.0.1:${server.address().port}/sol`, VAULT_DEV_DOGE_API: `http://127.0.0.1:${server.address().port}/doge`, VAULT_DEV_ADA_API: `http://127.0.0.1:${server.address().port}/ada`, VAULT_DEV_FIRO_API: `http://127.0.0.1:${server.address().port}/dash-firo`, VAULT_DEV_ZEC_BIN: path.join(__dirname, 'fake-zec-engine.js'), VAULT_DEV_ZANO_BIN: path.join(__dirname, 'fake-zano-engine.js'), VAULT_DEV_ARRR_BIN: path.join(__dirname, 'fake-arrr-engine.js'), VAULT_DEV_MWEB_BIN: path.join(__dirname, 'fake-mweb-engine.js'), ...(spark ? { VAULT_DEV_SPARK_BIN: SPARK_ENGINE, VAULT_DEV_SPARK_SERVER: `127.0.0.1:${spark.port}` } : {}), VAULT_DEV_ETH_RPC: `http://127.0.0.1:${server.address().port}/eth/rpc`, VAULT_DEV_ETH_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_LTC_API: `http://127.0.0.1:${server.address().port}/btc`, VAULT_DEV_BCH_API: `http://127.0.0.1:${server.address().port}/bch`, VAULT_DEV_SCRT_LCD: `http://127.0.0.1:${server.address().port}/scrt,http://localhost:${server.address().port}/scrt`, VAULT_DEV_NEAR_RPC: `http://127.0.0.1:${server.address().port}/near/rpc`, VAULT_DEV_NEAR_HISTORY: `http://127.0.0.1:${server.address().port}/near/history`, VAULT_DEV_POL_RPC: `http://127.0.0.1:${server.address().port}/pol/rpc`, VAULT_DEV_POL_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_ARB_RPC: `http://127.0.0.1:${server.address().port}/arb/rpc`, VAULT_DEV_ARB_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_BSC_RPC: `http://127.0.0.1:${server.address().port}/bsc/rpc`, VAULT_DEV_HYPE_RPC: `http://127.0.0.1:${server.address().port}/hype/rpc`, VAULT_DEV_UNISWAP_BASE: `http://127.0.0.1:${server.address().port}/uniswap`, VAULT_DEV_UNISWAP_KEY: 'test-key', VAULT_DEV_BSC_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_SIMPLESWAP_BASE: `http://127.0.0.1:${server.address().port}/simple`, VAULT_DEV_GHOSTSWAP_BASE: `http://127.0.0.1:${server.address().port}/ghost`, VAULT_DEV_SWAP_BASE: `http://127.0.0.1:${server.address().port}/swap`, VAULT_DEV_PRICE_URL: `http://127.0.0.1:${server.address().port}/simple/price`, NO_PROXY: '*' },
   });
   let app = await launch();
   let page = await app.firstWindow();
@@ -1031,6 +1045,33 @@ const PASSWORD = 'correct horse battery';
     await page.click('#asset-TRX');
     await page.click('#back');
     console.log('ok Bitcoin coin control: freeze, label, spend only the chosen coin');
+
+    // CoinJoin: mix the coins that aren't frozen through the stand-in coordinator, over Tor.
+    const { mockCoordinator } = require('./mock-wabisabi');
+    await page.click('#asset-BTC');
+    await page.locator('#btc-coinjoin-panel #btc-cj-intro').waitFor({ timeout: 30000 });
+    await page.click('#btc-cj-mix');
+    await page.locator('#btc-cj-count', { hasText: '1' }).waitFor({ timeout: 30000 });
+    assert.match(await page.locator('#btc-cj-amount').innerText(), /0\.003 BTC/, 'the frozen coin is left out');
+    await shot('btc-coinjoin-start');
+    await page.fill('#confirm-pw', 'wrong password');
+    await page.click('#btc-cj-start');
+    await page.locator('.error', { hasText: /password/i }).waitFor({ timeout: 30000 });
+    const bs = require('@scure/btc-signer');
+    cjCoord = mockCoordinator({ utxos: new Map([[`${C}:2`, { value: 300000n, script: bs.OutScript.encode(bs.Address().decode(mineBtc)) }]]), expectInputs: 1, others: 5, inputRegMs: 5000 });
+    await page.fill('#confirm-pw', PASSWORD);
+    await page.click('#btc-cj-start');
+    await page.locator('#btc-cj-stop').waitFor({ timeout: 30000 });
+    await page.locator('#btc-cj-step', { hasText: /Mixing finished|last round finished/ }).waitFor({ timeout: 150000 });
+    assert.equal(cjCoord.state.witnesses.size, 1, 'the coin was signed into the coinjoin');
+    assert.ok(!cjCoord.state.identities.includes('ua-sent'), 'no request carried a user agent');
+    assert.ok(socks.log.filter((d) => d.port === cjServer.address().port).length >= 5, 'the requests went through Tor');
+    const routes = new Set(socks.log.filter((d) => d.port === cjServer.address().port).map((d) => d.user));
+    assert.ok(routes.size >= 4, 'on separate Tor routes');
+    await shot('btc-coinjoin-done');
+    await page.click('#back');
+    await page.locator('#asset-TRX').waitFor();
+    console.log('ok Bitcoin CoinJoin: frozen coin left out, wrong password refused, a round mixed over separate Tor routes');
   }
 
   // Kill switch

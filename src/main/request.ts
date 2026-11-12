@@ -22,12 +22,13 @@ export function newTorRoute(agent?: SocksProxyAgent): void {
 }
 
 /** For APIs that report problems in the response body: returns the status instead of throwing on it. */
-export function requestJson(url: string, opts: { method?: 'GET' | 'POST'; body?: unknown; agent?: Agent; timeoutMs?: number; headers?: Record<string, string> } = {}): Promise<{ status: number; body: any }> {
+export function requestJson(url: string, opts: { method?: 'GET' | 'POST'; body?: unknown; agent?: Agent; timeoutMs?: number; headers?: Record<string, string>; plain?: boolean; route?: string } = {}): Promise<{ status: number; body: any }> {
   return new Promise((resolve, reject) => {
     const lib = url.startsWith('https:') ? https : http;
     const payload = opts.body === undefined ? undefined : JSON.stringify(opts.body);
-    const headers: Record<string, string> = { Accept: 'application/json', 'User-Agent': 'KusariWallet', ...opts.headers };
-    if (payload) { headers['Content-Type'] = 'application/json'; headers['Content-Length'] = String(Buffer.byteLength(payload)); }
+    // Plain: only what a .NET HttpClient sends, so CoinJoin requests look like everyone else's.
+    const headers: Record<string, string> = opts.plain ? {} : { Accept: 'application/json', 'User-Agent': 'KusariWallet', ...opts.headers };
+    if (payload) { headers['Content-Type'] = opts.plain ? 'application/json; charset=utf-8' : 'application/json'; headers['Content-Length'] = String(Buffer.byteLength(payload)); }
     const req = lib.request(url, { method: opts.method ?? 'GET', headers, agent: opts.agent }, (res) => {
       const chunks: Buffer[] = [];
       res.on('data', (c: Buffer) => chunks.push(c));

@@ -127,6 +127,8 @@ export interface Settings {
   /** The person's own servers: a BTC Esplora/mempool API, a Zano node. Empty uses the public ones. */
   customBtcServer: string;
   customZanoNode: string;
+  /** The CoinJoin coordinator for Bitcoin, as its address. */
+  coinjoinCoordinator: string;
   tronApiKey: string;
   autoLockMinutes: number;
   showPrices: boolean;
@@ -144,6 +146,7 @@ export const DEFAULT_SETTINGS: Settings = {
   customMoneroNode: '',
   customBtcServer: '',
   customZanoNode: '',
+  coinjoinCoordinator: 'https://coinjoin.kruw.io/',
   tronApiKey: '',
   autoLockMinutes: 10,
   showPrices: true,

@@ -13,7 +13,7 @@ import type { Wallet as EvmWallet } from 'ethers';
 import { DexCall, DexId, DexQuote, NATIVE, UNISWAP_CHAINS, UniswapClient, approvalCalls, narrowPermit, pancakeQuote, pancakeSwapCall } from './dex';
 import { NearClient, NearDraft, isNearAccount, nearPublicKey } from './near';
 import { ScrtClient, ScrtDraft, isScrtAddress, scrtPrivacyKeys, scrtPublicKey } from './scrt';
-import { BtcClient, BtcDraft, LITECOIN, btcAccountXpub, coinId, estimateVbytes, isBtcAddress, isLtcAddress, ltcAccountXpub } from './btc';
+import { BITCOIN_MIXED, BTC_MIXED_PATH, BTC_PATH, BtcClient, BtcDraft, LITECOIN, btcAccountXpub, coinId, estimateVbytes, isBtcAddress, isLtcAddress, ltcAccountXpub } from './btc';
 import { PRICE_SOURCES, PriceMap, PriceSource, coingecko, mirror } from './prices';
 import { DEPOSIT_GAS, TORNADO_POOLS, TornadoNote, TornadoStore, WITHDRAW_GAS, abi as tornadoAbi, checkRelayerUrl, denomination, noteSecrets, noteText, relayerFee, relayerStatus, relayerSubmit, tornadoEngineCheck } from './tornado';
 import { runTornado } from './tornado-run';
@@ -35,6 +35,8 @@ import { SOL_FEE, SPL_TOKENS, SolClient, SolDraft, SolUsdtDraft, SplAsset, isSol
 import { DASH_DUST, DashClient, DashDraft, dashAccountXpub, dashFee, isDashAddress, signDashOutputs, typicalDashFee } from './dash';
 import { DashMixer, MIX_ROUNDS, SplitPlan } from './dash-mix';
 import { tcpDial } from './dash-net';
+import { BtcMixer, COINJOIN_COORDINATORS, MAX_COINS_PER_ROUND } from './btc-mix';
+import { identificationKey } from './wabisabi/round';
 import type { InsightUtxo } from './insight';
 import { ARBITRUM, BSC, HYPEREVM, EvmChain, EthAsset, EthClient, EthDraft, POLYGON, chainOf, deriveEthAccount, isEthAddress } from './eth';
 import { TorManager } from './tor';
@@ -65,6 +67,8 @@ export function isLocalServer(url: string): boolean {
  * could read or change it: an .onion address, or the person's own network.
  */
 const COIN_ID = /^[0-9a-f]{64}:\d{1,6}$/;
+const btcScript = (address: string): Uint8Array => { const b = require('@scure/btc-signer'); return b.OutScript.encode(b.Address().decode(address)); };
+const btcScriptOfKey = (pub: Uint8Array): string => { const b = require('@scure/btc-signer'); return Buffer.from(b.p2tr(pub.slice(1)).script).toString('hex'); };
 
 export function checkOwnServer(raw: string): string {
   const v = raw.trim().replace(/\/+$/, '');
@@ -112,6 +116,7 @@ interface Preview {
   tron?: TronTransfer;
   monero?: MoneroDraft;
   btc?: BtcDraft;
+  btcMixed?: BtcDraft;
   ltc?: BtcDraft;
   mweb?: MwebDraft;
   pegin?: PeginDraft;
@@ -159,6 +164,10 @@ export class WalletService extends EventEmitter {
   private tron: TronClient | null = null;
   private monero: MoneroClient | null = null;
   private btc: BtcClient | null = null;
+  /** The CoinJoin account and the mixer that fills it. */
+  private btcMixed: BtcClient | null = null;
+  private btcMixer: BtcMixer | null = null;
+  private btcMixedBalance: { total: bigint; spendable: bigint } | null = null;
   private ltc: BtcClient | null = null;
   private sscrtNeedsKey = false;
   private scrt: ScrtClient | null = null;
@@ -203,7 +212,7 @@ export class WalletService extends EventEmitter {
   settings: Settings = { ...DEFAULT_SETTINGS };
 
   constructor(private readonly baseDir: string, private readonly kdf?: { N: number; r: number; p: number }, private readonly dev: {
-    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; bchApi?: string; ltcApi?: string; scrtLcd?: string; nearRpc?: string; nearHistory?: string; polRpc?: string; polScout?: string; polUsdt?: string; arbRpc?: string; arbScout?: string; arbUsdt?: string; bscRpc?: string; bscScout?: string; hypeRpc?: string; uniswapKey?: string; uniswapBase?: string; dashApi?: string; dashSeeds?: string[]; dashConnect?: string; firoApi?: string; solRpc?: string; dogeApi?: string; dogeBackup?: string; adaApi?: string; zecBin?: string; zecServers?: string[]; zanoBin?: string; zanoNode?: string; arrrBin?: string; arrrServers?: string[]; mwebBin?: string; mwebConnect?: string; sparkBin?: string; sparkServer?: string; sparkConnect?: string; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; etzSwapBase?: string; cceCashBase?: string; changeNowBase?: string; quoteDeadlineMs?: number; btcApi?: string;
+    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; bchApi?: string; ltcApi?: string; scrtLcd?: string; nearRpc?: string; nearHistory?: string; polRpc?: string; polScout?: string; polUsdt?: string; arbRpc?: string; arbScout?: string; arbUsdt?: string; bscRpc?: string; bscScout?: string; hypeRpc?: string; uniswapKey?: string; uniswapBase?: string; dashApi?: string; dashSeeds?: string[]; dashConnect?: string; firoApi?: string; solRpc?: string; dogeApi?: string; dogeBackup?: string; adaApi?: string; zecBin?: string; zecServers?: string[]; zanoBin?: string; zanoNode?: string; arrrBin?: string; arrrServers?: string[]; mwebBin?: string; mwebConnect?: string; sparkBin?: string; sparkServer?: string; sparkConnect?: string; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; etzSwapBase?: string; cceCashBase?: string; changeNowBase?: string; quoteDeadlineMs?: number; btcApi?: string; coinjoinCoordinator?: string; coinjoinTest?: { pollMs?: number; registrationMarginMs?: number; minInputs?: number };
     /** Android: every outside address goes through the app's local forwarder. */
     route?: (url: string) => string;
     moneroStore?: (net: NetworkId, walletId: string) => MoneroOptions['store'];
@@ -418,6 +427,14 @@ export class WalletService extends EventEmitter {
     try { this.btc.importHints(JSON.parse(await fs.readFile(scanFile, 'utf8') as unknown as string)); } catch { /* first time */ }
     this.btc.onHints = (hints) => { void fs.mkdir(this.dir, { recursive: true }).then(() => fs.writeFile(scanFile, JSON.stringify(hints), { mode: 0o600 })).catch(() => undefined); };
     if (!this.torNotReady) void this.btc.refresh().catch(() => undefined);
+    // Its own Tor route, so the server can't tie the CoinJoin account's addresses to the regular ones.
+    this.btcMixed = new BtcClient(btcAccountXpub(secrets.tronMnemonic, BTC_MIXED_PATH), this.dev.btcApi ? [this.dev.btcApi] : ownBtc ? [ownBtc] : BTC_APIS, ownBtc && isLocalServer(ownBtc) ? undefined : this.torRoute('btc-mixed'), slow ? 60_000 : 30_000, BITCOIN_MIXED);
+    if (this.dev.btcApi) this.btcMixed.spacingMs = 0;
+    const mixedScanFile = path.join(this.dir, 'btc-mixed-scan.json');
+    try { this.btcMixed.importHints(JSON.parse(await fs.readFile(mixedScanFile, 'utf8') as unknown as string)); } catch { /* first time */ }
+    this.btcMixed.onHints = (hints) => { void fs.mkdir(this.dir, { recursive: true }).then(() => fs.writeFile(mixedScanFile, JSON.stringify(hints), { mode: 0o600 })).catch(() => undefined); };
+    if (!this.torNotReady) void this.btcMixed.refresh().catch(() => undefined);
+    this.startBtcMixer();
     this.ltc = new BtcClient(ltcAccountXpub(secrets.tronMnemonic), this.dev.ltcApi ? [this.dev.ltcApi] : LTC_APIS, this.torRoute('ltc'), slow ? 60_000 : 30_000, LITECOIN);
     if (this.dev.ltcApi) this.ltc.spacingMs = 0;
     this.near = new NearClient(nearPublicKey(secrets.tronMnemonic), this.dev.nearRpc ? [this.dev.nearRpc] : NEAR_RPCS, this.dev.nearHistory ?? [NEAR_HISTORY, NEAR_HISTORY_BACKUP], this.torRoute('near'), slow ? 60_000 : 20_000);
@@ -465,6 +482,71 @@ export class WalletService extends EventEmitter {
    * Dash CoinJoin: mixing runs by itself while the wallet is unlocked, for wallets that have split coins into it.
    * With Tor on, the masternode connections go through Tor too, never directly.
    */
+  /** Bitcoin CoinJoin. It only runs after "Mix BTC" with the password, and stops when the wallet locks. */
+  private startBtcMixer(): void {
+    const btc = this.btc!, mixed = this.btcMixed!;
+    const mixer = new BtcMixer({
+      dir: this.dir,
+      coordinator: () => this.dev.coinjoinCoordinator ?? this.settings.coinjoinCoordinator ?? COINJOIN_COORDINATORS[0].url,
+      newAgent: () => { if (!this.torProxy) return undefined; const a = socksAgent(this.torProxy); newTorRoute(a); return a; },
+      coins: async () => (await btc.coins()).filter((u) => u.confirmed).map((u) => ({ txid: u.txid, vout: u.vout, value: u.value, script: btcScript(u.address) })),
+      firstUnused: () => mixed.nextReceiveIndex,
+      maxFeePerK: async () => { const r = await btc.feeRate().catch(() => 10n); const k = (r * 2n > 5n ? r * 2n : 5n) * 1000n; return k > 50_000n ? 50_000n : k; },
+      canConnect: () => this.torActive && !this.torNotReady,
+      onMixed: () => { void btc.refresh(true).catch(() => undefined); void mixed.refresh(true).catch(() => undefined); this.emit('balance-changed'); },
+      ...(this.dev.coinjoinTest ? { extra: this.dev.coinjoinTest } : {}),
+    });
+    mixer.onChange = () => this.emit('balance-changed');
+    this.btcMixer = mixer;
+  }
+
+  /** What "Mix BTC" would mix: the chosen coins, or every regular coin that isn't frozen, largest first. */
+  async btcMixInfo(coins?: string[]) {
+    const { btc } = this.session();
+    if (!this.btcMixer) throw new Error('CoinJoin is not available.');
+    const frozen = new Set((await this.btcCoinNotes()).frozen);
+    const all = (await btc.coins()).filter((u) => u.confirmed && u.value >= 5000n);
+    const chosen = coins?.length ? all.filter((u) => coins.includes(coinId(u))) : all.filter((u) => !frozen.has(coinId(u)));
+    const use = chosen.sort((a, b) => (b.value > a.value ? 1 : -1));
+    const coordinator = this.settings.coinjoinCoordinator || COINJOIN_COORDINATORS[0].url;
+    return {
+      coins: use.map((u) => coinId(u)), count: use.length, perRound: MAX_COINS_PER_ROUND,
+      amount: formatAmount(use.reduce((s, u) => s + u.value, 0n), 8),
+      coordinator: COINJOIN_COORDINATORS.find((c) => c.url === coordinator)?.name ?? coordinator,
+      tor: this.torActive,
+    };
+  }
+
+  /** Starts mixing. The password unlocks the keys of just these coins, held only while mixing runs. */
+  async btcMixStart(password: string, coins?: string[]): Promise<{ ok: true }> {
+    const { btc } = this.session();
+    if (!this.btcMixer) throw new Error('CoinJoin is not available.');
+    if (!this.torActive) throw new Error('CoinJoin needs Tor. Turn it on in Settings first.');
+    if (this.btcMixer.status.running) throw new Error('Mixing is already running.');
+    const info = await this.btcMixInfo(coins);
+    if (!info.count) throw new Error('No confirmed BTC to mix. Coins need 1 confirmation, at least 0.00005 BTC, and not frozen.');
+    const secrets = await this.vault.open(password);
+    const { HDKey } = require('@scure/bip32');
+    const { mnemonicToSeedSync } = require('@scure/bip39');
+    const root = HDKey.fromMasterSeed(mnemonicToSeedSync(secrets.tronMnemonic));
+    const account = root.derive(BTC_PATH);
+    const coinKeys = new Map<string, Uint8Array>();
+    for (const u of await btc.coins()) {
+      if (!info.coins.includes(coinId(u))) continue;
+      const k = account.deriveChild(u.chain).deriveChild(u.index);
+      if (btcScriptOfKey(k.publicKey) !== Buffer.from(btcScript(u.address)).toString('hex')) throw new Error('A coin does not match this wallet\'s keys, so mixing was stopped.');
+      coinKeys.set(coinId(u), Uint8Array.from(k.privateKey));
+    }
+    const mixedAccount = HDKey.fromExtendedKey(root.derive(BTC_MIXED_PATH).publicExtendedKey);
+    await this.btcMixer.start({ coinKeys, idKey: identificationKey(root.privateKey), mixedAccount });
+    return { ok: true };
+  }
+
+  async btcMixStop(): Promise<void> {
+    this.session();
+    this.btcMixer?.stop();
+  }
+
   private startMixer(secrets: Secrets, slow: boolean): void {
     const devConnect = this.dev.dashConnect?.match(/^(.+):(\d+)$/);
     const real = tcpDial(this.torProxy);
@@ -605,6 +687,9 @@ export class WalletService extends EventEmitter {
     this.lastLookupError.clear();
     this.tron = null;
     this.btc = null;
+    this.btcMixer?.stop();
+    this.btcMixer = null;
+    this.btcMixed = null;
     this.ltc = null;
     this.scrt = null;
     this.near = null;
@@ -782,7 +867,13 @@ export class WalletService extends EventEmitter {
       return { ok: false, pending: true, total: '', spendable: '' };
     };
     const [BTC, XMR, ETH, TRX, USDTE, USDT, SOL, USDTS, LINK, WLD, POL, USDTP, ARB, ETHA, USDTA, BCH, LTC, DOGE, ADA, DASH, FIRO, SCRT, NEAR, SSCRT, ...EXTRA] = await Promise.all([
-      btcSettle(),
+      // BTC is the regular coins plus the CoinJoin account's.
+      Promise.all([btcSettle(), this.btcMixed ? this.btcMixed.getBalance().catch(() => null) : null]).then(([view, m]) => {
+        this.btcMixedBalance = m ?? this.btcMixedBalance;
+        if (!view.ok || !this.btcMixedBalance) return view;
+        const units = (v: string) => (/^0(\.0*)?$/.test(v) ? 0n : parseAmount(v, 8));
+        return { ...view, total: formatAmount(units(view.total) + this.btcMixedBalance.total, 8), spendable: formatAmount(units(view.spendable) + this.btcMixedBalance.spendable, 8) };
+      }),
       settle('XMR', async () => { const b = await monero.getBalance(); return [b.total, b.unlocked]; }, 12),
       settle('ETH', async () => { const b = await eth.getEthBalance(); return [b, b]; }, 18),
       settle('TRX', async () => { const b = await tron.getTrxBalance(); return [b, b]; }, 6, BALANCE_TTL_MS),
@@ -823,6 +914,7 @@ export class WalletService extends EventEmitter {
       balances: { XMR, BTC, ETH, TRX, USDTE, USDT, SOL, USDTS, LINK, WLD, POL, USDTP, ARB, ETHA, USDTA, BCH, LTC, DOGE, ADA, DASH, FIRO, SCRT, NEAR, SSCRT, ...Object.fromEntries(EXTRA_ASSETS.map((a, i) => [a, EXTRA[i]])), ...(zec ? { ZEC: zecView() } : {}), ...(zano ? { ZANO: zanoView() } : {}), ...(arrr ? { ARRR: arrrView() } : {}) },
       sscrt: { needsKey: this.sscrtNeedsKey },
       coinjoin: this.mixer ? { ...this.mixer.status, rounds: MIX_ROUNDS } : null,
+      btcMix: this.btcMixer ? { ...this.btcMixer.status, mixed: formatAmount(this.btcMixedBalance?.total ?? 0n, 8), mixedSpendable: formatAmount(this.btcMixedBalance?.spendable ?? 0n, 8) } : null,
       spark: this.spark ? { ...this.spark.info(), balance: this.spark.balance() ? { total: formatAmount(this.spark.balance()!.total, 8), spendable: formatAmount(this.spark.balance()!.spendable, 8) } : null } : null,
       mweb: this.mweb ? { ...this.mweb.info(), balance: this.mweb.balance() ? { total: formatAmount(this.mweb.balance()!.total, 8), spendable: formatAmount(this.mweb.balance()!.spendable, 8) } : null } : null,
       arrr: arrr ? { scanning: arrr.isScanning, percent: arrr.percent } : null,
@@ -1580,7 +1672,7 @@ export class WalletService extends EventEmitter {
     return { ok: true };
   }
 
-  async prepareSend(asset: Asset, to: string, amountInput: string, opts: { coins?: string[] } = {}) {
+  async prepareSend(asset: Asset, to: string, amountInput: string, opts: { coins?: string[]; fromMixed?: boolean } = {}) {
     const { tron, monero, btc, eth, dash } = this.session();
     if (this.torNotReady) throw new Error('Tor is connecting. Try again once it connects.');
     const address = to.trim();
@@ -1692,10 +1784,19 @@ export class WalletService extends EventEmitter {
       }
     } else if (asset === 'BTC') {
       if (!isBtcAddress(address)) throw new Error('Not a Bitcoin address.');
-      const use = Array.isArray(opts.coins) ? opts.coins.filter((c) => typeof c === 'string' && COIN_ID.test(c)) : [];
-      const draft = await btc.draft(address, isMax ? 'max' : parseAmount(amountInput, decimals), { use, frozen: new Set((await this.btcCoinNotes()).frozen) });
-      if (draft.fee * 2n > draft.amount) warnings.push('The fee is more than half of the amount being sent.');
-      preview = this.storePreview({ asset, to: address, amount: draft.amount, fee: draft.fee, btc: draft });
+      if (opts.fromMixed === true) {
+        // Only mixed coins pay, and the change stays in the CoinJoin account.
+        if (!this.btcMixed) throw new Error('CoinJoin is not available.');
+        const draft = await this.btcMixed.draft(address, isMax ? 'max' : parseAmount(amountInput, decimals));
+        if (draft.fee * 2n > draft.amount) warnings.push('The fee is more than half of the amount being sent.');
+        if (draft.inputs.length > 1) warnings.push('This spends more than one mixed coin together, which shows they belong to one person. Sending each coin on its own keeps them apart.');
+        preview = this.storePreview({ asset, to: address, amount: draft.amount, fee: draft.fee, btcMixed: draft });
+      } else {
+        const use = Array.isArray(opts.coins) ? opts.coins.filter((c) => typeof c === 'string' && COIN_ID.test(c)) : [];
+        const draft = await btc.draft(address, isMax ? 'max' : parseAmount(amountInput, decimals), { use, frozen: new Set((await this.btcCoinNotes()).frozen) });
+        if (draft.fee * 2n > draft.amount) warnings.push('The fee is more than half of the amount being sent.');
+        preview = this.storePreview({ asset, to: address, amount: draft.amount, fee: draft.fee, btc: draft });
+      }
     } else if (isEvm(asset)) {
       if (!isEthAddress(address)) throw new Error('Not an Ethereum address. Only addresses starting with 0x can be used.');
       if (address.toLowerCase() === eth.address.toLowerCase()) throw new Error('You cannot send to your own address.');
@@ -1807,6 +1908,11 @@ export class WalletService extends EventEmitter {
     if (preview.pegin) return { hashes: [await this.mweb!.pegin(preview.pegin, secrets.tronMnemonic)] };
     if (preview.spark) return { hashes: [await this.spark!.send(preview.spark)] };
     if (preview.mint) return { hashes: [await this.spark!.mint(preview.mint, secrets.tronMnemonic, (hex, id) => this.firo!.broadcastSigned(hex, id))] };
+    if (preview.btcMixed) {
+      const hash = await this.btcMixed!.send(preview.btcMixed, secrets.tronMnemonic);
+      this.btcMixedBalance = null;
+      return { hashes: [hash] };
+    }
     if (preview.btc) {
       return { hashes: [await btc.send(preview.btc, secrets.tronMnemonic)] };
     }
@@ -2017,6 +2123,14 @@ export class WalletService extends EventEmitter {
       next.customMoneroNode = node;
     }
     if (typeof patch.customBtcServer === 'string') next.customBtcServer = checkOwnServer(patch.customBtcServer);
+    if (typeof patch.coinjoinCoordinator === 'string') {
+      const c = patch.coinjoinCoordinator.trim();
+      const known = COINJOIN_COORDINATORS.some((k) => k.url === c);
+      const own = known ? c : checkOwnServer(c);
+      if (!own) throw new Error('Choose a CoinJoin coordinator.');
+      if (!known && !/^https:\/\//.test(own) && !/\.onion(:\d+)?(\/|$)/.test(new URL(own).host + '/')) throw new Error('A CoinJoin coordinator has to be https:// or an .onion address.');
+      next.coinjoinCoordinator = known ? c : `${own.replace(/\/+$/, '')}/`;
+    }
     if (typeof patch.customZanoNode === 'string') {
       const node = patch.customZanoNode.trim().replace(/^https?:\/\//, '').replace(/\/$/, '');
       if (node && !/^[A-Za-z0-9.-]+:\d{2,5}$/.test(node)) throw new Error('Enter the Zano node as host:port, for example 192.168.1.5:11211.');
