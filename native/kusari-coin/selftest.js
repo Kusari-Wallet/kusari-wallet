@@ -110,6 +110,7 @@ async function wallets(d, ports, extra) {
 // Step 1: the real mainnet rules. The genesis block, the fork table and the missing Monero checkpoints are only
 // tested here. Difficulty follows the 2-minute target, so this mines just past the switch to version 16.
 async function mainnet() {
+  const last = params.hardForks[params.hardForks.length - 1];
   const d = params.mainnet.ports.rpc + 1000;
   const p = daemon(d, 'mainnet', []);
   await until('daemon', () => rpc(d, 'get_info').then((r) => r.status === 'OK'), 120000);
@@ -119,12 +120,12 @@ async function mainnet() {
   const addr = await wallets(d, [w], []);
   const r = await other(d, '/start_mining', { miner_address: addr[w], threads_count: 2, do_background_mining: false, ignore_battery: true });
   if (r.status !== 'OK') throw new Error(`start_mining: ${r.status}`);
-  await until('mainnet blocks', async () => (await rpc(d, 'get_info')).height >= 4, 1800000);
+  await until('mainnet blocks', async () => (await rpc(d, 'get_info')).height >= last.height + 2, 3600000);
   await other(d, '/stop_mining');
   const fork = await rpc(d, 'hard_fork_info');
-  if (fork.version !== params.hardForks[params.hardForks.length - 1].version) throw new Error(`fork version ${fork.version}`);
-  const b = (await rpc(d, 'get_block_header_by_height', { height: 3 })).block_header;
-  if (b.major_version !== fork.version) throw new Error(`block 3 is version ${b.major_version}`);
+  if (fork.version !== last.version) throw new Error(`fork version ${fork.version}`);
+  const b = (await rpc(d, 'get_block_header_by_height', { height: last.height + 1 })).block_header;
+  if (b.major_version !== fork.version) throw new Error(`block ${last.height + 1} is version ${b.major_version}`);
   await rpc(w, 'refresh');
   const bal = await rpc(w, 'get_balance');
   if (!(bal.balance > 0)) throw new Error('the miner wallet saw no coinbase');

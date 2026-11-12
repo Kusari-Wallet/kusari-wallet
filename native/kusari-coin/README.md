@@ -17,7 +17,7 @@ changed.
 | Testnet / stagenet addresses | `9…` / `5…` | `C…` / `F…` |
 | Ports (P2P, RPC, ZMQ) | 18080, 18081, 18082 | 21080, 21081, 21082 |
 | Network id, genesis | Monero's | new, in `params.json` |
-| Hard forks | v1 … v16 over 2014–2022 | v1 for block 1, v16 from block 2 |
+| Hard forks | v1 … v16 over 2014–2022 | v1 … v16 on blocks 1 … 16, one block each |
 | Checkpoints, compiled block hashes | Monero's | none |
 | Seed nodes, DNS seeds, Tor/I2P seeds | Monero's | none until you add your own |
 | Update check | moneropulse DNS, on | none, off |
@@ -25,8 +25,9 @@ changed.
 | Data folder, binaries | `~/.bitmonero`, `monerod`, `monero-wallet-cli`, `monero-wallet-rpc` | `~/.kusari`, `kusarid`, `kusari-wallet-cli`, `kusari-wallet-rpc` |
 
 The genesis output goes to a key whose secret was thrown away when `make-params.js` ran, so there is no premine and
-nobody can spend it. The first block is version 1 (CryptoNight) because Monero's genesis code makes it so; from block 2
-the chain uses version 16 and RandomX.
+nobody can spend it. Blocks 1 to 15 step through Monero's versions 1 to 15, one block each, and from block 16 the chain
+uses version 16. Skipping versions would be simpler, but Monero's wallet looks the fork table up by version number and
+refuses blocks when one is missing.
 
 Changing the hash domain separators (`SubAddr`, `CLSAG_*` and the others) is not needed for a chain with its own
 genesis, and they are kept so Monero libraries keep working with only the prefixes changed.
@@ -38,7 +39,7 @@ genesis, and they are kept so Monero libraries keep working with only the prefix
   launch. It refuses to overwrite without `--force`.
 - `prepare.js`: applies `params.json` to a Monero checkout.
 - `selftest.js`: with the built binaries, starts an offline private mainnet from the genesis and mines past the switch
-  to version 16, then on regtest (same code, genesis and prefixes, fixed difficulty) mines 120 blocks and sends 1 KUS
+  to version 16 at block 16, then on regtest (same code, genesis and prefixes, fixed difficulty) mines 120 blocks and sends 1 KUS
   from one wallet to another wallet's subaddress. Real difficulty follows the 2-minute target, so mining enough
   unlocked outputs for a ring of 16 on mainnet would take hours.
 - `lib.js`: Monero's base58, Keccak-256, varints and the genesis transaction layout, in plain Node.

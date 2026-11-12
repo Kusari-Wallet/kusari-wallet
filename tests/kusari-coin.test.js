@@ -69,7 +69,7 @@ test('params are a separate chain from Monero', () => {
       ports.add(port);
     }
   }
-  assert.deepStrictEqual(p.hardForks.map((f) => [f.version, f.height]), [[1, 1], [16, 2]]);
+  assert.deepStrictEqual(p.hardForks.map((f) => [f.version, f.height]), Array.from({ length: 16 }, (_, i) => [i + 1, i + 1]));
 });
 
 test('params that would break the chain are refused', () => {
@@ -87,6 +87,8 @@ test('params that would break the chain are refused', () => {
   assert.throws(tryParams((p) => { p.testnet.networkId = p.mainnet.networkId; }), /differ/);
   assert.throws(tryParams((p) => { p.mainnet.genesisTx = p.mainnet.genesisTx + '00'; }), /trailing/);
   assert.throws(tryParams((p) => { p.hardForks[1].height = 1; }), /increase/);
+  assert.throws(tryParams((p) => { p.hardForks.splice(1, 14); p.hardForks[1].height = 2; }), /without gaps/);
+  assert.throws(tryParams((p) => { p.hardForks.pop(); }), /version 16/);
   assert.throws(tryParams((p) => { p.mainnet.seedNodes = ['1.2.3.4:21080"); evil("']; }), /seed node/);
   assert.throws(tryParams((p) => { p.binaryPrefix = 'a b'; }), /names/);
   fs.rmSync(dir, { recursive: true, force: true });

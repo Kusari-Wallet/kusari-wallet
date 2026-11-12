@@ -40,11 +40,9 @@ const params = {
   dataDirName: 'kusari',
   binaryPrefix: 'kusari',
   messageSigningKey: 'KusariMessageSignature',
-  // Version 1 for block 1 only, then Monero's current rules (v16: RandomX, CLSAG, Bulletproofs+, view tags, ring 16).
-  hardForks: [
-    { version: 1, height: 1, time: launch },
-    { version: 16, height: 2, time: launch + 1 },
-  ],
+  // Monero's versions 1 to 16 one block each, so Monero's current rules (v16: RandomX, CLSAG, Bulletproofs+,
+  // view tags, ring 16) apply from block 16. Monero's wallet looks forks up by version, so none may be skipped.
+  hardForks: Array.from({ length: 16 }, (_, i) => ({ version: i + 1, height: i + 1, time: launch + i })),
   mainnet: net({ address: 110, integrated: 111, subaddress: 116 }, { p2p: 21080, rpc: 21081, zmq: 21082 }, 10000),
   testnet: net({ address: 66, integrated: 67, subaddress: 72 }, { p2p: 31080, rpc: 31081, zmq: 31082 }, 10001),
   stagenet: net({ address: 84, integrated: 85, subaddress: 90 }, { p2p: 41080, rpc: 41081, zmq: 41082 }, 10002),

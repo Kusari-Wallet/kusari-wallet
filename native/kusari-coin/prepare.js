@@ -30,6 +30,9 @@ function load(paramsPath) {
     if (!(b.version > a.version && b.height > a.height && b.time > a.time)) throw new Error('hard forks must increase');
   }
   if (p.hardForks[0].version !== 1 || p.hardForks[0].height !== 1) throw new Error('the first hard fork must be version 1 at height 1');
+  // wallet2's check_block_hard_fork_version reads the table at index version - 1.
+  if (p.hardForks.some((f, i) => f.version !== i + 1)) throw new Error('hard fork versions must run 1, 2, 3 … without gaps');
+  if (p.hardForks[p.hardForks.length - 1].version !== 16) throw new Error('the last hard fork must be Monero\'s current version 16');
   if (!/^[a-z][a-z0-9-]*$/.test(p.binaryPrefix) || !/^[a-z][a-z0-9-]*$/.test(p.dataDirName)) throw new Error('bad names');
   if (!/^[A-Za-z]+$/.test(p.messageSigningKey)) throw new Error('bad message signing key');
   return p;
