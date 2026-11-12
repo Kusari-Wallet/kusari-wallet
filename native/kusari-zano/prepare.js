@@ -65,9 +65,9 @@ function edits(p, genesis) {
   add(cfg, /#define PREMINE_AMOUNT(\s+)\(17517203000000000000U\)[^\n]*/, `#define PREMINE_AMOUNT$1(${BigInt(p.genesis.amount) * 10n ** 12n}U) // the genesis output, burned`);
   add(cfg, '"https://api.zano.org/assets_whitelist.json"', '""');
   add(cfg, '"https://api.zano.org/assets_whitelist_testnet.json"', '""');
-  // A new chain runs every Zano hard fork from its first block instead of replaying Zano's history.
+  // A new chain runs the hard forks Zano's mainnet has (1 to 5) from its first block instead of replaying its history.
   add(cfg, /\/\/ Mainnet\n#define ZANO_HARDFORK_01_AFTER_HEIGHT[\s\S]*?#define ZANO_HARDFORK_06_MIN_BUILD_VER\s+382\n/, [
-    '// Mainnet (Kusari: every fork from the first block)',
+    '// Mainnet (Kusari: forks 1 to 5 from the first block)',
     '#define ZANO_HARDFORK_01_AFTER_HEIGHT                   0',
     '#define ZANO_HARDFORK_02_AFTER_HEIGHT                   0',
     '#define ZANO_HARDFORK_03_AFTER_HEIGHT                   0',
@@ -78,7 +78,7 @@ function edits(p, genesis) {
     '#define ZANO_HARDFORK_05_AFTER_HEIGHT                   0',
     '#define ZANO_HARDFORK_05_MIN_BUILD_VER                  382',
     '',
-    '#define ZANO_HARDFORK_06_AFTER_HEIGHT                   0',
+    '#define ZANO_HARDFORK_06_AFTER_HEIGHT                   999999999999999999 // not active on Zano\'s mainnet either',
     '#define ZANO_HARDFORK_06_MIN_BUILD_VER                  382',
     '',
   ].join('\n'));
@@ -94,6 +94,11 @@ function edits(p, genesis) {
   add('src/common/pre_download.h', /#ifndef TESTNET\n(  static constexpr pre_download_entry [^\n]*\n){4}#else\n(  static constexpr pre_download_entry [^\n]*\n){4}#endif/,
     ['', '_mdbx', '_lmdb', '_mdbx_unpruned', '_lmdb_unpruned'].slice(1).map((n) => `  static constexpr pre_download_entry c_pre_download${n} = { "", "", 0, 0 };`).join('\n'));
 
+  // Zano's genesis tool gives every payment a second, empty address, which makes the output a multisig one that
+  // needs no signature. One address per payment makes it an ordinary output to that address.
+  add('src/connectivity_tool/conn_tool.cpp', '  de.addr.resize(1);\n', '');
+  add('src/connectivity_tool/conn_tool.cpp', '    de.addr.push_back(addr);\n', '    de.addr.assign(1, addr);\n');
+
   // Binary names.
   add('src/CMakeLists.txt', 'set_property(TARGET daemon PROPERTY OUTPUT_NAME "zanod")',
     'set_property(TARGET daemon PROPERTY OUTPUT_NAME "kusarid")\nset_property(TARGET simplewallet PROPERTY OUTPUT_NAME "kusari-wallet")');
@@ -107,6 +112,8 @@ function edits(p, genesis) {
 
     add('src/currency_core/genesis.h', /#ifndef TESTNET\n  struct genesis_tx_raw_data\n  \{\n    uint64_t const v\[\d+\];\n    uint8_t const r\[\d+\];\n  \};\n\n#else\n  struct genesis_tx_raw_data\n  \{\n    uint64_t const v\[\d+\];\n    uint8_t const r\[\d+\];\n  \};\n#endif/,
       `  struct genesis_tx_raw_data\n  {\n    uint64_t const v[${genesis.words}];\n    uint8_t const r[${genesis.tail}];\n  };`);
+    add('src/currency_core/genesis_acc.h', '#ifndef TESTNET\nextern const genesis_tx_dictionary_entry ggenesis_dict[26];\n#else\nextern const genesis_tx_dictionary_entry ggenesis_dict[5];\n#endif',
+      `extern const genesis_tx_dictionary_entry ggenesis_dict[${genesis.entries}];`);
     list.push({ file: 'src/currency_core/genesis.cpp', whole: genesis.cpp });
     list.push({ file: 'src/currency_core/genesis_acc.cpp', whole: genesis.acc });
   }
@@ -127,6 +134,7 @@ function loadGenesis(dir) {
   if (!pub || !entries.length) throw new Error('genesis.dictionary.txt is not what make-genesis.sh writes');
   const header = '// Kusari genesis, made by native/kusari-zano/make-genesis.sh from params.json.\n// Distributed under the MIT/X11 software license, see the accompanying\n// file COPYING or http://www.opensource.org/licenses/mit-license.php.\n';
   return {
+    entries: entries.length,
     words: words.length,
     tail: Math.max(tail.length, 1),
     cpp: `${header}#include "genesis.h"\n\nnamespace currency\n{\n  const genesis_tx_raw_data ggenesis_tx_raw = { {\n    ${words.join(',')} },\n    { ${(tail.length ? tail : ['0x00']).join(',')} } };\n}\n`,

@@ -12,10 +12,11 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 node -e '
 const p = require(process.argv[1]);
-const cfg = { payments: [{ address_this: p.genesis.burnAddress, amount_this_coin_fl: p.genesis.amount, paid_prm: "0", prm_usd_price: "0" }], proof_string: p.genesis.proof };
-require("fs").writeFileSync(process.argv[2], JSON.stringify(cfg, null, 2));
+// The tool reads the amount as a decimal under amount_this, and wants one paid_ entry per payment.
+const cfg = { payments: [{ address_this: p.genesis.burnAddress, amount_this: 0.5, paid_prm: "0", prm_usd_price: "0" }], proof_string: p.genesis.proof };
+require("fs").writeFileSync(process.argv[2], JSON.stringify(cfg, null, 2).replace("0.5", p.genesis.amount.toFixed(1)));
 ' "$KIT/params.json" "$WORK/genesis.json"
-"$TOOL" --generate-genesis "$WORK/genesis.json" > "$WORK/log.txt" 2>&1 || { cat "$WORK/log.txt"; exit 1; }
+"$TOOL" --do-console-log --generate-genesis "$WORK/genesis.json" > "$WORK/log.txt" 2>&1 || { cat "$WORK/log.txt"; exit 1; }
 mkdir -p "$OUT"
 cp "$WORK/genesis.json" "$OUT/genesis.json"
 cp "$WORK/genesis.json.genesis.txt" "$OUT/genesis.txt"

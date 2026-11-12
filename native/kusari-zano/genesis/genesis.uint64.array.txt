@@ -1,0 +1,14 @@
+--------- genesis.h---------
+#pragma pack(push, 1)
+struct genesis_tx_raw_data
+{
+  uint64_t const v[14];
+  uint8_t const r[4];
+};
+#pragma pack(pop)
+extern const genesis_tx_raw_data ggenesis_tx_raw;
+
+--------- genesis.cpp---------
+const genesis_tx_raw_data ggenesis_tx_raw = {{
+0x94a0800100000101,0x31f9ecfb031d8da5,0x779c8a2ac0622b08,0xffca74bf892defb6,0x27b7fb95020f2efd,0xb11605004521cdad,0x399c7c81a3bced03,0xb89c578d235252f2,0x45c71b3987beab4b,0x13481fe0ab78b9d2,0x2069726173754b19,0x20736973656e6567,0x2d31312d36323032,0xba03020b00153231},
+{0x0e,0x0a,0x00,0x00}};
