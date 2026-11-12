@@ -37,8 +37,10 @@ genesis, and they are kept so Monero libraries keep working with only the prefix
 - `make-params.js`: writes a fresh `params.json` (network ids, genesis transactions, fork times). Run once before
   launch. It refuses to overwrite without `--force`.
 - `prepare.js`: applies `params.json` to a Monero checkout.
-- `selftest.js`: starts an offline private chain from the genesis with the built binaries, mines 120 blocks and sends
-  1 KUS from one wallet to another wallet's subaddress.
+- `selftest.js`: with the built binaries, starts an offline private mainnet from the genesis and mines past the switch
+  to version 16, then on regtest (same code, genesis and prefixes, fixed difficulty) mines 120 blocks and sends 1 KUS
+  from one wallet to another wallet's subaddress. Real difficulty follows the 2-minute target, so mining enough
+  unlocked outputs for a ring of 16 on mainnet would take hours.
 - `lib.js`: Monero's base58, Keccak-256, varints and the genesis transaction layout, in plain Node.
 
 ## Building

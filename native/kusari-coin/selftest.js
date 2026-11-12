@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
-// Starts a private Kusari mainnet from its genesis block with the built binaries, mines, and sends coins
-// between two wallets. Nothing leaves this machine: the daemon is offline and binds to 127.0.0.1.
+// Starts a private Kusari mainnet from its genesis block with the built binaries and mines past the switch to
+// Monero's current rules, then sends coins between two wallets on a regtest chain. Nothing leaves this machine: the daemon is offline and binds to 127.0.0.1.
 //   node native/kusari-coin/selftest.js <build/bin directory>
 const fs = require('fs');
 const os = require('os');
@@ -74,26 +74,28 @@ function start(file, args, log) {
   return p;
 }
 
-async function main() {
-  const d = params.mainnet.ports.rpc + 1000;
-  const w1 = d + 1, w2 = d + 2;
-  start(exe('d'), ['--data-dir', path.join(work, 'chain'), '--offline', '--no-igd', '--non-interactive',
-    '--rpc-bind-ip', '127.0.0.1', '--rpc-bind-port', String(d), '--p2p-bind-ip', '127.0.0.1',
-    '--zmq-rpc-bind-port', String(d + 10), '--log-level', '1'], 'daemon.log');
-  await until('daemon', () => rpc(d, 'get_info').then((r) => r.status === 'OK'), 120000);
+function daemon(port, dir, extra) {
+  return start(exe('d'), ['--data-dir', path.join(work, dir), '--offline', '--no-igd', '--non-interactive',
+    '--rpc-bind-ip', '127.0.0.1', '--rpc-bind-port', String(port), '--p2p-bind-ip', '127.0.0.1',
+    '--zmq-rpc-bind-port', String(port + 10), '--log-level', '1', ...extra], `${dir}.log`);
+}
 
-  const genesis = (await rpc(d, 'get_block_header_by_height', { height: 0 })).block_header;
-  if (genesis.hash === MONERO_GENESIS_HASH) throw new Error('this is Monero\'s genesis block');
-  const forks = await rpc(d, 'hard_fork_info');
-  console.log('genesis', genesis.hash, 'fork version', forks.version);
+async function stop(p) {
+  if (p.exitCode !== null) return;
+  const done = new Promise((r) => p.once('exit', r));
+  p.kill('SIGTERM');
+  await Promise.race([done, sleep(30000)]);
+}
 
-  for (const port of [w1, w2]) {
-    start(exe('-wallet-rpc'), ['--daemon-address', `127.0.0.1:${d}`, '--trusted-daemon', '--rpc-bind-ip', '127.0.0.1',
-      '--rpc-bind-port', String(port), '--disable-rpc-login', '--wallet-dir', path.join(work, `w${port}`), '--log-level', '1'], `wallet-${port}.log`);
-    fs.mkdirSync(path.join(work, `w${port}`), { recursive: true });
-  }
+async function wallets(d, ports, extra) {
   const addr = {};
-  for (const port of [w1, w2]) {
+  for (const port of ports) {
+    fs.mkdirSync(path.join(work, `w${port}`), { recursive: true });
+    start(exe('-wallet-rpc'), ['--daemon-address', `127.0.0.1:${d}`, '--trusted-daemon', '--rpc-bind-ip', '127.0.0.1',
+      '--rpc-bind-port', String(port), '--disable-rpc-login', '--wallet-dir', path.join(work, `w${port}`), '--log-level', '1', ...extra],
+    `wallet-${port}.log`);
+  }
+  for (const port of ports) {
     await until(`wallet ${port}`, () => rpc(port, 'get_version'), 60000);
     await rpc(port, 'create_wallet', { filename: 'w', password: '', language: 'English' });
     addr[port] = (await rpc(port, 'get_address')).address;
@@ -102,36 +104,64 @@ async function main() {
       throw new Error(`address ${addr[port]} does not use the Kusari prefix`);
     }
   }
+  return addr;
+}
+
+// Step 1: the real mainnet rules. The genesis block, the fork table and the missing Monero checkpoints are only
+// tested here. Difficulty follows the 2-minute target, so this mines just past the switch to version 16.
+async function mainnet() {
+  const d = params.mainnet.ports.rpc + 1000;
+  const p = daemon(d, 'mainnet', []);
+  await until('daemon', () => rpc(d, 'get_info').then((r) => r.status === 'OK'), 120000);
+  const genesis = (await rpc(d, 'get_block_header_by_height', { height: 0 })).block_header;
+  if (genesis.hash === MONERO_GENESIS_HASH) throw new Error('this is Monero\'s genesis block');
+  const w = d + 1;
+  const addr = await wallets(d, [w], []);
+  const r = await other(d, '/start_mining', { miner_address: addr[w], threads_count: 2, do_background_mining: false, ignore_battery: true });
+  if (r.status !== 'OK') throw new Error(`start_mining: ${r.status}`);
+  await until('mainnet blocks', async () => (await rpc(d, 'get_info')).height >= 4, 1800000);
+  await other(d, '/stop_mining');
+  const fork = await rpc(d, 'hard_fork_info');
+  if (fork.version !== params.hardForks[params.hardForks.length - 1].version) throw new Error(`fork version ${fork.version}`);
+  const b = (await rpc(d, 'get_block_header_by_height', { height: 3 })).block_header;
+  if (b.major_version !== fork.version) throw new Error(`block 3 is version ${b.major_version}`);
+  await rpc(w, 'refresh');
+  const bal = await rpc(w, 'get_balance');
+  if (!(bal.balance > 0)) throw new Error('the miner wallet saw no coinbase');
+  console.log(`mainnet ok: genesis ${genesis.hash}, version ${fork.version}, miner balance ${bal.balance}`);
+  await stop(p);
+}
+
+// Step 2: a send. Ring size 16 needs 16 spendable outputs and coinbase unlocks after 60 blocks, which at real
+// difficulty takes hours, so this uses regtest: the same code, genesis and prefixes with a fixed difficulty.
+async function send() {
+  const d = params.mainnet.ports.rpc + 2000;
+  daemon(d, 'regtest', ['--regtest', '--fixed-difficulty', '1']);
+  await until('regtest daemon', () => rpc(d, 'get_info').then((r) => r.status === 'OK'), 120000);
+  const w1 = d + 1, w2 = d + 2;
+  const addr = await wallets(d, [w1, w2], ['--allow-mismatched-daemon-version']);
   const sub = (await rpc(w2, 'create_address', { account_index: 0 })).address;
   if (decodeAddress(sub).prefix !== params.mainnet.prefixes.subaddress) throw new Error(`subaddress ${sub} has the wrong prefix`);
-  console.log('addresses', addr[w1], sub);
-
-  // Ring size 16 needs at least 16 spendable outputs, and coinbase unlocks after 60 blocks.
-  const r = await other(d, '/start_mining', { miner_address: addr[w1], threads_count: 2, do_background_mining: false, ignore_battery: true });
-  if (r.status !== 'OK') throw new Error(`start_mining: ${r.status}`);
-  await until('120 blocks', async () => {
-    const h = (await rpc(d, 'get_info')).height;
-    process.stdout.write(`\rheight ${h}  `);
-    return h >= 120;
-  }, 3600000);
-  process.stdout.write('\n');
-
+  await rpc(d, 'generateblocks', { amount_of_blocks: 120, wallet_address: addr[w1] }, 600000);
   await until('wallet 1 to unlock coins', async () => {
     await rpc(w1, 'refresh');
     return (await rpc(w1, 'get_balance')).unlocked_balance > 0;
   }, 120000);
   const amount = 1000000000000; // 1 coin
-  const tx = await rpc(w1, 'transfer', { destinations: [{ amount, address: sub }], priority: 0, ring_size: 16, get_tx_hex: false });
-  console.log('sent', tx.tx_hash, 'fee', tx.fee);
-
+  const tx = await rpc(w1, 'transfer', { destinations: [{ amount, address: sub }], priority: 0, ring_size: 16 });
+  await rpc(d, 'generateblocks', { amount_of_blocks: 1, wallet_address: addr[w1] });
   await until('wallet 2 to see it confirmed', async () => {
     await rpc(w2, 'refresh');
     const t = await rpc(w2, 'get_transfers', { in: true });
     return (t.in || []).some((x) => x.txid === tx.tx_hash && x.amount === amount && x.confirmations >= 1);
-  }, 600000);
-  await other(d, '/stop_mining');
-  const info = await rpc(d, 'get_info');
-  console.log(`selftest ok: height ${info.height}, difficulty ${info.difficulty}, tx ${tx.tx_hash}`);
+  }, 120000);
+  console.log(`send ok: ${tx.tx_hash} to ${sub}, fee ${tx.fee}`);
+}
+
+async function main() {
+  await mainnet();
+  await send();
+  console.log('selftest ok');
 }
 
 main()
