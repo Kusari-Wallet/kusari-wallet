@@ -40,12 +40,21 @@
   "networkId": "c301ea8ae813a2b2a091b23f420089ad",
   "testnetNetworkId": "a45f8da03785883144f09d7b908cd956",
   "launchTime": 1794461832,
+  "emission": {
+    "moneySupply": "18446744073709551615",
+    "speedFactor": 20,
+    "tailReward": "300000000000"
+  },
+  "posStartHeight": 129600,
+  "powTargetBeforePos": 60,
   "genesis": {
     "burnAddress": "KRtJSdet3wy64KYKXajkUSGn1a78NshEM9LEWGKm3JwY6CAPJNVEK7K3wcuEymZGiV3m2FCG7crjm5UF9hRjRHRxNvz173i",
     "amount": 1,
     "proof": "Kusari genesis 2026-11-12"
   },
   "maintainersPubKey": "ea5ebf10a4b2a5d31938f79b75d43d8e14451dacbfeead030aaabc4c0572925e",
+  "testnetMaintainersPubKey": "f35a8009ff0d0eb050fd93d56d3880d744ebcdff801bde643bc7432070a7450b",
   "aliasAuthorityPubKey": "9ca5dff963a343e042a762ac79d5faaf024c01a77ed56de8a192922fde3ac773",
-  "seedNodes": []
+  "seedNodes": [],
+  "checkpoints": []
 }

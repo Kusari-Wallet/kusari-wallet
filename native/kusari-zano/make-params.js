@@ -33,6 +33,13 @@ const params = {
   networkId: crypto.randomBytes(16).toString('hex'),
   testnetNetworkId: crypto.randomBytes(16).toString('hex'),
   launchTime: launch,
+  // Monero's emission for 1-minute blocks: (supply - generated) >> 20 a block, never less than the tail. The main
+  // emission runs about 8.1 years (18.13 million KSR), then 0.3 KSR a block forever. 12 decimals. No dev fund.
+  emission: { moneySupply: '18446744073709551615', speedFactor: 20, tailReward: '300000000000' },
+  // Proof of work alone until this height (about 90 days at 1-minute blocks), with a 1-minute target. From here on,
+  // Zano's proof of stake joins: 2-minute proof-of-work and 2-minute proof-of-stake blocks, a minute apart on average.
+  posStartHeight: 90 * 24 * 60,
+  powTargetBeforePos: 60,
   // The genesis block must pay something: one KSR to an address whose keys were never kept.
   genesis: {
     burnAddress: encodeAddress(prefixes.address, burnPoint(), burnPoint()),
@@ -40,10 +47,15 @@ const params = {
     proof: `Kusari genesis ${new Date(launch * 1000).toISOString().slice(0, 10)}`,
   },
   // Zano signs network notices and short aliases with its own keys. Until the project has its own, these are keys
-  // nobody holds, which turns both off. Put your own public keys here before launch to use them.
+  // nobody holds (their secrets were never kept), which turns both off. Mainnet and testnet use different keys.
+  // Make real ones offline with make-key.js and put only the public keys here.
   maintainersPubKey: hex(burnPoint()),
+  testnetMaintainersPubKey: hex(burnPoint()),
   aliasAuthorityPubKey: hex(burnPoint()),
   seedNodes: [],
+  // Developer checkpoints, { height, hash } of main-chain blocks, compiled into each release. In the first months,
+  // while little hashrate guards the chain, each release pins the chain up to a recent block.
+  checkpoints: [],
 };
 
 fs.writeFileSync(out, JSON.stringify(params, null, 2) + '\n');

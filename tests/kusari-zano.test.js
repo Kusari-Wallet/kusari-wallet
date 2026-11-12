@@ -93,3 +93,80 @@ test('params that would break the chain are refused', () => {
   assert.throws(tryParams((p) => { p.maintainersPubKey = 'zz'; }), /32 bytes/);
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test('RandomKSR: Kusari\'s own RandomX parameters, same work per hash, RandomX\'s safety conditions kept', () => {
+  const list = edits(load(PARAMS), loadGenesis(path.join(DIR, 'genesis')));
+  const cfg = list.filter((e) => e.file === 'contrib/randomx/src/configuration.h').map((e) => e.to).join('\n');
+  assert.match(cfg, /RANDOMX_ARGON_SALT\s+"RandomKSR\\x01"/);
+  const iterations = Number(cfg.match(/RANDOMX_PROGRAM_ITERATIONS (\d+)/)[1]);
+  const count = Number(cfg.match(/RANDOMX_PROGRAM_COUNT\s+(\d+)/)[1]);
+  assert.strictEqual(iterations * count, 2048 * 8, 'same work per hash as Monero');
+  // RandomX's "unsafe configuration" checks, with its defaults for what Kusari leaves alone.
+  const PROGRAM_SIZE = 256, FREQ_ISTORE = 16, SCRATCHPAD_L3 = 2097152;
+  assert.ok((128 + PROGRAM_SIZE * FREQ_ISTORE / 256) * (count * iterations) >= SCRATCHPAD_L3, 'enough scratchpad writes');
+  assert.ok(count > 1 && iterations >= 400, 'no program filtering, no compilation overhead');
+});
+
+test('emission: Monero\'s curve for 1-minute blocks, main emission about 8 years, then the tail', () => {
+  const p = load(PARAMS);
+  const supply = BigInt(p.emission.moneySupply), tail = BigInt(p.emission.tailReward), shift = BigInt(p.emission.speedFactor);
+  assert.strictEqual(supply, 2n ** 64n - 1n);
+  assert.strictEqual(tail, 3n * 10n ** 11n); // 0.3 KSR
+  // Closed form for when the curve meets the tail: (1 - 2^-20)^n = tail * 2^20 / supply.
+  const n = Math.log(Number(tail) * 2 ** Number(shift) / Number(supply)) / Math.log(1 - 2 ** -Number(shift));
+  const years = n / (60 * 24 * 365.25);
+  assert.ok(years > 7.5 && years < 8.5, `main emission ${years.toFixed(2)} years`);
+  const text = edits(p, loadGenesis(path.join(DIR, 'genesis'))).map((e) => e.to ?? e.whole ?? '').join('\n');
+  assert.match(text, /KUSARI_EMISSION_SPEED_FACTOR\s+20/);
+  assert.match(text, /get_base_block_reward\(uint64_t height, const boost::multiprecision::uint128_t& already_generated_coins\)/);
+  assert.match(text, /std::max<uint64_t>\(reward, KUSARI_TAIL_REWARD\)/);
+  assert.ok(!/dev(elopment)?[ _-]?fund/i.test(JSON.stringify(p)), 'no dev fund');
+});
+
+test('proof of stake off until its height, with 1-minute proof-of-work blocks until then', () => {
+  const p = load(PARAMS);
+  assert.strictEqual(p.posStartHeight, 90 * 24 * 60);
+  assert.strictEqual(p.powTargetBeforePos, 60);
+  const text = edits(p, loadGenesis(path.join(DIR, 'genesis'))).map((e) => e.to ?? '').join('\n');
+  assert.match(text, /#define POS_START_HEIGHT\s+129600/);
+  assert.match(text, /KUSARI_POW_TARGET\(h\)\s+\(\(h\) < POS_START_HEIGHT \? KUSARI_POW_TARGET_BEFORE_POS : DIFFICULTY_POW_TARGET\)/);
+  assert.match(text, /pos \? global_difficulty_pos_target : KUSARI_POW_TARGET\(h\)/);
+});
+
+test('mainnet and testnet have their own maintainers keys, and checkpoints are checked', () => {
+  const good = JSON.parse(fs.readFileSync(PARAMS, 'utf8'));
+  assert.notStrictEqual(good.maintainersPubKey, good.testnetMaintainersPubKey);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kusari-zano-keys-'));
+  const tryParams = (change) => { const p = structuredClone(good); change(p); const f = path.join(dir, 'p.json'); fs.writeFileSync(f, JSON.stringify(p)); return () => load(f); };
+  assert.throws(tryParams((p) => { p.testnetMaintainersPubKey = p.maintainersPubKey; }), /different maintainers keys/);
+  assert.throws(tryParams((p) => { p.checkpoints = [{ height: 10, hash: 'a'.repeat(64) }, { height: 5, hash: 'b'.repeat(64) }]; }), /bad checkpoint/);
+  assert.throws(tryParams((p) => { p.posStartHeight = 0; }), /posStartHeight/);
+  const withCheckpoint = structuredClone(good);
+  withCheckpoint.checkpoints = [{ height: 1000, hash: 'c'.repeat(64) }];
+  const f = path.join(dir, 'ok.json');
+  fs.writeFileSync(f, JSON.stringify(withCheckpoint));
+  const cp = edits(load(f), null).find((e) => e.file === 'src/currency_core/checkpoints_create.h');
+  assert.match(cp.to, /ADD_CHECKPOINT\(1000, "c{64}"\);/);
+  fs.rmSync(dir, { recursive: true, force: true });
+  // No secret key anywhere in the kit.
+  for (const name of fs.readdirSync(DIR)) {
+    const file = path.join(DIR, name);
+    if (fs.statSync(file).isFile()) assert.ok(!/secret[_ ]?key\s*[:=]\s*['"]?[0-9a-f]{64}/i.test(fs.readFileSync(file, 'utf8')), name);
+  }
+});
+
+test('Dandelion++ is wired in and its routing logic passes its own test', { skip: !require('node:child_process').spawnSync('g++', ['--version']).stdout?.length && 'no g++' }, () => {
+  const text = edits(load(PARAMS), loadGenesis(path.join(DIR, 'genesis'))).map((e) => e.to ?? e.whole ?? e.append ?? '').join('\n');
+  assert.match(text, /struct NOTIFY_STEM_TRANSACTIONS/);
+  assert.match(text, /HANDLE_NOTIFY_T2\(NOTIFY_STEM_TRANSACTIONS/);
+  assert.match(text, /m_connection_id\.is_nil\(\)/);
+  assert.match(text, /#include "dandelion_relay\.inl"/);
+  const out = path.join(os.tmpdir(), `kusari-dandelion-${process.pid}`);
+  const { spawnSync } = require('node:child_process');
+  const c = spawnSync('g++', ['-std=c++17', '-O2', '-I', path.join(DIR, 'dandelion'), path.join(DIR, 'dandelion', 'test_dandelion.cpp'), '-o', out], { encoding: 'utf8' });
+  assert.strictEqual(c.status, 0, c.stderr);
+  const r = spawnSync(out, [], { encoding: 'utf8' });
+  fs.rmSync(out, { force: true });
+  assert.strictEqual(r.status, 0, r.stdout);
+  assert.match(r.stdout, /dandelion test ok/);
+});
