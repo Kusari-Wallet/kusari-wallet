@@ -51,9 +51,37 @@ test('exchanges: each one read for the coins it lists, and nothing made up', () 
   assert.throws(() => coinbase('x').parse({ data: { rates: { SOL: '0' } } }));
 });
 
-test('every source is an https address', () => {
-  assert.equal(PRICE_SOURCES.length, 8);
+test('every source is an https address, and the bulk market lists that timed out over Tor are gone', () => {
+  assert.equal(PRICE_SOURCES.length, 7);
   for (const s of PRICE_SOURCES) assert.match(s.url, /^https:\/\//);
+  assert.ok(!PRICE_SOURCES.some((s) => /\/\/[^/]*(binance|gateio|bybit)|ticker\/24hr$/.test(s.url)));
+});
+
+test('CoinGecko alone, and the second tier alone, each price every coin (answers recorded 2026-11-12)', () => {
+  const { PRICE_TIERS } = require('../dist/main/prices');
+  const { DECIMALS } = require('../dist/main/config');
+  const rec = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'price-answers.json'), 'utf8'));
+  const cg = PRICE_TIERS[0][0].parse(rec.coingecko);
+  assert.deepEqual(Object.keys(DECIMALS).filter((a) => !cg[a]), [], 'nothing left for the slower tiers');
+  let v = {};
+  PRICE_TIERS[1].forEach((s, i) => { v = { ...s.parse(rec.tier2[i]), ...v }; });
+  assert.deepEqual(Object.keys(DECIMALS).filter((a) => !v[a]), [], 'a throttled CoinGecko costs no coin its price');
+  assert.ok(Math.abs(v.ZANO.change) < 100 && v.ZANO.usd > 0);
+});
+
+test('the last prices are kept on disk and shown at once after a restart, then refreshed', async (t) => {
+  let calls = 0;
+  const btc = { name: 'T', url: 'http://unused', parse: () => { calls++; throw new Error('down'); } };
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pr-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(dir, 'prices.json'), JSON.stringify({ at: Date.now() - 3600_000, value: { BTC: { usd: 70000, change: 1 }, EVIL: { usd: 1 } } }));
+  const s = new WalletService(dir, undefined, { priceSources: [btc] });
+  const p = await s.prices();
+  assert.equal(p.BTC.usd, 70000, 'shown straight away');
+  assert.equal(p.EVIL, undefined, 'only known coins are read back');
+  fs.writeFileSync(path.join(dir, 'prices.json'), JSON.stringify({ at: Date.now() - 25 * 3600_000, value: { BTC: { usd: 1, change: 0 } } }));
+  const s2 = new WalletService(dir, undefined, { priceSources: [btc] });
+  assert.equal(await s2.prices(), null, 'a day old is too old');
 });
 
 async function make(tt, sources) {

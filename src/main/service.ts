@@ -14,7 +14,7 @@ import { DexCall, DexId, DexQuote, NATIVE, UNISWAP_CHAINS, UniswapClient, approv
 import { NearClient, NearDraft, isNearAccount, nearPublicKey } from './near';
 import { ScrtClient, ScrtDraft, isScrtAddress, scrtPrivacyKeys, scrtPublicKey } from './scrt';
 import { BITCOIN_MIXED, BTC_MIXED_PATH, BTC_PATH, BtcClient, BtcDraft, LITECOIN, btcAccountXpub, coinId, estimateVbytes, isBtcAddress, isLtcAddress, ltcAccountXpub } from './btc';
-import { PRICE_SOURCES, PriceMap, PriceSource, coingecko, mirror } from './prices';
+import { PRICE_TIERS, PriceMap, PriceSource, coingecko, mirror } from './prices';
 import { DEPOSIT_GAS, TORNADO_POOLS, TornadoNote, TornadoStore, WITHDRAW_GAS, abi as tornadoAbi, checkRelayerUrl, denomination, noteSecrets, noteText, relayerFee, relayerStatus, relayerSubmit, tornadoEngineCheck } from './tornado';
 import { runTornado } from './tornado-run';
 import { ArrrClient, ArrrDraft, isArrrAddress } from './arrr';
@@ -46,6 +46,8 @@ import { MoneroClient, MoneroDraft, MoneroOptions, generateMoneroSeed, validateM
 
 const BALANCE_TTL_MS = 40_000;
 const BALANCE_BACKOFF_MS = 30_000;
+/** How long the overview waits for each balance before showing its last value instead. */
+const OVERVIEW_WAIT_MS = 4_000;
 const QUICK_REFUSAL_MS = 15_000;
 const QUOTE_DEADLINE_MS = 20_000;
 const QUOTE_DEADLINE_TOR_MS = 40_000;
@@ -87,17 +89,17 @@ function within<T, F>(ms: number, work: Promise<T>, late: F): Promise<T | F> {
 }
 /** Which Tor route each balance lookup uses. */
 /** Coins and tokens on an EVM chain. They share one address. */
-const EVM: Asset[] = ['ETH', 'USDTE', 'LINK', 'WLD', 'POL', 'USDTP', 'ARB', 'ETHA', 'USDTA', 'ETHP', 'UNI', 'PEPE', 'AAVE', 'BNB', 'USDTB', 'ASTER', 'CAKE', 'USDCE', 'USDCB', 'USDCP', 'USDCA', 'HYPE', 'SHIB', 'SHIBB', 'LINKB', 'UNIB', 'AAVEB'];
+const EVM: Asset[] = ['ETH', 'USDTE', 'LINK', 'WLD', 'POL', 'USDTP', 'ARB', 'ETHA', 'USDTA', 'ETHP', 'UNI', 'PEPE', 'AAVE', 'BNB', 'USDTB', 'ASTER', 'USDCE', 'USDCB', 'USDCP', 'USDCA', 'HYPE', 'SHIB', 'UNIB'];
 /** Solana tokens. */
 const SPL: Asset[] = ['USDTS', 'USDCS', 'JUP', 'RAY', 'ORCA', 'PUMP'];
 const isSpl = (a: Asset): a is SplAsset => SPL.includes(a);
-const EXTRA_ASSETS: Asset[] = ['ETHP', 'UNI', 'PEPE', 'AAVE', 'BNB', 'USDTB', 'ASTER', 'CAKE', 'JUP', 'RAY', 'USDCE', 'USDCB', 'USDCS', 'USDCP', 'USDCA', 'HYPE', 'SHIB', 'SHIBB', 'LINKB', 'UNIB', 'AAVEB', 'ORCA', 'PUMP'];
+const EXTRA_ASSETS: Asset[] = ['ETHP', 'UNI', 'PEPE', 'AAVE', 'BNB', 'USDTB', 'ASTER', 'JUP', 'RAY', 'USDCE', 'USDCB', 'USDCS', 'USDCP', 'USDCA', 'HYPE', 'SHIB', 'UNIB', 'ORCA', 'PUMP'];
 const isEvm = (a: Asset): a is Asset & EthAsset => EVM.includes(a);
 const EVM_EXPLORER: Record<string, string> = { '1': ETH_EXPLORER_TX, '137': POL_EXPLORER_TX, '42161': ARB_EXPLORER_TX, '56': BSC_EXPLORER_TX, '999': HYPE_EXPLORER_TX };
 
-const ASSET_LABEL: Partial<Record<Asset, string>> = { SHIBB: 'SHIB (BNB)', LINKB: 'LINK (BNB)', UNIB: 'UNI (BNB)', AAVEB: 'AAVE (BNB)', USDTE: 'USDT (Eth)', USDT: 'USDT (Tron)', USDTS: 'USDT (Sol)', USDTP: 'USDT (Pol)', USDTA: 'USDT (Arb)', ETHA: 'ETH (Arb)', ETHP: 'ETH (Pol)', USDTB: 'USDT (BNB)', USDCE: 'USDC (Eth)', USDCB: 'USDC (BNB)', USDCS: 'USDC (Sol)', USDCP: 'USDC (Pol)', USDCA: 'USDC (Arb)' };
+const ASSET_LABEL: Partial<Record<Asset, string>> = { UNIB: 'UNI (BNB)', USDTE: 'USDT (Eth)', USDT: 'USDT (Tron)', USDTS: 'USDT (Sol)', USDTP: 'USDT (Pol)', USDTA: 'USDT (Arb)', ETHA: 'ETH (Arb)', ETHP: 'ETH (Pol)', USDTB: 'USDT (BNB)', USDCE: 'USDC (Eth)', USDCB: 'USDC (BNB)', USDCS: 'USDC (Sol)', USDCP: 'USDC (Pol)', USDCA: 'USDC (Arb)' };
 
-const LOOKUP_ROUTE: Record<string, string> = { ADA: 'ada', SHIB: 'eth', SHIBB: 'bsc', LINKB: 'bsc', UNIB: 'bsc', AAVEB: 'bsc', ORCA: 'sol', PUMP: 'sol', NEAR: 'near', BTC: 'btc', ETH: 'eth', USDTE: 'eth', LINK: 'eth', WLD: 'eth', TRX: 'tron', USDT: 'tron', DASH: 'dash', FIRO: 'firo', SOL: 'sol', USDTS: 'sol', POL: 'pol', USDTP: 'pol', ARB: 'arb', ETHA: 'arb', USDTA: 'arb', BCH: 'bch', LTC: 'ltc', DOGE: 'doge', SCRT: 'scrt', ETHP: 'pol', UNI: 'eth', PEPE: 'eth', AAVE: 'eth', BNB: 'bsc', USDTB: 'bsc', ASTER: 'bsc', CAKE: 'bsc', JUP: 'sol', RAY: 'sol', USDCE: 'eth', USDCB: 'bsc', USDCS: 'sol', USDCP: 'pol', USDCA: 'arb', HYPE: 'hype' };
+const LOOKUP_ROUTE: Record<string, string> = { ADA: 'ada', SHIB: 'eth', UNIB: 'bsc', ORCA: 'sol', PUMP: 'sol', NEAR: 'near', BTC: 'btc', ETH: 'eth', USDTE: 'eth', LINK: 'eth', WLD: 'eth', TRX: 'tron', USDT: 'tron', DASH: 'dash', FIRO: 'firo', SOL: 'sol', USDTS: 'sol', POL: 'pol', USDTP: 'pol', ARB: 'arb', ETHA: 'arb', USDTA: 'arb', BCH: 'bch', LTC: 'ltc', DOGE: 'doge', SCRT: 'scrt', ETHP: 'pol', UNI: 'eth', PEPE: 'eth', AAVE: 'eth', BNB: 'bsc', USDTB: 'bsc', ASTER: 'bsc', JUP: 'sol', RAY: 'sol', USDCE: 'eth', USDCB: 'bsc', USDCS: 'sol', USDCP: 'pol', USDCA: 'arb', HYPE: 'hype' };
 
 /** Waits longer each time, up to five minutes, so a server that's down isn't asked over and over. */
 export function lookupRetryDelay(fails: number): number {
@@ -193,6 +195,8 @@ export class WalletService extends EventEmitter {
   private mweb: MwebClient | null = null;
   private spark: SparkClient | null = null;
   private engineStops: Promise<void> = Promise.resolve();
+  /** Goes up on every lock, so an engine still starting from the last session shuts itself down. */
+  private sessionGen = 0;
   private previews = new Map<string, Preview>();
   private privacyTargets = new Map<string, Asset>();
   private pendingSwaps = new Map<string, { id: string; from: Asset; to: Asset; amount: string; receive: string; rate: string; providerId: SwapProviderId; provider: string; approximate: boolean; statusKey?: string; withdrawalAddress: string; privacy?: { leg: 'first'; via: string; destination: string } | { leg: 'second'; id: string } }>();
@@ -394,6 +398,7 @@ export class WalletService extends EventEmitter {
   private async startSession(secrets: Secrets): Promise<void> {
     await this.closing;
     this.priceAgent = undefined;
+    this.pricesTorAgent = undefined;
     this.torProxy = undefined;
     this.routes.clear();
     let proxyUri: string | undefined;
@@ -413,8 +418,8 @@ export class WalletService extends EventEmitter {
     const account = deriveTronAccount(secrets.tronMnemonic);
     const route = this.dev.route ?? ((u: string) => u);
     const tronNet = this.dev.tronHost
-      ? { ...net.tron, host: route(this.dev.tronHost), usdt: NETWORKS.mainnet.tron.usdt }
-      : { ...net.tron, host: route(net.tron.host) };
+      ? { ...net.tron, host: route(this.dev.tronHost), backup: undefined, usdt: NETWORKS.mainnet.tron.usdt }
+      : { ...net.tron, host: route(net.tron.host), backup: net.tron.backup ? route(net.tron.backup) : undefined };
     this.tron = new TronClient(tronNet, this.settings.tronApiKey, account.address, this.torRoute('tron'), this.torActive);
 
     const slow = this.torActive;
@@ -471,12 +476,15 @@ export class WalletService extends EventEmitter {
     monero.on('balance', () => this.emit('balance-changed'));
     await monero.open();
     this.monero = monero;
-    await this.startZec(secrets);
-    await this.startZano(secrets);
-    await this.startArrr(secrets);
-    await this.startMweb(secrets);
-    await this.startSpark(secrets);
+    // The privacy engines start side by side and in the background: unlocking no longer waits for each in turn,
+    // and each balance fills in when its engine is up.
+    const gen = this.viewGen;
+    this.enginesStarting = Promise.allSettled([this.startZec(secrets), this.startZano(secrets), this.startArrr(secrets), this.startMweb(secrets), this.startSpark(secrets)])
+      .then(() => { if (gen === this.viewGen) this.emit('balance-changed'); });
+    if (this.dev.tronHost) await this.enginesStarting; // tests expect them up when unlocking returns
   }
+  /** The engines' start, for anything that needs them up (tests, a send right after unlocking). */
+  private enginesStarting: Promise<void> = Promise.resolve();
 
   /**
    * Dash CoinJoin: mixing runs by itself while the wallet is unlocked, for wallets that have split coins into it.
@@ -572,6 +580,7 @@ export class WalletService extends EventEmitter {
 
   /** Firo Spark: the engine syncs the anonymity sets itself. Without it, FIRO is transparent only. */
   private async startSpark(secrets: Secrets): Promise<void> {
+    const gen = this.sessionGen;
     if (!sparkEngineAvailable(this.dev.sparkBin)) return;
     const torPort = this.torActive ? Number((await this.tor.allocate()).match(/:(\d+)$/)?.[1]) : undefined;
     if (this.torActive && !torPort) return; // Never fall back to a direct connection.
@@ -591,12 +600,15 @@ export class WalletService extends EventEmitter {
       canConnect: () => !this.torNotReady,
       onChange: () => this.emit('balance-changed'),
     }, sparkKey(secrets.tronMnemonic));
+    if (gen !== this.sessionGen) return; // locked while waiting for Tor
     this.spark = client;
     try { await client.start(); } catch (e) { client.lastError = (e as Error).message; }
+    if (gen !== this.sessionGen) void Promise.resolve(client.close()).catch(() => undefined); // locked while it started
   }
 
   /** Litecoin MWEB: a light client of its own. Without its engine, LTC simply has no private balance. */
   private async startMweb(secrets: Secrets): Promise<void> {
+    const gen = this.sessionGen;
     if (!mwebEngineAvailable(this.dev.mwebBin)) return;
     const torPort = this.torActive ? Number((await this.tor.allocate()).match(/:(\d+)$/)?.[1]) : undefined;
     if (this.torActive && !torPort) return; // Never fall back to a direct connection.
@@ -608,13 +620,16 @@ export class WalletService extends EventEmitter {
       canConnect: () => !this.torNotReady,
       onChange: () => this.emit('balance-changed'),
     }, secrets.tronMnemonic);
+    if (gen !== this.sessionGen) return; // locked while waiting for Tor
     this.mweb = client;
     try { await client.start(); } catch (e) { client.lastError = (e as Error).message; }
+    if (gen !== this.sessionGen) void Promise.resolve(client.close()).catch(() => undefined); // locked while it started
   }
 
   private get arrrAvailable(): boolean { return arrrEngineAvailable(this.dev.arrrBin); }
 
   private async startArrr(secrets: Secrets): Promise<void> {
+    const gen = this.sessionGen;
     if (!this.arrrAvailable) return;
     const torPort = this.torActive ? Number((await this.tor.allocate()).match(/:(\d+)$/)?.[1]) : undefined;
     if (this.torActive && !torPort) return; // Never fall back to a direct connection.
@@ -627,13 +642,16 @@ export class WalletService extends EventEmitter {
       canConnect: () => !this.torNotReady,
       onChange: () => this.emit('balance-changed'),
     }, secrets.tronMnemonic, secrets.restoreDate);
+    if (gen !== this.sessionGen) return; // locked while waiting for Tor
     this.arrr = client;
     try { await client.start(); } catch (e) { client.lastError = (e as Error).message; }
+    if (gen !== this.sessionGen) void Promise.resolve(client.stop()).catch(() => undefined); // locked while it started
   }
 
   private get zanoAvailable(): boolean { return zanoEngineAvailable(this.dev.zanoBin); }
 
   private async startZano(secrets: Secrets): Promise<void> {
+    const gen = this.sessionGen;
     if (!this.zanoAvailable) return;
     const torPort = this.torActive ? Number((await this.tor.allocate()).match(/:(\d+)$/)?.[1]) : undefined;
     if (this.torActive && !torPort) return; // Never fall back to a direct connection.
@@ -644,14 +662,17 @@ export class WalletService extends EventEmitter {
       canConnect: () => !this.torNotReady,
       onChange: () => this.emit('balance-changed'),
     }, zanoKeys(secrets.tronMnemonic, secrets.moneroFilePasswords.mainnet));
+    if (gen !== this.sessionGen) return; // locked while waiting for Tor
     this.zano = client;
     try { await client.start(); } catch (e) { client.lastError = (e as Error).message; }
+    if (gen !== this.sessionGen) void Promise.resolve(client.stop()).catch(() => undefined); // locked while it started
   }
 
   private get zecAvailable(): boolean { return zecEngineAvailable(this.dev.zecBin); }
 
   /** Every other coin works without this, so a problem here stays on the Zcash row. */
   private async startZec(secrets: Secrets): Promise<void> {
+    const gen = this.sessionGen;
     if (!this.zecAvailable) return;
     const torPort = this.torActive ? Number((await this.tor.allocate()).match(/:(\d+)$/)?.[1]) : undefined;
     if (this.torActive && !torPort) return; // Never fall back to a direct connection.
@@ -664,8 +685,10 @@ export class WalletService extends EventEmitter {
       canConnect: () => !this.torNotReady,
       onChange: () => this.emit('balance-changed'),
     }, secrets.tronMnemonic, secrets.zecBirthday);
+    if (gen !== this.sessionGen) return; // locked while waiting for Tor
     this.zec = client;
     try { await client.start(); } catch (e) { client.lastError = (e as Error).message; }
+    if (gen !== this.sessionGen) void Promise.resolve(client.stop()).catch(() => undefined); // locked while it started
   }
 
   async unlock(password: string): Promise<void> {
@@ -682,10 +705,12 @@ export class WalletService extends EventEmitter {
   }
 
   async lock(): Promise<void> {
+    this.sessionGen++;
     this.torActive = false;
     this.previews.clear();
     this.pendingSwaps.clear();
     this.balanceMemo.clear();
+    this.forgetViews();
     this.balanceRetryAt.clear();
     this.lookupFailures.length = 0;
     this.balanceFails.clear();
@@ -713,7 +738,8 @@ export class WalletService extends EventEmitter {
     this.bch = null;
     this.sol = null;
     // Engines stop in the background; deleting a wallet waits for them, since they hold its files open.
-    this.engineStops = Promise.allSettled([this.zec?.stop(), this.zano?.stop(), this.arrr?.stop()]).then(() => undefined);
+    const starting = this.enginesStarting;
+    this.engineStops = Promise.allSettled([this.zec?.stop(), this.zano?.stop(), this.arrr?.stop(), starting]).then(() => undefined);
     this.zec = null;
     this.zano = null;
     this.arrr = null;
@@ -797,7 +823,17 @@ export class WalletService extends EventEmitter {
     this.lookupFailures.splice(0, Math.max(0, this.lookupFailures.length - 100));
   }
 
-  private async readBalance(key: string, fn: () => Promise<[bigint, bigint]>, decimals: number, ttl: number): Promise<BalanceView> {
+  /** One lookup per coin at a time: a second look while one is out waits for that one instead of asking again. */
+  private balanceInFlight = new Map<string, Promise<BalanceView>>();
+  private readBalance(key: string, fn: () => Promise<[bigint, bigint]>, decimals: number, ttl: number): Promise<BalanceView> {
+    const running = this.balanceInFlight.get(key);
+    if (running) return running;
+    const p = this.readBalanceOnce(key, fn, decimals, ttl).finally(() => { this.balanceInFlight.delete(key); });
+    this.balanceInFlight.set(key, p);
+    return p;
+  }
+
+  private async readBalanceOnce(key: string, fn: () => Promise<[bigint, bigint]>, decimals: number, ttl: number): Promise<BalanceView> {
     const view = (m: { total: bigint; spendable: bigint }, stale = false): BalanceView => ({ ok: true, total: formatAmount(m.total, decimals), spendable: formatAmount(m.spendable, decimals), ...(stale ? { stale: true } : {}) });
     const memo = this.balanceMemo.get(key);
     if (memo && Date.now() - memo.at < ttl) return view(memo);
@@ -831,6 +867,28 @@ export class WalletService extends EventEmitter {
     if (memo && !torDown && Date.now() - memo.at < BALANCE_STALE_MS) return view(memo, true);
     if (this.torActive && (this.balanceFails.get(key) ?? 0) >= 3) return { ok: false, total: '', spendable: '', error: 'This server isn\'t answering over Tor right now. The wallet keeps trying.' };
     return { ok: false, total: '', spendable: '', error: failure ? this.friendlyError(failure) : this.lastLookupError.get(key) ?? 'Retrying shortly.' };
+  }
+
+  /**
+   * Each balance gets a moment; one still loading after that shows its last value (or "loading") and fills in by
+   * itself when it arrives, so a slow server never holds up the rest of the screen.
+   */
+  private lastViews: BalanceView[] = [];
+  private lateTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Counts locks and sends, so a lookup that finishes after one never shows up as current. */
+  private viewGen = 0;
+  private forgetViews(): void { this.viewGen++; this.lastViews = []; this.balanceInFlight.clear(); }
+  private async quickViews(views: Promise<BalanceView>[], waitMs: number): Promise<BalanceView[]> {
+    const gen = this.viewGen;
+    const lateArrived = () => {
+      if (this.lateTimer) return;
+      this.lateTimer = setTimeout(() => { this.lateTimer = null; this.emit('balance-changed'); }, 1_000);
+    };
+    return Promise.all(views.map((p, i) => {
+      let late = false;
+      const done = p.then((v) => { if (gen !== this.viewGen) return v; this.lastViews[i] = v; if (late) lateArrived(); return v; });
+      return Promise.race([done, new Promise<BalanceView>((r) => setTimeout(() => { late = true; r(this.lastViews[i] ?? { ok: false, pending: true, total: '', spendable: '' }); }, waitMs))]);
+    }));
   }
 
   async overview() {
@@ -872,7 +930,7 @@ export class WalletService extends EventEmitter {
       if (zec?.lastError && !this.torNotReady) return { ok: false, total: '', spendable: '', error: this.friendlyError(new Error(zec.lastError)) };
       return { ok: false, pending: true, total: '', spendable: '' };
     };
-    const [BTC, XMR, ETH, TRX, USDTE, USDT, SOL, USDTS, LINK, WLD, POL, USDTP, ARB, ETHA, USDTA, BCH, LTC, DOGE, ADA, DASH, FIRO, SCRT, NEAR, SSCRT, ...EXTRA] = await Promise.all([
+    const [BTC, XMR, ETH, TRX, USDTE, USDT, SOL, USDTS, LINK, WLD, POL, USDTP, ARB, ETHA, USDTA, BCH, LTC, DOGE, ADA, DASH, FIRO, SCRT, NEAR, SSCRT, ...EXTRA] = await this.quickViews([
       // BTC is the regular coins plus the CoinJoin account's.
       Promise.all([btcSettle(), this.btcMixed ? this.btcMixed.getBalance().catch(() => null) : null]).then(([view, m]) => {
         this.btcMixedBalance = m ?? this.btcMixedBalance;
@@ -913,7 +971,7 @@ export class WalletService extends EventEmitter {
       settle('SSCRT', async () => { const b = await this.scrt!.getPrivateBalance(); this.sscrtNeedsKey = b === null; return [b ?? 0n, b ?? 0n]; }, 6),
       // Added later: every further token, on its chain's client. Keep in step with EXTRA_ASSETS.
       ...EXTRA_ASSETS.map((a) => settle(a, async () => { const b = isSpl(a) ? await this.sol!.getUsdtBalance(a) : await this.evm(a).balanceOf(a as EthAsset); return [b, b]; }, DECIMALS[a])),
-    ]);
+    ], this.dev.tronHost ? 120_000 : OVERVIEW_WAIT_MS);
     return {
       network: this.settings.network,
       tor: this.torActive ? this.tor.state : null,
@@ -1089,6 +1147,7 @@ export class WalletService extends EventEmitter {
     const secrets = await this.vault.open(password);
     this.previews.delete(id);
     this.balanceMemo.clear();
+    this.forgetViews();
     const { quote, from, calls } = preview.dex;
     const client = this.evm(from);
     const account = deriveEthAccount(secrets.tronMnemonic);
@@ -1363,6 +1422,12 @@ export class WalletService extends EventEmitter {
   /** USD prices. Sends no address or balance, only asks for these three coins. Cached for 5 minutes. */
   async prices(): Promise<PriceMap | null> {
     if (!this.settings.showPrices) return null;
+    await this.loadSavedPrices();
+    // Old prices are shown right away while fresh ones load.
+    if (this.priceCache && this.priceCache.at === 0 && !this.priceInFlight) {
+      this.priceInFlight = this.fetchPrices().finally(() => { this.priceInFlight = null; });
+      return this.priceCache.value;
+    }
     if (this.priceCache && Date.now() - this.priceCache.at < 300_000) return this.priceCache.value;
     // After every source has failed, wait a little: asking again only prolongs a rate limit.
     if (Date.now() < this.priceRetryAt) return this.priceCache?.value ?? null;
@@ -1371,17 +1436,21 @@ export class WalletService extends EventEmitter {
   }
 
   private async fetchPrices(): Promise<PriceMap | null> {
-    const sources = this.dev.priceSources ?? (this.dev.priceUrl ? [coingecko(this.dev.priceUrl)] : PRICE_SOURCES);
-    // Not every source lists every coin, so the rest are only asked when the first left something out, and all at
-    // once because a blocked one would otherwise hold up the others. Earlier sources win where they overlap.
-    const ask = async (source: PriceSource, timeoutMs: number) => source.parse(await getJson(source.url, { agent: this.priceAgent, timeoutMs, headers: { Accept: 'application/json', 'User-Agent': 'KusariWallet' } }));
+    const tiers = this.dev.priceSources ? [this.dev.priceSources] : this.dev.priceUrl ? [[coingecko(this.dev.priceUrl)]] : PRICE_TIERS;
     const tor = this.torActive;
-    const [first, ...rest] = sources;
-    let value = first ? await ask(first, tor ? 45_000 : 10_000).catch(() => null) : null;
-    if (rest.length && !(value && Object.keys(DECIMALS).every((a) => value![a as Asset]))) {
-      const more = await Promise.allSettled(rest.map((source) => ask(source, tor ? 30_000 : 10_000)));
-      for (const r of more) if (r.status === 'fulfilled') value = { ...r.value, ...(value ?? {}) } as PriceMap;
+    const agent = this.pricesAgent();
+    const ask = async (source: PriceSource) => source.parse(await getJson(source.url, { agent, timeoutMs: tor ? 30_000 : 10_000, headers: { Accept: 'application/json', 'User-Agent': 'KusariWallet' } }));
+    const missing = (v: PriceMap | null) => !v || Object.keys(DECIMALS).some((a) => !v[a as Asset]);
+    // Each tier only when the ones before it left a coin out; within a tier all at once, earlier sources winning.
+    let value: PriceMap | null = null;
+    let failures = 0;
+    for (const tier of tiers) {
+      if (!missing(value)) break;
+      const got = await Promise.allSettled(tier.map(ask));
+      for (const r of got) if (r.status === 'fulfilled') value = { ...r.value, ...(value ?? {}) } as PriceMap; else failures++;
     }
+    // A Tor exit that a price service has rate-limited stays limited: the next try leaves through another one.
+    if (tor && failures) newTorRoute(agent);
     // Aave's on-chain oracles, through the wallet's own nodes, for whatever is still missing.
     if (!this.dev.priceSources && !(value && AAVE_MARKETS.every((m) => m.assets.every(([a]) => value![a])))) {
       const found = await this.aavePrices().catch(() => ({}));
@@ -1392,10 +1461,40 @@ export class WalletService extends EventEmitter {
         value = filled;
       }
     }
-    if (value) this.priceCache = { at: Date.now(), value };
-    if (value) return value;
+    if (value) {
+      // Coins this round didn't price keep their last known price, so one slow source doesn't blank them.
+      const merged = { ...(this.priceCache?.value ?? {}), ...value } as PriceMap;
+      this.priceCache = { at: Date.now(), value: merged };
+      void this.savePrices(merged);
+      return merged;
+    }
     this.priceRetryAt = Date.now() + 60_000;
     return this.priceCache?.value ?? null;
+  }
+
+  /** Prices have their own Tor route, so a rate limit on one service doesn't follow the swaps around. */
+  private pricesTorAgent: ReturnType<typeof socksAgent> | undefined;
+  private pricesAgent() {
+    if (!this.torActive || !this.torProxy) return this.priceAgent;
+    return (this.pricesTorAgent ??= this.torRoute('prices'));
+  }
+
+  /** The last prices go to disk (prices only, nothing about the wallet), so a restart shows them at once. */
+  private get pricesFile() { return path.join(this.baseDir, 'prices.json'); }
+  private async savePrices(value: PriceMap): Promise<void> {
+    try { await fs.writeFile(this.pricesFile, JSON.stringify({ at: Date.now(), value }), { mode: 0o600 }); } catch { /* next time */ }
+  }
+  /** Prices from the last run, when less than a day old: shown until fresh ones arrive. */
+  private async loadSavedPrices(): Promise<void> {
+    if (this.priceCache) return;
+    try {
+      const j = JSON.parse(await fs.readFile(this.pricesFile, 'utf8') as unknown as string);
+      if (typeof j?.at !== 'number' || Date.now() - j.at > 24 * 3600_000 || !j.value || typeof j.value !== 'object') return;
+      const value: Record<string, { usd: number; change: number | null }> = {};
+      for (const [k, v] of Object.entries(j.value as Record<string, any>)) if (k in DECIMALS && Number.isFinite(v?.usd) && v.usd > 0) value[k] = { usd: v.usd, change: Number.isFinite(v?.change) ? v.change : null };
+      // Marked old, so the first look still asks for fresh ones.
+      this.priceCache = { at: 0, value: value as PriceMap };
+    } catch { /* none yet */ }
   }
 
   private async aavePrices(): Promise<Partial<PriceMap>> {
@@ -1872,6 +1971,7 @@ export class WalletService extends EventEmitter {
     const secrets = await this.vault.open(password);
     this.previews.delete(id); // one shot: a retry must go through a fresh preview
     this.balanceMemo.clear(); // money is about to move
+    this.forgetViews();
 
     if (preview.arrr) {
       if (!this.arrr) throw new Error('The Pirate Chain engine is off.');

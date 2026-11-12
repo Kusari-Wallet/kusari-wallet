@@ -3,9 +3,9 @@ export type NetworkId = 'mainnet' | 'testnet';
  * USDT is the Tron token, USDTE the Ethereum one, USDTS Solana's, USDTP Polygon's and USDTA Arbitrum's.
  * ETHA is ETH on Arbitrum, which pays Arbitrum's fees; ARB is the token.
  */
-export type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'LINK' | 'WLD' | 'SOL' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA' | 'BCH' | 'LTC' | 'DOGE' | 'DASH' | 'FIRO' | 'ZEC' | 'ZANO' | 'ARRR' | 'SCRT' | 'SSCRT' | 'ETHP' | 'UNI' | 'PEPE' | 'AAVE' | 'BNB' | 'USDTB' | 'ASTER' | 'CAKE' | 'JUP' | 'RAY' | 'NEAR' | 'USDCE' | 'USDCB' | 'USDCS' | 'USDCP' | 'USDCA' | 'HYPE' | 'SHIB' | 'SHIBB' | 'LINKB' | 'UNIB' | 'AAVEB' | 'ORCA' | 'PUMP' | 'ADA';
+export type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'LINK' | 'WLD' | 'SOL' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA' | 'BCH' | 'LTC' | 'DOGE' | 'DASH' | 'FIRO' | 'ZEC' | 'ZANO' | 'ARRR' | 'SCRT' | 'SSCRT' | 'ETHP' | 'UNI' | 'PEPE' | 'AAVE' | 'BNB' | 'USDTB' | 'ASTER' | 'JUP' | 'RAY' | 'NEAR' | 'USDCE' | 'USDCB' | 'USDCS' | 'USDCP' | 'USDCA' | 'HYPE' | 'SHIB' | 'UNIB' | 'ORCA' | 'PUMP' | 'ADA';
 
-export const DECIMALS: Record<Asset, number> = { ADA: 6, SHIB: 18, SHIBB: 18, LINKB: 18, UNIB: 18, AAVEB: 18, ORCA: 6, PUMP: 6, HYPE: 18, USDCE: 6, USDCB: 18, USDCS: 6, USDCP: 6, USDCA: 6, BTC: 8, XMR: 12, ETH: 18, TRX: 6, USDT: 6, USDTE: 6, LINK: 18, WLD: 18, SOL: 9, USDTS: 6, POL: 18, USDTP: 6, ARB: 18, ETHA: 18, USDTA: 6, BCH: 8, LTC: 8, DOGE: 8, DASH: 8, FIRO: 8, ZEC: 8, ZANO: 12, ARRR: 8, SCRT: 6, SSCRT: 6, ETHP: 18, UNI: 18, PEPE: 18, AAVE: 18, BNB: 18, USDTB: 18, ASTER: 18, CAKE: 18, JUP: 6, RAY: 6, NEAR: 24 };
+export const DECIMALS: Record<Asset, number> = { ADA: 6, SHIB: 18, UNIB: 18, ORCA: 6, PUMP: 6, HYPE: 18, USDCE: 6, USDCB: 18, USDCS: 6, USDCP: 6, USDCA: 6, BTC: 8, XMR: 12, ETH: 18, TRX: 6, USDT: 6, USDTE: 6, LINK: 18, WLD: 18, SOL: 9, USDTS: 6, POL: 18, USDTP: 6, ARB: 18, ETHA: 18, USDTA: 6, BCH: 8, LTC: 8, DOGE: 8, DASH: 8, FIRO: 8, ZEC: 8, ZANO: 12, ARRR: 8, SCRT: 6, SSCRT: 6, ETHP: 18, UNI: 18, PEPE: 18, AAVE: 18, BNB: 18, USDTB: 18, ASTER: 18, JUP: 6, RAY: 6, NEAR: 24 };
 
 export const BTC_APIS = ['https://mempool.space/api', 'https://blockstream.info/api'];
 export const BTC_EXPLORER_TX = 'https://mempool.space/tx/';
@@ -27,7 +27,7 @@ export const NEAR_HISTORY = 'https://api.nearblocks.io/v1';
 export const NEAR_HISTORY_BACKUP = 'https://api3.nearblocks.io/v1';
 export const NEAR_EXPLORER_TX = 'https://nearblocks.io/txns/';
 export const SCRT_EXPLORER_TX = 'https://www.mintscan.io/secret/tx/';
-export const BCH_APIS = ['https://api.bitcore.io/api/BCH/mainnet'];
+export const BCH_APIS = ['https://api.bitcore.io/api/BCH/mainnet', 'blockbook+https://blockbook.bch.zelcore.io'];
 export const BCH_EXPLORER_TX = 'https://blockchair.com/bitcoin-cash/transaction/';
 export const DOGE_APIS = ['https://api.blockcypher.com/v1/doge/main'];
 // BlockCypher only takes POST with a token, which an app can't keep secret, so it reads and these two send.
@@ -70,7 +70,8 @@ export const HYPE_EXPLORER_TX = 'https://hyperevmscan.io/tx/';
 
 export interface NetworkConfig {
   id: NetworkId;
-  tron: { host: string; usdt: string; explorerTx: string };
+  /** backup: a second full node for balances and broadcasts when TronGrid limits or drops a request. */
+  tron: { host: string; backup?: string; usdt: string; explorerTx: string };
   monero: { type: 'mainnet' | 'stagenet'; nodes: string[]; onionNodes: string[]; explorerTx: string };
 }
 
@@ -79,6 +80,7 @@ export const NETWORKS: Record<NetworkId, NetworkConfig> = {
     id: 'mainnet',
     tron: {
       host: 'https://api.trongrid.io',
+      backup: 'https://tron-rpc.publicnode.com',
       usdt: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',
       explorerTx: 'https://tronscan.org/#/transaction/',
     },
