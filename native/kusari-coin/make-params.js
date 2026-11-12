@@ -36,7 +36,7 @@ const launch = Math.floor(Date.now() / 1000);
 const params = {
   monero: { tag: 'v0.18.5.4', commit: '85f036ba7019cd36f08e8a38a27c37ea7b522618' },
   name: 'Kusari',
-  ticker: 'KUS',
+  ticker: 'KSR',
   dataDirName: 'kusari',
   binaryPrefix: 'kusari',
   messageSigningKey: 'KusariMessageSignature',

@@ -138,7 +138,7 @@ interface Preview {
   solUsdt?: SolUsdtDraft;
   zec?: ZecDraft;
   zano?: ZanoDraft;
-  kus?: KusariDraft;
+  ksr?: KusariDraft;
   arrr?: ArrrDraft;
   dex?: { quote: DexQuote; from: Asset; to: Asset; calls: DexCall[] };
 }
@@ -192,7 +192,7 @@ export class WalletService extends EventEmitter {
   private sol: SolClient | null = null;
   private zec: ZecClient | null = null;
   private zano: ZanoClient | null = null;
-  private kus: KusariClient | null = null;
+  private ksr: KusariClient | null = null;
   private arrr: ArrrClient | null = null;
   private mweb: MwebClient | null = null;
   private spark: SparkClient | null = null;
@@ -659,7 +659,7 @@ export class WalletService extends EventEmitter {
       canConnect: () => !this.torNotReady,
       onChange: () => this.emit('balance-changed'),
     }, kusariKeys(secrets.tronMnemonic, secrets.moneroFilePasswords.mainnet));
-    this.kus = client;
+    this.ksr = client;
     try { await client.start(); } catch (e) { client.lastError = (e as Error).message; }
   }
 
@@ -728,10 +728,10 @@ export class WalletService extends EventEmitter {
     this.bch = null;
     this.sol = null;
     // Engines stop in the background; deleting a wallet waits for them, since they hold its files open.
-    this.engineStops = Promise.allSettled([this.zec?.stop(), this.zano?.stop(), this.kus?.stop(), this.arrr?.stop()]).then(() => undefined);
+    this.engineStops = Promise.allSettled([this.zec?.stop(), this.zano?.stop(), this.ksr?.stop(), this.arrr?.stop()]).then(() => undefined);
     this.zec = null;
     this.zano = null;
-    this.kus = null;
+    this.ksr = null;
     this.arrr = null;
     this.mweb?.close();
     this.mweb = null;
@@ -869,7 +869,7 @@ export class WalletService extends EventEmitter {
     const { eth, dash, firo } = this.session();
     const zec = this.zec;
     const zano = this.zano;
-    const kus = this.kus;
+    const ksr = this.ksr;
     const arrr = this.arrr;
     const arrrView = (): BalanceView => {
       const b = arrr?.balance();
@@ -883,10 +883,10 @@ export class WalletService extends EventEmitter {
       if (zano?.lastError && !this.torNotReady) return { ok: false, total: '', spendable: '', error: this.friendlyError(new Error(zano.lastError)) };
       return { ok: false, pending: true, total: '', spendable: '' };
     };
-    const kusView = (): BalanceView => {
-      const b = kus?.balance();
+    const ksrView = (): BalanceView => {
+      const b = ksr?.balance();
       if (b) return { ok: true, total: formatAmount(b[0], 12), spendable: formatAmount(b[1], 12) };
-      if (kus?.lastError && !this.torNotReady) return { ok: false, total: '', spendable: '', error: this.friendlyError(new Error(kus.lastError)) };
+      if (ksr?.lastError && !this.torNotReady) return { ok: false, total: '', spendable: '', error: this.friendlyError(new Error(ksr.lastError)) };
       return { ok: false, pending: true, total: '', spendable: '' };
     };
     const zecView = (): BalanceView => {
@@ -940,7 +940,7 @@ export class WalletService extends EventEmitter {
     return {
       network: this.settings.network,
       tor: this.torActive ? this.tor.state : null,
-      balances: { XMR, BTC, ETH, TRX, USDTE, USDT, SOL, USDTS, LINK, WLD, POL, USDTP, ARB, ETHA, USDTA, BCH, LTC, DOGE, ADA, DASH, FIRO, SCRT, NEAR, SSCRT, ...Object.fromEntries(EXTRA_ASSETS.map((a, i) => [a, EXTRA[i]])), ...(zec ? { ZEC: zecView() } : {}), ...(zano ? { ZANO: zanoView() } : {}), ...(kus ? { KUS: kusView() } : {}), ...(arrr ? { ARRR: arrrView() } : {}) },
+      balances: { XMR, BTC, ETH, TRX, USDTE, USDT, SOL, USDTS, LINK, WLD, POL, USDTP, ARB, ETHA, USDTA, BCH, LTC, DOGE, ADA, DASH, FIRO, SCRT, NEAR, SSCRT, ...Object.fromEntries(EXTRA_ASSETS.map((a, i) => [a, EXTRA[i]])), ...(zec ? { ZEC: zecView() } : {}), ...(zano ? { ZANO: zanoView() } : {}), ...(ksr ? { KSR: ksrView() } : {}), ...(arrr ? { ARRR: arrrView() } : {}) },
       sscrt: { needsKey: this.sscrtNeedsKey },
       coinjoin: this.mixer ? { ...this.mixer.status, rounds: MIX_ROUNDS } : null,
       btcMix: this.btcMixer ? { ...this.btcMixer.status, mixed: formatAmount(this.btcMixedBalance?.total ?? 0n, 8), mixedSpendable: formatAmount(this.btcMixedBalance?.spendable ?? 0n, 8) } : null,
@@ -948,7 +948,7 @@ export class WalletService extends EventEmitter {
       mweb: this.mweb ? { ...this.mweb.info(), balance: this.mweb.balance() ? { total: formatAmount(this.mweb.balance()!.total, 8), spendable: formatAmount(this.mweb.balance()!.spendable, 8) } : null } : null,
       arrr: arrr ? { scanning: arrr.isScanning, percent: arrr.percent } : null,
       zec: zec ? { ...zec.state(), address: zec.receive?.unified ?? '', transparentAddress: zec.transparentAddress } : null,
-      addresses: { ...Object.fromEntries(EVM.map((a) => [a, eth.address])), BTC: btc.receiveAddress, XMR: await monero.getPrimaryAddress(), ETH: eth.address, TRX: tron.address, USDTE: eth.address, USDT: tron.address, DASH: dash.receiveAddress, FIRO: firo.receiveAddress, SOL: this.sol!.receiveAddress, USDTS: this.sol!.receiveAddress, JUP: this.sol!.receiveAddress, RAY: this.sol!.receiveAddress, USDCS: this.sol!.receiveAddress, ORCA: this.sol!.receiveAddress, PUMP: this.sol!.receiveAddress, BCH: bareBch(this.bch!.receiveAddress), LTC: this.ltc!.receiveAddress, SCRT: this.scrt!.address, SSCRT: this.scrt!.address, NEAR: this.near!.receiveAddress, DOGE: this.doge!.receiveAddress, ...(this.ada ? { ADA: this.ada.receiveAddress } : {}), ...(zec ? { ZEC: zec.receive?.unified ?? '' } : {}), ...(zano ? { ZANO: zano.receive } : {}), ...(kus ? { KUS: kus.receive } : {}), ...(arrr ? { ARRR: arrr.receive } : {}) },
+      addresses: { ...Object.fromEntries(EVM.map((a) => [a, eth.address])), BTC: btc.receiveAddress, XMR: await monero.getPrimaryAddress(), ETH: eth.address, TRX: tron.address, USDTE: eth.address, USDT: tron.address, DASH: dash.receiveAddress, FIRO: firo.receiveAddress, SOL: this.sol!.receiveAddress, USDTS: this.sol!.receiveAddress, JUP: this.sol!.receiveAddress, RAY: this.sol!.receiveAddress, USDCS: this.sol!.receiveAddress, ORCA: this.sol!.receiveAddress, PUMP: this.sol!.receiveAddress, BCH: bareBch(this.bch!.receiveAddress), LTC: this.ltc!.receiveAddress, SCRT: this.scrt!.address, SSCRT: this.scrt!.address, NEAR: this.near!.receiveAddress, DOGE: this.doge!.receiveAddress, ...(this.ada ? { ADA: this.ada.receiveAddress } : {}), ...(zec ? { ZEC: zec.receive?.unified ?? '' } : {}), ...(zano ? { ZANO: zano.receive } : {}), ...(ksr ? { KSR: ksr.receive } : {}), ...(arrr ? { ARRR: arrr.receive } : {}) },
       monero: monero.state,
     };
   }
@@ -957,7 +957,7 @@ export class WalletService extends EventEmitter {
   async addresses() {
     const { tron, monero, btc, eth, dash } = this.session();
     // Every Ethereum, Polygon and Arbitrum coin and token lives on the one 0x address.
-    return { ...Object.fromEntries(EVM.map((a) => [a, eth.address])), DASH: dash.receiveAddress, FIRO: this.firo!.receiveAddress, SOL: this.sol!.receiveAddress, USDTS: this.sol!.receiveAddress, JUP: this.sol!.receiveAddress, RAY: this.sol!.receiveAddress, USDCS: this.sol!.receiveAddress, ORCA: this.sol!.receiveAddress, PUMP: this.sol!.receiveAddress, BCH: bareBch(this.bch!.receiveAddress), LTC: this.ltc!.receiveAddress, SCRT: this.scrt!.address, SSCRT: this.scrt!.address, NEAR: this.near!.receiveAddress, DOGE: this.doge!.receiveAddress, ...(this.ada ? { ADA: this.ada.receiveAddress } : {}), BTC: btc.receiveAddress, XMR: await monero.getPrimaryAddress(), ETH: eth.address, TRX: tron.address, USDTE: eth.address, USDT: tron.address, ...(this.zec ? { ZEC: this.zec.receive?.unified ?? '', ZEC_T: this.zec.transparentAddress } : {}), ...(this.zano ? { ZANO: this.zano.receive } : {}), ...(this.kus ? { KUS: this.kus.receive } : {}), ...(this.arrr ? { ARRR: this.arrr.receive } : {}) };
+    return { ...Object.fromEntries(EVM.map((a) => [a, eth.address])), DASH: dash.receiveAddress, FIRO: this.firo!.receiveAddress, SOL: this.sol!.receiveAddress, USDTS: this.sol!.receiveAddress, JUP: this.sol!.receiveAddress, RAY: this.sol!.receiveAddress, USDCS: this.sol!.receiveAddress, ORCA: this.sol!.receiveAddress, PUMP: this.sol!.receiveAddress, BCH: bareBch(this.bch!.receiveAddress), LTC: this.ltc!.receiveAddress, SCRT: this.scrt!.address, SSCRT: this.scrt!.address, NEAR: this.near!.receiveAddress, DOGE: this.doge!.receiveAddress, ...(this.ada ? { ADA: this.ada.receiveAddress } : {}), BTC: btc.receiveAddress, XMR: await monero.getPrimaryAddress(), ETH: eth.address, TRX: tron.address, USDTE: eth.address, USDT: tron.address, ...(this.zec ? { ZEC: this.zec.receive?.unified ?? '', ZEC_T: this.zec.transparentAddress } : {}), ...(this.zano ? { ZANO: this.zano.receive } : {}), ...(this.ksr ? { KSR: this.ksr.receive } : {}), ...(this.arrr ? { ARRR: this.arrr.receive } : {}) };
   }
 
   async torInfo() {
@@ -985,7 +985,7 @@ export class WalletService extends EventEmitter {
     if (asset === 'BCH') return this.bch!.getHistory();
     if (asset === 'ZEC') return this.zec ? this.zec.getHistory() : [];
     if (asset === 'ZANO') return this.zano ? this.zano.getHistory() : [];
-    if (asset === 'KUS') return this.kus ? this.kus.getHistory() : [];
+    if (asset === 'KSR') return this.ksr ? this.ksr.getHistory() : [];
     if (asset === 'ARRR') return this.arrr ? this.arrr.getHistory() : [];
     if (asset === 'BTC') return btc.getHistory();
     if (asset === 'LTC') return this.ltc!.getHistory();
@@ -1160,7 +1160,7 @@ export class WalletService extends EventEmitter {
     if (this.torNotReady) throw new Error('Tor is connecting. Try again once it connects.');
     if (from === to) throw new Error('Choose a different coin.');
     if (NOT_SWAPPABLE.has(from) || NOT_SWAPPABLE.has(to)) throw new Error('sSCRT can\'t be swapped. Make it public as SCRT first.');
-    if (from === 'KUS' || to === 'KUS') throw new Error('No swap service lists KUS yet.');
+    if (from === 'KSR' || to === 'KSR') throw new Error('No swap service lists KSR yet.');
     const amount = formatAmount(parseAmount(amountInput, DECIMALS[from]), DECIMALS[from]);
     const clients = Object.entries(this.swapClients()) as [SwapProviderId, SwapProvider][];
     // The slowest provider mustn't hold up the others, so each gets a deadline and the screen shows whoever answered.
@@ -1195,7 +1195,7 @@ export class WalletService extends EventEmitter {
       : asset === 'BCH' ? isBchAddress(address)
       : asset === 'ZEC' ? isZecAddress(address)
       : asset === 'ZANO' ? isZanoAddress(address)
-      : asset === 'KUS' ? isKusariAddress(address)
+      : asset === 'KSR' ? isKusariAddress(address)
       : asset === 'ARRR' ? isArrrAddress(address)
       : asset === 'XMR' ? await monero.isValidAddress(address)
         : isEvm(asset) ? isEthAddress(address)
@@ -1215,9 +1215,9 @@ export class WalletService extends EventEmitter {
       if (!this.zano?.receive) throw new Error('The Zano wallet is getting ready. Try again shortly.');
       return this.zano.receive;
     }
-    if (asset === 'KUS') {
-      if (!this.kus?.receive) throw new Error('The Kusari wallet is getting ready. Try again shortly.');
-      return this.kus.receive;
+    if (asset === 'KSR') {
+      if (!this.ksr?.receive) throw new Error('The Kusari wallet is getting ready. Try again shortly.');
+      return this.ksr.receive;
     }
     if (asset === 'ZEC') {
       // Swap services pay transparent addresses. The coins get shielded on arrival.
@@ -1245,7 +1245,7 @@ export class WalletService extends EventEmitter {
   /** Gets a fresh rate, opens the order, checks it, and prepares the deposit like any other send. Nothing is signed yet. */
   async swapPrepare(from: Asset, to: Asset, amountInput: string, providerId: SwapProviderId = 'exolix', destination = '') {
     if (NOT_SWAPPABLE.has(from) || NOT_SWAPPABLE.has(to)) throw new Error('sSCRT can\'t be swapped. Make it public as SCRT first.');
-    if (from === 'KUS' || to === 'KUS') throw new Error('No swap service lists KUS yet.');
+    if (from === 'KSR' || to === 'KSR') throw new Error('No swap service lists KSR yet.');
     this.session();
     if (from === to) throw new Error('Choose a different coin.');
     const amount = formatAmount(parseAmount(amountInput, DECIMALS[from]), DECIMALS[from]);
@@ -1475,14 +1475,14 @@ export class WalletService extends EventEmitter {
       if (asset === 'ZEC') return [15_000n, 8, 'ZEC']; // ZIP-317, a typical transfer
       if (asset === 'ZANO') return [ZANO_FEE, 12, 'ZANO'];
       if (asset === 'ARRR') return [10_000n, 8, 'ARRR'];
-      if (asset === 'KUS') {
+      if (asset === 'KSR') {
         // Monero's fee per byte from the Kusari node, for a typical two-output transfer, as for XMR below.
         const node = this.dev.kusariNode ?? ((this.settings.customKusariNode ?? '').trim() || KUSARI_NODE);
         if (!node) throw new Error('no node');
         const res = await requestJson(`http://${node}/json_rpc`, { method: 'POST', body: { jsonrpc: '2.0', id: '0', method: 'get_fee_estimate' }, agent: this.priceAgent, timeoutMs: 10_000 });
         const perByte = res.body?.result?.fee;
         if (!Number.isSafeInteger(perByte) || perByte <= 0) throw new Error('no fee');
-        return [BigInt(perByte) * 2200n, 12, 'KUS'];
+        return [BigInt(perByte) * 2200n, 12, 'KSR'];
       }
       if (isEvm(asset)) {
         const chain = chainOf(asset);
@@ -1739,12 +1739,12 @@ export class WalletService extends EventEmitter {
       if (address === this.zano.receive) throw new Error('You cannot send to your own address.');
       const draft = await this.zano.draft(address, isMax ? 'max' : parseAmount(amountInput, decimals));
       preview = this.storePreview({ asset, to: address, amount: draft.value, fee: draft.fee, zano: draft });
-    } else if (asset === 'KUS') {
-      if (!this.kus) throw new Error('Kusari is not available on this device.');
+    } else if (asset === 'KSR') {
+      if (!this.ksr) throw new Error('Kusari is not available on this device.');
       if (!isKusariAddress(address)) throw new Error('Not a Kusari address. It should start with K or L.');
-      if (address === this.kus.receive) throw new Error('You cannot send to your own address.');
-      const draft = await this.kus.draft(address, isMax ? 'max' : parseAmount(amountInput, decimals));
-      preview = this.storePreview({ asset, to: address, amount: draft.value, fee: draft.fee, kus: draft });
+      if (address === this.ksr.receive) throw new Error('You cannot send to your own address.');
+      const draft = await this.ksr.draft(address, isMax ? 'max' : parseAmount(amountInput, decimals));
+      preview = this.storePreview({ asset, to: address, amount: draft.value, fee: draft.fee, ksr: draft });
     } else if (asset === 'ZEC') {
       if (!this.zec) throw new Error('Zcash is not available on this device.');
       if (!isZecAddress(address)) throw new Error('Not a Zcash address. Only addresses starting with u1, zs1 or t1 can be used.');
@@ -1892,9 +1892,9 @@ export class WalletService extends EventEmitter {
     return {
       id: preview.id, asset, to: address,
       amount: formatAmount(preview.amount, decimals),
-      fee: formatAmount(preview.fee, preview.eth ? 18 : asset === 'XMR' ? 12 : asset === 'ZANO' || asset === 'KUS' ? 12 : asset === 'SCRT' || asset === 'SSCRT' || asset === 'ADA' ? 6 : asset === 'NEAR' ? 24 : asset === 'SOL' || isSpl(asset) ? 9 : asset === 'DOGE' || asset === 'BCH' || asset === 'LTC' || asset === 'BTC' || asset === 'DASH' || asset === 'FIRO' || asset === 'ZEC' || asset === 'ARRR' ? 8 : 6),
-      feeAsset: preview.eth ? chainOf(preview.eth.asset).native : isSpl(asset) ? 'SOL' : asset === 'SSCRT' ? 'SCRT' : asset === 'SOL' || asset === 'ADA' || asset === 'DOGE' || asset === 'BCH' || asset === 'LTC' || asset === 'SCRT' || asset === 'NEAR' || asset === 'XMR' || asset === 'BTC' || asset === 'DASH' || asset === 'FIRO' || asset === 'ZEC' || asset === 'ZANO' || asset === 'KUS' || asset === 'ARRR' ? asset : 'TRX',
-      feeIsEstimate: asset !== 'SOL' && !isSpl(asset) && asset !== 'ADA' && asset !== 'DOGE' && asset !== 'BCH' && asset !== 'LTC' && asset !== 'SCRT' && asset !== 'SSCRT' && asset !== 'NEAR' && asset !== 'XMR' && asset !== 'BTC' && asset !== 'DASH' && asset !== 'FIRO' && asset !== 'ZEC' && asset !== 'ZANO' && asset !== 'KUS' && asset !== 'ARRR',
+      fee: formatAmount(preview.fee, preview.eth ? 18 : asset === 'XMR' ? 12 : asset === 'ZANO' || asset === 'KSR' ? 12 : asset === 'SCRT' || asset === 'SSCRT' || asset === 'ADA' ? 6 : asset === 'NEAR' ? 24 : asset === 'SOL' || isSpl(asset) ? 9 : asset === 'DOGE' || asset === 'BCH' || asset === 'LTC' || asset === 'BTC' || asset === 'DASH' || asset === 'FIRO' || asset === 'ZEC' || asset === 'ARRR' ? 8 : 6),
+      feeAsset: preview.eth ? chainOf(preview.eth.asset).native : isSpl(asset) ? 'SOL' : asset === 'SSCRT' ? 'SCRT' : asset === 'SOL' || asset === 'ADA' || asset === 'DOGE' || asset === 'BCH' || asset === 'LTC' || asset === 'SCRT' || asset === 'NEAR' || asset === 'XMR' || asset === 'BTC' || asset === 'DASH' || asset === 'FIRO' || asset === 'ZEC' || asset === 'ZANO' || asset === 'KSR' || asset === 'ARRR' ? asset : 'TRX',
+      feeIsEstimate: asset !== 'SOL' && !isSpl(asset) && asset !== 'ADA' && asset !== 'DOGE' && asset !== 'BCH' && asset !== 'LTC' && asset !== 'SCRT' && asset !== 'SSCRT' && asset !== 'NEAR' && asset !== 'XMR' && asset !== 'BTC' && asset !== 'DASH' && asset !== 'FIRO' && asset !== 'ZEC' && asset !== 'ZANO' && asset !== 'KSR' && asset !== 'ARRR',
       warnings,
     };
   }
@@ -1927,9 +1927,9 @@ export class WalletService extends EventEmitter {
       if (!this.zano) throw new Error('The Zano engine is off.');
       return { hashes: [await this.zano.send(preview.zano)] };
     }
-    if (preview.kus) {
-      if (!this.kus) throw new Error('The Kusari engine is off.');
-      return { hashes: await this.kus.send(preview.kus) };
+    if (preview.ksr) {
+      if (!this.ksr) throw new Error('The Kusari engine is off.');
+      return { hashes: await this.ksr.send(preview.ksr) };
     }
     if (preview.zec) {
       if (!this.zec) throw new Error('The Zcash engine is off.');
@@ -2002,7 +2002,7 @@ export class WalletService extends EventEmitter {
   }
 
   kusariInfo() {
-    return { available: this.kusariAvailable, started: this.kus !== null, error: this.kus?.lastError ?? null, phase: this.kus?.phase ?? null, detail: kusariEngineInfo(this.dev.kusariBin) };
+    return { available: this.kusariAvailable, started: this.ksr !== null, error: this.ksr?.lastError ?? null, phase: this.ksr?.phase ?? null, detail: kusariEngineInfo(this.dev.kusariBin) };
   }
 
   zanoInfo() {
@@ -2318,7 +2318,7 @@ export class WalletService extends EventEmitter {
     if (asset === 'BCH') return BCH_EXPLORER_TX + hash;
     if (asset === 'ZEC') return ZEC_EXPLORER_TX + hash;
     if (asset === 'ZANO') return ZANO_EXPLORER_TX + hash;
-    if (asset === 'KUS') throw new Error('Kusari has no public explorer yet.');
+    if (asset === 'KSR') throw new Error('Kusari has no public explorer yet.');
     if (asset === 'ARRR') return ARRR_EXPLORER_TX + hash;
     if (asset === 'BTC') return BTC_EXPLORER_TX + hash;
     if (asset === 'LTC') return LTC_EXPLORER_TX + hash;

@@ -1,4 +1,4 @@
-// Android has no Kusari engine yet (kusari-wallet-rpc isn't built for it), so KUS isn't listed there.
+// Android has no Kusari engine yet (kusari-wallet-rpc isn't built for it), so KSR isn't listed there.
 import type { KusariEngine, KusariEngineOptions } from '../main/kusari-process';
 
 export type { KusariEngine, KusariEngineOptions };

@@ -1,4 +1,4 @@
-// Kusari (KUS), the Monero fork in native/kusari-coin. Its wallet server is Monero's own, built for Kusari.
+// Kusari (KSR), the Monero fork in native/kusari-coin. Its wallet server is Monero's own, built for Kusari.
 // The spend key comes from the same BIP39 seed as the other coins, so one seed brings this wallet back too, and the
 // view key from the spend key as in Monero, so the key also restores in kusari-wallet-cli. Never change either.
 import { computeHmac, keccak256, sha256, toUtf8Bytes } from 'ethers';
@@ -8,9 +8,9 @@ import type { KusariEngine } from './kusari-process';
 const { mnemonicToSeedSync } = require('@scure/bip39');
 const { ed25519 } = require('@noble/curves/ed25519.js');
 
-export const KUS_DECIMALS = 12;
+export const KSR_DECIMALS = 12;
 /** From native/kusari-coin/params.json. Consensus: never change. */
-export const KUS_PREFIXES = { address: 110, integrated: 111, subaddress: 116 };
+export const KSR_PREFIXES = { address: 110, integrated: 111, subaddress: 116 };
 const RING_SIZE = 16;
 const POLL_MS = 20_000;
 const STORE_EVERY_MS = 120_000;
@@ -63,12 +63,12 @@ export function isKusariAddress(address: string): boolean {
   if (!/^[KL][1-9A-HJ-NP-Za-km-z]{94}$|^K[1-9A-HJ-NP-Za-km-z]{105}$/.test(address)) return false;
   const b = unbase58(address);
   if (!b || b[0] & 0x80) return false;
-  const kind = b.length === 69 ? (b[0] === KUS_PREFIXES.address || b[0] === KUS_PREFIXES.subaddress) : b.length === 77 && b[0] === KUS_PREFIXES.integrated;
+  const kind = b.length === 69 ? (b[0] === KSR_PREFIXES.address || b[0] === KSR_PREFIXES.subaddress) : b.length === 77 && b[0] === KSR_PREFIXES.integrated;
   return kind && checksum(b.subarray(0, b.length - 4)).equals(Buffer.from(b.subarray(b.length - 4)));
 }
 
 export function kusariAddress(spendPub: Uint8Array, viewPub: Uint8Array): string {
-  const body = Uint8Array.from([KUS_PREFIXES.address, ...spendPub, ...viewPub]);
+  const body = Uint8Array.from([KSR_PREFIXES.address, ...spendPub, ...viewPub]);
   return base58(Uint8Array.from([...body, ...checksum(body)]));
 }
 
@@ -250,10 +250,10 @@ export class KusariClient {
       const out = t.type === 'out' || t.type === 'pending';
       const selfSend = out && Array.isArray(t.destinations) && t.destinations.every((d: any) => d.address === this.addressText);
       return {
-        asset: 'KUS' as const,
+        asset: 'KSR' as const,
         hash: String(t.txid),
         direction: selfSend ? 'self' as const : out ? 'out' as const : 'in' as const,
-        amount: formatAmount(BigInt(t.amount), KUS_DECIMALS),
+        amount: formatAmount(BigInt(t.amount), KSR_DECIMALS),
         counterparty: out && t.destinations?.[0]?.address ? String(t.destinations[0].address) : '',
         timestamp: Number(t.timestamp) ? Number(t.timestamp) * 1000 : Date.now(),
         status: Number(t.height) > 0 ? 'confirmed' as const : 'pending' as const,

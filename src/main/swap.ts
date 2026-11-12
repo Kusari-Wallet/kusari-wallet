@@ -58,7 +58,7 @@ const COIN: Record<Asset, { coin: string; network: RegExp; fallback: string }> =
   SCRT: { coin: 'SCRT', network: /^(scrt|secret)/i, fallback: 'SCRT' },
   NEAR: { coin: 'NEAR', network: /^near$/i, fallback: 'NEAR' },
   SSCRT: { coin: '', network: /^$/, fallback: '' }, // never offered: see NOT_SWAPPABLE
-  KUS: { coin: '', network: /^$/, fallback: '' }, // no service lists Kusari
+  KSR: { coin: '', network: /^$/, fallback: '' }, // no service lists Kusari
   HYPE: { coin: '', network: /^$/, fallback: '' },
 };
 
@@ -249,7 +249,7 @@ const SIMPLE_COIN: Record<Asset, { ticker: string; network: string }> = {
   SCRT: { ticker: 'scrt', network: 'scrt' },
   NEAR: { ticker: 'near', network: 'near' },
   SSCRT: { ticker: '', network: '' },
-  KUS: { ticker: '', network: '' },
+  KSR: { ticker: '', network: '' },
   // HYPE has two homes: Hyperliquid's own chain (HyperCore) and HyperEVM. This wallet holds it on HyperEVM, so only
   // services that pay out there are used: SimpleSwap and ChangeNOW list it as hype/hyperevm (checked with live
   // quotes). Exolix lists HyperCore only; ETZ and CCECash don't list HyperEVM. GhostSwap's

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Makes Kusari's genesis transaction, once, with Zano's own tool: one output of params.genesis.amount KUS to the burn
+# Makes Kusari's genesis transaction, once, with Zano's own tool: one output of params.genesis.amount KSR to the burn
 # address in params.json, and the proof phrase. The files land in native/kusari-zano/genesis/ and are committed.
 #   node native/kusari-zano/prepare.js <zano checkout> --bootstrap
 #   (build connectivity_tool in <zano checkout>/build)

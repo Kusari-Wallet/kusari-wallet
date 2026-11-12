@@ -1,6 +1,6 @@
 # Kusari coin (a Monero fork)
 
-Kusari (KUS) is Monero's code with its own chain: its own genesis block, network ids, address prefixes and ports, and no
+Kusari (KSR) is Monero's code with its own chain: its own genesis block, network ids, address prefixes and ports, and no
 Monero history, checkpoints, seed nodes or update servers. Everything else is Monero's v0.18.5.4 as released: RandomX
 mining, ring signatures (CLSAG, ring size 16), Bulletproofs+, view tags, stealth addresses and subaddresses, the same
 emission curve with its tail emission, the same 25-word seeds and the same RPC.
@@ -39,7 +39,7 @@ genesis, and they are kept so Monero libraries keep working with only the prefix
   launch. It refuses to overwrite without `--force`.
 - `prepare.js`: applies `params.json` to a Monero checkout.
 - `selftest.js`: with the built binaries, starts an offline private mainnet from the genesis and mines past the switch
-  to version 16 at block 16, then on regtest (same code, genesis and prefixes, fixed difficulty) mines 120 blocks and sends 1 KUS
+  to version 16 at block 16, then on regtest (same code, genesis and prefixes, fixed difficulty) mines 120 blocks and sends 1 KSR
   from one wallet to another wallet's subaddress. Real difficulty follows the 2-minute target, so mining enough
   unlocked outputs for a ring of 16 on mainnet would take hours.
 - `lib.js`: Monero's base58, Keccak-256, varints and the genesis transaction layout, in plain Node.
@@ -69,7 +69,7 @@ Monero's own unit tests are not built: many of them check Monero's genesis, chec
 3. Mine from the start yourself, or announce the launch time so others can. A new chain with little hashrate can be
    rewritten by anyone with more, so wait for real hashrate before anyone treats coins as final.
 4. Run a public `kusarid` node and put it in `KUSARI_NODE` in `src/main/config.ts`, so people don't have to set one.
-   Until then the app lists KUS (desktop only) when the build has `native-bin/kusari/kusari-wallet-rpc`, from the
-   workflow's `kusari-app-*` artifacts, and KUS needs a node in Settings.
+   Until then the app lists KSR (desktop only) when the build has `native-bin/kusari/kusari-wallet-rpc`, from the
+   workflow's `kusari-app-*` artifacts, and KSR needs a node in Settings.
 5. A Monero hard fork needs the same work here: move the tag in `params.json`, rerun `prepare.js`, and add the new
    version to `hardForks` at a future height.

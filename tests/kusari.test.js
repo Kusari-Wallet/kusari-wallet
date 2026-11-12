@@ -7,7 +7,7 @@ const http = require('node:http');
 const crypto = require('node:crypto');
 const { spawn } = require('node:child_process');
 const coin = require('../native/kusari-coin/lib');
-const { isKusariAddress, kusariKeys, parseRpc, KusariClient, KUS_PREFIXES } = require('../dist/main/kusari');
+const { isKusariAddress, kusariKeys, parseRpc, KusariClient, KSR_PREFIXES } = require('../dist/main/kusari');
 const { parseChallenge, digestHeader, kusariRpc, startKusariEngine } = require('../dist/main/kusari-process');
 
 const SEED = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
@@ -19,11 +19,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 test('the prefixes are the ones the chain was made with', () => {
   const params = JSON.parse(fs.readFileSync(path.join(__dirname, '../native/kusari-coin/params.json'), 'utf8'));
-  assert.deepStrictEqual(KUS_PREFIXES, params.mainnet.prefixes);
+  assert.deepStrictEqual(KSR_PREFIXES, params.mainnet.prefixes);
 });
 
 test('Kusari addresses are told apart from Monero ones', () => {
-  for (const [kind, prefix] of Object.entries(KUS_PREFIXES)) {
+  for (const [kind, prefix] of Object.entries(KSR_PREFIXES)) {
     const a = kind === 'integrated'
       ? coin.cnBase58((() => { const b = Buffer.concat([coin.varint(prefix), crypto.randomBytes(72)]); return Buffer.concat([b, coin.keccak256(b).subarray(0, 4)]); })())
       : coin.encodeAddress(prefix, crypto.randomBytes(32), crypto.randomBytes(32));
@@ -101,7 +101,7 @@ test('amounts past 2^53 stay exact', () => {
 });
 
 test('no node set means a clear message, not a start', async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kus-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ksr-'));
   const fake = path.join(dir, 'kusari-wallet-rpc');
   fs.writeFileSync(fake, '');
   await assert.rejects(startKusariEngine(fake, dir, { node: '' }), /Set a Kusari node/);
@@ -132,7 +132,7 @@ async function until(what, fn, ms) {
 }
 
 test('a real Kusari wallet syncs, sends and shows its history', { skip: !BIN && 'set KUSARI_BIN_DIR to the built native/kusari-coin binaries', timeout: 900000 }, async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kus-e2e-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ksr-e2e-'));
   const dport = 30000 + Math.floor(Math.random() * 20000);
   const daemon = spawn(path.join(BIN, 'kusarid'), ['--regtest', '--fixed-difficulty', '1', '--offline', '--no-igd', '--non-interactive',
     '--data-dir', path.join(dir, 'chain'), '--rpc-bind-ip', '127.0.0.1', '--rpc-bind-port', String(dport), '--p2p-bind-ip', '127.0.0.1',

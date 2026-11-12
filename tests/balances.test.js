@@ -196,7 +196,7 @@ test('each coin gets its own balance', async (t) => {
 test('every coin the screen lists has a receiving address, tokens on their chain\'s one', async (t) => {
   const { s } = await make(t);
   const { DECIMALS } = require('../dist/main/config');
-  const engines = new Set(['ZEC', 'ZANO', 'ARRR', 'KUS']); // only when their engine runs
+  const engines = new Set(['ZEC', 'ZANO', 'ARRR', 'KSR']); // only when their engine runs
   for (const list of [await s.addresses(), (await s.overview()).addresses]) {
     for (const a of Object.keys(DECIMALS).filter((a) => !engines.has(a))) assert.ok(list[a], `${a} has an address`);
     for (const a of ['LINK', 'WLD', 'POL', 'USDTP', 'ARB', 'ETHA', 'USDTA']) assert.equal(list[a], '0x', a);

@@ -25,7 +25,7 @@ const params = {
   // Monero's PoW, at the commit Monero v0.18.5.4 pins.
   randomx: { repo: 'https://github.com/tevador/RandomX', commit: '12f2c2ffe2108d6cf54c391fee33c8bc3646cdab' },
   name: 'Kusari',
-  ticker: 'KUS',
+  ticker: 'KSR',
   prefixes,
   leading: Object.fromEntries(Object.entries(prefixes).map(([k, p]) => [k, leadingChar(p)])),
   ports: { p2p: 21080, rpc: 21081, stratum: 21082 },
@@ -33,7 +33,7 @@ const params = {
   networkId: crypto.randomBytes(16).toString('hex'),
   testnetNetworkId: crypto.randomBytes(16).toString('hex'),
   launchTime: launch,
-  // The genesis block must pay something: one KUS to an address whose keys were never kept.
+  // The genesis block must pay something: one KSR to an address whose keys were never kept.
   genesis: {
     burnAddress: encodeAddress(prefixes.address, burnPoint(), burnPoint()),
     amount: 1,
