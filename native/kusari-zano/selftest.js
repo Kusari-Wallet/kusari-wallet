@@ -77,10 +77,17 @@ const links = { A: ['B', 'C'], B: ['D'], C: ['D'], D: [] };
 
 function startNode(name, env) {
   const n = nodes[name];
-  const args = ['--data-dir', path.join(work, `chain-${name}`), '--disable-upnp', '--disable-ntp', '--disable-stop-if-time-out-of-sync',
+  const dir = path.join(work, `chain-${name}`);
+  fs.mkdirSync(dir, { recursive: true });
+  // The topology: each node connects out to its links and to nobody else, and still takes incoming connections
+  // (--use-only-priority-nodes would refuse those).
+  fs.writeFileSync(path.join(dir, 'p2p_manual_config.json'), JSON.stringify({
+    priority_peers_list: links[name].map((to) => `127.0.0.1:${nodes[to].p2p}`),
+    outgoing_connections_limit: links[name].length,
+  }));
+  const args = ['--data-dir', dir, '--disable-upnp', '--disable-ntp', '--disable-stop-if-time-out-of-sync',
     '--no-console', '--rpc-bind-ip', '127.0.0.1', '--rpc-bind-port', String(n.rpc), '--p2p-bind-ip', '127.0.0.1', '--p2p-bind-port', String(n.p2p),
-    '--allow-local-ip', '--use-only-priority-nodes', '--rpc-ignore-offline', '--log-level', '1',
-    ...links[name].flatMap((to) => ['--add-priority-node', `127.0.0.1:${nodes[to].p2p}`])];
+    '--allow-local-ip', '--rpc-ignore-offline', '--log-level', '1'];
   start(exe('kusarid'), args, `node-${name}.log`, env);
 }
 
