@@ -1,0 +1,86 @@
+{
+  "monero": {
+    "tag": "v0.18.5.4",
+    "commit": "85f036ba7019cd36f08e8a38a27c37ea7b522618"
+  },
+  "name": "Kusari",
+  "ticker": "KUS",
+  "dataDirName": "kusari",
+  "binaryPrefix": "kusari",
+  "messageSigningKey": "KusariMessageSignature",
+  "hardForks": [
+    {
+      "version": 1,
+      "height": 1,
+      "time": 1794445797
+    },
+    {
+      "version": 16,
+      "height": 2,
+      "time": 1794445798
+    }
+  ],
+  "mainnet": {
+    "prefixes": {
+      "address": 110,
+      "integrated": 111,
+      "subaddress": 116
+    },
+    "leading": {
+      "address": "K",
+      "integrated": "K",
+      "subaddress": "L"
+    },
+    "ports": {
+      "p2p": 21080,
+      "rpc": 21081,
+      "zmq": 21082
+    },
+    "networkId": "08f74ea534c28207d568a6a1c8dd7213",
+    "genesisTx": "013c01ff0001ffffffffffff03022d4ed4aa1535a6f2de70241e2ceeced8feb3dddf536d1c4268c1aee1856ab96d210153f702a0cfdfe04835512fdd8546893f5879fad4cbce32b97649efa5746abcc0",
+    "genesisNonce": 10000,
+    "seedNodes": []
+  },
+  "testnet": {
+    "prefixes": {
+      "address": 66,
+      "integrated": 67,
+      "subaddress": 72
+    },
+    "leading": {
+      "address": "C",
+      "integrated": "C",
+      "subaddress": "D"
+    },
+    "ports": {
+      "p2p": 31080,
+      "rpc": 31081,
+      "zmq": 31082
+    },
+    "networkId": "8dcebedb84cff9f2468e3f8239bc4201",
+    "genesisTx": "013c01ff0001ffffffffffff0302aded112f94636c9a911aa928c6d68fceddcc129fb6890accfee8de821cb54e7c2101595df40d5f3cbd6b8f631239f8e9accd173fa0433e802796d5f003fda9f02e36",
+    "genesisNonce": 10001,
+    "seedNodes": []
+  },
+  "stagenet": {
+    "prefixes": {
+      "address": 84,
+      "integrated": 85,
+      "subaddress": 90
+    },
+    "leading": {
+      "address": "F",
+      "integrated": "F",
+      "subaddress": "G"
+    },
+    "ports": {
+      "p2p": 41080,
+      "rpc": 41081,
+      "zmq": 41082
+    },
+    "networkId": "94e229498965bbfb7181cc73e166394e",
+    "genesisTx": "013c01ff0001ffffffffffff030237e818f771fe8d54a149f0faf0c40c15e6d2ed43d81f5f2646c12a1b25d51279210112fb5d49614d69519e7690b1697885c33b6d19f82424ac7c7b22229ac115fbfd",
+    "genesisNonce": 10002,
+    "seedNodes": []
+  }
+}

@@ -1,0 +1,48 @@
+# Run by hand. Builds Kusari (a Monero fork) from Monero's pinned release, then starts a private chain from its
+# genesis block, mines and sends coins between two wallets.
+name: Kusari coin
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Unit checks
+        run: node --test tests/kusari-coin.test.js
+      - name: Get Monero
+        run: |
+          TAG=$(node -p "require('./native/kusari-coin/params.json').monero.tag")
+          git clone --depth 1 --branch "$TAG" --recurse-submodules --shallow-submodules https://github.com/monero-project/monero kusari
+      - name: Make it Kusari
+        run: node native/kusari-coin/prepare.js kusari
+      - name: Build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake pkg-config libboost-all-dev libssl-dev libzmq3-dev \
+            libunbound-dev libsodium-dev libunwind8-dev liblzma-dev libreadline-dev libexpat1-dev libhidapi-dev \
+            libusb-1.0-0-dev libudev-dev
+      - name: Build
+        run: |
+          cmake -S kusari -B kusari/build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=OFF -DUSE_DEVICE_TREZOR=OFF -DMANUAL_SUBMODULES=1
+          cmake --build kusari/build --target daemon simplewallet wallet_rpc_server -j 4
+          ls -la kusari/build/bin
+      - name: Private chain
+        timeout-minutes: 60
+        run: node native/kusari-coin/selftest.js kusari/build/bin
+      - name: Pack
+        run: |
+          mkdir pack
+          cp kusari/build/bin/kusarid kusari/build/bin/kusari-wallet-cli kusari/build/bin/kusari-wallet-rpc pack/
+          cp kusari/KUSARI_PARAMS.json pack/
+          (cd pack && sha256sum * | tee SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kusari-linux-x64
+          path: pack
+          retention-days: 30

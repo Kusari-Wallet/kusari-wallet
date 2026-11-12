@@ -145,5 +145,6 @@ Native engines are built by the workflows in `.github/workflows`, which only run
 - `src/android/`: Android storage, encryption and network connection
 - `android/`: the Android app (Java)
 - `native/`: native engine sources
+- `native/kusari-coin/`: Kusari (KUS), a coin made from Monero's code with its own chain. See its README.
 
 `monero-ts` needs updating when Monero has a hard fork.
