@@ -92,7 +92,7 @@ namespace currency
       {
         oldest->cache = randomx_alloc_cache(rx_flags());
         if (!oldest->cache)
-          oldest->cache = randomx_alloc_cache(rx_flags() & ~RANDOMX_FLAG_JIT);
+          oldest->cache = randomx_alloc_cache(static_cast<randomx_flags>(rx_flags() & ~RANDOMX_FLAG_JIT));
         if (!oldest->cache)
         {
           LOG_ERROR("fatal error: randomx_alloc_cache failed, throwing bad_alloc...");
@@ -138,7 +138,7 @@ namespace currency
             {
               t.vm = randomx_create_vm(rx_flags(), s.cache, nullptr);
               if (!t.vm)
-                t.vm = randomx_create_vm(rx_flags() & ~RANDOMX_FLAG_JIT, s.cache, nullptr);
+                t.vm = randomx_create_vm(static_cast<randomx_flags>(rx_flags() & ~RANDOMX_FLAG_JIT), s.cache, nullptr);
               if (!t.vm)
               {
                 LOG_ERROR("fatal error: randomx_create_vm failed, throwing bad_alloc...");
