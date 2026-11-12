@@ -1247,5 +1247,15 @@
 "Waiting for Tor to connect.": "Aguardando o Tor conectar.",
 "Waiting for a round to start.": "Aguardando uma rodada começar.",
 "Your coins are in a round ({0} inputs so far). Waiting for it to fill up.": "Suas moedas estão numa rodada ({0} entradas até agora). Aguardando ela encher.",
-"Your coins are split into common amounts together with everyone else's, and come back in your CoinJoin balance. The coordinator charges nothing; the mining fee is shared by everyone in the round. Each request leaves on its own Tor route, and nothing is signed until the transaction pays your outputs in full.": "Suas moedas são divididas em valores comuns junto com as de todos e voltam ao seu saldo CoinJoin. O coordenador não cobra nada; a taxa de mineração é dividida por todos na rodada. Cada pedido sai por uma rota Tor própria, e nada é assinado até a transação pagar suas saídas por completo."
+"Your coins are split into common amounts together with everyone else's, and come back in your CoinJoin balance. The coordinator charges nothing; the mining fee is shared by everyone in the round. Each request leaves on its own Tor route, and nothing is signed until the transaction pays your outputs in full.": "Suas moedas são divididas em valores comuns junto com as de todos e voltam ao seu saldo CoinJoin. O coordenador não cobra nada; a taxa de mineração é dividida por todos na rodada. Cada pedido sai por uma rota Tor própria, e nada é assinado até a transação pagar suas saídas por completo.",
+"Waiting for the mixed coins to confirm, then they go round again.": "Aguardando as moedas misturadas confirmarem; depois elas passam por outra rodada.",
+"Mixed again": "Misturar de novo",
+"Goal": "Meta",
+"Each coin hidden among at least {0} others": "Cada moeda escondida entre pelo menos {0} outras",
+"Mix once": "Misturar uma vez",
+"Until each coin hides among 5 others": "Até cada moeda se esconder entre 5 outras",
+"Until each coin hides among 10 others": "Até cada moeda se esconder entre 10 outras",
+"How much to mix Bitcoin": "Quanto misturar o Bitcoin",
+"Mixed coins go round again until each one shares its amount with that many others, as Wasabi Wallet does. Each round costs a little mining fee.": "As moedas misturadas passam por novas rodadas até cada uma dividir seu valor com esse número de outras, como na Wasabi Wallet. Cada rodada custa um pouco de taxa de mineração.",
+"Choose how many others to hide each coin among.": "Escolha entre quantas outras esconder cada moeda."
 }

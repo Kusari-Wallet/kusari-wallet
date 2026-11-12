@@ -35,7 +35,7 @@ import { SOL_FEE, SPL_TOKENS, SolClient, SolDraft, SolUsdtDraft, SplAsset, isSol
 import { DASH_DUST, DashClient, DashDraft, dashAccountXpub, dashFee, isDashAddress, signDashOutputs, typicalDashFee } from './dash';
 import { DashMixer, MIX_ROUNDS, SplitPlan } from './dash-mix';
 import { tcpDial } from './dash-net';
-import { BtcMixer, COINJOIN_COORDINATORS, MAX_COINS_PER_ROUND } from './btc-mix';
+import { BtcMixer, COINJOIN_COORDINATORS, DEFAULT_MIX_TARGET, MAX_COINS_PER_ROUND, MIX_TARGETS } from './btc-mix';
 import { identificationKey } from './wabisabi/round';
 import type { InsightUtxo } from './insight';
 import { ARBITRUM, BSC, HYPEREVM, EvmChain, EthAsset, EthClient, EthDraft, POLYGON, chainOf, deriveEthAccount, isEthAddress } from './eth';
@@ -490,6 +490,7 @@ export class WalletService extends EventEmitter {
       coordinator: () => this.dev.coinjoinCoordinator ?? this.settings.coinjoinCoordinator ?? COINJOIN_COORDINATORS[0].url,
       newAgent: () => { if (!this.torProxy) return undefined; const a = socksAgent(this.torProxy); newTorRoute(a); return a; },
       coins: async () => (await btc.coins()).filter((u) => u.confirmed).map((u) => ({ txid: u.txid, vout: u.vout, value: u.value, script: btcScript(u.address) })),
+      mixedCoins: async () => (await mixed.coins()).filter((u) => u.confirmed).map((u) => ({ txid: u.txid, vout: u.vout, value: u.value, script: btcScript(u.address), chain: u.chain, index: u.index })),
       firstUnused: () => mixed.nextReceiveIndex,
       maxFeePerK: async () => { const r = await btc.feeRate().catch(() => 10n); const k = (r * 2n > 5n ? r * 2n : 5n) * 1000n; return k > 50_000n ? 50_000n : k; },
       canConnect: () => this.torActive && !this.torNotReady,
@@ -509,7 +510,11 @@ export class WalletService extends EventEmitter {
     const chosen = coins?.length ? all.filter((u) => coins.includes(coinId(u))) : all.filter((u) => !frozen.has(coinId(u)));
     const use = chosen.sort((a, b) => (b.value > a.value ? 1 : -1));
     const coordinator = this.settings.coinjoinCoordinator || COINJOIN_COORDINATORS[0].url;
+    const target = this.settings.coinjoinTarget ?? DEFAULT_MIX_TARGET;
+    // Mixed coins not hidden among enough others yet go round again.
+    const again = target > 1 && this.btcMixed ? await this.btcMixer.toRemix((await this.btcMixed.coins()).filter((u) => u.confirmed).map((u) => ({ txid: u.txid, vout: u.vout, value: u.value, script: new Uint8Array(), chain: u.chain, index: u.index })), target) : [];
     return {
+      remix: again.length, remixAmount: formatAmount(again.reduce((s2, u) => s2 + u.value, 0n), 8), target,
       coins: use.map((u) => coinId(u)), count: use.length, perRound: MAX_COINS_PER_ROUND,
       amount: formatAmount(use.reduce((s, u) => s + u.value, 0n), 8),
       coordinator: COINJOIN_COORDINATORS.find((c) => c.url === coordinator)?.name ?? coordinator,
@@ -524,7 +529,7 @@ export class WalletService extends EventEmitter {
     if (!this.torActive) throw new Error('CoinJoin needs Tor. Turn it on in Settings first.');
     if (this.btcMixer.status.running) throw new Error('Mixing is already running.');
     const info = await this.btcMixInfo(coins);
-    if (!info.count) throw new Error('No confirmed BTC to mix. Coins need 1 confirmation, at least 0.00005 BTC, and not frozen.');
+    if (!info.count && !info.remix) throw new Error('No confirmed BTC to mix. Coins need 1 confirmation, at least 0.00005 BTC, and not frozen.');
     const secrets = await this.vault.open(password);
     const { HDKey } = require('@scure/bip32');
     const { mnemonicToSeedSync } = require('@scure/bip39');
@@ -537,8 +542,9 @@ export class WalletService extends EventEmitter {
       if (btcScriptOfKey(k.publicKey) !== Buffer.from(btcScript(u.address)).toString('hex')) throw new Error('A coin does not match this wallet\'s keys, so mixing was stopped.');
       coinKeys.set(coinId(u), Uint8Array.from(k.privateKey));
     }
-    const mixedAccount = HDKey.fromExtendedKey(root.derive(BTC_MIXED_PATH).publicExtendedKey);
-    await this.btcMixer.start({ coinKeys, idKey: identificationKey(root.privateKey), mixedAccount });
+    const mixedPrivate = root.derive(BTC_MIXED_PATH);
+    const mixedAccount = HDKey.fromExtendedKey(mixedPrivate.publicExtendedKey);
+    await this.btcMixer.start({ coinKeys, idKey: identificationKey(root.privateKey), mixedAccount, mixedPrivate: info.target > 1 ? mixedPrivate : undefined, target: info.target });
     return { ok: true };
   }
 
@@ -2123,6 +2129,10 @@ export class WalletService extends EventEmitter {
       next.customMoneroNode = node;
     }
     if (typeof patch.customBtcServer === 'string') next.customBtcServer = checkOwnServer(patch.customBtcServer);
+    if (patch.coinjoinTarget !== undefined) {
+      if (!MIX_TARGETS.includes(Number(patch.coinjoinTarget))) throw new Error('Choose how many others to hide each coin among.');
+      next.coinjoinTarget = Number(patch.coinjoinTarget);
+    }
     if (typeof patch.coinjoinCoordinator === 'string') {
       const c = patch.coinjoinCoordinator.trim();
       const known = COINJOIN_COORDINATORS.some((k) => k.url === c);

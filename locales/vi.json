@@ -1247,5 +1247,15 @@
 "Waiting for Tor to connect.": "Đang chờ Tor kết nối.",
 "Waiting for a round to start.": "Đang chờ một vòng bắt đầu.",
 "Your coins are in a round ({0} inputs so far). Waiting for it to fill up.": "Coin của bạn đã vào một vòng (hiện có {0} đầu vào). Đang chờ vòng đầy.",
-"Your coins are split into common amounts together with everyone else's, and come back in your CoinJoin balance. The coordinator charges nothing; the mining fee is shared by everyone in the round. Each request leaves on its own Tor route, and nothing is signed until the transaction pays your outputs in full.": "Coin của bạn được chia thành các mức phổ biến cùng với của mọi người và trở về số dư CoinJoin. Bộ điều phối không thu phí; phí đào được mọi người trong vòng chia nhau. Mỗi yêu cầu đi qua tuyến Tor riêng, và không ký gì cho đến khi giao dịch trả đủ các đầu ra của bạn."
+"Your coins are split into common amounts together with everyone else's, and come back in your CoinJoin balance. The coordinator charges nothing; the mining fee is shared by everyone in the round. Each request leaves on its own Tor route, and nothing is signed until the transaction pays your outputs in full.": "Coin của bạn được chia thành các mức phổ biến cùng với của mọi người và trở về số dư CoinJoin. Bộ điều phối không thu phí; phí đào được mọi người trong vòng chia nhau. Mỗi yêu cầu đi qua tuyến Tor riêng, và không ký gì cho đến khi giao dịch trả đủ các đầu ra của bạn.",
+"Waiting for the mixed coins to confirm, then they go round again.": "Đang chờ các coin đã trộn được xác nhận, sau đó sẽ trộn tiếp.",
+"Mixed again": "Trộn lại",
+"Goal": "Mục tiêu",
+"Each coin hidden among at least {0} others": "Mỗi coin ẩn giữa ít nhất {0} người khác",
+"Mix once": "Trộn một lần",
+"Until each coin hides among 5 others": "Đến khi mỗi coin ẩn giữa 5 người khác",
+"Until each coin hides among 10 others": "Đến khi mỗi coin ẩn giữa 10 người khác",
+"How much to mix Bitcoin": "Mức trộn Bitcoin",
+"Mixed coins go round again until each one shares its amount with that many others, as Wasabi Wallet does. Each round costs a little mining fee.": "Coin đã trộn sẽ được trộn tiếp cho đến khi mỗi coin có đủ chừng ấy người cùng số tiền, giống Wasabi Wallet. Mỗi vòng tốn một ít phí đào.",
+"Choose how many others to hide each coin among.": "Hãy chọn mỗi coin ẩn giữa bao nhiêu người."
 }

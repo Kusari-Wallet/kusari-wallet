@@ -1247,5 +1247,15 @@
 "Waiting for Tor to connect.": "Tor 연결을 기다리는 중입니다.",
 "Waiting for a round to start.": "라운드가 시작되기를 기다리는 중입니다.",
 "Your coins are in a round ({0} inputs so far). Waiting for it to fill up.": "내 코인이 라운드에 들어갔습니다 (지금까지 입력 {0}개). 라운드가 차기를 기다리는 중입니다.",
-"Your coins are split into common amounts together with everyone else's, and come back in your CoinJoin balance. The coordinator charges nothing; the mining fee is shared by everyone in the round. Each request leaves on its own Tor route, and nothing is signed until the transaction pays your outputs in full.": "내 코인은 다른 사람들 것과 함께 흔한 금액으로 나뉘어 CoinJoin 잔액으로 돌아옵니다. 코디네이터 수수료는 없고, 채굴 수수료는 라운드 참여자가 나눠 냅니다. 요청마다 다른 Tor 경로로 나가고, 거래가 내 출력을 전액 지급할 때만 서명합니다."
+"Your coins are split into common amounts together with everyone else's, and come back in your CoinJoin balance. The coordinator charges nothing; the mining fee is shared by everyone in the round. Each request leaves on its own Tor route, and nothing is signed until the transaction pays your outputs in full.": "내 코인은 다른 사람들 것과 함께 흔한 금액으로 나뉘어 CoinJoin 잔액으로 돌아옵니다. 코디네이터 수수료는 없고, 채굴 수수료는 라운드 참여자가 나눠 냅니다. 요청마다 다른 Tor 경로로 나가고, 거래가 내 출력을 전액 지급할 때만 서명합니다.",
+"Waiting for the mixed coins to confirm, then they go round again.": "섞인 코인이 확인되기를 기다리는 중입니다. 확인되면 다시 섞습니다.",
+"Mixed again": "다시 섞기",
+"Goal": "목표",
+"Each coin hidden among at least {0} others": "코인마다 최소 {0}명 사이에 숨기기",
+"Mix once": "한 번만 섞기",
+"Until each coin hides among 5 others": "코인마다 5명 사이에 숨을 때까지",
+"Until each coin hides among 10 others": "코인마다 10명 사이에 숨을 때까지",
+"How much to mix Bitcoin": "비트코인 섞는 정도",
+"Mixed coins go round again until each one shares its amount with that many others, as Wasabi Wallet does. Each round costs a little mining fee.": "섞인 코인은 같은 금액을 가진 사람이 그만큼 생길 때까지 다시 섞입니다. Wasabi Wallet과 같은 방식입니다. 라운드마다 채굴 수수료가 조금 듭니다.",
+"Choose how many others to hide each coin among.": "코인마다 몇 명 사이에 숨길지 고르세요."
 }

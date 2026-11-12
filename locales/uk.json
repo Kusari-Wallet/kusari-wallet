@@ -1247,5 +1247,15 @@
 "Waiting for Tor to connect.": "Очікування підключення Tor.",
 "Waiting for a round to start.": "Очікування початку раунду.",
 "Your coins are in a round ({0} inputs so far). Waiting for it to fill up.": "Ваші монети в раунді (поки {0} входів). Чекаємо, поки він заповниться.",
-"Your coins are split into common amounts together with everyone else's, and come back in your CoinJoin balance. The coordinator charges nothing; the mining fee is shared by everyone in the round. Each request leaves on its own Tor route, and nothing is signed until the transaction pays your outputs in full.": "Ваші монети діляться на поширені суми разом із чужими й повертаються на ваш баланс CoinJoin. Координатор нічого не бере, комісію майнерам ділять усі учасники раунду. Кожен запит іде своїм маршрутом Tor, а підпис ставиться, лише якщо транзакція повністю платить ваші виходи."
+"Your coins are split into common amounts together with everyone else's, and come back in your CoinJoin balance. The coordinator charges nothing; the mining fee is shared by everyone in the round. Each request leaves on its own Tor route, and nothing is signed until the transaction pays your outputs in full.": "Ваші монети діляться на поширені суми разом із чужими й повертаються на ваш баланс CoinJoin. Координатор нічого не бере, комісію майнерам ділять усі учасники раунду. Кожен запит іде своїм маршрутом Tor, а підпис ставиться, лише якщо транзакція повністю платить ваші виходи.",
+"Waiting for the mixed coins to confirm, then they go round again.": "Чекаємо підтвердження змішаних монет, потім вони підуть у новий раунд.",
+"Mixed again": "Повторно",
+"Goal": "Мета",
+"Each coin hidden among at least {0} others": "Кожна монета серед щонайменше {0} інших",
+"Mix once": "Змішати один раз",
+"Until each coin hides among 5 others": "Поки кожна монета не сховається серед 5 інших",
+"Until each coin hides among 10 others": "Поки кожна монета не сховається серед 10 інших",
+"How much to mix Bitcoin": "Наскільки змішувати Bitcoin",
+"Mixed coins go round again until each one shares its amount with that many others, as Wasabi Wallet does. Each round costs a little mining fee.": "Змішані монети йдуть у нові раунди, поки в кожної не буде стільки ж інших з тією самою сумою, як у Wasabi Wallet. Кожен раунд коштує трохи комісії майнерам.",
+"Choose how many others to hide each coin among.": "Виберіть, серед скількох інших ховати кожну монету."
 }

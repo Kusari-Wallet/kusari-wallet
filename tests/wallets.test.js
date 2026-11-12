@@ -180,3 +180,13 @@ test('CoinJoin: needs an open wallet, and the coordinator setting takes known on
   await assert.rejects(s.updateSettings({ coinjoinCoordinator: 'http://192.168.1.2:37127' }), /https:\/\/ or an \.onion/);
   await assert.rejects(s.updateSettings({ coinjoinCoordinator: '' }), /Choose a CoinJoin coordinator/);
 });
+
+test('CoinJoin: how much to mix is 1, 5 or 10', async (t) => {
+  const { s } = await make(t);
+  assert.equal(s.settings.coinjoinTarget, 5, 'Wasabi\'s default');
+  await s.updateSettings({ coinjoinTarget: 10 });
+  assert.equal(s.settings.coinjoinTarget, 10);
+  await s.updateSettings({ coinjoinTarget: 1 });
+  assert.equal(s.settings.coinjoinTarget, 1);
+  await assert.rejects(s.updateSettings({ coinjoinTarget: 3 }), /how many others/);
+});

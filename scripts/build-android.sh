@@ -37,6 +37,12 @@ fi
 
 KS="$ROOT/android/release.keystore"; PROPS="$ROOT/android/keystore.properties"
 if [ ! -f "$KS" ]; then
+  # A new key makes an APK that can't update the installed app, so it is only made when asked for.
+  if [ "${KUSARI_NEW_KEYSTORE:-}" != "1" ]; then
+    echo "android/release.keystore is missing. Restore it from your backup (a new key can't update the installed app)," >&2
+    echo "or run with KUSARI_NEW_KEYSTORE=1 to make a new one for a new app." >&2
+    exit 1
+  fi
   PASS=$(node -e "console.log(require('crypto').randomBytes(24).toString('hex'))")
   keytool -genkeypair -keystore "$KS" -storetype PKCS12 -storepass "$PASS" -keypass "$PASS" -alias vaultwallet -keyalg RSA -keysize 4096 -validity 20000 -dname "CN=Shinobi Wallet" 2>/dev/null
   echo "$PASS" > "$PROPS"; chmod 600 "$KS" "$PROPS"

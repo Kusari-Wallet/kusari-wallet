@@ -1247,5 +1247,15 @@
 "Waiting for Tor to connect.": "Tor bağlantısı bekleniyor.",
 "Waiting for a round to start.": "Bir turun başlaması bekleniyor.",
 "Your coins are in a round ({0} inputs so far). Waiting for it to fill up.": "Coinleriniz bir turda (şimdiye kadar {0} girdi). Dolması bekleniyor.",
-"Your coins are split into common amounts together with everyone else's, and come back in your CoinJoin balance. The coordinator charges nothing; the mining fee is shared by everyone in the round. Each request leaves on its own Tor route, and nothing is signed until the transaction pays your outputs in full.": "Coinleriniz herkesinkiyle birlikte yaygın tutarlara bölünür ve CoinJoin bakiyenize döner. Koordinatör ücret almaz; madenci ücreti turdaki herkesçe paylaşılır. Her istek kendi Tor yolundan çıkar ve işlem çıktılarınızı tam ödemedikçe hiçbir şey imzalanmaz."
+"Your coins are split into common amounts together with everyone else's, and come back in your CoinJoin balance. The coordinator charges nothing; the mining fee is shared by everyone in the round. Each request leaves on its own Tor route, and nothing is signed until the transaction pays your outputs in full.": "Coinleriniz herkesinkiyle birlikte yaygın tutarlara bölünür ve CoinJoin bakiyenize döner. Koordinatör ücret almaz; madenci ücreti turdaki herkesçe paylaşılır. Her istek kendi Tor yolundan çıkar ve işlem çıktılarınızı tam ödemedikçe hiçbir şey imzalanmaz.",
+"Waiting for the mixed coins to confirm, then they go round again.": "Karıştırılmış coinlerin onayı bekleniyor, sonra tekrar karıştırılacaklar.",
+"Mixed again": "Tekrar karıştırılacak",
+"Goal": "Hedef",
+"Each coin hidden among at least {0} others": "Her coin en az {0} kişi arasında gizli",
+"Mix once": "Bir kez karıştır",
+"Until each coin hides among 5 others": "Her coin 5 kişi arasında gizlenene kadar",
+"Until each coin hides among 10 others": "Her coin 10 kişi arasında gizlenene kadar",
+"How much to mix Bitcoin": "Bitcoin ne kadar karıştırılsın",
+"Mixed coins go round again until each one shares its amount with that many others, as Wasabi Wallet does. Each round costs a little mining fee.": "Karıştırılmış coinler, her biri tutarını o kadar kişiyle paylaşana kadar tekrar karıştırılır; Wasabi Wallet'taki gibi. Her tur biraz madenci ücreti tutar.",
+"Choose how many others to hide each coin among.": "Her coinin kaç kişi arasında gizleneceğini seçin."
 }

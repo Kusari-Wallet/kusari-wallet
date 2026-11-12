@@ -129,6 +129,8 @@ export interface Settings {
   customZanoNode: string;
   /** The CoinJoin coordinator for Bitcoin, as its address. */
   coinjoinCoordinator: string;
+  /** Mix until each Bitcoin coin hides among this many others (1: mix once). */
+  coinjoinTarget: number;
   tronApiKey: string;
   autoLockMinutes: number;
   showPrices: boolean;
@@ -147,6 +149,7 @@ export const DEFAULT_SETTINGS: Settings = {
   customBtcServer: '',
   customZanoNode: '',
   coinjoinCoordinator: 'https://coinjoin.kruw.io/',
+  coinjoinTarget: 5,
   tronApiKey: '',
   autoLockMinutes: 10,
   showPrices: true,

@@ -6,7 +6,7 @@ import { Credential, WabiSabiClient } from './credentials';
 import { readResponse, requestJson, toHex } from './messages';
 import {
   Coin, EndRoundState, Phase, RoundState, SCRIPT_TYPE, TxOut, commitment, effectiveFeePerK, effectiveValue, fee, idMatches, inputVsize,
-  isBlame, outpointBytes, outputVsize, ownershipProofTaproot, readRound, scriptText, scriptType, signTaprootInput, sortedInputs, unsignedTransaction, verifyOwnership,
+  isBlame, outpointBytes, outputVsize, ownershipProofTaproot, readRound, scriptText, scriptType, signTaprootInput, sortedInputs, sortedOutputs, unsignedTransaction, verifyOwnership,
 } from './round';
 import { decompose } from './decompose';
 
@@ -43,7 +43,8 @@ export interface MixOptions {
   registrationMarginMs?: number;
 }
 export interface MixStatus { stage: 'waiting' | 'registering' | 'confirming' | 'outputs' | 'signing' | 'done' | 'failed'; roundId?: string; inputs?: number; detail?: string }
-export type MixResult = { ok: true; roundId: string; txid: string; outputs: TxOut[]; inputs: MixCoin[] } | { ok: false; roundId?: string; reason: string; signed: boolean };
+/** `outputs`: this wallet's, with their index in the transaction. `all`: every output of the coinjoin. */
+export type MixResult = { ok: true; roundId: string; txid: string; outputs: (TxOut & { vout: number })[]; all: TxOut[]; inputs: MixCoin[] } | { ok: false; roundId?: string; reason: string; signed: boolean };
 
 const sleep = (ms: number, signal?: AbortSignal) => new Promise<void>((resolve, reject) => {
   if (signal?.aborted) return reject(new Error('Stopped.'));
@@ -342,7 +343,9 @@ export async function mixOnce(coins: MixCoin[], o: MixOptions): Promise<MixResul
   if (!ended || ended.phase !== Phase.Ended) return fail('The round\'s outcome is unknown.');
   if (ended.end !== EndRoundState.TransactionBroadcasted) return fail(ended.end === EndRoundState.NotAllAlicesSign ? 'Someone did not sign.' : 'The round was not completed.');
   status({ stage: 'done', roundId });
-  return { ok: true, roundId, txid: tx.id, outputs, inputs: mineIn.map((a) => a.coin) };
+  const merged = sortedOutputs(atSigning.outputs);
+  const placed = outputs.map((out) => ({ ...out, vout: merged.findIndex((m) => Buffer.from(m.script).equals(Buffer.from(out.script))) }));
+  return { ok: true, roundId, txid: tx.id, outputs: placed, all: atSigning.outputs, inputs: mineIn.map((a) => a.coin) };
 }
 
 /** The mining fee a round will take from these coins, for showing before mixing. */

@@ -1247,5 +1247,15 @@
 "Waiting for Tor to connect.": "Torの接続を待っています。",
 "Waiting for a round to start.": "ラウンドの開始を待っています。",
 "Your coins are in a round ({0} inputs so far). Waiting for it to fill up.": "あなたのコインがラウンドに入りました（現在入力{0}件）。埋まるのを待っています。",
-"Your coins are split into common amounts together with everyone else's, and come back in your CoinJoin balance. The coordinator charges nothing; the mining fee is shared by everyone in the round. Each request leaves on its own Tor route, and nothing is signed until the transaction pays your outputs in full.": "あなたのコインはほかの人のものと一緒に一般的な額に分けられ、CoinJoin残高に戻ります。コーディネーター手数料はなく、マイニング手数料はラウンドの参加者で分担します。リクエストごとに別のTor経路を使い、取引があなたの出力を全額支払う場合にだけ署名します。"
+"Your coins are split into common amounts together with everyone else's, and come back in your CoinJoin balance. The coordinator charges nothing; the mining fee is shared by everyone in the round. Each request leaves on its own Tor route, and nothing is signed until the transaction pays your outputs in full.": "あなたのコインはほかの人のものと一緒に一般的な額に分けられ、CoinJoin残高に戻ります。コーディネーター手数料はなく、マイニング手数料はラウンドの参加者で分担します。リクエストごとに別のTor経路を使い、取引があなたの出力を全額支払う場合にだけ署名します。",
+"Waiting for the mixed coins to confirm, then they go round again.": "ミックス済みコインの承認を待っています。承認されたらもう一度ミックスします。",
+"Mixed again": "再ミックス",
+"Goal": "目標",
+"Each coin hidden among at least {0} others": "各コインを少なくとも{0}人の中に隠す",
+"Mix once": "1回だけミックス",
+"Until each coin hides among 5 others": "各コインが5人の中に隠れるまで",
+"Until each coin hides among 10 others": "各コインが10人の中に隠れるまで",
+"How much to mix Bitcoin": "ビットコインのミックス量",
+"Mixed coins go round again until each one shares its amount with that many others, as Wasabi Wallet does. Each round costs a little mining fee.": "ミックス済みコインは、同じ額のコインを持つ人がその人数になるまで再ミックスされます。Wasabi Walletと同じ方式です。ラウンドごとに少しマイニング手数料がかかります。",
+"Choose how many others to hide each coin among.": "各コインを何人の中に隠すか選んでください。"
 }

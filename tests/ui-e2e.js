@@ -1062,7 +1062,7 @@ const PASSWORD = 'correct horse battery';
     await page.fill('#confirm-pw', PASSWORD);
     await page.click('#btc-cj-start');
     await page.locator('#btc-cj-stop').waitFor({ timeout: 30000 });
-    await page.locator('#btc-cj-step', { hasText: /Mixing finished|last round finished/ }).waitFor({ timeout: 150000 });
+    await page.locator('#btc-cj-step', { hasText: /Mixing finished|last round finished|go round again/ }).waitFor({ timeout: 150000 });
     assert.equal(cjCoord.state.witnesses.size, 1, 'the coin was signed into the coinjoin');
     assert.ok(!cjCoord.state.identities.includes('ua-sent'), 'no request carried a user agent');
     assert.ok(socks.log.filter((d) => d.port === cjServer.address().port).length >= 5, 'the requests went through Tor');

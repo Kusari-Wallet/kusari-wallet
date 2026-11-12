@@ -893,7 +893,7 @@ const COORDINATORS: [string, string][] = [['https://coinjoin.kruw.io/', 'Kruw'],
 function btcMixStatusText(m: any): string {
   const n = m.inputs ?? 0;
   if (m.running) {
-    if (m.stage === 'waiting') return m.detail === 'tor' ? 'Waiting for Tor to connect.' : 'Waiting for a round to start.';
+    if (m.stage === 'waiting') return m.detail === 'tor' ? 'Waiting for Tor to connect.' : m.detail === 'confirmations' ? 'Waiting for the mixed coins to confirm, then they go round again.' : 'Waiting for a round to start.';
     if (m.stage === 'registering') return 'Registering your coins in a round.';
     if (m.stage === 'confirming') return `Your coins are in a round (${n} inputs so far). Waiting for it to fill up.`;
     if (m.stage === 'outputs') return `The round is full (${n} inputs). Registering the mixed outputs.`;
@@ -937,10 +937,12 @@ async function renderBtcMix(): Promise<void> {
       setKids(summary, h('table', { class: 'review-table' }, h('tbody', {},
         h('tr', {}, h('th', {}, 'To mix'), h('td', { id: 'btc-cj-amount' }, `${info.amount} BTC`)),
         h('tr', {}, h('th', {}, 'Coins'), h('td', { id: 'btc-cj-count' }, String(info.count))),
+        info.remix > 0 && h('tr', {}, h('th', {}, 'Mixed again'), h('td', { id: 'btc-cj-remix' }, `${info.remix} (${info.remixAmount} BTC)`)),
+        h('tr', {}, h('th', {}, 'Goal'), h('td', { id: 'btc-cj-target' }, info.target > 1 ? `Each coin hidden among at least ${info.target} others` : 'Mix once')),
         h('tr', {}, h('th', {}, 'Coordinator'), h('td', { id: 'btc-cj-coordinator' }, info.coordinator)))),
         info.count > info.perRound && h('p', { class: 'small muted' }, `Up to ${info.perRound} coins go into each round; the rest follow in later rounds.`),
         !info.tor && h('div', { class: 'warn', id: 'btc-cj-no-tor' }, 'CoinJoin needs Tor. Turn it on in Settings first.'));
-      go.disabled = !info.count || !info.tor;
+      go.disabled = (!info.count && !info.remix) || !info.tor;
     } catch (e) { box.show(e); }
   };
   coins.onChange = () => void paint();
@@ -2083,6 +2085,10 @@ async function renderSettings(): Promise<void> {
   const coordinator = h('select', { id: 'set-coordinator' }, ...COORDINATORS.map(([url, name]) => h('option', { value: url, selected: url === (known ? s.coinjoinCoordinator : COORDINATORS[0][0]) }, name)), h('option', { value: 'custom', selected: !known && Boolean(s.coinjoinCoordinator) }, 'Another coordinator')) as HTMLSelectElement;
   const coordinatorUrl = h('input', { id: 'set-coordinator-url', value: known ? '' : s.coinjoinCoordinator ?? '', placeholder: 'https://coordinator.example/', spellcheck: 'false' }) as HTMLInputElement;
   const coordinatorRow = h('label', { class: 'field', id: 'set-coordinator-url-row', hidden: coordinator.value !== 'custom' }, h('span', {}, 'Coordinator address'), coordinatorUrl);
+  const mixTarget = h('select', { id: 'set-cj-target' },
+    h('option', { value: '1', selected: s.coinjoinTarget === 1 }, 'Mix once'),
+    h('option', { value: '5', selected: (s.coinjoinTarget ?? 5) === 5 }, 'Until each coin hides among 5 others'),
+    h('option', { value: '10', selected: s.coinjoinTarget === 10 }, 'Until each coin hides among 10 others')) as HTMLSelectElement;
   coordinator.addEventListener('change', () => { coordinatorRow.hidden = coordinator.value !== 'custom'; });
   const key = h('input', { id: 'set-key', value: s.tronApiKey, spellcheck: 'false', autocomplete: 'off' });
   const auto = h('input', { id: 'set-auto', type: 'number', min: '1', max: '240', value: String(s.autoLockMinutes) });
@@ -2134,7 +2140,7 @@ async function renderSettings(): Promise<void> {
       await wallet.installTor();
       tor.installed = true;
     }
-    const relocked = await wallet.updateSettings({ customMoneroNode: node.value, customBtcServer: btcServer.value, customZanoNode: zanoNode.value, coinjoinCoordinator: coordinator.value === 'custom' ? coordinatorUrl.value : coordinator.value, tronApiKey: key.value, autoLockMinutes: Number(auto.value), showPrices: showPrices.checked, ...(tor.allowed === false ? {} : { torEnabled: useTor.checked, torBridge: bridge.value, torBridgeLines: bridgeLines.value }) });
+    const relocked = await wallet.updateSettings({ customMoneroNode: node.value, customBtcServer: btcServer.value, customZanoNode: zanoNode.value, coinjoinCoordinator: coordinator.value === 'custom' ? coordinatorUrl.value : coordinator.value, coinjoinTarget: Number(mixTarget.value), tronApiKey: key.value, autoLockMinutes: Number(auto.value), showPrices: showPrices.checked, ...(tor.allowed === false ? {} : { torEnabled: useTor.checked, torBridge: bridge.value, torBridgeLines: bridgeLines.value }) });
     if (!relocked) { saved.textContent = 'Saved.'; void refresh(); }
   }) }, 'Save');
 
@@ -2202,6 +2208,7 @@ async function renderSettings(): Promise<void> {
         h('label', { class: 'field' }, h('span', {}, 'Your own Zano node'), zanoNode, h('div', { class: 'hint' }, 'host:port of a Zano node you run. Empty uses the public node.')),
         h('label', { class: 'field' }, h('span', {}, 'Bitcoin CoinJoin coordinator'), coordinator, h('div', { class: 'hint' }, 'The server that runs the CoinJoin rounds. It sees which coins are in a round, but not which outputs belong to whom. These charge no fee.')),
         coordinatorRow,
+        h('label', { class: 'field' }, h('span', {}, 'How much to mix Bitcoin'), mixTarget, h('div', { class: 'hint' }, 'Mixed coins go round again until each one shares its amount with that many others, as Wasabi Wallet does. Each round costs a little mining fee.')),
         h('label', { class: 'field' }, h('span', {}, 'Custom Monero node'), node, h('div', { class: 'hint' }, 'Enter your own node if you have one. Empty chooses a public node automatically. Public nodes can see your IP.')),
         h('label', { class: 'field' }, h('span', {}, 'TronGrid API key'), key, h('div', { class: 'hint' }, 'Works without one. Add a free key if lookups are often limited.')),
         h('label', { class: 'field' }, h('span', {}, 'Auto-lock (minutes)'), auto),

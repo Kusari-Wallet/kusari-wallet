@@ -1247,5 +1247,15 @@
 "Waiting for Tor to connect.": "正在等待 Tor 连接。",
 "Waiting for a round to start.": "正在等待一轮开始。",
 "Your coins are in a round ({0} inputs so far). Waiting for it to fill up.": "你的币已进入一轮（目前 {0} 个输入）。正在等待满员。",
-"Your coins are split into common amounts together with everyone else's, and come back in your CoinJoin balance. The coordinator charges nothing; the mining fee is shared by everyone in the round. Each request leaves on its own Tor route, and nothing is signed until the transaction pays your outputs in full.": "你的币会和其他人的一起被分成常见金额，回到你的 CoinJoin 余额。协调器不收费，矿工费由这一轮的所有人分摊。每个请求都走自己的 Tor 线路，只有当交易足额支付你的输出时才会签名。"
+"Your coins are split into common amounts together with everyone else's, and come back in your CoinJoin balance. The coordinator charges nothing; the mining fee is shared by everyone in the round. Each request leaves on its own Tor route, and nothing is signed until the transaction pays your outputs in full.": "你的币会和其他人的一起被分成常见金额，回到你的 CoinJoin 余额。协调器不收费，矿工费由这一轮的所有人分摊。每个请求都走自己的 Tor 线路，只有当交易足额支付你的输出时才会签名。",
+"Waiting for the mixed coins to confirm, then they go round again.": "正在等待混合后的币确认，确认后会再次混合。",
+"Mixed again": "再次混合",
+"Goal": "目标",
+"Each coin hidden among at least {0} others": "每枚币至少藏在 {0} 人之中",
+"Mix once": "只混一次",
+"Until each coin hides among 5 others": "直到每枚币藏在 5 人之中",
+"Until each coin hides among 10 others": "直到每枚币藏在 10 人之中",
+"How much to mix Bitcoin": "比特币混合程度",
+"Mixed coins go round again until each one shares its amount with that many others, as Wasabi Wallet does. Each round costs a little mining fee.": "混合后的币会再次混合，直到每枚币都有这么多人持有相同金额，与 Wasabi Wallet 的做法相同。每轮需要少量矿工费。",
+"Choose how many others to hide each coin among.": "请选择每枚币要藏在多少人之中。"
 }
