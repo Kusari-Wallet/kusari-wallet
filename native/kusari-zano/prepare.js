@@ -117,6 +117,10 @@ function edits(p, genesis) {
     '    const uint64_t reward = already_generated_coins >= supply ? 0 : static_cast<uint64_t>((supply - already_generated_coins) >> KUSARI_EMISSION_SPEED_FACTOR);',
     '    return std::max<uint64_t>(reward, KUSARI_TAIL_REWARD);',
     '  }'].join('\n'));
+  // Zano's short get_block_reward() passes 0 for the coins made so far, which its flat reward never read; ours does.
+  // Checking a block has to use the same total the miner built it with.
+  add(bcs, '  block_reward_without_fee = get_block_reward(get_top_block_height() + 1, blocks_size_median, next_block_cumulative_size);',
+    '  block_reward_without_fee = 0;\n  if (!get_block_reward(false, blocks_size_median, next_block_cumulative_size, total_coins(), block_reward_without_fee, get_top_block_height() + 1))\n    block_reward_without_fee = 0;');
   add(fu, '    uint64_t base_reward = get_base_block_reward(height);', '    uint64_t base_reward = get_base_block_reward(height, already_generated_coins);');
   add(fu, '    pei_rpc.base_reward = get_base_block_reward(bei_chain.height);\n    pei_rpc.summary_reward = get_reward_from_miner_tx(bei_chain.bl.miner_tx);', [
     '    pei_rpc.summary_reward = get_reward_from_miner_tx(bei_chain.bl.miner_tx);',

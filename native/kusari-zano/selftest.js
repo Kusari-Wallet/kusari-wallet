@@ -57,7 +57,9 @@ async function until(what, fn, ms, every = 2000) {
     try {
       const v = await fn();
       if (v) return v;
-    } catch { /* not up yet */ }
+    } catch (e) {
+      if (e.fatal) throw e; // anything else: not up yet
+    }
     if (Date.now() > end) throw new Error(`timed out waiting for ${what}`);
     await sleep(every);
   }
@@ -106,6 +108,18 @@ function walletRpc(file, port, node, extra = []) {
 
 const log = (name) => { try { return fs.readFileSync(path.join(work, `node-${name}.log`), 'utf8'); } catch { return ''; } };
 
+// The end of a log, for checks made while waiting (a refused block logs a long stack, so logs grow fast).
+function logTail(name, bytes = 65536) {
+  try {
+    const file = path.join(work, `node-${name}.log`);
+    const size = fs.statSync(file).size, fd = fs.openSync(file, 'r');
+    const buf = Buffer.alloc(Math.min(bytes, size));
+    fs.readSync(fd, buf, 0, buf.length, size - buf.length);
+    fs.closeSync(fd);
+    return buf.toString('utf8');
+  } catch { return ''; }
+}
+
 async function blocks(port, from, to) {
   const out = [];
   for (let h = from; h <= to; h += 100) out.push(...((await rpc(port, 'get_blocks_details', { height_start: h, count: Math.min(100, to - h + 1) })).blocks ?? []));
@@ -149,6 +163,8 @@ async function main() {
   await until('a send from wallet one', async () => {
     const h = (await rpc(nodes.A.rpc, 'getinfo', { flags: 0 })).height;
     if (h !== shown) { shown = h; console.log(`height ${h}`); }
+    const refused = /mined block has failed to pass verification|coinbase transaction balance check failed/.exec(logTail('A'));
+    if (refused) throw Object.assign(new Error(`node A refuses its own blocks: ${refused[0]} (see ${work}/node-A.log)`), { fatal: true });
     const b = await rpc(w1, 'getbalance');
     if (BigInt(b.unlocked_balance) < amount * 2n) return false;
     const body = `{"jsonrpc":"2.0","id":0,"method":"transfer","params":{"destinations":[{"address":${JSON.stringify(a2)},"amount":${amount}}],"fee":10000000000,"mixin":15}}`;

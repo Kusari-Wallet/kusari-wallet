@@ -120,6 +120,8 @@ test('emission: Monero\'s curve for 1-minute blocks, main emission about 8 years
   assert.match(text, /KUSARI_EMISSION_SPEED_FACTOR\s+20/);
   assert.match(text, /get_base_block_reward\(uint64_t height, const boost::multiprecision::uint128_t& already_generated_coins\)/);
   assert.match(text, /std::max<uint64_t>\(reward, KUSARI_TAIL_REWARD\)/);
+  // Checking a block counts the coins made so far, as building it did (Zano's short form passes 0).
+  assert.match(text, /get_block_reward\(false, blocks_size_median, next_block_cumulative_size, total_coins\(\), block_reward_without_fee, get_top_block_height\(\) \+ 1\)/);
   assert.ok(!/dev(elopment)?[ _-]?fund/i.test(JSON.stringify(p)), 'no dev fund');
 });
 
