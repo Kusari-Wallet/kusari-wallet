@@ -107,6 +107,9 @@ function edits(p, genesis) {
     // Monero's RandomX in place of ProgPoWZ. contrib/randomx is RandomX at the commit Monero pins.
     list.push({ file: 'src/currency_core/basic_pow_helpers.cpp', whole: fs.readFileSync(path.join(__dirname, 'randomx', 'basic_pow_helpers.cpp'), 'utf8') });
     add('src/currency_core/basic_pow_helpers.h', '  crypto::hash ethash_epoch_to_seed(int epoch);\n', '  crypto::hash ethash_epoch_to_seed(int epoch);\n  crypto::hash kusari_rx_seed(uint64_t height);\n');
+    // Zano turns the node's own CPU miner off on mainnet, because ProgPoWZ is for GPUs. RandomX is for CPUs.
+    add('src/currency_core/miner.h', '#ifdef TESTNET\n#define CPU_MINING_ENABLED // disable CPU mining capabilities in mainnet\n#endif // #ifndef TESTNET',
+      '#define CPU_MINING_ENABLED // Kusari: RandomX is mined on CPUs, on every network');
     add('contrib/CMakeLists.txt', 'add_subdirectory(ethereum)\n', 'add_subdirectory(ethereum)\nadd_subdirectory(randomx)\n');
     add('src/CMakeLists.txt', 'target_link_libraries(currency_core lmdb mdbx)', 'target_link_libraries(currency_core lmdb mdbx randomx)\ntarget_include_directories(currency_core PRIVATE ${CMAKE_SOURCE_DIR}/contrib/randomx/src)');
 
