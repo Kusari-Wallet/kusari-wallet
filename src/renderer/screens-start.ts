@@ -48,11 +48,14 @@ function passwordFields() {
 function createStep1(): void {
   const f = passwordFields();
   const box = errorBox();
-  const next = h('button', { class: 'primary', id: 'next', onclick: () => busy(next, 'Generating…', box, async () => {
+  const terms = termsAgreement();
+  const next = h('button', { class: 'primary', id: 'next', disabled: true, onclick: () => busy(next, 'Generating…', box, async () => {
+    terms.check();
     const password = f.check();
     createStep2(password, await wallet.generateSeeds());
   }) }, 'Generate seeds');
-  entry(h('h2', {}, 'Set a password'), h('p', { class: 'lead' }, 'Entered each time you open the wallet on this device or send coins.'), box.el, ...f.nodes,
+  terms.el.addEventListener('change', () => { (next as HTMLButtonElement).disabled = !terms.agreed(); });
+  entry(h('h2', {}, 'Set a password'), h('p', { class: 'lead' }, 'Entered each time you open the wallet on this device or send coins.'), box.el, ...f.nodes, terms.el,
     h('div', { class: 'btn-row' }, h('button', { class: 'ghost', onclick: welcome }, 'Back'), next));
 }
 
@@ -149,7 +152,9 @@ function restoreForm(): void {
   const xmr = h('textarea', { spellcheck: 'false', autocomplete: 'off', id: 'xmr-seed' });
   const from = h('input', { placeholder: '2025-06-01 or 3400000', autocomplete: 'off', id: 'from' });
   const box = errorBox();
-  const go = h('button', { class: 'primary', id: 'next', onclick: () => busy(go, 'Restoring…', box, async () => {
+  const terms = termsAgreement();
+  const go = h('button', { class: 'primary', id: 'next', disabled: true, onclick: () => busy(go, 'Restoring…', box, async () => {
+    terms.check();
     const pw = f.check();
     await withSplash('Restoring the wallet…', async () => {
       await wallet.restore(pw, tron.value, xmr.value, from.value);
@@ -166,12 +171,14 @@ function restoreForm(): void {
       toast(got.bip39 && got.monero ? 'Both seeds filled in.' : 'Seed filled in. Add the other one.');
     },
   }) }, icon('scan'), 'Scan seed QR code');
+  terms.el.addEventListener('change', () => { (go as HTMLButtonElement).disabled = !terms.agreed(); });
   entry(h('h2', {}, 'Restore from seeds'), h('p', { class: 'small muted' }, 'Type the words, or scan the QR code this wallet shows for your seeds.'), scan, h('br'), box.el,
     h('label', { class: 'field' }, h('span', {}, 'BTC·ETH·Tron seed (BIP39)'), tron),
     h('label', { class: 'field' }, h('span', {}, 'Monero seed (25 words)'), xmr),
     h('label', { class: 'field' }, h('span', {}, 'When Monero was first used'), from,
       h('div', { class: 'hint' }, 'A date or block height. Empty scans from the start, which can take hours. A date also sets where Zcash starts scanning.')),
     ...f.nodes,
+    terms.el,
     h('div', { class: 'btn-row' }, h('button', { class: 'ghost', onclick: welcome }, 'Back'), go));
 }
 

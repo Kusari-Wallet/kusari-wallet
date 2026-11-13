@@ -38,7 +38,7 @@ const aliasPlugin = {
   });
   const r = path.join(root, 'dist/renderer');
   // The screen code, in the order index.html loads it.
-  const RENDERER_SCRIPTS = ['ui.js', 'screens-start.js', 'screens-home.js', 'screens-private.js', 'screens-send.js', 'screens-swap.js', 'screens-tornado.js', 'app.js'];
+  const RENDERER_SCRIPTS = ['ui.js', 'terms.js', 'screens-start.js', 'screens-home.js', 'screens-private.js', 'screens-send.js', 'screens-swap.js', 'screens-tornado.js', 'app.js'];
   for (const f of ['locales.js', 'i18n.js', ...RENDERER_SCRIPTS, 'jsQR.js', 'style.css', 'logo.png', 'PretendardVariable.woff2']) fs.copyFileSync(path.join(r, f), path.join(out, f));
   fs.cpSync(path.join(r, 'coins'), path.join(out, 'coins'), { recursive: true });
   fs.copyFileSync(path.join(android, 'index.html'), path.join(out, 'index.html'));
