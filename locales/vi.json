@@ -1246,5 +1246,8 @@
 "Until each coin hides among 10 others": "Đến khi mỗi coin ẩn giữa 10 người khác",
 "How much to mix Bitcoin": "Mức trộn Bitcoin",
 "Mixed coins go round again until each one shares its amount with that many others. Each round costs a little mining fee.": "Coin đã trộn sẽ được trộn tiếp cho đến khi mỗi coin có đủ chừng ấy người cùng số tiền. Mỗi vòng tốn một ít phí đào.",
-"Choose how many others to hide each coin among.": "Hãy chọn mỗi coin ẩn giữa bao nhiêu người."
+"Choose how many others to hide each coin among.": "Hãy chọn mỗi coin ẩn giữa bao nhiêu người.",
+"First sync of {0} on this device, which can take a while. The total doesn't include them yet.": "{0} đang đồng bộ lần đầu trên thiết bị này, có thể mất một lúc. Tổng chưa tính các coin này.",
+"Loading {0} balances. First sync of {1} on this device, which can take a while. The total doesn't include them yet.": "Đang tải số dư {0}. {1} đang đồng bộ lần đầu trên thiết bị này, có thể mất một lúc. Tổng chưa tính các coin này.",
+"Running in the background": "Đang chạy nền"
 }

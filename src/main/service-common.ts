@@ -24,6 +24,8 @@ export const BALANCE_TTL_MS = 40_000;
 export const BALANCE_BACKOFF_MS = 30_000;
 /** How long the overview waits for each balance before showing its last value instead. */
 export const OVERVIEW_WAIT_MS = 4_000;
+/** A balance lookup out longer than this (several Tor timeouts) is left behind and asked again. */
+export const STUCK_LOOKUP_MS = 5 * 60_000;
 export const QUICK_REFUSAL_MS = 15_000;
 export const QUOTE_DEADLINE_MS = 20_000;
 export const QUOTE_DEADLINE_TOR_MS = 40_000;

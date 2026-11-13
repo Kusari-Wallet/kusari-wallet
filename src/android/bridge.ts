@@ -65,6 +65,10 @@ service.on('monero-state', (s) => emit('monero-state', s));
 service.on('balance-changed', () => emit('balance-changed'));
 service.on('tron-tx', (t) => emit('tron-tx', t));
 service.on('locked', () => emit('locked'));
+// While unlocked, Android keeps the app running in the background (a notification that names no coins or amounts).
+const tr = (text: string): string => (window as any).kusariI18n?.t?.(text) ?? text;
+service.on('unlocked', () => { try { native.keepRunning?.(true, 'Kusari Wallet', tr('Running in the background')); } catch { /* older app shell */ } });
+service.on('locked', () => { try { native.keepRunning?.(false, '', ''); } catch { /* older app shell */ } });
 service.on('tor-state', (s) => emit('tor-state', s));
 service.on('tornado-progress', (m) => emit('tornado-progress', m));
 

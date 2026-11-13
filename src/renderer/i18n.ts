@@ -104,6 +104,8 @@
   (window as any).kusariI18n = {
     languages: LANGUAGES,
     current: () => language,
+    /** One string in the current language, for text shown outside the page (an Android notification). */
+    t: (text: string) => translate(text),
     set(code: string) {
       if (!LANGUAGES.some(([c]) => c === code)) return;
       language = code;

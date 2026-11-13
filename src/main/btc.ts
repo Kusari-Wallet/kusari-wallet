@@ -22,10 +22,9 @@ const CACHE_MS = 180_000;
 const DOWN_MS = 60_000;
 /** Answers from a scan that broke off are reused this long, so the next try picks up where it stopped. */
 const RESUME_MS = 120_000;
-/** The last balance is shown at start-up until the first scan finishes, if it is this recent. */
-const SAVED_BALANCE_MS = 7 * 24 * 3600_000;
 
-export interface BtcScanHints { used: string[]; nexts: Record<string, number>; lastFullScan: number; balance?: { total: string; spendable: string; at: number } }
+
+export interface BtcScanHints { used: string[]; nexts: Record<string, number>; lastFullScan: number }
 export interface BtcUtxo { txid: string; vout: number; value: bigint; address: string; chain: number; index: number; confirmed: boolean }
 export interface BtcDraft { to: string; amount: bigint; fee: bigint; change: bigint; changeAddress: string; changePath: [number, number]; inputs: BtcUtxo[] }
 /** What differs between Bitcoin and the coins that copy its server API: keys, addresses, sizes and signing. */
@@ -112,7 +111,6 @@ export class BtcClient {
   private readonly nexts = new Map<string, number>();
   private readonly cooling = new Map<string, { until: number; limited: boolean }>();
   private readonly resume = new Map<string, { at: number; value: any }>();
-  private saved: { total: bigint; spendable: bigint; at: number } | null = null;
   private queue: Promise<unknown> = Promise.resolve();
   /** Public servers limit requests per IP, so they go out one at a time with a gap. */
   static defaultSpacingMs = 400;
@@ -132,8 +130,6 @@ export class BtcClient {
     for (const [k, v] of Object.entries(h.nexts)) if (Number.isInteger(v) && (v as number) >= 0 && (v as number) < 100_000) this.nexts.set(k, v as number);
     this.hintsUsed = new Set(h.used.filter((a) => typeof a === 'string'));
     this.lastFullScan = h.lastFullScan;
-    const b = h.balance;
-    if (b && /^\d{1,20}$/.test(b.total) && /^\d{1,20}$/.test(b.spendable) && Number.isFinite(b.at) && Date.now() - b.at < SAVED_BALANCE_MS) this.saved = { total: BigInt(b.total), spendable: BigInt(b.spendable), at: b.at };
   }
 
   addressAt(chain: number, index: number): string {
@@ -227,20 +223,17 @@ export class BtcClient {
         this.state = { at: Date.now(), utxos: out.utxos, total: out.total, spendable, nextReceive, nextChange, addresses: out.addresses, used: out.used };
         this.lastError = null;
         this.resume.clear();
-        this.saved = null;
-        this.onHints?.({ used: [...out.used], nexts: Object.fromEntries(this.nexts), lastFullScan: this.lastFullScan, balance: { total: String(out.total), spendable: String(spendable), at: Date.now() } });
+        this.onHints?.({ used: [...out.used], nexts: Object.fromEntries(this.nexts), lastFullScan: this.lastFullScan });
       })().catch((e) => { this.lastError = (e as Error).message; throw e; }).finally(() => { this.inFlight = null; });
     }
     return this.inFlight;
   }
 
   /** Newest balance available now; the first scan fills in on a later call. */
-  /** Until the first scan finishes, the balance from the last run, marked as saved. */
-  async getBalance(waitMs = 1500): Promise<{ total: bigint; spendable: bigint; saved?: boolean } | null> {
+  async getBalance(waitMs = 1500): Promise<{ total: bigint; spendable: bigint } | null> {
     const scan = this.refresh().catch(() => undefined);
     await Promise.race([scan, new Promise((r) => setTimeout(r, waitMs))]);
     if (this.state) return { total: this.state.total, spendable: this.state.spendable };
-    if (this.saved) return { total: this.saved.total, spendable: this.saved.spendable, saved: true };
     if (this.lastError) throw new Error(this.lastError);
     return null;
   }

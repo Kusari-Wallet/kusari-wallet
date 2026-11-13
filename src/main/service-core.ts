@@ -2,6 +2,7 @@
 import { EventEmitter } from 'node:events';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
+import { balanceCacheKey, readBalanceCache, writeBalanceCache, SavedBalance, SAVED_BALANCE_MAX_AGE_MS } from './balance-cache';
 import path from 'node:path';
 import { formatAmount, parseAmount } from './amount';
 import { Asset, BTC_APIS, BTC_ONION_APIS, DECIMALS, FIRO_APIS, SOL_RPCS, BCH_APIS, LTC_APIS, SCRT_LCDS, DOGE_APIS, DOGE_PUSH_URLS, DOGE_BACKUP, POL_RPCS, POL_SCOUT, ARB_RPCS, ARB_SCOUT, BSC_RPCS, BSC_SCOUT, DASH_APIS, DEFAULT_SETTINGS, ARRR_SERVERS, ZANO_NODE, ZEC_SERVERS, ETH_RPCS, ETH_SCOUT, ETH_USDT, NETWORKS, NetworkId, Settings, estimateMainnetHeight } from './config';
@@ -37,7 +38,7 @@ import { TorManager } from './tor';
 import { parseCustomBridges } from './tor-bridges';
 import { SwapProviderId } from './swap';
 import { MoneroClient, MoneroOptions, generateMoneroSeed, validateMoneroSeed } from './monero';
-import { BALANCE_TTL_MS, OVERVIEW_WAIT_MS, QUICK_REFUSAL_MS, bareBch, isLocalServer, COIN_ID, btcScript, btcScriptOfKey, within, EVM, isSpl, EXTRA_ASSETS, isEvm, LOOKUP_ROUTE, lookupRetryDelay, BALANCE_STALE_MS, Preview, BalanceView } from './service-common';
+import { BALANCE_TTL_MS, OVERVIEW_WAIT_MS, STUCK_LOOKUP_MS, QUICK_REFUSAL_MS, bareBch, isLocalServer, COIN_ID, btcScript, btcScriptOfKey, within, EVM, isSpl, EXTRA_ASSETS, isEvm, LOOKUP_ROUTE, lookupRetryDelay, BALANCE_STALE_MS, Preview, BalanceView } from './service-common';
 
 export class ServiceCore extends EventEmitter {
   protected vault: Vault;
@@ -276,6 +277,7 @@ export class ServiceCore extends EventEmitter {
 
   protected async startSession(secrets: Secrets): Promise<void> {
     await this.closing;
+    await this.loadSavedBalances(secrets.tronMnemonic);
     this.priceAgent = undefined;
     this.pricesTorAgent = undefined;
     this.torProxy = undefined;
@@ -577,6 +579,7 @@ export class ServiceCore extends EventEmitter {
     if (this.tron) await this.lock(); // a start that failed half way
     try {
       await this.startSession(secrets);
+      this.emit('unlocked');
     } catch (e) {
       // Nothing half started stays behind: the next try starts clean.
       await this.lock().catch(() => undefined);
@@ -586,6 +589,10 @@ export class ServiceCore extends EventEmitter {
 
   async lock(): Promise<void> {
     this.sessionGen++;
+    if (this.balanceSaveTimer) await this.saveBalancesNow();
+    this.balanceKey?.fill(0);
+    this.balanceKey = null;
+    this.savedBalances = new Map();
     this.torActive = false;
     this.previews.clear();
     this.pendingSwaps.clear();
@@ -702,12 +709,13 @@ export class ServiceCore extends EventEmitter {
   }
 
   /** One lookup per coin at a time: a second look while one is out waits for that one instead of asking again. */
-  protected balanceInFlight = new Map<string, Promise<BalanceView>>();
+  protected balanceInFlight = new Map<string, { at: number; p: Promise<BalanceView> }>();
   protected readBalance(key: string, fn: () => Promise<[bigint, bigint]>, decimals: number, ttl: number): Promise<BalanceView> {
     const running = this.balanceInFlight.get(key);
-    if (running) return running;
-    const p = this.readBalanceOnce(key, fn, decimals, ttl).finally(() => { this.balanceInFlight.delete(key); });
-    this.balanceInFlight.set(key, p);
+    // One that has been out for minutes is stuck somewhere: a fresh look replaces it rather than waiting on it.
+    if (running && Date.now() - running.at < STUCK_LOOKUP_MS) return running.p;
+    const p = this.readBalanceOnce(key, fn, decimals, ttl).finally(() => { if (this.balanceInFlight.get(key)?.p === p) this.balanceInFlight.delete(key); });
+    this.balanceInFlight.set(key, { at: Date.now(), p });
     return p;
   }
 
@@ -752,6 +760,40 @@ export class ServiceCore extends EventEmitter {
    * itself when it arrives, so a slow server never holds up the rest of the screen.
    */
   protected lastViews: BalanceView[] = [];
+  /** The last balances, encrypted on disk with a key from the seed: shown at once after an unlock or a restart. */
+  protected balanceKey: Uint8Array | null = null;
+  protected balancesFile = '';
+  protected savedBalances = new Map<string, SavedBalance>();
+  protected balanceSaveTimer: ReturnType<typeof setTimeout> | null = null;
+  protected async loadSavedBalances(seed: string): Promise<void> {
+    this.balanceKey = balanceCacheKey(seed);
+    this.balancesFile = path.join(this.dir, `balances-${this.settings.network}.enc`);
+    this.savedBalances = await readBalanceCache(this.balancesFile, this.balanceKey);
+  }
+  protected async saveBalancesNow(): Promise<void> {
+    if (this.balanceSaveTimer) { clearTimeout(this.balanceSaveTimer); this.balanceSaveTimer = null; }
+    if (this.balanceKey && this.balancesFile) await writeBalanceCache(this.balancesFile, this.balanceKey, this.savedBalances).catch(() => undefined);
+  }
+  /**
+   * Fresh balances are remembered; one still loading shows its last remembered value, marked as recent, and so does
+   * one that failed while Tor is connected (with Tor down, the screen says so instead).
+   */
+  protected withSavedBalances(views: Record<string, BalanceView | undefined>): void {
+    if (!this.balanceKey) return;
+    const now = Date.now();
+    const torDown = this.torActive && this.tor.state.phase !== 'ready';
+    let changed = false;
+    for (const [coin, v] of Object.entries(views)) {
+      if (!v) continue;
+      const s = this.savedBalances.get(coin);
+      if (v.ok && !v.stale) {
+        if (!s || s.total !== v.total || s.spendable !== v.spendable || now - s.at > 10 * 60_000) { this.savedBalances.set(coin, { at: now, total: v.total, spendable: v.spendable }); changed = true; }
+      } else if (!v.ok && s && now - s.at < SAVED_BALANCE_MAX_AGE_MS && (v.pending || !torDown)) {
+        views[coin] = { ok: true, total: s.total, spendable: s.spendable, stale: true };
+      }
+    }
+    if (changed && !this.balanceSaveTimer) this.balanceSaveTimer = setTimeout(() => { this.balanceSaveTimer = null; void this.saveBalancesNow(); }, 3_000);
+  }
   protected lateTimer: ReturnType<typeof setTimeout> | null = null;
   /** Counts locks and sends, so a lookup that finishes after one never shows up as current. */
   protected viewGen = 0;
@@ -777,7 +819,7 @@ export class ServiceCore extends EventEmitter {
       if (this.torNotReady) return { ok: false, pending: true, total: '', spendable: '' };
       try {
         const b = await client.getBalance();
-        return b ? { ok: true, total: formatAmount(b.total, 8), spendable: formatAmount(b.spendable, 8), ...(b.saved ? { stale: true } : {}) } : { ok: false, pending: true, total: '', spendable: '' };
+        return b ? { ok: true, total: formatAmount(b.total, 8), spendable: formatAmount(b.spendable, 8) } : { ok: false, pending: true, total: '', spendable: '' };
       } catch (e) {
         const message = (e as Error).message;
         this.noteFailure(symbol, Date.now(), e as Error);
@@ -849,10 +891,12 @@ export class ServiceCore extends EventEmitter {
       // Added later: every further token, on its chain's client. Keep in step with EXTRA_ASSETS.
       ...EXTRA_ASSETS.map((a) => settle(a, async () => { const b = isSpl(a) ? await this.sol!.getUsdtBalance(a) : await this.evm(a).balanceOf(a as EthAsset); return [b, b]; }, DECIMALS[a])),
     ], this.dev.tronHost ? 120_000 : OVERVIEW_WAIT_MS);
+    const balances: Record<string, BalanceView | undefined> = { XMR, BTC, ETH, TRX, USDTE, USDT, SOL, USDTS, LINK, WLD, POL, USDTP, ARB, ETHA, USDTA, BCH, LTC, DOGE, ADA, DASH, FIRO, SCRT, SSCRT, ...Object.fromEntries(EXTRA_ASSETS.map((a, i) => [a, EXTRA[i]])), ...(zec ? { ZEC: zecView() } : {}), ...(zano ? { ZANO: zanoView() } : {}), ...(arrr ? { ARRR: arrrView() } : {}) };
+    this.withSavedBalances(balances);
     return {
       network: this.settings.network,
       tor: this.torActive ? this.tor.state : null,
-      balances: { XMR, BTC, ETH, TRX, USDTE, USDT, SOL, USDTS, LINK, WLD, POL, USDTP, ARB, ETHA, USDTA, BCH, LTC, DOGE, ADA, DASH, FIRO, SCRT, SSCRT, ...Object.fromEntries(EXTRA_ASSETS.map((a, i) => [a, EXTRA[i]])), ...(zec ? { ZEC: zecView() } : {}), ...(zano ? { ZANO: zanoView() } : {}), ...(arrr ? { ARRR: arrrView() } : {}) },
+      balances: balances as Record<string, BalanceView>,
       sscrt: { needsKey: this.sscrtNeedsKey },
       coinjoin: this.mixer ? { ...this.mixer.status, rounds: MIX_ROUNDS } : null,
       btcMix: this.btcMixer ? { ...this.btcMixer.status, mixed: formatAmount(this.btcMixedBalance?.total ?? 0n, 8), mixedSpendable: formatAmount(this.btcMixedBalance?.spendable ?? 0n, 8) } : null,

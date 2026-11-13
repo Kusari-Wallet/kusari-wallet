@@ -1246,5 +1246,8 @@
 "Until each coin hides among 10 others": "各コインが10人の中に隠れるまで",
 "How much to mix Bitcoin": "ビットコインのミックス量",
 "Mixed coins go round again until each one shares its amount with that many others. Each round costs a little mining fee.": "ミックス済みコインは、同じ額のコインを持つ人がその人数になるまで再ミックスされます。ラウンドごとに少しマイニング手数料がかかります。",
-"Choose how many others to hide each coin among.": "各コインを何人の中に隠すか選んでください。"
+"Choose how many others to hide each coin among.": "各コインを何人の中に隠すか選んでください。",
+"First sync of {0} on this device, which can take a while. The total doesn't include them yet.": "{0} をこの端末で初めて同期しています。時間がかかることがあります。合計にはまだ含まれていません。",
+"Loading {0} balances. First sync of {1} on this device, which can take a while. The total doesn't include them yet.": "{0} の残高を読み込み中です。{1} をこの端末で初めて同期しています。時間がかかることがあります。合計にはまだ含まれていません。",
+"Running in the background": "バックグラウンドで実行中"
 }

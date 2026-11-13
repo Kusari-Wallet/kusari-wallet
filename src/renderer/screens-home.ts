@@ -72,7 +72,17 @@ function totalUsd(): { value: string; note: string } {
   const failed = ASSETS.filter((a) => !overview.balances[a].ok && !overview.balances[a].pending);
   const pending = ASSETS.filter((a) => overview.balances[a].pending);
   const sum = ASSETS.reduce((s, a) => s + (assetUsd(a) ?? 0), 0);
-  if (pending.length && !failed.length) return { value: usdFormat(sum), note: overview.tor && overview.tor.phase !== 'ready' ? 'Tor is connecting. Balances load once it connects.' : `Loading ${pending.map(coinName).join(', ')} balances. The total doesn't include them yet.` };
+  if (pending.length && !failed.length) {
+    if (overview.tor && overview.tor.phase !== 'ready') return { value: usdFormat(sum), note: 'Tor is connecting. Balances load once it connects.' };
+    // A first sync reads the chain on this device and can take a long while: say so, with how far it is.
+    const syncing = (a: Asset) => (a === 'ZEC' && overview.zec?.syncing && !overview.zec.firstScanDone) || (a === 'ARRR' && overview.arrr?.scanning) || (a === 'ZANO' && overview.balances.ZANO?.pending);
+    const first = pending.filter(syncing);
+    const rest = pending.filter((a) => !syncing(a));
+    const names = (list: Asset[]) => list.map((a) => (a === 'ARRR' && overview.arrr?.percent ? `${coinName(a)} ${overview.arrr.percent}%` : coinName(a))).join(', ');
+    if (!first.length) return { value: usdFormat(sum), note: `Loading ${names(rest)} balances. The total doesn't include them yet.` };
+    if (!rest.length) return { value: usdFormat(sum), note: `First sync of ${names(first)} on this device, which can take a while. The total doesn't include them yet.` };
+    return { value: usdFormat(sum), note: `Loading ${names(rest)} balances. First sync of ${names(first)} on this device, which can take a while. The total doesn't include them yet.` };
+  }
   if (failed.length) return { value: usdFormat(sum), note: `${failed.map(coinName).join(', ')} lookup failed, so the total leaves it out. Retrying automatically.` };
   const notes: string[] = [];
   if (!overview.monero.synced) notes.push('XMR hasn\'t synced yet, so this may be lower than actual.');

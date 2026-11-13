@@ -1246,5 +1246,8 @@
 "Until each coin hides among 10 others": "코인마다 10명 사이에 숨을 때까지",
 "How much to mix Bitcoin": "비트코인 섞는 정도",
 "Mixed coins go round again until each one shares its amount with that many others. Each round costs a little mining fee.": "섞인 코인은 같은 금액을 가진 사람이 그만큼 생길 때까지 다시 섞입니다. 라운드마다 채굴 수수료가 조금 듭니다.",
-"Choose how many others to hide each coin among.": "코인마다 몇 명 사이에 숨길지 고르세요."
+"Choose how many others to hide each coin among.": "코인마다 몇 명 사이에 숨길지 고르세요.",
+"First sync of {0} on this device, which can take a while. The total doesn't include them yet.": "{0} 이 기기에서 처음 동기화하는 중입니다. 시간이 걸릴 수 있습니다. 아직 총액에 포함되지 않았습니다.",
+"Loading {0} balances. First sync of {1} on this device, which can take a while. The total doesn't include them yet.": "{0} 잔액을 불러오는 중입니다. {1} 이 기기에서 처음 동기화하는 중입니다. 시간이 걸릴 수 있습니다. 아직 총액에 포함되지 않았습니다.",
+"Running in the background": "백그라운드에서 실행 중"
 }

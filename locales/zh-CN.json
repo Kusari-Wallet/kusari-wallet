@@ -1246,5 +1246,8 @@
 "Until each coin hides among 10 others": "直到每枚币藏在 10 人之中",
 "How much to mix Bitcoin": "比特币混合程度",
 "Mixed coins go round again until each one shares its amount with that many others. Each round costs a little mining fee.": "混合后的币会再次混合，直到每枚币都有这么多人持有相同金额。每轮需要少量矿工费。",
-"Choose how many others to hide each coin among.": "请选择每枚币要藏在多少人之中。"
+"Choose how many others to hide each coin among.": "请选择每枚币要藏在多少人之中。",
+"First sync of {0} on this device, which can take a while. The total doesn't include them yet.": "{0} 正在此设备上首次同步，可能需要一段时间。总额暂不包含它们。",
+"Loading {0} balances. First sync of {1} on this device, which can take a while. The total doesn't include them yet.": "正在加载 {0} 余额。{1} 正在此设备上首次同步，可能需要一段时间。总额暂不包含它们。",
+"Running in the background": "正在后台运行"
 }

@@ -228,7 +228,7 @@ test('a server that is down is skipped for the rest of the scan, and each failur
   assert.ok(a.hits.length > 10, 'still asked first on every address');
 });
 
-test('a scan that broke off resumes where it stopped, and the last balance shows until a scan finishes', async (t) => {
+test('a scan that broke off resumes where it stopped', async (t) => {
   const c = new BtcClient(xpub, []);
   const used = c.addressAt(0, 0);
   let left = 6;
@@ -256,17 +256,7 @@ test('a scan that broke off resumes where it stopped, and the last balance shows
   const start = m.hits.length;
   await clean.refresh(true);
   assert.equal(resumed, m.hits.length - start - 6, 'the addresses already looked up are not asked again');
-  assert.equal(hints.balance.total, '9000');
-
-  // Next launch: the saved balance at once, marked, even while the server is down.
-  const next = new BtcClient(xpub, ['http://127.0.0.1:1']);
-  next.spacingMs = 0;
-  next.importHints(hints);
-  assert.deepEqual(await next.getBalance(50), { total: 9000n, spendable: 0n, saved: true });
-  const old = new BtcClient(xpub, ['http://127.0.0.1:1']);
-  old.importHints({ ...hints, balance: { ...hints.balance, at: Date.now() - 8 * 24 * 3600_000 } });
-  await new Promise((r) => setTimeout(r, 300));
-  await assert.rejects(old.getBalance(2000), 'a week old is too old to show');
+  assert.equal(hints.balance, undefined, 'no balance in this plain file: the encrypted cache keeps it');
 });
 
 // Run with PBK_PATH pointing at an unpacked py-bitcoinkernel wheel.
