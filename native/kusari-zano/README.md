@@ -43,8 +43,9 @@ can rewrite its recent history. Two things make that harder, and neither makes i
 - **RandomKSR.** Kusari uses RandomX with its own parameters, as RandomX's documentation recommends for every
   project: its own salt (`RandomKSR\x01`) and 16 programs of 1024 iterations in place of 8 of 2048 (the same work per
   hash; every safety condition in RandomX's `configuration.h` still holds). A Monero miner, a Monero pool or a rental
-  market such as NiceHash computes different hashes and can't mine Kusari as it is. XMRig is open source, though: once
-  someone adds RandomKSR to it, any XMRig rig, including MoneroOcean's switching, can mine Kusari.
+  market such as NiceHash computes different hashes and can't mine Kusari as it is. XMRig is open source, though, and
+  Kusari's own miners use XMRig with RandomKSR added (see Mining): the same patch lets any XMRig rig, including
+  MoneroOcean's switching, mine Kusari once someone applies it.
 - **Developer checkpoints.** `checkpoints` in `params.json` (height and hash of main-chain blocks) are compiled in.
   In the first months, each release should pin the chain up to a recent block; a node then refuses any other history
   below that height. This only protects what is older than the last release, and it means trusting whoever makes the
@@ -83,6 +84,25 @@ It refuses to write inside this repository, writes the secret key owner-only, an
 each. A secret key never goes into the repository, a session, a chat or a cloud machine. Keep it offline, with a
 backup; whoever holds it can send notices to every node or hand out short aliases.
 
+## Mining
+
+- **The node's own miner:** `kusarid --start-mining <K… address> --mining-threads <n>`, or `/start_mining` over RPC.
+  It builds the 2 GiB dataset in the background and mines in light mode until then; `KUSARI_RX_LIGHT=1` keeps it in
+  light mode (256 MiB, about ten times slower).
+- **XMRig:** `kusarid --stratum --stratum-bind-port 21082` serves XMRig's protocol (the one Monero pools speak:
+  login, job, submit, keepalived) next to Zano's EthProxy one. Connect an XMRig with RandomKSR added:
+  `xmrig -o <node>:21082 -a rx/ksr -u <K… address>` (`<address>+<difficulty>` sets the starting share difficulty).
+  It is solo mining: every worker mines to one address, the first to log in or `--stratum-miner-address`. A job is the
+  40 bytes RandomKSR hashes, the header hash and then the 64-bit nonce; each connection has its own upper half of the
+  nonce and XMRig fills the lower half, so workers never repeat each other's work.
+- **The XMRig patch** (`rx/ksr`: Kusari's salt and program counts, the 40-byte input, the nonce at byte 32, no
+  donation) is kept out of this repository because XMRig is GPL-3.0. Whoever ships that XMRig ships its source
+  under the GPL. `xmrig-test.js` mines a private chain with it.
+
+The node reads a RandomX output as a little-endian number when it checks the difficulty, as Monero does. Zano's
+`check_hash()` reads hashes with their bytes reversed (Ethash's order), so the PoW hash handed to it is the RandomX
+output reversed.
+
 ## Dandelion++
 
 A new transaction first walks a stem: each node passes it to one peer only. After a few hops a node broadcasts it as
@@ -115,6 +135,8 @@ node of their own or one whose RPC isn't public.
 - `randomx/basic_pow_helpers.cpp`: the proof of work (light mode to check blocks, the 2 GiB dataset to mine).
 - `dandelion/`: Dandelion++ (`dandelion.h` decides, `dandelion_relay.inl` sends, `test_dandelion.cpp` tests).
 - `selftest.js`: a private chain: RandomKSR mining, the emission, proof of stake switching on, and sends.
+- `stratum/xmrig-stratum.js`: XMRig's protocol in the node's stratum server.
+- `xmrig-test.js`: XMRig with RandomKSR mining a private chain through that stratum.
 
 ## Building
 

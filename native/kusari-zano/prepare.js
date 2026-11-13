@@ -195,6 +195,9 @@ function edits(p, genesis) {
     add('contrib/randomx/src/configuration.h', '#define RANDOMX_PROGRAM_ITERATIONS 2048', '#define RANDOMX_PROGRAM_ITERATIONS 1024');
     add('contrib/randomx/src/configuration.h', '#define RANDOMX_PROGRAM_COUNT      8', '#define RANDOMX_PROGRAM_COUNT      16');
 
+    // XMRig's stratum protocol, so RandomKSR can be mined with XMRig ("rx/ksr").
+    require('./stratum/xmrig-stratum')(add);
+
     // Monero's Dandelion++: a new transaction walks a stem of single peers before it is broadcast.
     const dir = path.join(__dirname, 'dandelion');
     list.push({ file: 'src/currency_protocol/dandelion.h', whole: fs.readFileSync(path.join(dir, 'dandelion.h'), 'utf8') });

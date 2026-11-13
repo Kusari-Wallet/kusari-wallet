@@ -74,6 +74,17 @@ test('the edits cover what a new chain on Zano has to change', () => {
   assert.ok(boot.includes('src/connectivity_tool/conn_tool.cpp'), 'the genesis tool fix is part of the bootstrap');
 });
 
+test('the stratum speaks XMRig\'s protocol, and the PoW hash is read the way Monero and XMRig read it', () => {
+  const p = load(PARAMS);
+  const text = edits(p, loadGenesis(path.join(DIR, 'genesis'))).map((e) => e.to ?? e.whole ?? '').join('\n');
+  for (const m of ['login', 'getjob', 'submit', 'keepalived']) assert.match(text, new RegExp(`"${m}",\\s+&this_t::handle_method_xmrig_${m}`));
+  assert.match(text, /"algo":"rx\/ksr"/);
+  assert.match(text, /kusari_rx_seed\(m_block_template_height\)/);
+  assert.ok(!/ethash_calculate_epoch_seed/.test(text));
+  const pow = fs.readFileSync(path.join(DIR, 'randomx', 'basic_pow_helpers.cpp'), 'utf8');
+  assert.strictEqual((pow.match(/return rx_to_pow_order\(result\);/g) || []).length, 2, 'both hashing paths reverse the output');
+});
+
 test('params that would break the chain are refused', () => {
   const good = JSON.parse(fs.readFileSync(PARAMS, 'utf8'));
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kusari-zano-params-'));

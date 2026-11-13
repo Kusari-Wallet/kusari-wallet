@@ -105,6 +105,17 @@ namespace currency
       return *oldest;
     }
 
+    // check_hash() reads a hash with its bytes reversed (Ethash's order, which ProgPoWZ used). Handing it the
+    // RandomX output reversed makes the difficulty check read the output as a little-endian number, as Monero does,
+    // so a miner such as XMRig that checks shares Monero's way agrees with the node.
+    crypto::hash rx_to_pow_order(const crypto::hash& rx)
+    {
+      crypto::hash h = null_hash;
+      for (size_t i = 0; i != sizeof(h); ++i)
+        reinterpret_cast<char*>(&h)[i] = reinterpret_cast<const char*>(&rx)[sizeof(h) - 1 - i];
+      return h;
+    }
+
     struct rx_thread_vm
     {
       randomx_vm* vm = nullptr;
@@ -153,7 +164,7 @@ namespace currency
             t.seed = seed;
             crypto::hash result = null_hash;
             randomx_calculate_hash(t.vm, input, sizeof(input), &result);
-            return result;
+            return rx_to_pow_order(result);
           }
         }
       }
@@ -259,7 +270,7 @@ namespace currency
           memcpy(input + sizeof(crypto::hash), &le_nonce, sizeof(le_nonce));
           crypto::hash result = null_hash;
           randomx_calculate_hash(t.vm, input, sizeof(input), &result);
-          return result;
+          return rx_to_pow_order(result);
         }
       }
     }
