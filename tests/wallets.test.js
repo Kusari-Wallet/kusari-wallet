@@ -166,6 +166,19 @@ test('your own Bitcoin server and Zano node are checked and kept', async (t) => 
   assert.equal(s.settings.customBtcServer, '');
 });
 
+test('the Kusari node is checked and kept, and KSR stays off without one', async (t) => {
+  const { s } = await make(t);
+  await makeOldWallet(s, PW1, 'one');
+  assert.equal(s.ksrInfo().hasNode, false, 'no public Kusari node before launch');
+  await s.updateSettings({ customKsrNode: 'http://10.0.0.6:21081/' });
+  assert.equal(s.settings.customKsrNode, '10.0.0.6:21081');
+  assert.equal(s.ksrInfo().hasNode, true);
+  await assert.rejects(s.updateSettings({ customKsrNode: 'not a node' }), /Kusari node as host:port/);
+  assert.equal(s.settings.customKsrNode, '10.0.0.6:21081', 'a refused change leaves the last good one');
+  await s.updateSettings({ customKsrNode: '' });
+  assert.equal(s.ksrInfo().hasNode, false);
+});
+
 test('CoinJoin: needs an open wallet, and the coordinator setting takes known ones, https or .onion only', async (t) => {
   const { s } = await make(t);
   await makeOldWallet(s, PW1, 'one');

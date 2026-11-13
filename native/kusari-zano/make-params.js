@@ -6,7 +6,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { burnPoint, encodeAddress, leadingChar } = require('../kusari-coin/lib');
+const { burnPoint, encodeAddress, leadingChar } = require('./lib');
 
 const out = path.join(__dirname, 'params.json');
 if (fs.existsSync(out) && !process.argv.includes('--force')) {

@@ -4,7 +4,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import QRCode from 'qrcode';
 import { formatAmount, parseAmount } from './amount';
-import { Asset, BTC_EXPLORER_TX, DECIMALS, FIRO_EXPLORER_TX, SOL_EXPLORER_TX, BUY_PAGE, BCH_EXPLORER_TX, LTC_EXPLORER_TX, SCRT_EXPLORER_TX, DOGE_EXPLORER_TX, DASH_EXPLORER_TX, ARRR_EXPLORER_TX, ZANO_EXPLORER_TX, ZEC_EXPLORER_TX, NETWORKS, Settings } from './config';
+import { Asset, BTC_EXPLORER_TX, DECIMALS, FIRO_EXPLORER_TX, SOL_EXPLORER_TX, BUY_PAGE, BCH_EXPLORER_TX, LTC_EXPLORER_TX, SCRT_EXPLORER_TX, DOGE_EXPLORER_TX, DASH_EXPLORER_TX, ARRR_EXPLORER_TX, KSR_EXPLORER_TX, ZANO_EXPLORER_TX, ZEC_EXPLORER_TX, NETWORKS, Settings } from './config';
 import { TronTransfer, deriveTronAccount, isTronAddress } from './tron';
 import { requestJson } from './request';
 import { isScrtAddress } from './scrt';
@@ -15,8 +15,8 @@ import { isArrrAddress } from './arrr';
 import { arrrEngineInfo } from './arrr-process';
 import { isMwebAddress } from './mweb';
 import { isSparkAddress } from './spark';
-import { isZanoAddress, ZANO_FEE } from './zano';
-import { zanoEngineInfo } from './zano-process';
+import { isZanoAddress, isKsrAddress, ZANO_FEE, KSR_FEE } from './zano';
+import { zanoEngineInfo, ksrEngineInfo } from './zano-process';
 import { isZecAddress, zecHeightForDate } from './zec';
 import { zecEngineInfo } from './zec-process';
 import { isFiroAddress, typicalFiroFee } from './firo';
@@ -68,6 +68,7 @@ export class SendService extends ServiceCore {
       if (asset === 'SSCRT') return [50_000n, 6, 'SCRT']; // a contract call, about 200k gas
       if (asset === 'ZEC') return [15_000n, 8, 'ZEC']; // ZIP-317, a typical transfer
       if (asset === 'ZANO') return [ZANO_FEE, 12, 'ZANO'];
+      if (asset === 'KSR') return [KSR_FEE, 12, 'KSR'];
       if (asset === 'ARRR') return [10_000n, 8, 'ARRR'];
       if (isEvm(asset)) {
         const chain = chainOf(asset);
@@ -312,6 +313,12 @@ export class SendService extends ServiceCore {
       if (address === this.zano.receive) throw new Error('You cannot send to your own address.');
       const draft = await this.zano.draft(address, isMax ? 'max' : parseAmount(amountInput, decimals));
       preview = this.storePreview({ asset, to: address, amount: draft.value, fee: draft.fee, zano: draft });
+    } else if (asset === 'KSR') {
+      if (!this.ksr) throw new Error('Kusari is not available on this device.');
+      if (!isKsrAddress(address)) throw new Error('Not a Kusari address. It should start with K.');
+      if (address === this.ksr.receive) throw new Error('You cannot send to your own address.');
+      const draft = await this.ksr.draft(address, isMax ? 'max' : parseAmount(amountInput, decimals));
+      preview = this.storePreview({ asset, to: address, amount: draft.value, fee: draft.fee, ksr: draft });
     } else if (asset === 'ZEC') {
       if (!this.zec) throw new Error('Zcash is not available on this device.');
       if (!isZecAddress(address)) throw new Error('Not a Zcash address. Only addresses starting with u1, zs1 or t1 can be used.');
@@ -456,9 +463,9 @@ export class SendService extends ServiceCore {
     return {
       id: preview.id, asset, to: address,
       amount: formatAmount(preview.amount, decimals),
-      fee: formatAmount(preview.fee, preview.eth ? 18 : asset === 'XMR' ? 12 : asset === 'ZANO' ? 12 : asset === 'SCRT' || asset === 'SSCRT' || asset === 'ADA' ? 6 : asset === 'SOL' || isSpl(asset) ? 9 : asset === 'DOGE' || asset === 'BCH' || asset === 'LTC' || asset === 'BTC' || asset === 'DASH' || asset === 'FIRO' || asset === 'ZEC' || asset === 'ARRR' ? 8 : 6),
-      feeAsset: preview.eth ? chainOf(preview.eth.asset).native : isSpl(asset) ? 'SOL' : asset === 'SSCRT' ? 'SCRT' : asset === 'SOL' || asset === 'ADA' || asset === 'DOGE' || asset === 'BCH' || asset === 'LTC' || asset === 'SCRT' || asset === 'XMR' || asset === 'BTC' || asset === 'DASH' || asset === 'FIRO' || asset === 'ZEC' || asset === 'ZANO' || asset === 'ARRR' ? asset : 'TRX',
-      feeIsEstimate: asset !== 'SOL' && !isSpl(asset) && asset !== 'ADA' && asset !== 'DOGE' && asset !== 'BCH' && asset !== 'LTC' && asset !== 'SCRT' && asset !== 'SSCRT' && asset !== 'XMR' && asset !== 'BTC' && asset !== 'DASH' && asset !== 'FIRO' && asset !== 'ZEC' && asset !== 'ZANO' && asset !== 'ARRR',
+      fee: formatAmount(preview.fee, preview.eth ? 18 : asset === 'XMR' ? 12 : asset === 'ZANO' || asset === 'KSR' ? 12 : asset === 'SCRT' || asset === 'SSCRT' || asset === 'ADA' ? 6 : asset === 'SOL' || isSpl(asset) ? 9 : asset === 'DOGE' || asset === 'BCH' || asset === 'LTC' || asset === 'BTC' || asset === 'DASH' || asset === 'FIRO' || asset === 'ZEC' || asset === 'ARRR' ? 8 : 6),
+      feeAsset: preview.eth ? chainOf(preview.eth.asset).native : isSpl(asset) ? 'SOL' : asset === 'SSCRT' ? 'SCRT' : asset === 'SOL' || asset === 'ADA' || asset === 'DOGE' || asset === 'BCH' || asset === 'LTC' || asset === 'SCRT' || asset === 'XMR' || asset === 'BTC' || asset === 'DASH' || asset === 'FIRO' || asset === 'ZEC' || asset === 'ZANO' || asset === 'KSR' || asset === 'ARRR' ? asset : 'TRX',
+      feeIsEstimate: asset !== 'SOL' && !isSpl(asset) && asset !== 'ADA' && asset !== 'DOGE' && asset !== 'BCH' && asset !== 'LTC' && asset !== 'SCRT' && asset !== 'SSCRT' && asset !== 'XMR' && asset !== 'BTC' && asset !== 'DASH' && asset !== 'FIRO' && asset !== 'ZEC' && asset !== 'ZANO' && asset !== 'KSR' && asset !== 'ARRR',
       warnings,
     };
   }
@@ -499,6 +506,10 @@ export class SendService extends ServiceCore {
     if (preview.zano) {
       if (!this.zano) throw new Error('The Zano engine is off.');
       return { hashes: [await this.zano.send(preview.zano)] };
+    }
+    if (preview.ksr) {
+      if (!this.ksr) throw new Error('The Kusari engine is off.');
+      return { hashes: [await this.ksr.send(preview.ksr)] };
     }
     if (preview.zec) {
       if (!this.zec) throw new Error('The Zcash engine is off.');
@@ -571,6 +582,11 @@ export class SendService extends ServiceCore {
 
   zanoInfo() {
     return { available: this.zanoAvailable, started: this.zano !== null, error: this.zano?.lastError ?? null, phase: this.zano?.phase ?? null, detail: zanoEngineInfo(this.dev.zanoBin) };
+  }
+
+  /** As zanoInfo, for Kusari; hasNode says whether a node is set (there's no public one before launch). */
+  ksrInfo() {
+    return { available: this.ksrAvailable, hasNode: Boolean(this.ksrNode), started: this.ksr !== null, error: this.ksr?.lastError ?? null, phase: this.ksr?.phase ?? null, detail: ksrEngineInfo(this.dev.ksrBin) };
   }
 
   /** For a screenshot when ZEC doesn't show up: holds no addresses, balances or keys. */
@@ -764,6 +780,11 @@ export class SendService extends ServiceCore {
       if (node && !/^[A-Za-z0-9.-]+:\d{2,5}$/.test(node)) throw new Error('Enter the Zano node as host:port, for example 192.168.1.5:11211.');
       next.customZanoNode = node;
     }
+    if (typeof patch.customKsrNode === 'string') {
+      const node = patch.customKsrNode.trim().replace(/^https?:\/\//, '').replace(/\/$/, '');
+      if (node && !/^[A-Za-z0-9.-]+:\d{2,5}$/.test(node)) throw new Error('Enter the Kusari node as host:port, for example 192.168.1.5:21081.');
+      next.customKsrNode = node;
+    }
     if (typeof patch.showPrices === 'boolean') next.showPrices = patch.showPrices;
     if (typeof patch.tornadoRelayer === 'string') next.tornadoRelayer = patch.tornadoRelayer.trim();
     if (typeof patch.simpleSwapKey === 'string') next.simpleSwapKey = patch.simpleSwapKey.trim();
@@ -791,6 +812,7 @@ export class SendService extends ServiceCore {
       || next.customMoneroNode !== this.settings.customMoneroNode
       || next.customBtcServer !== this.settings.customBtcServer
       || next.customZanoNode !== this.settings.customZanoNode
+      || next.customKsrNode !== this.settings.customKsrNode
       || next.tronApiKey !== this.settings.tronApiKey
       || next.torEnabled !== this.settings.torEnabled
       || evmChanged;
@@ -885,6 +907,10 @@ export class SendService extends ServiceCore {
     if (asset === 'BCH') return BCH_EXPLORER_TX + hash;
     if (asset === 'ZEC') return ZEC_EXPLORER_TX + hash;
     if (asset === 'ZANO') return ZANO_EXPLORER_TX + hash;
+    if (asset === 'KSR') {
+      if (!KSR_EXPLORER_TX) throw new Error('Kusari has no public explorer yet.');
+      return KSR_EXPLORER_TX + hash;
+    }
     if (asset === 'ARRR') return ARRR_EXPLORER_TX + hash;
     if (asset === 'BTC') return BTC_EXPLORER_TX + hash;
     if (asset === 'LTC') return LTC_EXPLORER_TX + hash;

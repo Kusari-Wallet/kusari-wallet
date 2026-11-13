@@ -9,7 +9,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { leadingChar, decodeAddress } = require('../kusari-coin/lib');
+const { leadingChar, decodeAddress } = require('./lib');
 
 const hexBytes = (h) => h.match(/../g).map((x) => '0x' + x);
 
@@ -182,6 +182,18 @@ function edits(p, genesis) {
 
   // Windows builds with MinGW-w64 (build-windows.sh).
   require('./windows/mingw')(add);
+
+  // The engine the Kusari Wallet app runs: native/zano-bridge's code, against this chain's wallet library. Built only
+  // when asked, with -DKUSARI_BRIDGE_DIR=<the app's native/zano-bridge>.
+  list.push({ file: 'src/CMakeLists.txt', append: [
+    '',
+    '# Kusari: the wallet bridge for the Kusari Wallet app (its native/zano-bridge, linked against this chain).',
+    'if(KUSARI_BRIDGE_DIR)',
+    '  add_executable(ksr-bridge ${KUSARI_BRIDGE_DIR}/main.cpp)',
+    '  target_include_directories(ksr-bridge PRIVATE ${KUSARI_BRIDGE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/wallet)',
+    '  target_link_libraries(ksr-bridge wallet rpc currency_core crypto common zlibstatic ethash ${CMAKE_THREAD_LIBS_INIT} ${Boost_LIBRARIES} OpenSSL::SSL OpenSSL::Crypto)',
+    'endif()',
+    ''].join('\n') });
 
   // Decoys of the real output's own kind (privacy/decoys.js).
   require('./privacy/decoys')(add);

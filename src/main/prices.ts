@@ -5,6 +5,9 @@ type Row = { usd: number; change: number | null };
 
 export interface PriceSource { name: string; url: string; parse: (json: any) => PriceMap }
 
+/** Coins no market lists yet, so no source prices them: Kusari (KSR), until it launches and trades somewhere. */
+export const NO_MARKET: ReadonlySet<Asset> = new Set<Asset>(['KSR']);
+
 function row(usd: unknown, change: unknown): Row {
   const n = typeof usd === 'string' ? Number(usd) : usd;
   if (typeof n !== 'number' || !Number.isFinite(n) || n <= 0) throw new Error('bad price');

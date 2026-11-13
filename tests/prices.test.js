@@ -80,15 +80,17 @@ test('every source is an https address, and the bulk market lists that timed out
 });
 
 test('CoinGecko alone, and the second tier alone, each price every coin (answers recorded 2026-11-12 and 13)', () => {
-  const { PRICE_TIERS } = require('../dist/main/prices');
+  const { PRICE_TIERS, NO_MARKET } = require('../dist/main/prices');
   const { DECIMALS } = require('../dist/main/config');
+  const listed = Object.keys(DECIMALS).filter((a) => !NO_MARKET.has(a));
   const rec = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'price-answers.json'), 'utf8'));
   const cg = PRICE_TIERS[0][0].parse(rec.coingecko);
-  assert.deepEqual(Object.keys(DECIMALS).filter((a) => !cg[a]), [], 'nothing left for the slower tiers');
+  assert.deepEqual(listed.filter((a) => !cg[a]), [], 'nothing left for the slower tiers');
   let v = {};
   // Recorded XT.com and NonKYC answers count as stale a day later, as it should: the other sources still cover ZANO.
   PRICE_TIERS[1].forEach((s, i) => { try { v = { ...s.parse(rec.tier2[i]), ...v }; } catch (e) { if (s.name !== 'XT.com' && s.name !== 'NonKYC') throw e; } });
-  assert.deepEqual(Object.keys(DECIMALS).filter((a) => !v[a]), [], 'a throttled CoinGecko costs no coin its price');
+  assert.deepEqual(listed.filter((a) => !v[a]), [], 'a throttled CoinGecko costs no coin its price');
+  assert.ok(!cg.KSR && !v.KSR, 'KSR has no market yet');
   assert.ok(Math.abs(v.ZANO.change) < 100 && v.ZANO.usd > 0);
 });
 

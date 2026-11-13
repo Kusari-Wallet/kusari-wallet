@@ -72,10 +72,11 @@ bash "$KIT/make-source.sh" "$ZANO" "$WORK/kusari-source.tar.gz"
 rm -rf "$WORK/kusari" && tar -C "$WORK" -xzf "$WORK/kusari-source.tar.gz"
 cmake -S "$WORK/kusari" -B "$WORK/kusari/build" -DCMAKE_TOOLCHAIN_FILE="$WORK/toolchain.cmake" -DCMAKE_BUILD_TYPE=Release \
   -DSTATIC=ON -DBOOST_ROOT="$PREFIX" -DBoost_NO_SYSTEM_PATHS=ON -DOPENSSL_ROOT_DIR="$PREFIX" -DOPENSSL_USE_STATIC_LIBS=ON \
-  -DCMAKE_EXE_LINKER_FLAGS=-static -DBUILD_TESTS=OFF > "$WORK/kusari-cmake.log" 2>&1
-cmake --build "$WORK/kusari/build" --target daemon simplewallet -j"$JOBS" > "$WORK/kusari-build.log" 2>&1
+  -DCMAKE_EXE_LINKER_FLAGS=-static -DBUILD_TESTS=OFF -DKUSARI_BRIDGE_DIR="$KIT/../zano-bridge" > "$WORK/kusari-cmake.log" 2>&1
+# The node, the wallet, and the engine the Kusari Wallet app runs (its native-bin/ksr/).
+cmake --build "$WORK/kusari/build" --target daemon simplewallet ksr-bridge -j"$JOBS" > "$WORK/kusari-build.log" 2>&1
 mkdir -p "$WORK/out"
-cp "$WORK/kusari/build/src/kusarid.exe" "$WORK/kusari/build/src/kusari-wallet.exe" "$WORK/out/"
+cp "$WORK/kusari/build/src/kusarid.exe" "$WORK/kusari/build/src/kusari-wallet.exe" "$WORK/kusari/build/src/ksr-bridge.exe" "$WORK/out/"
 
 if [ -n "$XMRIG" ]; then
   if [ ! -f "$PREFIX/lib/libuv.a" ]; then

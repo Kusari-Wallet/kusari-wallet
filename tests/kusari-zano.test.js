@@ -3,7 +3,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const lib = require('../native/kusari-coin/lib');
+const lib = require('../native/kusari-zano/lib');
 const { load, edits, loadGenesis } = require('../native/kusari-zano/prepare');
 
 const DIR = path.join(__dirname, '..', 'native', 'kusari-zano');
@@ -102,6 +102,15 @@ test('privacy: decoys of the real output\'s kind, stem transactions hidden, own 
   const tor = fs.readFileSync(path.join(DIR, 'privacy', 'tor_relay.h'), 'utf8');
   assert.match(tor, /\\x05\\x01\\x00\\x03/, 'CONNECT by host name, so nothing is resolved outside Tor');
   assert.ok(!/stem_relay|broadcast_now|relay_transactions/.test(tor), 'the Tor path has no way to the peers');
+});
+
+test('the app\'s engine (ksr-bridge) is the app\'s own bridge code, built against this chain when asked', () => {
+  const list = edits(load(PARAMS), loadGenesis(path.join(DIR, 'genesis')));
+  const target = list.find((e) => e.file === 'src/CMakeLists.txt' && e.append && /ksr-bridge/.test(e.append));
+  assert.ok(target, 'the target is added');
+  assert.match(target.append, /if\(KUSARI_BRIDGE_DIR\)/, 'only when asked');
+  assert.match(target.append, /add_executable\(ksr-bridge \$\{KUSARI_BRIDGE_DIR\}\/main\.cpp\)/);
+  assert.ok(fs.existsSync(path.join(__dirname, '..', 'native', 'zano-bridge', 'main.cpp')));
 });
 
 test('params that would break the chain are refused', () => {

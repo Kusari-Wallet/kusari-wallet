@@ -115,6 +115,7 @@ export interface Preview {
   solUsdt?: SolUsdtDraft;
   zec?: ZecDraft;
   zano?: ZanoDraft;
+  ksr?: ZanoDraft;
   arrr?: ArrrDraft;
   dex?: { quote: DexQuote; from: Asset; to: Asset; calls: DexCall[] };
 }

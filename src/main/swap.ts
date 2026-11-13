@@ -49,6 +49,7 @@ const COIN: Record<Asset, { coin: string; network: RegExp; fallback: string }> =
   ARRR: { coin: 'ARRR', network: /^(arrr|pirate)/i, fallback: 'ARRR' },
   SCRT: { coin: 'SCRT', network: /^(scrt|secret)/i, fallback: 'SCRT' },
   SSCRT: { coin: '', network: /^$/, fallback: '' }, // never offered: see NOT_SWAPPABLE
+  KSR: { coin: '', network: /^$/, fallback: '' }, // not listed anywhere yet: see NOT_SWAPPABLE
 };
 
 /** Ethereum addresses differ only in checksum casing, which services often drop. */
@@ -63,7 +64,7 @@ function sameAddress(a: unknown, b: string): boolean {
 export interface SwapQuote { from: Asset; to: Asset; amount: string; receive: string; rate: string; min: string | null; max: string | null; problem: string | null; provider: string; providerId: SwapProviderId; approximate: boolean }
 
 /** No provider takes the private form of a coin; it's made from or turned back into the plain one in the wallet. */
-export const NOT_SWAPPABLE: ReadonlySet<Asset> = new Set<Asset>(['SSCRT']);
+export const NOT_SWAPPABLE: ReadonlySet<Asset> = new Set<Asset>(['SSCRT', 'KSR']);
 
 export type SwapProviderId = 'exolix' | 'simpleswap' | 'ghostswap' | 'etzswap' | 'ccecash' | 'changenow';
 
@@ -229,6 +230,7 @@ const SIMPLE_COIN: Record<Asset, { ticker: string; network: string }> = {
   ARRR: { ticker: 'arrr', network: 'arrr' },
   SCRT: { ticker: 'scrt', network: 'scrt' },
   SSCRT: { ticker: '', network: '' },
+  KSR: { ticker: '', network: '' },
 };
 
 export class SimpleSwapClient implements SwapProvider {

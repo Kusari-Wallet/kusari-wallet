@@ -4,7 +4,9 @@ const fs = require('node:fs');
 const readline = require('node:readline');
 const log = process.env.FAKE_ZANO_LOG;
 const note = (o) => { if (log) fs.appendFileSync(log, JSON.stringify(o) + '\n'); };
-const ADDRESS = 'Zx' + 'C'.repeat(95);
+// Kusari's stand-in (fake-ksr-engine.js) sets a K... address; Zano's is Zx...
+const ADDRESS = process.env.FAKE_ZANO_ADDRESS || 'Zx' + 'C'.repeat(95);
+const VALID = ADDRESS.startsWith('K') ? /^[KL]/ : /^(Zx|iZ)/;
 let balance = 20000000000000000n; // past 2^53, on purpose
 let unlocked = 15000000000000000n;
 const wallets = new Set();
@@ -13,7 +15,7 @@ if (files && fs.existsSync(files)) for (const f of fs.readFileSync(files, 'utf8'
 let sent = [];
 const answer = (method, instance, params) => {
   if (method === 'init') { const [node, socks, dir] = params.split('\x1f'); note({ m: 'init', node, socks, dir }); return '{"result":{"return_code":"OK"}}'; }
-  if (method === 'address_info') return JSON.stringify({ valid: /^(Zx|iZ)/.test(params), wrap: false, auditable: false, payment_id: false });
+  if (method === 'address_info') return JSON.stringify({ valid: VALID.test(params), wrap: false, auditable: false, payment_id: false });
   if (method === 'open') {
     const p = JSON.parse(params);
     note({ m: 'open', path: p.path, known: wallets.has(p.path) });

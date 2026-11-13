@@ -13,7 +13,7 @@ const os = require('os');
 const path = require('path');
 const http = require('http');
 const { spawn, spawnSync } = require('child_process');
-const { decodeAddress } = require('../kusari-coin/lib');
+const { decodeAddress } = require('./lib');
 
 const params = JSON.parse(fs.readFileSync(path.join(__dirname, 'params.json'), 'utf8'));
 const bin = path.resolve(process.argv[2] || '.');

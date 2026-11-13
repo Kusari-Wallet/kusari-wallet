@@ -180,6 +180,14 @@ cmake --build kusari/build --target daemon simplewallet -j 4
 Zano asks for Boost 1.75 or newer and OpenSSL; `ZANO_USE_SYSTEM_BOOST=1` lets it use the system's Boost (Ubuntu 24.04:
 `build-essential cmake libboost-all-dev libssl-dev`). The binaries are `kusarid` and `kusari-wallet`.
 
+### The engine for the Kusari Wallet app
+
+The app runs KSR on its Zano client with `ksr-bridge`: the app's own `native/zano-bridge` code, linked against this
+chain's wallet library. Configure the build with `-DKUSARI_BRIDGE_DIR=<the app's native/zano-bridge>` and build the
+`ksr-bridge` target; `build-windows.sh` does this for Windows. Put the program in the app's `native-bin/ksr/`. Its
+`--selftest <node> - <folder>` makes a wallet with a throwaway key, syncs it and checks that restoring gives the same
+address (the chain needs a block past the genesis to sync).
+
 ### Windows
 
 `build-windows.sh` cross-compiles `kusarid.exe` and `kusari-wallet.exe` on Linux with MinGW-w64 (Ubuntu 24.04:
