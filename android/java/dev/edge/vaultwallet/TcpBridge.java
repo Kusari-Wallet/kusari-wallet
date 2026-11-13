@@ -15,8 +15,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Plain TCP for the Dash peer-to-peer network, which the WebView can't open itself. Only Dash's port is
- * allowed. With a SOCKS port set, every connection goes through Tor on a route of its own, and never directly.
+ * Plain TCP for the Dash and Bitcoin peer-to-peer networks, which the WebView can't open itself. Only their ports
+ * are allowed, Bitcoin's only through Tor. With a SOCKS port set, every connection goes through Tor on a route of
+ * its own, and never directly.
  */
 final class TcpBridge {
     interface Listener {
@@ -26,6 +27,7 @@ final class TcpBridge {
     }
 
     static final int DASH_PORT = 9999;
+    static final int BTC_PORT = 8333;
     private static final int MAX_OPEN = 8;
 
     private final Listener listener;
@@ -46,7 +48,7 @@ final class TcpBridge {
     void setSocksPort(int port) { socksPort = port; }
 
     boolean open(final int id, final String host, final int port) {
-        if (port != allowedPort || host == null || host.isEmpty() || host.length() > 255 || open.size() >= MAX_OPEN || open.containsKey(id)) return false;
+        if ((port != allowedPort && !(port == BTC_PORT && socksPort > 0)) || host == null || host.isEmpty() || host.length() > 255 || open.size() >= MAX_OPEN || open.containsKey(id)) return false;
         pool.execute(new Runnable() { @Override public void run() { connect(id, host, port); } });
         return true;
     }

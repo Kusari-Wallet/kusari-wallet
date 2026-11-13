@@ -1144,6 +1144,17 @@ const PASSWORD = 'correct horse battery';
   assert.equal(await page.locator('#set-language option[value="ru"]').innerText(), 'Русский', 'language names stay in their own language');
   assert.equal(await page.evaluate(() => document.documentElement.lang), 'ko');
   await shot('settings-ko');
+  // The private Bitcoin sync switch (on for this new wallet) and the duress password, translated.
+  assert.equal(await page.locator('#set-btc-filters').isChecked(), false, 'a restored wallet keeps asking servers until switched');
+  assert.equal(await page.locator('#set-btc-filters-from-row').isVisible(), false);
+  await page.locator('#set-btc-filters').check();
+  assert.equal(await page.locator('#set-btc-filters-from-row').isVisible(), true, 'switching on asks for the date to scan from');
+  await page.locator('#set-btc-filters').scrollIntoViewIfNeeded();
+  await shot('settings-btc-sync-ko');
+  await page.locator('#duress-section').scrollIntoViewIfNeeded();
+  assert.match(await page.locator('#duress-section h3').innerText(), /긴급 비밀번호/);
+  await shot('settings-duress-ko');
+  await page.locator('#set-btc-filters').uncheck();
   // Filled-in text, and a reason inside a longer message.
   const said = await page.evaluate(() => {
     const el = document.createElement('p');

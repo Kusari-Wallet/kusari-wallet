@@ -340,9 +340,9 @@ public class MainActivity extends Activity {
         @JavascriptInterface public void torStop() { tor.stop(); }
         @JavascriptInterface public void torDirect() { tor.stop(); proxy.setSocksPort(0); tcp.setSocksPort(0); torSocksPort = 0; }
 
-        /** Dash peer-to-peer sockets. With requireTor, refused unless Tor's SOCKS port is set: never a direct fallback. */
+        /** Dash and Bitcoin peer-to-peer sockets. With requireTor, refused unless Tor's SOCKS port is set: never a direct fallback. */
         @JavascriptInterface public boolean tcpOpen(int id, String host, int port, boolean requireTor) {
-            if (requireTor && torSocksPort == 0) return false;
+            if ((requireTor || port == TcpBridge.BTC_PORT) && torSocksPort == 0) return false;
             return tcp.open(id, host, port);
         }
         @JavascriptInterface public boolean tcpWrite(int id, String data) {

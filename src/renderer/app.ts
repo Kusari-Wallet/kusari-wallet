@@ -21,6 +21,13 @@ async function renderSettings(): Promise<void> {
   const auto = h('input', { id: 'set-auto', type: 'number', min: '1', max: '240', value: String(s.autoLockMinutes) });
   const showPrices = h('input', { type: 'checkbox', id: 'set-prices', checked: s.showPrices });
   const evmSeparate = h('input', { type: 'checkbox', id: 'set-evm-separate', checked: Boolean(s.evmSeparate) });
+  const btcFilters = h('input', { type: 'checkbox', id: 'set-btc-filters', checked: Boolean(s.btcFilters) }) as HTMLInputElement;
+  const btcFrom = h('input', { id: 'set-btc-filters-from', type: 'date', value: s.btcFiltersFrom ?? '' }) as HTMLInputElement;
+  const btcFromRow = h('label', { class: 'field', id: 'set-btc-filters-from-row' }, h('span', {}, 'Bitcoin first used on'), btcFrom,
+    h('div', { class: 'hint' }, 'Blocks are checked from this date. Earlier means more to download: roughly 100 MB for each month, through Tor. Choose a date a little before your first Bitcoin was received.'));
+  const showBtcFrom = () => { btcFromRow.style.display = btcFilters.checked ? '' : 'none'; };
+  btcFilters.addEventListener('change', showBtcFrom);
+  showBtcFrom();
   const zecInfo = await wallet.zecInfo();
   const zanoInfo = await wallet.zanoInfo();
   const ksrInfo = await wallet.ksrInfo();
@@ -69,7 +76,7 @@ async function renderSettings(): Promise<void> {
       await wallet.installTor();
       tor.installed = true;
     }
-    const relocked = await wallet.updateSettings({ customMoneroNode: node.value, customBtcServer: btcServer.value, customZanoNode: zanoNode.value, customKsrNode: ksrNode.value, coinjoinCoordinator: coordinator.value === 'custom' ? coordinatorUrl.value : coordinator.value, coinjoinTarget: Number(mixTarget.value), tronApiKey: key.value, autoLockMinutes: Number(auto.value), showPrices: showPrices.checked, evmSeparate: evmSeparate.checked, ...(tor.allowed === false ? {} : { torEnabled: useTor.checked, torBridge: bridge.value, torBridgeLines: bridgeLines.value }) });
+    const relocked = await wallet.updateSettings({ customMoneroNode: node.value, customBtcServer: btcServer.value, customZanoNode: zanoNode.value, customKsrNode: ksrNode.value, coinjoinCoordinator: coordinator.value === 'custom' ? coordinatorUrl.value : coordinator.value, coinjoinTarget: Number(mixTarget.value), tronApiKey: key.value, autoLockMinutes: Number(auto.value), showPrices: showPrices.checked, evmSeparate: evmSeparate.checked, btcFilters: btcFilters.checked, ...(btcFilters.checked ? { btcFiltersFrom: btcFrom.value } : {}), ...(tor.allowed === false ? {} : { torEnabled: useTor.checked, torBridge: bridge.value, torBridgeLines: bridgeLines.value }) });
     if (!relocked) { saved.textContent = 'Saved.'; void refresh(); }
   }) }, 'Save');
 
@@ -81,6 +88,25 @@ async function renderSettings(): Promise<void> {
     await wallet.biometric?.disable();
     curPw.value = ''; newPw.value = ''; chgDone.textContent = 'Password changed.';
   }) }, 'Change password');
+
+  // A duress password opens a decoy wallet instead of this one.
+  const duressBox = errorBox();
+  const duress = await wallet.duressStatus().catch(() => ({ set: false }));
+  const duressCur = h('input', { type: 'password', autocomplete: 'current-password', id: 'duress-current' }) as HTMLInputElement;
+  const duressNew = h('input', { type: 'password', autocomplete: 'new-password', id: 'duress-new' }) as HTMLInputElement;
+  const duressAgain = h('input', { type: 'password', autocomplete: 'new-password', id: 'duress-again' }) as HTMLInputElement;
+  const duressState = h('p', { class: 'small', id: 'duress-state' }, duress.set ? 'A duress password is set.' : 'No duress password is set.');
+  const duressSet = h('button', { id: 'duress-set', onclick: () => busy(duressSet, 'Setting up…', duressBox, async () => {
+    if (duressNew.value !== duressAgain.value) throw new Error('The two duress passwords don\'t match.');
+    await wallet.duressSet(duressCur.value, duressNew.value);
+    duressCur.value = ''; duressNew.value = ''; duressAgain.value = '';
+    duressState.textContent = 'A duress password is set.';
+  }) }, duress.set ? 'Replace duress password' : 'Set duress password');
+  const duressOff = h('button', { class: 'ghost', id: 'duress-remove', onclick: () => busy(duressOff, 'Removing…', duressBox, async () => {
+    await wallet.duressRemove(duressCur.value);
+    duressCur.value = '';
+    duressState.textContent = 'No duress password is set.';
+  }) }, 'Remove');
 
   const seedPw = h('input', { type: 'password', autocomplete: 'current-password', id: 'seed-pw' });
   const seedOut = h('div', {});
@@ -147,6 +173,9 @@ async function renderSettings(): Promise<void> {
         h('label', { class: 'field' }, h('span', {}, 'TronGrid API key'), key, h('div', { class: 'hint' }, 'Works without one. Add a free key if lookups are often limited.')),
         h('label', { class: 'field' }, h('span', {}, 'Auto-lock (minutes)'), auto),
         h('label', { class: 'check' }, showPrices, h('span', {}, 'Show USD prices', h('div', { class: 'hint' }, 'Prices come from CoinGecko, then from other price services and exchanges if it\'s blocked or a coin is missing. Addresses and balances aren\'t sent, but your IP can be seen.'))),
+        h('label', { class: 'check' }, btcFilters, h('span', {}, 'Private Bitcoin sync',
+          h('div', { class: 'hint' }, 'Instead of asking servers about your addresses, the wallet downloads compact block filters from Bitcoin nodes over Tor and checks them on this device, so no server or node learns which addresses are yours. Two nodes must agree on every filter. It needs Tor, uses more data, and incoming payments show after their first confirmation. New wallets use it from the start. Switching reopens the wallet.'))),
+        btcFromRow,
         h('label', { class: 'check' }, evmSeparate, h('span', {}, 'A separate address for each EVM chain', h('div', { class: 'hint' }, 'BNB Chain, Polygon and Arbitrum each get an address of their own instead of sharing your Ethereum address, so one address doesn\'t link your activity on all four. Switching changes those receiving addresses and reopens the wallet. Coins on the other addresses show again when you switch back, so move them first.'))),
         tor.allowed === false ? copyLog : h('div', { class: 'tor-block', id: 'tor-block' },
           h('h3', {}, 'Tor'), torBox.el, torProgress, torRouteNote,
@@ -180,6 +209,13 @@ async function renderSettings(): Promise<void> {
         h('label', { class: 'field' }, h('span', {}, 'Current password'), curPw),
         h('label', { class: 'field' }, h('span', {}, 'New password (at least 10 characters)'), newPw),
         h('div', { class: 'row' }, chg, chgDone)),
+      h('div', { class: 'section', id: 'duress-section' }, h('h3', {}, 'Duress password'), duressBox.el,
+        h('p', { class: 'small muted' }, 'If someone forces you to open the wallet, unlock it with this password instead: a separate decoy wallet with its own seed opens in its place, under the same name. Your real wallet and its coins stay hidden behind your usual password. Put a small amount in the decoy so it looks used. Fingerprint unlock opens the wallet it was turned on in. Someone who examines this device\'s files closely could tell that a second wallet exists.'),
+        duressState,
+        h('label', { class: 'field' }, h('span', {}, 'Your wallet password'), duressCur),
+        h('label', { class: 'field' }, h('span', {}, 'Duress password (at least 10 characters)'), duressNew),
+        h('label', { class: 'field' }, h('span', {}, 'Duress password again'), duressAgain),
+        h('div', { class: 'row' }, duressSet, duressOff)),
       h('div', { class: 'section', id: 'support-section' }, h('h3', {}, 'Support'),
         h('button', { class: 'ghost', id: 'support', 'aria-expanded': 'false', onclick: (e: Event) => {
           const note = document.getElementById('support-note');

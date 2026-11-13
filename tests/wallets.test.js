@@ -203,3 +203,42 @@ test('CoinJoin: how much to mix is 1, 5 or 10', async (t) => {
   assert.equal(s.settings.coinjoinTarget, 1);
   await assert.rejects(s.updateSettings({ coinjoinTarget: 3 }), /how many others/);
 });
+
+test('duress password: opens a decoy in the wallet\'s place, the real one stays untouched, even when the decoy is deleted', async (t) => {
+  const { s, dir } = await make(t);
+  // Making the decoy's Monero seed starts monero-ts's worker; it is stopped so the test run can end.
+  t.after(async () => { await require('monero-ts').LibraryUtils.terminateWorker().catch(() => undefined); });
+  await makeOldWallet(s, PW1, 'real seed');
+  await s.unlock(PW1);
+  assert.deepEqual(await s.duressStatus(), { set: false });
+  await assert.rejects(s.duressSet('wrong password', 'decoy password'), /./);
+  await assert.rejects(s.duressSet(PW1, PW1), /different/);
+  await s.duressSet(PW1, 'decoy password');
+  assert.deepEqual(await s.duressStatus(), { set: true });
+  await s.lock();
+
+  await s.unlock('decoy password');
+  assert.notEqual(s.seen, 'real seed', 'the decoy has a seed of its own');
+  assert.match(s.seen, /^(\w+ ){11,23}\w+$/);
+  const decoySeed = s.seen;
+  assert.equal(s.activeWallet, 'main', 'under the real wallet\'s name');
+  assert.deepEqual((await s.walletsList()).list.map((w) => w.id), ['main'], 'never listed');
+  assert.deepEqual(await s.duressStatus(), { set: false }, 'looks like a wallet without one');
+  await s.lock();
+
+  await assert.rejects(s.unlock('neither of them'), /./);
+  await s.unlock(PW1);
+  assert.equal(s.seen, 'real seed');
+  await s.lock();
+
+  // Deleting from the decoy removes only the decoy.
+  await s.unlock('decoy password');
+  assert.equal(s.seen, decoySeed);
+  await s.deleteWallet('decoy password');
+  assert.equal(await s.vault.exists(), true);
+  assert.equal((await s.vault.open(PW1)).tronMnemonic, 'real seed');
+  assert.ok(!fs.existsSync(path.join(dir, 'duress.json')));
+  await assert.rejects(s.unlock('decoy password'), /./);
+  await s.unlock(PW1);
+  assert.equal(s.seen, 'real seed');
+});

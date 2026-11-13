@@ -145,6 +145,12 @@ export interface Settings {
   evmSeparate?: boolean;
   /** A developer build (see flavor.ts); never saved. */
   developer?: boolean;
+  /**
+   * Private Bitcoin sync with block filters for the open wallet, and the date it scans from (YYYY-MM-DD). Kept with
+   * the wallet, encrypted, not in the settings file.
+   */
+  btcFilters?: boolean;
+  btcFiltersFrom?: string;
   /** How Tor connects: auto, straight, or through Snowflake, obfs4 or the user's own bridges. */
   torBridge: 'auto' | 'none' | 'snowflake' | 'obfs4' | 'custom';
   torBridgeLines: string;

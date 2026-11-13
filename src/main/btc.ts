@@ -2,6 +2,7 @@ import type { Agent } from 'node:http';
 import { getJson, requestText } from './request';
 import { blockbookGet, blockbookSend, isBlockbook } from './blockbook';
 import { formatAmount } from './amount';
+import type { FilterSync } from './btc-filter-sync';
 
 // These packages are ESM only, which require() handles in this Node version.
 const { HDKey } = require('@scure/bip32');
@@ -121,6 +122,39 @@ export class BtcClient {
     this.account = HDKey.fromExtendedKey(xpub);
   }
 
+  /**
+   * Private sync: balances come from block filters checked on this device (see btc-filter-sync), so no server is
+   * asked about any address. Fees and sends still use the servers, which learn nothing about the wallet from them.
+   */
+  private filters: { sync: FilterSync; id: string } | null = null;
+  useFilters(sync: FilterSync, id: string): void {
+    this.filters = { sync, id };
+    sync.addAccount({ id, gap: [this.coin.gap ?? GAP, GAP_CHANGE], script: (chain, index) => btc.OutScript.encode(btc.Address(btc.NETWORK).decode(this.addressAt(chain, index))) });
+  }
+  get usesFilters(): boolean { return this.filters !== null; }
+  /** How far the private sync has got, when it is on. */
+  get filterProgress(): { scanned: number; tip: number; error: string | null } | null {
+    return this.filters ? { ...this.filters.sync.progress, error: this.filters.sync.lastError } : null;
+  }
+
+  private stateFromFilters(): void {
+    const f = this.filters!;
+    const v = f.sync.view(f.id);
+    if (!v) return;
+    const addresses = new Map<string, [number, number]>(this.state?.addresses ?? []);
+    const used = new Set<string>();
+    const utxos: BtcUtxo[] = v.coins.map((c) => {
+      const address = this.addressAt(c.chain, c.index);
+      addresses.set(address, [c.chain, c.index]);
+      used.add(address);
+      return { txid: c.txid, vout: c.vout, value: BigInt(c.value), address, chain: c.chain, index: c.index, confirmed: c.height > 0 };
+    });
+    const total = utxos.reduce((s, u) => s + u.value, 0n);
+    const spendable = utxos.filter((u) => u.confirmed).reduce((s, u) => s + u.value, 0n);
+    this.nexts.set('taproot0', v.next[0]); this.nexts.set('taproot1', v.next[1]);
+    this.state = { at: Date.now(), utxos, total, spendable, nextReceive: v.next[0], nextChange: v.next[1], addresses, used };
+  }
+
   /** What the last scan learned, kept between launches so opening the app doesn't rescan every address. */
   onHints: ((hints: BtcScanHints) => void) | null = null;
   private hintsUsed: Set<string> | null = null;
@@ -227,6 +261,16 @@ export class BtcClient {
 
   refresh(force: boolean | 'full' = false): Promise<void> {
     if (!force && this.state && Date.now() - this.state.at < CACHE_MS) return Promise.resolve();
+    if (this.filters && !this.inFlight) {
+      const f = this.filters;
+      this.inFlight = (async () => {
+        await f.sync.load();
+        if (!this.state) this.stateFromFilters(); // the last known coins at once, while the sync catches up
+        await f.sync.sync(Boolean(force));
+        this.stateFromFilters();
+        this.lastError = null;
+      })().catch((e) => { this.lastError = (e as Error).message; throw e; }).finally(() => { this.inFlight = null; });
+    }
     if (!this.inFlight) {
       this.inFlight = (async () => {
         const out = { utxos: [] as BtcUtxo[], total: 0n, addresses: new Map<string, [number, number]>(this.state?.addresses ?? []), used: new Set<string>() };
@@ -306,6 +350,17 @@ export class BtcClient {
   /** Signs here, checks the result against what was approved, then broadcasts. */
   async send(draft: BtcDraft, mnemonic: string): Promise<string> {
     const { hex, id } = this.coin.sign(draft, mnemonic);
+    if (this.filters) {
+      // Handed to Bitcoin nodes directly too, so the send doesn't depend on a server being up.
+      const raw = Buffer.from(hex, 'hex');
+      const peers = await this.filters.sync.broadcast(raw).catch(() => 0);
+      let answer: string | null = null;
+      try { answer = (await this.broadcast(hex)).trim(); } catch (e) { if (peers < 2) throw e; }
+      if (answer !== null && answer !== id) throw new Error(`The server returned a different transaction ID. Check ${id} on an explorer.`);
+      this.filters.sync.recordSent(raw);
+      this.stateFromFilters();
+      return id;
+    }
     const answer = (await this.broadcast(hex)).trim();
     if (answer !== id) throw new Error(`The server returned a different transaction ID. Check ${id} on an explorer.`);
     this.state = null;
@@ -326,6 +381,22 @@ export class BtcClient {
 
   async getHistory(): Promise<BtcHistoryItem[]> {
     await this.refresh().catch((e) => { if (!this.state) throw e; });
+    if (this.filters) {
+      const v = this.filters.sync.view(this.filters.id);
+      if (!v) return [];
+      return v.txs.map((t): BtcHistoryItem => {
+        const a = t.accounts[this.filters!.id];
+        const got = BigInt(a.in); const spent = BigInt(a.out);
+        const net = got - spent;
+        const direction = spent === 0n ? 'in' : net < 0n ? 'out' : 'self';
+        return {
+          asset: this.coin.symbol, hash: t.txid, direction,
+          amount: formatAmount(direction === 'in' ? got : net < 0n ? -net : net, 8),
+          counterparty: '', timestamp: t.time * 1000,
+          status: t.height > 0 ? 'confirmed' : 'pending', dust: direction === 'in' && got < 1000n,
+        };
+      }).sort((a, b) => b.timestamp - a.timestamp).slice(0, 50);
+    }
     const state = this.state;
     if (!state) return [];
     const mine = state.addresses;

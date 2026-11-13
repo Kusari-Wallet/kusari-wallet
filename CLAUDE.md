@@ -35,6 +35,9 @@ Java WebView (`android/java`) running the same code as an esbuild bundle (`src/a
   `web-worker` ships as a package (it starts threads from its own file); every other library is a devDependency and is
   bundled. A library that must ship as files goes in `dependencies` and `external`. `npm run check:package` checks
   a Windows build.
+- Code signing: electron-builder signs the app and every engine `.exe` when `CSC_LINK` (a .pfx path or base64) and
+  `CSC_KEY_PASSWORD` are set for the build; without them builds are unsigned. The Linux tar.gz ships
+  `start-kusari-wallet.sh`, which sets up Chromium's sandbox helper once where the system requires it.
 - Swap keys are masked in `src/main/swap-keys.generated.ts` with random bytes made fresh by `scripts/gen-keys.js`
   on every build.
 
@@ -47,6 +50,12 @@ Java WebView (`android/java`) running the same code as an esbuild bundle (`src/a
   `screens-*.ts`, `app.ts` last, which wires events and boots). `src/android/index.html` and
   `scripts/build-android-web.js` list the same files.
 - `src/main/btc.ts`: Bitcoin (taproot, BIP86), coin control, CoinJoin account `m/86'/0'/1'`.
+- Private Bitcoin sync (BIP157/158): `btc-filter-sync.ts` (headers from checkpoints, filters two peers agree on,
+  matching on the device, reorgs), `btc-p2p.ts` (onion peers over Tor), `btc-gcs.ts` (filters), `btc-block.ts`.
+  `BtcClient.useFilters` switches a client over. On for new wallets (`btc-sync.json`, sealed); needs Tor.
+- Duress password: `duressSet`/`unlock` in `service-core.ts`. A decoy wallet in `wallets/<id>` (never listed)
+  opens in the real one's place; from a decoy session the real wallet's files are never touched.
+- `src/main/lookalike.ts`: address-poisoning check on every send review.
 - `src/main/wabisabi/`: WabiSabi CoinJoin client (credentials, round, decomposer); `src/main/btc-mix.ts` runs it.
   `tests/fixtures/wabisabi-*.json` are vectors from the reference implementation and live coordinators.
 - `src/main/coinjoin.ts`, `dash-mix.ts`, `dash-p2p.ts`: Dash CoinJoin.

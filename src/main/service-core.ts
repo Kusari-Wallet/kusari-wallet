@@ -14,6 +14,7 @@ import type { Agent } from 'node:http';
 import { AAVE_MARKETS, aaveCall, readAave } from './aave';
 import { ScrtClient, scrtPrivacyKeys, scrtPublicKey } from './scrt';
 import { BITCOIN, BITCOIN_MIXED, BTC_MIXED_PATH, BTC_PATH, BtcClient, LITECOIN, btcAccountXpub, coinId, ltcAccountXpub } from './btc';
+import { FilterSync, TAPROOT_HEIGHT, estimateBtcHeight } from './btc-filter-sync';
 import { PRICE_TIERS, PriceMap, PriceSource, coingecko, mirror, NO_MARKET } from './prices';
 import { ArrrClient } from './arrr';
 import { startArrrEngine, arrrEngineAvailable } from './arrr-process';
@@ -248,6 +249,8 @@ export class ServiceCore extends EventEmitter {
     await this.commitPendingWallet();
     this.draftSeeds = null;
     await this.writeEvmLayout(true);
+    // A new wallet syncs Bitcoin privately from the start: there are only days of filters to fetch.
+    this.newBtcSync = { filters: true, birthday: btcBirthdayFor(new Date()), from: new Date().toISOString().slice(0, 10) };
     await this.startSession(secrets);
   }
 
@@ -271,6 +274,9 @@ export class ServiceCore extends EventEmitter {
     if (/^\d{4}-\d{2}-\d{2}$/.test(from)) {
       secrets.zecBirthday = zecHeightForDate(new Date(from + 'T00:00:00Z'));
       secrets.restoreDate = from;
+      // Recent enough that the filters since then are a modest download: private sync from the start.
+      const date = new Date(from + 'T00:00:00Z');
+      if (Date.now() - date.getTime() < 92 * 24 * 3600_000) this.newBtcSync = { filters: true, birthday: btcBirthdayFor(date), from };
     }
     await this.vault.save(password, secrets);
     await this.commitPendingWallet();
@@ -332,7 +338,21 @@ export class ServiceCore extends EventEmitter {
     const ownBtc = (this.settings.customBtcServer ?? '').trim();
     const btcApis = this.dev.btcApi ? [this.dev.btcApi] : ownBtc ? [ownBtc] : this.torActive ? [...BTC_ONION_APIS, ...BTC_APIS] : BTC_APIS;
     const btcAgent = ownBtc && isLocalServer(ownBtc) ? undefined : this.torRoute('btc');
+    if (this.newBtcSync) { await this.writeBtcSync(this.newBtcSync).catch(() => undefined); this.newBtcSync = null; }
+    const btcSync = await this.readBtcSync();
+    this.settings.btcFilters = btcSync.filters;
+    this.settings.btcFiltersFrom = btcSync.filters || btcSync.birthday ? btcSync.from : undefined;
+    this.btcFilters?.close();
+    this.btcFilters = null;
+    // Filters come from onion nodes, so they need Tor; a server of one's own is asked instead when set.
+    if (btcSync.filters && this.torActive && this.torProxy && !ownBtc && !this.dev.btcApi) {
+      this.btcFilters = new FilterSync({
+        dir: this.dir, records: this.records, dial: tcpDial(this.torProxy, 60_000), birthday: btcSync.birthday,
+        onProgress: () => this.emit('btc-sync'),
+      });
+    }
     this.btc = new BtcClient(btcAccountXpub(secrets.tronMnemonic), btcApis, btcAgent, slow ? 60_000 : 30_000, BITCOIN, () => newTorRoute(btcAgent));
+    if (this.btcFilters) this.btc.useFilters(this.btcFilters, 'btc');
     if (this.dev.btcApi) this.btc.spacingMs = 0;
     const scanFile = path.join(this.dir, 'btc-scan.json');
     try { const h = await this.records.read(scanFile); if (h) this.btc.importHints(h); } catch { /* damaged: scanned afresh */ }
@@ -341,6 +361,7 @@ export class ServiceCore extends EventEmitter {
     // Its own Tor route, so the server can't tie the CoinJoin account's addresses to the regular ones.
     const mixedAgent = ownBtc && isLocalServer(ownBtc) ? undefined : this.torRoute('btc-mixed');
     this.btcMixed = new BtcClient(btcAccountXpub(secrets.tronMnemonic, BTC_MIXED_PATH), btcApis, mixedAgent, slow ? 60_000 : 30_000, BITCOIN_MIXED, () => newTorRoute(mixedAgent));
+    if (this.btcFilters) this.btcMixed.useFilters(this.btcFilters, 'btc-mixed');
     if (this.dev.btcApi) this.btcMixed.spacingMs = 0;
     const mixedScanFile = path.join(this.dir, 'btc-mixed-scan.json');
     try { const h = await this.records.read(mixedScanFile); if (h) this.btcMixed.importHints(h); } catch { /* damaged: scanned afresh */ }
@@ -631,7 +652,21 @@ export class ServiceCore extends EventEmitter {
 
   async unlock(password: string): Promise<void> {
     if (this.tron && this.monero) return;
-    const secrets = await this.vault.open(password);
+    let secrets: Secrets;
+    const decoyId = await this.duressId();
+    if (decoyId) {
+      // Both are tried at once, so the time it takes doesn't tell which password was given.
+      const decoy = new Vault(path.join(this.walletDir(decoyId), 'vault.json'), this.kdf);
+      const [real, fake] = await Promise.allSettled([this.vault.open(password), decoy.open(password)]);
+      if (real.status === 'fulfilled') secrets = real.value;
+      else if (fake.status === 'fulfilled') {
+        // The duress password: the decoy wallet opens in this wallet's place, under its name.
+        secrets = fake.value;
+        this.duressOf = this.walletId;
+        this.dir = this.walletDir(decoyId);
+        this.vault = decoy;
+      } else throw real.reason;
+    } else secrets = await this.vault.open(password);
     if (this.tron) await this.lock(); // a start that failed half way
     try {
       await this.startSession(secrets);
@@ -666,6 +701,8 @@ export class ServiceCore extends EventEmitter {
     this.lastLookupError.clear();
     this.tron = null;
     this.btc = null;
+    this.btcFilters?.close();
+    this.btcFilters = null;
     this.btcMixer?.stop();
     this.btcMixer = null;
     this.btcMixed = null;
@@ -702,6 +739,61 @@ export class ServiceCore extends EventEmitter {
     await this.closing;
     await this.tor.stop();
     this.tor.clearLog();
+    // Back from a decoy session: the next unlock starts from the real wallet again.
+    if (this.duressOf) { const id = this.duressOf; this.duressOf = null; this.activate(id); }
+  }
+
+  // ---- duress password ----
+
+  /**
+   * A second password that opens a decoy wallet (its own seed, made here) in place of this one, for when someone
+   * forces the wallet open. The real wallet's files are never touched from a decoy session.
+   */
+  protected duressOf: string | null = null;
+  protected async duressId(dir = this.dir): Promise<string | null> {
+    try {
+      const j = JSON.parse(String(await fs.readFile(path.join(dir, 'duress.json'), 'utf8')));
+      return typeof j?.id === 'string' && /^[0-9a-f]{16}$/.test(j.id) ? j.id : null;
+    } catch { return null; }
+  }
+
+  async duressStatus(): Promise<{ set: boolean }> {
+    this.session();
+    // In a decoy session, the decoy has none of its own: it looks like a wallet without one.
+    return { set: Boolean(await this.duressId()) };
+  }
+
+  async duressSet(current: string, duress: string): Promise<void> {
+    this.session();
+    await this.vault.open(current); // the wallet's own password, checked
+    if (duress === current) throw new Error('The duress password must be different from your wallet password.');
+    if (duress.length < MIN_PASSWORD) throw new Error(`The password must be at least ${MIN_PASSWORD} characters.`);
+    await this.duressDrop();
+    const id = randomBytes(8).toString('hex');
+    const dir = this.walletDir(id);
+    const tronMnemonic = generateTronMnemonic();
+    const secrets = this.newSecrets(tronMnemonic, await generateMoneroSeed('mainnet'), { mainnet: Math.max(0, estimateMainnetHeight(new Date()) - 5040), testnet: -1 });
+    await fs.mkdir(dir, { recursive: true });
+    await new Vault(path.join(dir, 'vault.json'), this.kdf).save(duress, secrets);
+    // Set up like any new wallet.
+    await fs.writeFile(path.join(dir, 'evm-layout.json'), JSON.stringify({ split: true }), { mode: 0o600 });
+    await sealedRecords(recordsKey(tronMnemonic)).write(path.join(dir, 'btc-sync.json'), { filters: true, birthday: btcBirthdayFor(new Date()), from: new Date().toISOString().slice(0, 10) });
+    await fs.writeFile(path.join(this.dir, 'duress.json'), JSON.stringify({ id }), { mode: 0o600 });
+  }
+
+  async duressRemove(current: string): Promise<void> {
+    this.session();
+    await this.vault.open(current);
+    await this.duressDrop();
+  }
+
+  protected async duressDrop(): Promise<void> {
+    const old = await this.duressId();
+    if (old) {
+      await new Vault(path.join(this.walletDir(old), 'vault.json'), this.kdf).destroy().catch(() => undefined);
+      await fs.rm(this.walletDir(old), { recursive: true, force: true }).catch(() => undefined);
+    }
+    await fs.rm(path.join(this.dir, 'duress.json'), { force: true }).catch(() => undefined);
   }
 
   protected session() {
@@ -982,6 +1074,7 @@ export class ServiceCore extends EventEmitter {
       spark: this.spark ? { ...this.spark.info(), balance: this.spark.balance() ? { total: formatAmount(this.spark.balance()!.total, 8), spendable: formatAmount(this.spark.balance()!.spendable, 8) } : null } : null,
       mweb: this.mweb ? { ...this.mweb.info(), balance: this.mweb.balance() ? { total: formatAmount(this.mweb.balance()!.total, 8), spendable: formatAmount(this.mweb.balance()!.spendable, 8) } : null } : null,
       arrr: arrr ? { scanning: arrr.isScanning, percent: arrr.percent } : null,
+      btcSync: this.btcFilters ? { ...this.btcFilters.progress, error: this.btcFilters.lastError } : null,
       zec: zec ? { ...zec.state(), address: zec.receive?.unified ?? '', transparentAddress: zec.transparentAddress } : null,
       addresses: { ...Object.fromEntries(EVM.map((a) => [a, this.evm(a).address])), BTC: btc.receiveAddress, XMR: await monero.getPrimaryAddress(), ETH: eth.address, TRX: tron.address, USDTE: eth.address, USDT: tron.address, DASH: dash.receiveAddress, FIRO: firo.receiveAddress, SOL: this.sol!.receiveAddress, USDTS: this.sol!.receiveAddress, USDCS: this.sol!.receiveAddress, ORCA: this.sol!.receiveAddress, PUMP: this.sol!.receiveAddress, BCH: bareBch(this.bch!.receiveAddress), LTC: this.ltc!.receiveAddress, SCRT: this.scrt!.address, SSCRT: this.scrt!.address, DOGE: this.doge!.receiveAddress, ...(this.ada ? { ADA: this.ada.receiveAddress } : {}), ...(zec ? { ZEC: zec.receive?.unified ?? '' } : {}), ...(zano ? { ZANO: zano.receive } : {}), ...(ksr ? { KSR: ksr.receive } : {}), ...(arrr ? { ARRR: arrr.receive } : {}) },
       ksr: ksr ? { scanning: ksr.isScanning } : null,
@@ -1038,6 +1131,19 @@ export class ServiceCore extends EventEmitter {
    * address doesn't tie a person's activity on four chains together. Wallets made before this, and restored ones (other
    * wallets use one address everywhere), keep the shared address until switched in the settings.
    */
+  /** Private Bitcoin sync (block filters): on or off for this wallet, and the block it scans from. */
+  protected btcFilters: FilterSync | null = null;
+  protected newBtcSync: { filters: boolean; birthday: number; from?: string } | null = null;
+  protected get btcSyncPath() { return path.join(this.dir, 'btc-sync.json'); }
+  protected async readBtcSync(): Promise<{ filters: boolean; birthday: number; from?: string }> {
+    const j = await this.records.read(this.btcSyncPath).catch(() => undefined);
+    const birthday = Number.isInteger(j?.birthday) && j.birthday >= TAPROOT_HEIGHT ? j.birthday : 0;
+    return { filters: j?.filters === true && birthday > 0, birthday, from: typeof j?.from === 'string' ? j.from : undefined };
+  }
+  protected async writeBtcSync(v: { filters: boolean; birthday: number; from?: string }): Promise<void> {
+    await this.records.write(this.btcSyncPath, v);
+  }
+
   protected evmSplit = false;
   protected get evmLayoutPath() { return path.join(this.dir, 'evm-layout.json'); }
   protected async readEvmLayout(): Promise<boolean> {
@@ -1163,4 +1269,9 @@ export class ServiceCore extends EventEmitter {
     } catch { return { labels: {}, frozen: [] }; }
   }
 
+}
+
+/** The block a private Bitcoin sync starts from for a wallet first used on `date`: a week early, never before taproot. */
+export function btcBirthdayFor(date: Date): number {
+  return Math.max(TAPROOT_HEIGHT, estimateBtcHeight(date) - 1008);
 }

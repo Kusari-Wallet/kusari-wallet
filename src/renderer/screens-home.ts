@@ -76,7 +76,7 @@ function totalUsd(): { value: string; note: string } {
   if (pending.length && !failed.length) {
     if (overview.tor && overview.tor.phase !== 'ready') return { value: usdFormat(sum), note: 'Tor is connecting. Balances load once it connects.' };
     // A first sync reads the chain on this device and can take a long while: say so, with how far it is.
-    const syncing = (a: Asset) => (a === 'ZEC' && overview.zec?.syncing && !overview.zec.firstScanDone) || (a === 'ARRR' && overview.arrr?.scanning) || (a === 'ZANO' && overview.balances.ZANO?.pending) || (a === 'KSR' && overview.balances.KSR?.pending);
+    const syncing = (a: Asset) => (a === 'ZEC' && overview.zec?.syncing && !overview.zec.firstScanDone) || (a === 'ARRR' && overview.arrr?.scanning) || (a === 'BTC' && btcScanning()) || (a === 'ZANO' && overview.balances.ZANO?.pending) || (a === 'KSR' && overview.balances.KSR?.pending);
     const first = pending.filter(syncing);
     const rest = pending.filter((a) => !syncing(a));
     const names = (list: Asset[]) => list.map((a) => (a === 'ARRR' && overview.arrr?.percent ? `${coinName(a)} ${overview.arrr.percent}%` : coinName(a))).join(', ');
@@ -289,6 +289,7 @@ async function renderAsset(): Promise<void> {
       a === 'BTC' && b?.ok && b.total !== b.spendable && h('div', { class: 'warn' }, `${b.spendable} BTC can be spent now. The rest unlocks after 1 confirmation.`),
       a === 'ZEC' && overview?.zec?.syncing && !overview.zec.firstScanDone && h('div', { class: 'sync-banner', id: 'zec-scan' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), 'Scanning Zcash blocks. Closing the app before this finishes means scanning again from the start.'),
       a === 'ARRR' && overview?.arrr?.scanning && h('div', { class: 'sync-banner', id: 'arrr-scan' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), `Scanning Pirate Chain blocks. ${overview.arrr.percent}%`),
+      a === 'BTC' && btcScanning() && h('div', { class: 'sync-banner', id: 'btc-filter-scan' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), `Checking Bitcoin blocks privately, on this device: ${btcBlocksLeft()} blocks to go.`),
       a === 'ARRR' && b?.ok && b.total !== b.spendable && h('div', { class: 'warn' }, `${b.spendable} ARRR can be sent now. The rest is waiting for confirmations.`),
       a === 'ZANO' && b?.ok && b.total !== b.spendable && h('div', { class: 'warn' }, `${b.spendable} ZANO can be sent now. Received coins can be used after 10 confirmations.`),
       a === 'KSR' && b?.ok && b.total !== b.spendable && h('div', { class: 'warn' }, `${b.spendable} KSR can be sent now. Received coins can be used after 10 confirmations.`),

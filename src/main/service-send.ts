@@ -31,7 +31,8 @@ import type { InsightUtxo } from './insight';
 import { chainOf, deriveEthAccount, isEthAddress } from './eth';
 import { TOR_BRIDGES, TorBridge, parseCustomBridges } from './tor-bridges';
 import { checkOwnServer, COIN_ID, EVM_EXPLORER, isEvm, isSpl, Preview, PREVIEW_TTL_MS, withTimeoutValue } from './service-common';
-import { ServiceCore } from './service-core';
+import { ServiceCore, btcBirthdayFor } from './service-core';
+import { lookalikeOf, rememberRecipient } from './lookalike';
 import type { Secrets } from './vault';
 
 export class SendService extends ServiceCore {
@@ -460,8 +461,12 @@ export class SendService extends ServiceCore {
         preview = this.storePreview({ asset, to: address, amount, fee: probe.feeSun, tron: { asset, to: address, amount } });
       }
     }
+    // A look-alike of an address used before is the mark of address poisoning.
+    const imitated = lookalikeOf(address, [...(await this.recipients()), ...Object.values(await this.addresses().catch(() => ({}))).filter((x): x is string => typeof x === 'string')]);
+    const lookalike = imitated ? { address: imitated } : null;
+    if (imitated) warnings.unshift(`Careful: this address starts and ends like ${imitated}, which you used before, but the middle is different. Scammers send tiny amounts from look-alike addresses so one gets copied from the history. Check every character before sending.`);
     return {
-      id: preview.id, asset, to: address,
+      id: preview.id, asset, to: address, lookalike,
       amount: formatAmount(preview.amount, decimals),
       fee: formatAmount(preview.fee, preview.eth ? 18 : asset === 'XMR' ? 12 : asset === 'ZANO' || asset === 'KSR' ? 12 : asset === 'SCRT' || asset === 'SSCRT' || asset === 'ADA' ? 6 : asset === 'SOL' || isSpl(asset) ? 9 : asset === 'DOGE' || asset === 'BCH' || asset === 'LTC' || asset === 'BTC' || asset === 'DASH' || asset === 'FIRO' || asset === 'ZEC' || asset === 'ARRR' ? 8 : 6),
       feeAsset: preview.eth ? chainOf(preview.eth.asset).native : isSpl(asset) ? 'SOL' : asset === 'SSCRT' ? 'SCRT' : asset === 'SOL' || asset === 'ADA' || asset === 'DOGE' || asset === 'BCH' || asset === 'LTC' || asset === 'SCRT' || asset === 'XMR' || asset === 'BTC' || asset === 'DASH' || asset === 'FIRO' || asset === 'ZEC' || asset === 'ZANO' || asset === 'KSR' || asset === 'ARRR' ? asset : 'TRX',
@@ -493,7 +498,17 @@ export class SendService extends ServiceCore {
     // The send leaves on a Tor route of its own, and lookups carry on on yet another one afterwards, so the server
     // that takes the transaction can't tie it to the addresses this wallet just looked up.
     this.renewTorRoute(preview.asset);
-    try { return await this.broadcastPreview(preview, secrets); } finally { this.renewTorRoute(preview.asset); }
+    let result;
+    try { result = await this.broadcastPreview(preview, secrets); } finally { this.renewTorRoute(preview.asset); }
+    await this.records.write(this.recipientsPath, rememberRecipient(await this.records.read(this.recipientsPath), preview.to)).catch(() => undefined);
+    return result;
+  }
+
+  /** Addresses sent to before, kept encrypted with the wallet's other records. */
+  protected get recipientsPath(): string { return path.join(this.dir, 'recipients.json'); }
+  protected async recipients(): Promise<string[]> {
+    const j = await this.records.read(this.recipientsPath).catch(() => undefined);
+    return Array.isArray(j) ? j.filter((x: unknown): x is string => typeof x === 'string') : [];
   }
 
   protected async broadcastPreview(preview: Preview, secrets: Secrets) {
@@ -808,6 +823,24 @@ export class SendService extends ServiceCore {
     // Each EVM chain on its own address, or all on one: the wallet reopens with the other addresses.
     const evmChanged = typeof patch.evmSeparate === 'boolean' && Boolean(this.tron) && patch.evmSeparate !== this.evmSplit;
     if (evmChanged) await this.writeEvmLayout(patch.evmSeparate as boolean);
+    // Private Bitcoin sync: on or off, and from which date. The wallet reopens to start it over.
+    let btcSyncChanged = false;
+    if (Boolean(this.tron) && (typeof patch.btcFilters === 'boolean' || typeof patch.btcFiltersFrom === 'string')) {
+      const now = await this.readBtcSync();
+      const on = typeof patch.btcFilters === 'boolean' ? patch.btcFilters : now.filters;
+      let from = typeof patch.btcFiltersFrom === 'string' ? patch.btcFiltersFrom.trim() : now.from ?? '';
+      if (on && !from) throw new Error('Choose the date this wallet was first used.');
+      let birthday = now.birthday;
+      if (from) {
+        const date = new Date(from + 'T00:00:00Z');
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || Number.isNaN(date.getTime()) || date.getTime() > Date.now() + 86_400_000) throw new Error('Enter the date as YYYY-MM-DD.');
+        birthday = btcBirthdayFor(date);
+      } else from = '';
+      if (on !== now.filters || birthday !== now.birthday) {
+        await this.writeBtcSync({ filters: on, birthday, from: from || undefined });
+        btcSyncChanged = true;
+      }
+    }
     const reconnect = next.network !== this.settings.network
       || next.customMoneroNode !== this.settings.customMoneroNode
       || next.customBtcServer !== this.settings.customBtcServer
@@ -815,11 +848,11 @@ export class SendService extends ServiceCore {
       || next.customKsrNode !== this.settings.customKsrNode
       || next.tronApiKey !== this.settings.tronApiKey
       || next.torEnabled !== this.settings.torEnabled
-      || evmChanged;
+      || evmChanged || btcSyncChanged;
     const bridgeChanged = next.torBridge !== this.settings.torBridge || next.torBridgeLines !== this.settings.torBridgeLines;
     this.settings = next;
     await fs.mkdir(this.dir, { recursive: true });
-    const { evmSeparate: _perWallet, developer: _build, ...saved } = next;
+    const { evmSeparate: _perWallet, developer: _build, btcFilters: _btcSync, btcFiltersFrom: _btcFrom, ...saved } = next;
     await fs.writeFile(this.settingsPath, JSON.stringify(saved, null, 2), { mode: 0o600 });
     // A new way in only restarts Tor; the wallet stays open, and traffic waits for Tor as at any restart.
     if (bridgeChanged && this.torActive) this.applyBridge();
@@ -833,6 +866,18 @@ export class SendService extends ServiceCore {
     // A wallet whose file is already gone has nothing left to protect, so it goes without a password.
     if (await this.vault.exists()) await this.vault.open(password);
     const cap = (p: Promise<unknown>, ms: number) => Promise.race([p.catch(() => undefined), new Promise((r) => setTimeout(r, ms))]);
+    // From a decoy session only the decoy goes; the real wallet's files and place in the list stay.
+    if (this.duressOf) {
+      const real = this.duressOf;
+      const decoyDir = this.dir;
+      const decoyVault = this.vault;
+      await cap(this.lock(), 5000);
+      await cap(this.engineStops, 5000);
+      await decoyVault.destroy().catch(() => undefined);
+      await fs.rm(decoyDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 300 }).catch(() => this.rememberLeftovers([decoyDir]));
+      await fs.rm(path.join(this.walletDir(real), 'duress.json'), { force: true }).catch(() => undefined);
+      return real;
+    }
     // Never stuck behind an engine or a sync step: they are stopped, and given a few seconds to let go of files.
     await cap(this.lock(), 5000);
     await cap(this.engineStops, 5000);
