@@ -46,3 +46,6 @@ Java WebView (`android/java`) running the same code as an esbuild bundle (`src/a
 - `src/main/coinjoin.ts`, `dash-mix.ts`, `dash-p2p.ts`: Dash CoinJoin.
 - `src/main/tor-bridges.ts`: Snowflake/obfs4 via lyrebird (`scripts/fetch-lyrebird-android.sh` for Android).
 - `src/main/blockbook.ts`, `config.ts`: servers and their backups.
+- `src/main/zano.ts`, `zano-process.ts`: Zano, and Kusari (KSR) on the same client with its own engine (`ksr-bridge`:
+  `native/zano-bridge` built against the KSR chain), key label, wallet file, node and Tor route. `native/kusari-zano/`
+  is the KSR chain itself (see its README).

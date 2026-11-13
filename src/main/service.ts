@@ -12,7 +12,7 @@ import { isBtcAddress, isLtcAddress } from './btc';
 import { isArrrAddress } from './arrr';
 import { isMwebAddress } from './mweb';
 import { isSparkAddress } from './spark';
-import { isZanoAddress } from './zano';
+import { isZanoAddress, isKsrAddress } from './zano';
 import { isZecAddress } from './zec';
 import { isFiroAddress } from './firo';
 import { isDogeAddress } from './doge';
@@ -227,6 +227,7 @@ export class WalletService extends SendService {
       : asset === 'BCH' ? isBchAddress(address)
       : asset === 'ZEC' ? isZecAddress(address)
       : asset === 'ZANO' ? isZanoAddress(address)
+      : asset === 'KSR' ? isKsrAddress(address)
       : asset === 'ARRR' ? isArrrAddress(address)
       : asset === 'XMR' ? await monero.isValidAddress(address)
         : isEvm(asset) ? isEthAddress(address)
@@ -245,6 +246,10 @@ export class WalletService extends SendService {
     if (asset === 'ZANO') {
       if (!this.zano?.receive) throw new Error('The Zano wallet is getting ready. Try again shortly.');
       return this.zano.receive;
+    }
+    if (asset === 'KSR') {
+      if (!this.ksr?.receive) throw new Error('The Kusari wallet is getting ready. Try again shortly.');
+      return this.ksr.receive;
     }
     if (asset === 'ZEC') {
       // Swap services pay transparent addresses. The coins get shielded on arrival.

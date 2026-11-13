@@ -1,0 +1,60 @@
+{
+  "zano": {
+    "tag": "v2.2.0.490",
+    "commit": "2309f82301bb2f6d72471c8ddfc7b2053ef68193"
+  },
+  "randomx": {
+    "repo": "https://github.com/tevador/RandomX",
+    "commit": "12f2c2ffe2108d6cf54c391fee33c8bc3646cdab"
+  },
+  "name": "Kusari",
+  "ticker": "KSR",
+  "prefixes": {
+    "address": 110,
+    "integrated": 111,
+    "integratedV2": 112,
+    "auditable": 114,
+    "auditableIntegrated": 115,
+    "gateway": 120,
+    "integratedGateway": 121
+  },
+  "leading": {
+    "address": "K",
+    "integrated": "K",
+    "integratedV2": "K",
+    "auditable": "L",
+    "auditableIntegrated": "L",
+    "gateway": "M",
+    "integratedGateway": "M"
+  },
+  "ports": {
+    "p2p": 21080,
+    "rpc": 21081,
+    "stratum": 21082
+  },
+  "testnetPorts": {
+    "p2p": 31080,
+    "rpc": 31081,
+    "stratum": 31082
+  },
+  "networkId": "c301ea8ae813a2b2a091b23f420089ad",
+  "testnetNetworkId": "a45f8da03785883144f09d7b908cd956",
+  "launchTime": 1794461832,
+  "emission": {
+    "moneySupply": "18446744073709551615",
+    "speedFactor": 20,
+    "tailReward": "300000000000"
+  },
+  "posStartHeight": 129600,
+  "powTargetBeforePos": 60,
+  "genesis": {
+    "burnAddress": "KRtJSdet3wy64KYKXajkUSGn1a78NshEM9LEWGKm3JwY6CAPJNVEK7K3wcuEymZGiV3m2FCG7crjm5UF9hRjRHRxNvz173i",
+    "amount": 1,
+    "proof": "Kusari genesis 2026-11-12"
+  },
+  "maintainersPubKey": "ea5ebf10a4b2a5d31938f79b75d43d8e14451dacbfeead030aaabc4c0572925e",
+  "testnetMaintainersPubKey": "f35a8009ff0d0eb050fd93d56d3880d744ebcdff801bde643bc7432070a7450b",
+  "aliasAuthorityPubKey": "9ca5dff963a343e042a762ac79d5faaf024c01a77ed56de8a192922fde3ac773",
+  "seedNodes": [],
+  "checkpoints": []
+}

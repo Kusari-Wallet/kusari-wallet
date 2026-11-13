@@ -40,3 +40,11 @@ export function startZanoEngine(_: string | undefined, __: string): ZanoEngine {
     close() { native().zanoStop(); },
   };
 }
+
+// Kusari (KSR) has no Android engine yet: its bridge isn't built for Android, so KSR stays off on this platform.
+export const ksrEngineAvailable = (_?: string): boolean => false;
+export const ksrEngineInfo = (_?: string): string => 'Not built for Android yet';
+
+export function startKsrEngine(_: string | undefined, __: string): ZanoEngine {
+  throw new Error('Kusari is not available on Android yet.');
+}

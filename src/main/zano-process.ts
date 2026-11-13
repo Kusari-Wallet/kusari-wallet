@@ -1,4 +1,5 @@
-// Starts the native Zano engine and talks to it one line at a time.
+// Starts the native Zano engine, or Kusari's (the same bridge built against the KSR chain), and talks to it one line
+// at a time.
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
@@ -11,20 +12,34 @@ export interface ZanoEngine {
   close(): void;
 }
 
-const EXE = process.platform === 'win32' ? 'zano-bridge.exe' : 'zano-bridge';
+/** Which engine: its file (under resources/<folder>/), its own folder for wallet files, and its name in messages. */
+interface EngineKind { exe: string; folder: string; name: string }
+const ZANO: EngineKind = { exe: 'zano-bridge', folder: 'zano', name: 'Zano' };
+const KSR: EngineKind = { exe: 'ksr-bridge', folder: 'ksr', name: 'Kusari' };
 
-function findEngine(override?: string): string | null {
-  const candidates = [override, (process as any).resourcesPath && path.join((process as any).resourcesPath, 'zano', EXE)];
+function findEngine(override: string | undefined, kind: EngineKind): string | null {
+  const exe = process.platform === 'win32' ? `${kind.exe}.exe` : kind.exe;
+  const candidates = [override, (process as any).resourcesPath && path.join((process as any).resourcesPath, kind.folder, exe)];
   return candidates.find((c): c is string => Boolean(c) && existsSync(c as string)) ?? null;
 }
 
-export const zanoEngineAvailable = (override?: string): boolean => findEngine(override) !== null;
-export const zanoEngineInfo = (override?: string): string => findEngine(override) ?? 'Engine file not found';
+export const zanoEngineAvailable = (override?: string): boolean => findEngine(override, ZANO) !== null;
+export const zanoEngineInfo = (override?: string): string => findEngine(override, ZANO) ?? 'Engine file not found';
+export const ksrEngineAvailable = (override?: string): boolean => findEngine(override, KSR) !== null;
+export const ksrEngineInfo = (override?: string): string => findEngine(override, KSR) ?? 'Engine file not found';
 
 export function startZanoEngine(override: string | undefined, dir: string): ZanoEngine {
-  const file = findEngine(override);
-  if (!file) throw new Error('This build has no Zano engine.');
-  const home = path.join(dir, 'zano');
+  return startEngine(override, dir, ZANO);
+}
+
+export function startKsrEngine(override: string | undefined, dir: string): ZanoEngine {
+  return startEngine(override, dir, KSR);
+}
+
+function startEngine(override: string | undefined, dir: string, kind: EngineKind): ZanoEngine {
+  const file = findEngine(override, kind);
+  if (!file) throw new Error(`This build has no ${kind.name} engine.`);
+  const home = path.join(dir, kind.folder);
   mkdirSync(home, { recursive: true });
   const child = spawn(file, [], { stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true, cwd: home });
   const waiting = new Map<number, { resolve: (v: string) => void; reject: (e: Error) => void }>();
@@ -37,7 +52,7 @@ export function startZanoEngine(override: string | undefined, dir: string): Zano
     waiting.clear();
   };
   child.on('error', (e) => die(e));
-  child.on('exit', () => die(new Error('Zano engine stopped.')));
+  child.on('exit', () => die(new Error(`${kind.name} engine stopped.`)));
   child.stdin.on('error', () => undefined);
   child.stdout.setEncoding('utf8');
   child.stdout.on('data', (chunk: string) => {

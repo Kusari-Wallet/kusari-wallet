@@ -7,6 +7,7 @@ async function renderSettings(): Promise<void> {
   const node = h('input', { id: 'set-node', value: s.customMoneroNode, placeholder: 'http://127.0.0.1:18081', spellcheck: 'false' });
   const btcServer = h('input', { id: 'set-btc-server', value: s.customBtcServer ?? '', placeholder: 'http://umbrel.local:3006/api', spellcheck: 'false' });
   const zanoNode = h('input', { id: 'set-zano-node', value: s.customZanoNode ?? '', placeholder: '192.168.1.5:11211', spellcheck: 'false' });
+  const ksrNode = h('input', { id: 'set-ksr-node', value: s.customKsrNode ?? '', placeholder: '192.168.1.5:21081', spellcheck: 'false' });
   const known = COORDINATORS.some(([url]) => url === s.coinjoinCoordinator);
   const coordinator = h('select', { id: 'set-coordinator' }, ...COORDINATORS.map(([url, name]) => h('option', { value: url, selected: url === (known ? s.coinjoinCoordinator : COORDINATORS[0][0]) }, name)), h('option', { value: 'custom', selected: !known && Boolean(s.coinjoinCoordinator) }, 'Another coordinator')) as HTMLSelectElement;
   const coordinatorUrl = h('input', { id: 'set-coordinator-url', value: known ? '' : s.coinjoinCoordinator ?? '', placeholder: 'https://coordinator.example/', spellcheck: 'false' }) as HTMLInputElement;
@@ -22,6 +23,7 @@ async function renderSettings(): Promise<void> {
   const evmSeparate = h('input', { type: 'checkbox', id: 'set-evm-separate', checked: Boolean(s.evmSeparate) });
   const zecInfo = await wallet.zecInfo();
   const zanoInfo = await wallet.zanoInfo();
+  const ksrInfo = await wallet.ksrInfo();
   const arrrInfo = await wallet.arrrInfo();
   const tor = await wallet.torInfo();
   const torBox = errorBox();
@@ -67,7 +69,7 @@ async function renderSettings(): Promise<void> {
       await wallet.installTor();
       tor.installed = true;
     }
-    const relocked = await wallet.updateSettings({ customMoneroNode: node.value, customBtcServer: btcServer.value, customZanoNode: zanoNode.value, coinjoinCoordinator: coordinator.value === 'custom' ? coordinatorUrl.value : coordinator.value, coinjoinTarget: Number(mixTarget.value), tronApiKey: key.value, autoLockMinutes: Number(auto.value), showPrices: showPrices.checked, evmSeparate: evmSeparate.checked, ...(tor.allowed === false ? {} : { torEnabled: useTor.checked, torBridge: bridge.value, torBridgeLines: bridgeLines.value }) });
+    const relocked = await wallet.updateSettings({ customMoneroNode: node.value, customBtcServer: btcServer.value, customZanoNode: zanoNode.value, customKsrNode: ksrNode.value, coinjoinCoordinator: coordinator.value === 'custom' ? coordinatorUrl.value : coordinator.value, coinjoinTarget: Number(mixTarget.value), tronApiKey: key.value, autoLockMinutes: Number(auto.value), showPrices: showPrices.checked, evmSeparate: evmSeparate.checked, ...(tor.allowed === false ? {} : { torEnabled: useTor.checked, torBridge: bridge.value, torBridgeLines: bridgeLines.value }) });
     if (!relocked) { saved.textContent = 'Saved.'; void refresh(); }
   }) }, 'Save');
 
@@ -136,6 +138,7 @@ async function renderSettings(): Promise<void> {
       h('div', { class: 'section' }, h('h3', {}, 'Connections'), netBox.el,
         h('label', { class: 'field' }, h('span', {}, 'Your own Bitcoin server'), btcServer, h('div', { class: 'hint' }, 'The Esplora or mempool API of your own node (for example on Umbrel or Start9), as https://, .onion, or an address on your network. Then only your server learns your Bitcoin addresses. Empty uses public servers.')),
         h('label', { class: 'field' }, h('span', {}, 'Your own Zano node'), zanoNode, h('div', { class: 'hint' }, 'host:port of a Zano node you run. Empty uses the public node.')),
+        h('label', { class: 'field' }, h('span', {}, 'Kusari node'), ksrNode, h('div', { class: 'hint' }, 'host:port of a Kusari (KSR) node. KSR shows up once a node is set: there is no public node before the chain launches. It is reached through Tor like every other server.')),
         h('label', { class: 'field' }, h('span', {}, 'Bitcoin CoinJoin coordinator'), coordinator, h('div', { class: 'hint' }, 'The server that runs the CoinJoin rounds. It sees which coins are in a round, but not which outputs belong to whom. These charge no fee.')),
         coordinatorRow,
         h('label', { class: 'field' }, h('span', {}, 'How much to mix Bitcoin'), mixTarget, h('div', { class: 'hint' }, 'Mixed coins go round again until each one shares its amount with that many others. Each round costs a little mining fee.')),
@@ -162,6 +165,9 @@ async function renderSettings(): Promise<void> {
       h('div', { class: 'section', id: 'zano-info' }, h('h3', {}, 'Zano engine'),
         h('p', { class: 'small', id: 'zano-info-state' }, zanoInfo.available ? (zanoInfo.started ? `Running: ${zanoInfo.phase}` : 'Found but not running') : 'Not found'),
         zanoInfo.error && h('p', { class: 'small' }, zanoInfo.error)),
+      h('div', { class: 'section', id: 'ksr-info' }, h('h3', {}, 'Kusari engine'),
+        h('p', { class: 'small', id: 'ksr-info-state' }, !ksrInfo.available ? 'Not found' : !ksrInfo.hasNode ? 'Found, waiting for a Kusari node' : ksrInfo.started ? `Running: ${ksrInfo.phase}` : 'Found but not running'),
+        ksrInfo.error && h('p', { class: 'small' }, ksrInfo.error)),
       h('div', { class: 'section', id: 'zec-info' }, h('h3', {}, 'Zcash engine'),
         h('p', { class: 'small', id: 'zec-info-state' }, zecInfo.available ? (zecInfo.started ? `Running: ${zecInfo.phase}` : 'Found but not running') : 'Not found'),
         zecInfo.error && h('p', { class: 'small' }, zecInfo.error),

@@ -1,5 +1,7 @@
-// Zano. The wallet file is the library's own, encrypted with a password from the vault. The key comes from the
-// same BIP39 seed as the other coins, so one seed brings this wallet back too. The derivation must never change.
+// Zano, and Kusari (KSR): a chain built from Zano's code, run by the same wallet library with its own prefixes. The
+// wallet file is the library's own, encrypted with a password from the vault. The key comes from the same BIP39 seed
+// as the other coins, so one seed brings this wallet back too. The derivation must never change, and each chain has
+// labels of its own: the same key on both would show that a Zano address and a K... address are one person's.
 import { computeHmac, toUtf8Bytes, sha256 } from 'ethers';
 import { formatAmount } from './amount';
 import type { ZanoEngine } from './zano-process';
@@ -8,6 +10,8 @@ const { mnemonicToSeedSync } = require('@scure/bip39');
 
 export const ZANO_DECIMALS = 12;
 export const ZANO_FEE = 10_000_000_000n; // 0.01 ZANO, the network's fixed minimum
+export const KSR_DECIMALS = 12;
+export const KSR_FEE = 10_000_000_000n; // 0.01 KSR, as on Zano
 const ZANO_MIXIN = 15;
 const ZANO_NATIVE_ASSET = 'd6329b5b1f7c0805b5c345f4957554002a2f557845f64d7645dae0e051a6498a';
 // Nothing derived here can hold coins from before this feature existed, so scanning starts there on every restore.
@@ -21,15 +25,34 @@ export function isZanoAddress(address: string): boolean {
   return /^(Zx|iZ|aZ|ai)[1-9A-HJ-NP-Za-km-z]{90,120}$/.test(address);
 }
 
-export function zanoKeys(mnemonic: string, vaultSecret: string) {
+/** K... (regular and integrated) and L... (auditable). M... gateway addresses can't receive directly, as on Zano. */
+export function isKsrAddress(address: string): boolean {
+  return /^[KL][1-9A-HJ-NP-Za-km-z]{90,120}$/.test(address);
+}
+
+export interface ZanoChain {
+  asset: 'ZANO' | 'KSR';
+  name: string;
+  /** In the key derivation: never change one that is in use. */
+  label: string;
+  filePrefix: string;
+  fee: bigint;
+  isAddress(address: string): boolean;
+}
+export const ZANO_CHAIN: ZanoChain = { asset: 'ZANO', name: 'Zano', label: 'zano', filePrefix: 'kusari-', fee: ZANO_FEE, isAddress: isZanoAddress };
+export const KSR_CHAIN: ZanoChain = { asset: 'KSR', name: 'Kusari', label: 'ksr', filePrefix: 'ksr-', fee: KSR_FEE, isAddress: isKsrAddress };
+
+export function zanoKeys(mnemonic: string, vaultSecret: string, chain: ZanoChain = ZANO_CHAIN) {
   const seed: Uint8Array = mnemonicToSeedSync(mnemonic);
   return {
-    secret: computeHmac('sha512', seed, toUtf8Bytes('kusari/zano/v1')).slice(2, 66),
-    pass: sha256(toUtf8Bytes(`kusari/zano/file/v1\0${vaultSecret}`)).slice(2),
+    secret: computeHmac('sha512', seed, toUtf8Bytes(`kusari/${chain.label}/v1`)).slice(2, 66),
+    pass: sha256(toUtf8Bytes(`kusari/${chain.label}/file/v1\0${vaultSecret}`)).slice(2),
     // Not the key: says which wallet file this is without saying anything about it.
-    file: `kusari-${sha256(toUtf8Bytes(`kusari/zano/name/v1\0${vaultSecret}`)).slice(2, 18)}`,
+    file: `${chain.filePrefix}${sha256(toUtf8Bytes(`kusari/${chain.label}/name/v1\0${vaultSecret}`)).slice(2, 18)}`,
   };
 }
+
+export const ksrKeys = (mnemonic: string, vaultSecret: string) => zanoKeys(mnemonic, vaultSecret, KSR_CHAIN);
 
 /** Amounts can pass 2^53, so they go through as text. */
 function parse(text: string): any {
@@ -49,6 +72,8 @@ export interface ZanoOptions {
   socks?: number;
   canConnect: () => boolean;
   onChange: () => void;
+  /** Zano unless given. */
+  chain?: ZanoChain;
 }
 
 export class ZanoClient {
@@ -64,7 +89,11 @@ export class ZanoClient {
   lastError: string | null = null;
   phase = 'Not started';
 
-  constructor(private readonly o: ZanoOptions, private readonly keys: ReturnType<typeof zanoKeys>) {}
+  private readonly chain: ZanoChain;
+
+  constructor(private readonly o: ZanoOptions, private readonly keys: ReturnType<typeof zanoKeys>) {
+    this.chain = o.chain ?? ZANO_CHAIN;
+  }
 
   get receive(): string { return this.addressText; }
   get isScanning(): boolean { return !this.synced; }
@@ -76,7 +105,7 @@ export class ZanoClient {
   }
 
   private async invoke(method: string, params: unknown = {}, raw?: string): Promise<any> {
-    if (this.id === null || !this.engine) throw new Error('The Zano wallet isn\'t open yet.');
+    if (this.id === null || !this.engine) throw new Error(`The ${this.chain.name} wallet isn't open yet.`);
     const body = raw ?? JSON.stringify({ jsonrpc: '2.0', id: 0, method, params });
     const answer = parse(await this.engine.call('invoke', this.id, body));
     const problem = failure(answer);
@@ -154,16 +183,17 @@ export class ZanoClient {
   balance(): [bigint, bigint] | null { return this.view ? [this.view.total, this.view.spendable] : null; }
 
   async draft(to: string, amount: bigint | 'max'): Promise<ZanoDraft> {
-    if (!this.synced) throw new Error('Zano must finish scanning before it can send.');
+    if (!this.synced) throw new Error(`${this.chain.name} must finish scanning before it can send.`);
     return this.run(async () => {
       const info = parse(await this.engine!.call('address_info', 0, to));
-      if (!info.valid) throw new Error('Not a Zano address.');
-      if (info.wrap) throw new Error('This address can\'t receive Zano directly.');
+      if (!info.valid || !this.chain.isAddress(to)) throw new Error(`Not a ${this.chain.name} address.`);
+      if (info.wrap) throw new Error(`This address can't receive ${this.chain.asset} directly.`);
+      const fee = this.chain.fee;
       const spendable = this.view?.spendable ?? 0n;
-      const value = amount === 'max' ? spendable - ZANO_FEE : amount;
+      const value = amount === 'max' ? spendable - fee : amount;
       if (value <= 0n) throw new Error('Not enough spendable balance.');
-      if (value + ZANO_FEE > spendable) throw new Error(`Not enough spendable balance. ${formatAmount(value + ZANO_FEE, ZANO_DECIMALS)} ZANO is needed including the fee. Received coins can be used after 10 confirmations.`);
-      return { to, value, fee: ZANO_FEE };
+      if (value + fee > spendable) throw new Error(`Not enough spendable balance. ${formatAmount(value + fee, ZANO_DECIMALS)} ${this.chain.asset} is needed including the fee. Received coins can be used after 10 confirmations.`);
+      return { to, value, fee };
     });
   }
 
@@ -193,7 +223,7 @@ export class ZanoClient {
       const net = income - outgo;
       const direction = net > 0n ? 'in' as const : outgo > 0n && net < 0n ? 'out' as const : 'self' as const;
       return {
-        asset: 'ZANO' as const, hash: String(t.tx_hash), direction, amount: formatAmount(net < 0n ? -net : net, ZANO_DECIMALS), counterparty: '',
+        asset: this.chain.asset, hash: String(t.tx_hash), direction, amount: formatAmount(net < 0n ? -net : net, ZANO_DECIMALS), counterparty: '',
         timestamp: Number(t.timestamp) ? Number(t.timestamp) * 1000 : Date.now(),
         status: Number(t.height) ? 'confirmed' as const : 'pending' as const, dust: false,
       };
