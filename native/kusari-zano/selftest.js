@@ -195,22 +195,34 @@ async function main() {
   const pos = all.filter((b) => b.type === 0);
   if (!pos.length) throw new Error(`no proof-of-stake block after ${POS_START}`);
 
-  // The emission, block by block: what each block added is (supply - before) >> 20, at least the tail, less the
-  // fees it burned (fees are burned, as in Zano since its HF4, and the total counts only coins that still exist).
+  // The emission, block by block: what each block added is (supply - before) >> 20, at least the tail. Fees go to
+  // the miner and add nothing.
   let before = BigInt((await rpc(nodes.A.rpc, 'get_blocks_details', { height_start: 0, count: 1 })).blocks[0].already_generated_coins);
   if (before !== BigInt(params.genesis.amount) * COIN) throw new Error(`genesis made ${before}`);
   for (const b of all) {
     const after = BigInt(b.already_generated_coins);
     let want = (SUPPLY - before) >> SHIFT;
     if (want < TAIL) want = TAIL;
-    const burned = BigInt(b.total_fee ?? 0);
-    if (after - before !== want - burned) throw new Error(`block ${b.height} added ${after - before}, the curve says ${want} less ${burned} burned`);
+    if (after - before !== want) throw new Error(`block ${b.height} added ${after - before}, the curve says ${want}`);
     before = after;
   }
   const total = BigInt((await rpc(nodes.A.rpc, 'getinfo', { flags: 0x8000 })).total_coins ?? before);
   console.log(`emission ok: ${all.length} blocks, block 1 made ${Number(BigInt(all[0].already_generated_coins) - COIN) / 1e12} KSR, ${Number(total) / 1e12} KSR in all`);
 
   await post(nodes.A.rpc, '/stop_mining', '{}');
+
+  // Fees go to the miner: wallet one made every block, so it holds everything made since the genesis except what it
+  // sent. Had the fee been burned it would hold that much less. It still stakes, so the top is read again each time.
+  const fees = all.reduce((n, b) => n + BigInt(b.total_fee ?? 0), 0n);
+  if (fees !== 10000000000n) throw new Error(`fees in the chain: ${fees}`);
+  await until('wallet one to hold every reward and the fee', async () => {
+    const h = (await rpc(nodes.A.rpc, 'getinfo', { flags: 0 })).height;
+    const made = BigInt((await rpc(nodes.A.rpc, 'get_blocks_details', { height_start: h - 1, count: 1 })).blocks[0].already_generated_coins) - COIN;
+    const bal = BigInt((await rpc(w1, 'getbalance')).balance);
+    if (bal === made - amount - fees) throw Object.assign(new Error('wallet one is short exactly the fee: it was burned'), { fatal: true });
+    return bal === made - amount;
+  }, 600000, 10000);
+  console.log(`fee ok: the ${Number(fees) / 1e12} KSR fee went to the miner`);
   console.log(`selftest ok: height ${top + 1}, ${all.length - pos.length} PoW (RandomKSR) and ${pos.length} PoS blocks (none before ${POS_START}), tx ${tx.tx_hash}`);
 }
 

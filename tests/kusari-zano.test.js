@@ -122,6 +122,9 @@ test('emission: Monero\'s curve for 1-minute blocks, main emission about 8 years
   assert.match(text, /std::max<uint64_t>\(reward, KUSARI_TAIL_REWARD\)/);
   // Checking a block counts the coins made so far, as building it did (Zano's short form passes 0).
   assert.match(text, /get_block_reward\(false, blocks_size_median, next_block_cumulative_size, total_coins\(\), block_reward_without_fee, get_top_block_height\(\) \+ 1\)/);
+  // Fees go to the miner or staker, not burned as in Zano since its HF4, and leave the supply alone.
+  assert.ok((text.match(/Kusari: the fees go to the miner \(or staker\), with every transaction version\.\n\s+block_reward \+= fee;/g) || []).length === 2);
+  assert.ok(!/already_generated_coins -= fee_summary/.test(text));
   assert.ok(!/dev(elopment)?[ _-]?fund/i.test(JSON.stringify(p)), 'no dev fund');
 });
 

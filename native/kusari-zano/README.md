@@ -21,8 +21,8 @@ the code exactly once, so another Zano version stops with an error instead of bu
 | Proof of work | RandomX with Kusari's parameters ("RandomKSR"), on CPUs |
 | Proof of stake | off until block 129,600 (about 90 days), then on |
 | Emission | Monero's: block 1 pays 17.59 KSR, falling smoothly; the main emission ends at block 4,269,201 (about 8.1 years, 18.13 million KSR); then 0.3 KSR a block forever (157,788 KSR a year, 0.87% of supply then) |
-| Premine, dev fund | none: the genesis pays 1 KSR to an address nobody has keys for, and every reward goes to whoever mines or stakes the block |
-| Fee | 0.01 KSR (Zano's), burned: no fee goes to the miner, and burned coins come off the supply the curve counts from |
+| Premine, dev fund | none: the genesis pays 1 KSR to an address nobody has keys for, and every reward and every fee goes to whoever mines or stakes the block |
+| Fee | 0.01 KSR (Zano's), paid to whoever mines or stakes the block, as in Monero (Zano burns fees since its HF4) |
 | Coins usable after | 10 blocks |
 
 The reward is `(2^64 − 1 − coins so far) >> 20`, never less than 0.3 KSR, for every block, as Monero's was with

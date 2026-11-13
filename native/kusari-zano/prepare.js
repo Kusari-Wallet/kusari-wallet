@@ -117,6 +117,15 @@ function edits(p, genesis) {
     '    const uint64_t reward = already_generated_coins >= supply ? 0 : static_cast<uint64_t>((supply - already_generated_coins) >> KUSARI_EMISSION_SPEED_FACTOR);',
     '    return std::max<uint64_t>(reward, KUSARI_TAIL_REWARD);',
     '  }'].join('\n'));
+  // Fees go to whoever mines or stakes the block, as in Monero, instead of being burned as in Zano since its HF4.
+  add(fu, '    // before HF4: add tx fee to the block reward; after HF4: burn it\n    if (tx_version < TRANSACTION_VERSION_POST_HF4)\n    {\n      block_reward += fee;\n    }',
+    '    // Kusari: the fees go to the miner (or staker), with every transaction version.\n    block_reward += fee;');
+  add(bcs, '  // before HF4: add tx fee to the block reward; after HF4: burn fees, so they don\'t count in block_reward\n  if (miner_tx.version < TRANSACTION_VERSION_POST_HF4)\n  {\n    block_reward += fee;\n  }',
+    '  // Kusari: the fees go to the miner (or staker), with every transaction version.\n  block_reward += fee;');
+  add(bcs, '  bei.already_generated_coins = already_generated_coins - burned_coins + block_reward_without_fee;\n  if (bei.bl.miner_tx.version >= TRANSACTION_VERSION_POST_HF4)\n  {\n    bei.already_generated_coins -= fee_summary;\n  }',
+    '  // Kusari: fees move coins from sender to miner and change nothing in the supply.\n  bei.already_generated_coins = already_generated_coins - burned_coins + block_reward_without_fee;');
+  add(bcs, '  if(bei.bl.miner_tx.version >= TRANSACTION_VERSION_POST_HF4)\n    block_reward_entry << "block reward: " << print_money_brief(block_reward_without_fee) << ", fee burnt: " << print_money_brief(fee_summary);\n  else\n    block_reward_entry',
+    '  block_reward_entry');
   // Zano's short get_block_reward() passes 0 for the coins made so far, which its flat reward never read; ours does.
   // Checking a block has to use the same total the miner built it with.
   add(bcs, '  block_reward_without_fee = get_block_reward(get_top_block_height() + 1, blocks_size_median, next_block_cumulative_size);',
