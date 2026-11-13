@@ -1,3 +1,4 @@
+import { BLOCKBOOK, blockbookSend, isBlockbook } from './blockbook';
 import type { Agent } from 'node:http';
 import { SigningKey, getBytes, ripemd160, sha256 } from 'ethers';
 import { getJson, requestJson } from './request';
@@ -199,13 +200,59 @@ export class BchClient extends InsightWallet<'BCH'> {
 
   protected async get(path: string): Promise<any> {
     let last: unknown;
-    for (const base of this.apis) {
+    for (const base of this.only ? [this.only] : this.apis.filter((b) => !isBlockbook(b))) {
       try { return await getJson(base + path, { agent: this.agent, timeoutMs: this.timeoutMs, headers: { Accept: 'application/json', 'User-Agent': 'KusariWallet' } }); } catch (e) { last = e; }
     }
     throw last instanceof Error ? last : new Error('Could not reach the BCH server.');
   }
 
+  /** The first server that answers for every address: Bitcore, or a Blockbook (marked "blockbook+") as the backup. */
   protected async lookup(addresses: string[]): Promise<{ utxoRows: any[]; txs: any[] }> {
+    let last: unknown;
+    for (const base of this.apis) {
+      try { return isBlockbook(base) ? await this.lookupBlockbook(base.slice(BLOCKBOOK.length), addresses) : await this.lookupBitcore(base, addresses); } catch (e) { last = e; }
+    }
+    throw last instanceof Error ? last : new Error('Could not reach the BCH server.');
+  }
+
+  private one(base: string, path: string): Promise<any> {
+    return getJson(base + path, { agent: this.agent, timeoutMs: this.timeoutMs, headers: { Accept: 'application/json', 'User-Agent': 'KusariWallet' } });
+  }
+
+  /** Blockbook gives coins and transactions per address with their addresses and values in satoshis. */
+  private async lookupBlockbook(base: string, addresses: string[]): Promise<{ utxoRows: any[]; txs: any[] }> {
+    const utxoRows: any[] = [];
+    const txs = new Map<string, any>();
+    const sats = (v: unknown) => { const n = Number(v); if (!Number.isSafeInteger(n) || n < 0) throw new Error(UNEXPECTED); return n; };
+    for (const address of addresses) {
+      const coins = await this.one(base, `/api/v2/utxo/${address}`);
+      if (!Array.isArray(coins)) throw new Error(UNEXPECTED);
+      for (const c of coins) {
+        if (typeof c?.txid !== 'string' || !/^[0-9a-f]{64}$/.test(c.txid) || !Number.isInteger(c.vout)) throw new Error(UNEXPECTED);
+        utxoRows.push({ address, txid: c.txid, vout: c.vout, satoshis: sats(c.value), confirmations: Number(c.confirmations) || 0 });
+      }
+      const info = await this.one(base, `/api/v2/address/${address}?details=txs&pageSize=${HISTORY_TXS}`);
+      if (info?.address !== address) throw new Error(UNEXPECTED);
+      for (const t of Array.isArray(info.transactions) ? info.transactions : []) {
+        if (typeof t?.txid !== 'string' || !/^[0-9a-f]{64}$/.test(t.txid) || txs.has(t.txid)) continue;
+        txs.set(t.txid, {
+          txid: t.txid, confirmations: Number(t.confirmations) || 0, time: Number(t.blockTime) || undefined,
+          vin: (t.vin ?? []).map((i: any) => ({ addr: i.addresses?.[0], value: sats(i.value ?? 0) / 1e8 })),
+          vout: (t.vout ?? []).map((o: any) => ({ value: sats(o.value ?? 0) / 1e8, scriptPubKey: { addresses: o.addresses ?? [] } })),
+        });
+      }
+    }
+    return { utxoRows, txs: [...txs.values()] };
+  }
+
+  private async lookupBitcore(base: string, addresses: string[]): Promise<{ utxoRows: any[]; txs: any[] }> {
+    this.only = base;
+    try { return await this.lookupBitcoreAll(addresses); } finally { this.only = null; }
+  }
+  /** While set, requests go to this server alone. */
+  private only: string | null = null;
+
+  private async lookupBitcoreAll(addresses: string[]): Promise<{ utxoRows: any[]; txs: any[] }> {
     const tip = Number((await this.get('/block/tip'))?.height);
     if (!Number.isSafeInteger(tip) || tip <= 0) throw new Error(UNEXPECTED);
     const confirmations = (height: number) => (height > 0 ? tip - height + 1 : 0);
@@ -246,6 +293,11 @@ export class BchClient extends InsightWallet<'BCH'> {
   }
 
   protected async broadcast(base: string, raw: string, id: string): Promise<void> {
+    if (isBlockbook(base)) {
+      const got = await blockbookSend(base, raw, { agent: this.agent, timeoutMs: this.timeoutMs });
+      if (got !== id) throw new Error(`The server returned a different transaction ID. Check ${id} on an explorer.`);
+      return;
+    }
     const res = await requestJson(`${base}/tx/send`, { method: 'POST', body: { rawTx: raw }, agent: this.agent, timeoutMs: this.timeoutMs });
     if (res.status >= 400) throw new Error(String(res.body?.message ?? res.body?.error ?? res.body ?? res.status).slice(0, 200));
     if (res.body?.txid !== id) throw new Error(`The server returned a different transaction ID. Check ${id} on an explorer.`);

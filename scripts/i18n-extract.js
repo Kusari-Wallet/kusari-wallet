@@ -13,7 +13,7 @@ const walk = { full(node, visit) {
 } };
 
 const root = path.join(__dirname, '..');
-const sources = ['dist/renderer/app.js', ...fs.readdirSync(path.join(root, 'dist/main')).filter((f) => f.endsWith('.js') && !/tornado-worker|swap-keys|preload|^main\.js$/.test(f) && fs.statSync(path.join(root, 'dist/main', f)).size < 500_000).map((f) => `dist/main/${f}`)];
+const sources = [...fs.readdirSync(path.join(root, 'dist/renderer')).filter((f) => f.endsWith('.js') && !/^(i18n|locales|jsQR)\.js$|worker/.test(f)).map((f) => `dist/renderer/${f}`), ...fs.readdirSync(path.join(root, 'dist/main')).filter((f) => f.endsWith('.js') && !/tornado-worker|swap-keys|preload|^main\.js$/.test(f) && fs.statSync(path.join(root, 'dist/main', f)).size < 500_000).map((f) => `dist/main/${f}`)];
 const NOT_TEXT_KEYS = new Set(['class', 'id', 'type', 'for', 'role', 'file', 'src', 'href', 'name', 'autocomplete', 'inputmode', 'spellcheck', 'method', 'asset', 'status', 'direction', 'phase', 'providerId', 'encoding', 'commitment', 'chain', 'abbr', 'coin', 'ticker', 'network', 'fallback', 'kind', 'stage']);
 const looksLikeText = (s) => /[a-z]/.test(s) && /[A-Za-z]{2}/.test(s) && !/^https?:|^[a-z-]+:\/\/|^[./]|\.(js|png|json|html|css|exe|so)$|^0x|^m\/44|^[a-z0-9_-]+$|^[a-z]+(\.[a-z]+)+$|^[a-z-]+( [a-z-]+)*$|^#|^\w+:\w+$|^[A-Z_]+$|^[a-z]+[A-Z]/.test(s) && /[A-Z ]/.test(s);
 const found = new Set();

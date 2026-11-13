@@ -97,3 +97,28 @@ test('refused: answers for another address, a different returned id', async (t) 
   const c = new BchClient(xpub, [n.url]);
   await assert.rejects(c.send(await c.draft(OTHER, 100000n), PHRASE), /different transaction/);
 });
+
+test('a Blockbook stands in when Bitcore is down: balance, history and a send', async (t) => {
+  const sent = [];
+  const srv = http.createServer((q, r) => {
+    r.setHeader('content-type', 'application/json');
+    const u = new URL(q.url, 'http://x');
+    let m = /^\/api\/v2\/utxo\/(.+)$/.exec(u.pathname);
+    if (m) return r.end(JSON.stringify(m[1] === FIRST ? [{ txid: ID('ab'), vout: 0, value: '500000', confirmations: 3 }] : []));
+    m = /^\/api\/v2\/address\/(.+)$/.exec(u.pathname);
+    if (m) return r.end(JSON.stringify({ address: m[1], transactions: m[1] === FIRST ? [{ txid: ID('ab'), confirmations: 3, blockTime: 1700000000, vin: [{ addresses: [OTHER], value: '600000' }], vout: [{ addresses: [FIRST], value: '500000' }] }] : [] }));
+    m = /^\/api\/v2\/sendtx\/([0-9a-f]+)$/.exec(u.pathname);
+    if (m) { sent.push(m[1]); const c = require('node:crypto'); return r.end(JSON.stringify({ result: c.createHash('sha256').update(c.createHash('sha256').update(Buffer.from(m[1], 'hex')).digest()).digest().reverse().toString('hex') })); }
+    r.statusCode = 404; r.end('{}');
+  });
+  await new Promise((res) => srv.listen(0, '127.0.0.1', res));
+  t.after(() => { srv.close(); srv.closeAllConnections(); });
+  const c = new BchClient(xpub, ['http://127.0.0.1:1', `blockbook+http://127.0.0.1:${srv.address().port}`], undefined, 5000);
+  assert.deepEqual(await c.getBalance(), { total: 500000n, spendable: 500000n });
+  const h = await c.getHistory();
+  assert.deepEqual(h.map((x) => [x.direction, x.amount]), [['in', '0.005']]);
+  const draft = await c.draft(OTHER, 100000n);
+  const id = await c.send(draft, PHRASE);
+  assert.equal(sent.length, 1);
+  assert.match(id, /^[0-9a-f]{64}$/);
+});

@@ -48,14 +48,11 @@ const service = new WalletService('/data', undefined, {
   bchApi: __TEST__ ? testConfig.bchApi : undefined,
   ltcApi: __TEST__ ? testConfig.ltcApi : undefined,
   scrtLcd: __TEST__ ? testConfig.scrtLcd : undefined,
-  nearRpc: __TEST__ ? testConfig.nearRpc : undefined,
-  nearHistory: __TEST__ ? testConfig.nearHistory : undefined,
   polRpc: __TEST__ ? testConfig.polRpc : undefined,
   polScout: __TEST__ ? testConfig.polScout : undefined,
   arbRpc: __TEST__ ? testConfig.arbRpc : undefined,
   arbScout: __TEST__ ? testConfig.arbScout : undefined,
   bscRpc: __TEST__ ? testConfig.bscRpc : undefined,
-  hypeRpc: __TEST__ ? testConfig.hypeRpc : undefined,
   bscScout: __TEST__ ? testConfig.bscScout : undefined,
 });
 const ready = service.init();
@@ -68,6 +65,10 @@ service.on('monero-state', (s) => emit('monero-state', s));
 service.on('balance-changed', () => emit('balance-changed'));
 service.on('tron-tx', (t) => emit('tron-tx', t));
 service.on('locked', () => emit('locked'));
+// While unlocked, Android keeps the app running in the background (a notification that names no coins or amounts).
+const tr = (text: string): string => (window as any).kusariI18n?.t?.(text) ?? text;
+service.on('unlocked', () => { try { native.keepRunning?.(true, 'Kusari Wallet', tr('Running in the background')); } catch { /* older app shell */ } });
+service.on('locked', () => { try { native.keepRunning?.(false, '', ''); } catch { /* older app shell */ } });
 service.on('tor-state', (s) => emit('tor-state', s));
 service.on('tornado-progress', (m) => emit('tornado-progress', m));
 
@@ -154,7 +155,6 @@ const bioCall = (fn: (id: number) => void) => new Promise<string>((resolve, reje
   arrrInfo: call(() => service.arrrInfo()),
   arrrRescan: call((d: string, pw: string) => service.arrrRescan(d, pw)),
   zanoInfo: call(() => service.zanoInfo()),
-  kusariInfo: call(() => service.kusariInfo()),
   zecInfo: call(() => service.zecInfo()),
   zecShield: call((pw: string) => service.zecShield(pw)),
   dexQuote: call((f: any, t: any, a: string, b: number) => service.dexQuote(f, t, a, b)),

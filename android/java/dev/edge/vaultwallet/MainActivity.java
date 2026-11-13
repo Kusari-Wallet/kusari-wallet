@@ -163,7 +163,11 @@ public class MainActivity extends Activity {
         return "application/octet-stream";
     }
 
+    private static final int NOTIFY_REQUEST = 7;
+    private boolean askedNotifications = false;
+
     @Override protected void onDestroy() {
+        stopService(new Intent(this, KeepRunningService.class));
         tor.stop();
         zec.stop();
         zano.stop();
@@ -208,6 +212,23 @@ public class MainActivity extends Activity {
 
     public final class Bridge {
         @JavascriptInterface public int proxyPort(String upstream) { return proxy.portFor(upstream); }
+
+        /** While unlocked, a foreground service keeps the process alive in the background; off again on lock. */
+        @JavascriptInterface public void keepRunning(final boolean on, final String title, final String text) {
+            runOnUiThread(new Runnable() {
+                @Override public void run() {
+                    Intent i = new Intent(MainActivity.this, KeepRunningService.class);
+                    if (!on) { stopService(i); return; }
+                    if (android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED && !askedNotifications) {
+                        askedNotifications = true; // asked once; without it the service still runs, just without a visible notice
+                        requestPermissions(new String[] { Manifest.permission.POST_NOTIFICATIONS }, NOTIFY_REQUEST);
+                    }
+                    i.putExtra(KeepRunningService.EXTRA_TITLE, title);
+                    i.putExtra(KeepRunningService.EXTRA_TEXT, text);
+                    try { startForegroundService(i); } catch (RuntimeException e) { /* not allowed right now: the app simply runs as before */ }
+                }
+            });
+        }
 
         @JavascriptInterface public void openExternal(final String url) {
             boolean allowed = false;

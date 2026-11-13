@@ -195,6 +195,7 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
   await page.fill('#xmr-seed', seed);
   await page.fill('#pw', PASSWORD);
   await page.fill('#pw2', PASSWORD);
+  await page.check('#terms-agree');
   const t0 = Date.now();
   await page.click('#next');
   await page.locator('#loading').waitFor({ timeout: 5000 });

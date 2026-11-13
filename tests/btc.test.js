@@ -206,6 +206,84 @@ test('a new launch with saved hints skips the first full scan, and still finds c
   junk.importHints(null);
 });
 
+test('a server that is down is skipped for the rest of the scan, and each failure asks for a new route', async (t) => {
+  const a = await counting(() => null);
+  const b = await counting(() => null);
+  t.after(() => { for (const m of [a, b]) { m.server.close(); m.server.closeAllConnections(); } });
+  let renewed = 0;
+  const client = new BtcClient(xpub, [a.url, b.url], undefined, 30_000, undefined, () => { renewed++; });
+  client.spacingMs = 0;
+  a.fail.status = 403; // a blocked route
+  await client.refresh(true);
+  assert.equal(a.hits.length, 1, 'not asked again during this scan');
+  assert.ok(b.hits.length > 10);
+  assert.equal(renewed, 1);
+  // A "not found" is an answer: that server stays in use.
+  a.fail.status = 0;
+  const c = new BtcClient(xpub, [a.url, b.url]);
+  c.spacingMs = 0;
+  b.hits.length = 0; a.hits.length = 0;
+  a.fail.status = 404;
+  await c.refresh(true);
+  assert.ok(a.hits.length > 10, 'still asked first on every address');
+});
+
+test('a scan that broke off resumes where it stopped', async (t) => {
+  const c = new BtcClient(xpub, []);
+  const used = c.addressAt(0, 0);
+  let left = 6;
+  const m = await counting((a) => (a === used ? { chain_stats: { tx_count: 1, funded_txo_sum: 9000, spent_txo_sum: 0 }, mempool_stats: {} } : null));
+  t.after(() => { m.server.close(); m.server.closeAllConnections(); });
+  const fail = { on: true };
+  const flaky = http.createServer((q, r) => {
+    if (fail.on && left-- <= 0) { r.statusCode = 503; return r.end('{}'); }
+    http.get(m.url + q.url, (x) => { r.statusCode = x.statusCode; x.pipe(r); });
+  });
+  await new Promise((res) => flaky.listen(0, '127.0.0.1', res));
+  t.after(() => { flaky.close(); flaky.closeAllConnections(); });
+  const client = new BtcClient(xpub, [`http://127.0.0.1:${flaky.address().port}`]);
+  client.spacingMs = 0;
+  let hints = null;
+  client.onHints = (h) => { hints = JSON.parse(JSON.stringify(h)); };
+  await assert.rejects(client.refresh(true));
+  const before = m.hits.length;
+  assert.equal(before, 6);
+  fail.on = false;
+  await client.refresh(true);
+  const resumed = m.hits.length - before;
+  const clean = new BtcClient(xpub, [m.url]);
+  clean.spacingMs = 0;
+  const start = m.hits.length;
+  await clean.refresh(true);
+  assert.equal(resumed, m.hits.length - start - 6, 'the addresses already looked up are not asked again');
+  assert.equal(hints.balance, undefined, 'no balance in this plain file: the encrypted cache keeps it');
+});
+
+test('over several routes: addresses are spread, an address and its coins share one, and the spread changes per scan', async (t) => {
+  const c = new BtcClient(xpub, []);
+  const used = c.addressAt(0, 0);
+  const m = await counting((a) => (a === used ? { chain_stats: { tx_count: 1, funded_txo_sum: 5000, spent_txo_sum: 0 }, mempool_stats: {} } : null));
+  t.after(() => { m.server.close(); m.server.closeAllConnections(); });
+  const seen = [];
+  const route = (n) => { const agent = new http.Agent(); const orig = agent.addRequest.bind(agent); agent.addRequest = (req, o) => { seen.push([n, req.path]); return orig(req, o); }; return { agent, renew: () => {} }; };
+  const client = new BtcClient(xpub, [m.url]);
+  client.spacingMs = 0;
+  client.lookupRoutes = [route(0), route(1), route(2), route(3)];
+  await client.refresh(true);
+  const byAddress = new Map();
+  for (const [n, p] of seen) {
+    const a = /\/address\/([^/]+)/.exec(p)[1];
+    if (byAddress.has(a)) assert.equal(byAddress.get(a), n, 'an address and its coins on one route');
+    byAddress.set(a, n);
+  }
+  assert.ok(new Set(byAddress.values()).size >= 3, 'spread over the routes');
+  const first = new Map(byAddress);
+  seen.length = 0; byAddress.clear();
+  await client.refresh(true);
+  for (const [n, p] of seen) byAddress.set(/\/address\/([^/]+)/.exec(p)[1], n);
+  assert.ok([...first].some(([a, n]) => byAddress.get(a) !== n), 'a different spread next time');
+});
+
 // Run with PBK_PATH pointing at an unpacked py-bitcoinkernel wheel.
 test("Bitcoin Core's consensus code accepts taproot signatures and rejects tampering", { skip: !process.env.PBK_PATH }, () => {
   const c = new BtcClient(xpub, []);

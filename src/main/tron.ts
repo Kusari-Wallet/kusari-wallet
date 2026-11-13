@@ -64,34 +64,50 @@ function txError(res: { code?: string; message?: string }): string {
 export class TronClient {
   private readonly tw: TronWeb;
 
+  /** A second full node (no API key goes to it), for when TronGrid rate-limits a shared Tor exit. */
+  private readonly backup: TronWeb | null;
+
   constructor(private readonly net: NetworkConfig['tron'], private readonly apiKey: string, readonly address: string, private readonly agent?: Agent, slow = false) {
-    this.tw = new TronWeb({ fullHost: net.host, headers: apiKey ? { 'TRON-PRO-API-KEY': apiKey } : undefined });
-    this.tw.setAddress(address);
-    if (agent || slow) {
-      const tw = this.tw as any;
-      for (const provider of [tw.fullNode, tw.solidityNode, tw.eventServer]) {
-        if (!provider?.instance) continue;
-        if (agent) Object.assign(provider.instance.defaults, { httpAgent: agent, httpsAgent: agent, proxy: false });
-        provider.instance.defaults.timeout = 60_000;
+    const make = (host: string, key: boolean) => {
+      const tw = new TronWeb({ fullHost: host, headers: key && apiKey ? { 'TRON-PRO-API-KEY': apiKey } : undefined });
+      tw.setAddress(address);
+      if (agent || slow) {
+        const any = tw as any;
+        for (const provider of [any.fullNode, any.solidityNode, any.eventServer]) {
+          if (!provider?.instance) continue;
+          if (agent) Object.assign(provider.instance.defaults, { httpAgent: agent, httpsAgent: agent, proxy: false });
+          provider.instance.defaults.timeout = 60_000;
+        }
       }
+      return tw;
+    };
+    this.tw = make(net.host, true);
+    this.backup = net.backup ? make(net.backup, false) : null;
+  }
+
+  /** Reads from TronGrid, then from the backup node if TronGrid fails. */
+  private async read<T>(f: (tw: TronWeb) => Promise<T>): Promise<T> {
+    try { return await f(this.tw); } catch (e) {
+      if (!this.backup) throw e;
+      return f(this.backup);
     }
   }
 
   async getTrxBalance(): Promise<bigint> {
-    const account = await this.tw.trx.getAccount(this.address);
+    const account = await this.read((tw) => tw.trx.getAccount(this.address));
     return BigInt(account.balance ?? 0);
   }
 
   async getUsdtBalance(): Promise<bigint> {
-    const res = await this.tw.transactionBuilder.triggerConstantContract(
-      this.net.usdt, 'balanceOf(address)', {}, [{ type: 'address', value: this.address }], this.address);
+    const res = await this.read((tw) => tw.transactionBuilder.triggerConstantContract(
+      this.net.usdt, 'balanceOf(address)', {}, [{ type: 'address', value: this.address }], this.address));
     const hex = res.constant_result?.[0];
     if (!res.result?.result || !hex) throw new Error('Could not read the USDT balance.');
     return BigInt('0x' + hex);
   }
 
   private async accountExists(address: string): Promise<boolean> {
-    const account = await this.tw.trx.getAccount(address);
+    const account = await this.read((tw) => tw.trx.getAccount(address));
     return Boolean(account && account.address);
   }
 
@@ -100,7 +116,7 @@ export class TronClient {
    * It can't be simulated here: a transfer to myself is cheaper than a real one, and fails with no balance.
    */
   async typicalUsdtFee(): Promise<bigint> {
-    const [res, params] = await Promise.all([this.tw.trx.getAccountResources(this.address), this.tw.trx.getChainParameters()]);
+    const [res, params] = await this.read((tw) => Promise.all([tw.trx.getAccountResources(this.address), tw.trx.getChainParameters()]));
     const param = (key: string, fallback: bigint) => {
       const found = params.find((p: { key: string; value?: number }) => p.key === key);
       return found?.value !== undefined ? BigInt(found.value) : fallback;
@@ -114,9 +130,8 @@ export class TronClient {
   }
 
   async estimateFee(transfer: TronTransfer): Promise<TronFeeEstimate> {
-    const [res, params, recipientExists] = await Promise.all([
-      this.tw.trx.getAccountResources(this.address),
-      this.tw.trx.getChainParameters(),
+    const [[res, params], recipientExists] = await Promise.all([
+      this.read((tw) => Promise.all([tw.trx.getAccountResources(this.address), tw.trx.getChainParameters()])),
       this.accountExists(transfer.to),
     ]);
     const param = (key: string, fallback: bigint) => {
@@ -141,9 +156,9 @@ export class TronClient {
       return { feeSun: bwFee, recipientIsNew: false };
     }
 
-    const sim = await this.tw.transactionBuilder.triggerConstantContract(
+    const sim = await this.read((tw) => tw.transactionBuilder.triggerConstantContract(
       this.net.usdt, 'transfer(address,uint256)', {},
-      [{ type: 'address', value: transfer.to }, { type: 'uint256', value: transfer.amount.toString() }], this.address);
+      [{ type: 'address', value: transfer.to }, { type: 'uint256', value: transfer.amount.toString() }], this.address));
     if (!sim.result?.result || sim.energy_used === undefined) throw new Error('The USDT send simulation failed.');
     // A first-time USDT recipient costs roughly double; the simulation already includes that.
     const energyNeeded = BigInt(sim.energy_used);

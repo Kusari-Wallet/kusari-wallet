@@ -2,6 +2,7 @@ import type { Asset } from './config';
 import { app, BrowserWindow, clipboard, ipcMain, Menu, session, shell } from 'electron';
 import { appendFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { WalletService } from './service';
 import { configureMoneroWorker } from './monero';
 
@@ -44,6 +45,8 @@ function createWindow(): void {
       devTools: !app.isPackaged,
     },
   });
+  // The taskbar button, and a pin made from it, take their icon and target from this exe.
+  if (process.platform === 'win32') win.setAppDetails({ appId: APP_ID, appIconPath: process.execPath, appIconIndex: 0, relaunchCommand: `"${process.execPath}"`, relaunchDisplayName: 'Kusari Wallet' });
   win.once('ready-to-show', () => win?.show());
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', (e) => e.preventDefault());
@@ -60,7 +63,10 @@ function handle(channel: string, fn: (...args: any[]) => unknown): void {
   });
 }
 
-if (process.platform === 'win32') app.setAppUserModelId('dev.edge.vaultwallet');
+// Windows groups a window with any taskbar pin or shortcut of the same app ID. One left from a version whose folder
+// was deleted has no icon to show, so the window showed a blank page. Each folder gets its own ID.
+const APP_ID = `dev.edge.kusariwallet.${createHash('sha256').update(path.dirname(process.execPath).toLowerCase()).digest('hex').slice(0, 12)}`;
+if (process.platform === 'win32') app.setAppUserModelId(APP_ID);
 
 app.whenReady().then(async () => {
   if (app.isPackaged) Menu.setApplicationMenu(null);
@@ -76,7 +82,7 @@ app.whenReady().then(async () => {
   configureMoneroWorker();
 
   // Unpacked development runs only: a packaged app can't be redirected to another Tron host.
-  const dev = app.isPackaged ? {} : { tronHost: process.env.VAULT_DEV_TRON_HOST, priceUrl: process.env.VAULT_DEV_PRICE_URL, firoApi: process.env.VAULT_DEV_FIRO_API, solRpc: process.env.VAULT_DEV_SOL_RPC, dogeApi: process.env.VAULT_DEV_DOGE_API, adaApi: process.env.VAULT_DEV_ADA_API, dashApi: process.env.VAULT_DEV_DASH_API, dashConnect: process.env.VAULT_DEV_DASH_CONNECT, dashSeeds: process.env.VAULT_DEV_DASH_SEEDS ? process.env.VAULT_DEV_DASH_SEEDS.split(',') : undefined, zecBin: process.env.VAULT_DEV_ZEC_BIN, arrrBin: process.env.VAULT_DEV_ARRR_BIN, arrrServers: process.env.VAULT_DEV_ARRR_SERVER ? [process.env.VAULT_DEV_ARRR_SERVER] : undefined, zanoBin: process.env.VAULT_DEV_ZANO_BIN, zanoNode: process.env.VAULT_DEV_ZANO_NODE, kusariBin: process.env.VAULT_DEV_KUSARI_BIN, kusariNode: process.env.VAULT_DEV_KUSARI_NODE, kusariArgs: process.env.VAULT_DEV_KUSARI_ARGS?.split(' ').filter(Boolean), zecServers: process.env.VAULT_DEV_ZEC_SERVER ? [process.env.VAULT_DEV_ZEC_SERVER] : undefined, ethRpc: process.env.VAULT_DEV_ETH_RPC, tornadoPools: process.env.VAULT_DEV_TORNADO ? JSON.parse(process.env.VAULT_DEV_TORNADO) : undefined, ethScout: process.env.VAULT_DEV_ETH_SCOUT, bchApi: process.env.VAULT_DEV_BCH_API, ltcApi: process.env.VAULT_DEV_LTC_API, scrtLcd: process.env.VAULT_DEV_SCRT_LCD, mwebBin: process.env.VAULT_DEV_MWEB_BIN, mwebConnect: process.env.VAULT_DEV_MWEB_CONNECT, sparkBin: process.env.VAULT_DEV_SPARK_BIN, sparkServer: process.env.VAULT_DEV_SPARK_SERVER, sparkConnect: process.env.VAULT_DEV_SPARK_CONNECT, nearRpc: process.env.VAULT_DEV_NEAR_RPC, hypeRpc: process.env.VAULT_DEV_HYPE_RPC, nearHistory: process.env.VAULT_DEV_NEAR_HISTORY, polRpc: process.env.VAULT_DEV_POL_RPC, polScout: process.env.VAULT_DEV_POL_SCOUT, arbRpc: process.env.VAULT_DEV_ARB_RPC, arbScout: process.env.VAULT_DEV_ARB_SCOUT, bscRpc: process.env.VAULT_DEV_BSC_RPC, uniswapBase: process.env.VAULT_DEV_UNISWAP_BASE, uniswapKey: process.env.VAULT_DEV_UNISWAP_KEY, bscScout: process.env.VAULT_DEV_BSC_SCOUT, swapBase: process.env.VAULT_DEV_SWAP_BASE, simpleSwapBase: process.env.VAULT_DEV_SIMPLESWAP_BASE, ghostSwapBase: process.env.VAULT_DEV_GHOSTSWAP_BASE, btcApi: process.env.VAULT_DEV_BTC_API, coinjoinCoordinator: process.env.VAULT_DEV_COINJOIN, coinjoinTest: process.env.VAULT_DEV_COINJOIN_TEST ? JSON.parse(process.env.VAULT_DEV_COINJOIN_TEST) : undefined, torBin: process.env.VAULT_DEV_TOR_BIN, socks: process.env.VAULT_DEV_SOCKS };
+  const dev = app.isPackaged ? {} : { tronHost: process.env.VAULT_DEV_TRON_HOST, priceUrl: process.env.VAULT_DEV_PRICE_URL, firoApi: process.env.VAULT_DEV_FIRO_API, solRpc: process.env.VAULT_DEV_SOL_RPC, dogeApi: process.env.VAULT_DEV_DOGE_API, adaApi: process.env.VAULT_DEV_ADA_API, dashApi: process.env.VAULT_DEV_DASH_API, dashConnect: process.env.VAULT_DEV_DASH_CONNECT, dashSeeds: process.env.VAULT_DEV_DASH_SEEDS ? process.env.VAULT_DEV_DASH_SEEDS.split(',') : undefined, zecBin: process.env.VAULT_DEV_ZEC_BIN, arrrBin: process.env.VAULT_DEV_ARRR_BIN, arrrServers: process.env.VAULT_DEV_ARRR_SERVER ? [process.env.VAULT_DEV_ARRR_SERVER] : undefined, zanoBin: process.env.VAULT_DEV_ZANO_BIN, zanoNode: process.env.VAULT_DEV_ZANO_NODE, zecServers: process.env.VAULT_DEV_ZEC_SERVER ? [process.env.VAULT_DEV_ZEC_SERVER] : undefined, ethRpc: process.env.VAULT_DEV_ETH_RPC, tornadoPools: process.env.VAULT_DEV_TORNADO ? JSON.parse(process.env.VAULT_DEV_TORNADO) : undefined, ethScout: process.env.VAULT_DEV_ETH_SCOUT, bchApi: process.env.VAULT_DEV_BCH_API, ltcApi: process.env.VAULT_DEV_LTC_API, scrtLcd: process.env.VAULT_DEV_SCRT_LCD, mwebBin: process.env.VAULT_DEV_MWEB_BIN, mwebConnect: process.env.VAULT_DEV_MWEB_CONNECT, sparkBin: process.env.VAULT_DEV_SPARK_BIN, sparkServer: process.env.VAULT_DEV_SPARK_SERVER, sparkConnect: process.env.VAULT_DEV_SPARK_CONNECT, polRpc: process.env.VAULT_DEV_POL_RPC, polScout: process.env.VAULT_DEV_POL_SCOUT, arbRpc: process.env.VAULT_DEV_ARB_RPC, arbScout: process.env.VAULT_DEV_ARB_SCOUT, bscRpc: process.env.VAULT_DEV_BSC_RPC, uniswapBase: process.env.VAULT_DEV_UNISWAP_BASE, uniswapKey: process.env.VAULT_DEV_UNISWAP_KEY, bscScout: process.env.VAULT_DEV_BSC_SCOUT, swapBase: process.env.VAULT_DEV_SWAP_BASE, simpleSwapBase: process.env.VAULT_DEV_SIMPLESWAP_BASE, ghostSwapBase: process.env.VAULT_DEV_GHOSTSWAP_BASE, btcApi: process.env.VAULT_DEV_BTC_API, coinjoinCoordinator: process.env.VAULT_DEV_COINJOIN, coinjoinTest: process.env.VAULT_DEV_COINJOIN_TEST ? JSON.parse(process.env.VAULT_DEV_COINJOIN_TEST) : undefined, torBin: process.env.VAULT_DEV_TOR_BIN, socks: process.env.VAULT_DEV_SOCKS };
   service = new WalletService(app.getPath('userData'), undefined, dev);
   void service.removeLeftovers().catch(() => undefined);
   await service.init();
@@ -91,7 +97,6 @@ app.whenReady().then(async () => {
   handle('wallet:arrrInfo', () => service.arrrInfo());
   handle('wallet:arrrRescan', (date: string, pw: string) => service.arrrRescan(date, pw));
   handle('wallet:zanoInfo', () => service.zanoInfo());
-  handle('wallet:kusariInfo', () => service.kusariInfo());
   handle('wallet:zecInfo', () => service.zecInfo());
   handle('wallet:zecShield', (pw: string) => service.zecShield(pw));
   handle('wallet:dexQuote', (from: Asset, to: Asset, amount: string, bps: number) => service.dexQuote(from, to, amount, bps));

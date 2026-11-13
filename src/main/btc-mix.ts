@@ -1,10 +1,12 @@
 // Bitcoin CoinJoin for this wallet: runs WabiSabi rounds with a coordinator until the chosen coins are mixed, and
-// sends what comes out to the CoinJoin account (see BTC_MIXED_PATH), on fresh addresses each round.
-import fs from 'node:fs/promises';
+// sends what comes out to the CoinJoin account (see BTC_MIXED_PATH), on fresh addresses each round. Mixed coins go
+// round again until each hides among enough others, as Wasabi Wallet's anonymity score target does.
+import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import type { Agent } from 'node:http';
 import { requestJson } from './request';
 import { CoordinatorError, MixCoin, MixResult, MixStatus, Transport, mixOnce } from './wabisabi/client';
+import { Records, plainRecords } from './records';
 
 const btc = require('@scure/btc-signer');
 
@@ -19,6 +21,30 @@ export const MAX_COINS_PER_ROUND = 10;
 /** Fewer inputs than this and the transaction isn't signed: too few others to hide among. */
 export const MIN_INPUTS = 21;
 const RETRY_MS = 30_000;
+/** How many others each coin should hide among: Wasabi's default target. 1 means mixing once, no remixing. */
+export const DEFAULT_MIX_TARGET = 5;
+export const MIX_TARGETS = [1, 5, 10];
+/** A coin goes round at most this many times: a round that adds no one to hide among doesn't count forever. */
+const MAX_REMIXES = 6;
+/** How long to wait for mixed outputs to confirm before giving up on remixing them this time. */
+const CONFIRM_WAIT_MS = 3 * 3600_000;
+
+/** A coin of the CoinJoin account, with where its key is. */
+export interface MixedCoin extends MixCoin { chain: number; index: number }
+interface Score { anon: number; rounds: number }
+
+/**
+ * How many others each of this wallet's outputs hides among: the outputs of the same amount that aren't this
+ * wallet's, on top of the least hidden input it came from (a public coin counts 1). A rough version of Wasabi's score.
+ */
+export function outputScores(result: Extract<MixResult, { ok: true }>, inputScore: (c: MixCoin) => number): { id: string; anon: number }[] {
+  const mineScripts = new Set(result.outputs.map((o) => Buffer.from(o.script).toString('hex')));
+  const base = Math.min(...result.inputs.map(inputScore));
+  return result.outputs.map((o) => {
+    const others = result.all.filter((x) => x.value === o.value && !mineScripts.has(Buffer.from(x.script).toString('hex'))).length;
+    return { id: `${result.txid}:${o.vout}`, anon: base + others };
+  });
+}
 
 /** Posts to <base>wabisabi/<path>, each identity on a Tor route of its own, with only plain headers. */
 export function coordinatorTransport(base: string, agentFor: (identity: string) => Agent | undefined, timeoutMs = 120_000): Transport {
@@ -39,6 +65,10 @@ export interface MixKeys {
   idKey: Uint8Array;
   /** The CoinJoin account's public key, for fresh output addresses. */
   mixedAccount: { deriveChild(i: number): any };
+  /** The CoinJoin account's private key, for remixing its coins; wiped when mixing ends. */
+  mixedPrivate?: { deriveChild(i: number): any; wipePrivateData?(): void };
+  /** Mix until each coin hides among this many others. */
+  target?: number;
 }
 export interface MixerStatus { running: boolean; stage: MixStatus['stage'] | 'stopped'; detail?: string; roundId?: string; inputs?: number; coins: number; last?: { at: number; ok: boolean; txid?: string; reason?: string } }
 
@@ -51,10 +81,14 @@ export class BtcMixer {
 
   constructor(private readonly o: {
     dir: string;
+    /** Where the mixing progress is kept: encrypted while the wallet is unlocked. */
+    records?: Records;
     coordinator: () => string;
     newAgent: () => Agent | undefined;
     /** The coins still in the wallet and confirmed, for each new attempt. */
     coins: () => Promise<MixCoin[]>;
+    /** The CoinJoin account's confirmed coins, for remixing. */
+    mixedCoins?: () => Promise<MixedCoin[]>;
     /** Fresh addresses must start past what the CoinJoin account has used. */
     firstUnused: () => number;
     maxFeePerK: () => Promise<bigint>;
@@ -70,12 +104,25 @@ export class BtcMixer {
   private set(s: Partial<MixerStatus>): void { this.current = { ...this.current, ...s }; this.onChange?.(); }
 
   private file() { return path.join(this.o.dir, 'btc-coinjoin.json'); }
-  private async load(): Promise<{ next: number; last?: MixerStatus['last'] }> {
-    try { const j = JSON.parse(await fs.readFile(this.file(), 'utf8')); return { next: Number.isInteger(j.next) && j.next >= 0 ? j.next : 0, last: j.last }; } catch { return { next: 0 }; }
+  private scores: Record<string, Score> = {};
+  private async load(): Promise<{ next: number; last?: MixerStatus['last']; scores: Record<string, Score> }> {
+    try {
+      const j = await (this.o.records ?? plainRecords).read(this.file());
+      if (!j) return { next: 0, scores: {} };
+      const scores: Record<string, Score> = {};
+      for (const [k, v] of Object.entries(j.scores ?? {})) if (/^[0-9a-f]{64}:\d+$/.test(k) && Number.isInteger((v as any)?.anon) && Number.isInteger((v as any)?.rounds)) scores[k] = v as Score;
+      return { next: Number.isInteger(j.next) && j.next >= 0 ? j.next : 0, last: j.last, scores };
+    } catch { return { next: 0, scores: {} }; }
   }
   private async save(v: { next: number; last?: MixerStatus['last'] }): Promise<void> {
-    await fs.mkdir(this.o.dir, { recursive: true });
-    await fs.writeFile(this.file(), JSON.stringify(v), { mode: 0o600 });
+    await (this.o.records ?? plainRecords).write(this.file(), { ...v, scores: this.scores });
+  }
+  /** How many others a mixed coin hides among, as far as this wallet knows; undefined for coins it didn't mix. */
+  async scoreOf(id: string): Promise<number | undefined> { return (await this.load()).scores[id]?.anon; }
+  /** Mixed coins that still go round again for this target. */
+  async toRemix(coins: MixedCoin[], target: number): Promise<MixedCoin[]> {
+    const { scores } = await this.load();
+    return coins.filter((c) => { const s = scores[`${c.txid}:${c.vout}`]; return s && s.anon < target && s.rounds < MAX_REMIXES; });
   }
   async lastResult() { return (await this.load()).last; }
 
@@ -88,6 +135,7 @@ export class BtcMixer {
     const saved = await this.load();
     this.reserved = Math.max(saved.next, this.o.firstUnused());
     this.lastSaved = saved.last;
+    this.scores = saved.scores;
     this.keys = keys;
     const abort = new AbortController();
     this.abort = abort;
@@ -110,6 +158,7 @@ export class BtcMixer {
   private wipe(): void {
     for (const k of this.keys?.coinKeys.values() ?? []) k.fill(0);
     this.keys?.idKey.fill(0);
+    try { this.keys?.mixedPrivate?.wipePrivateData?.(); } catch { /* already gone */ }
     this.keys = null;
     this.agents.clear();
   }
@@ -121,10 +170,24 @@ export class BtcMixer {
       if (!keys) return;
       if (!this.o.canConnect()) { this.set({ stage: 'waiting', detail: 'tor' }); await sleep(10_000); continue; }
       let coins: MixCoin[];
+      const target = keys.target ?? DEFAULT_MIX_TARGET;
       try {
-        coins = (await this.o.coins()).filter((c) => keys.coinKeys.has(`${c.txid}:${c.vout}`)).sort((a, b) => (b.value > a.value ? 1 : -1)).slice(0, MAX_COINS_PER_ROUND);
+        const fresh = (await this.o.coins()).filter((c) => keys.coinKeys.has(`${c.txid}:${c.vout}`));
+        // Mixed coins that aren't hidden enough yet go round again, with keys from the CoinJoin account.
+        const again = keys.mixedPrivate && target > 1 && this.o.mixedCoins ? await this.toRemix(await this.o.mixedCoins(), target) : [];
+        for (const c of again) {
+          const id = `${c.txid}:${c.vout}`;
+          if (!keys.coinKeys.has(id)) keys.coinKeys.set(id, Uint8Array.from(keys.mixedPrivate!.deriveChild(c.chain).deriveChild(c.index).privateKey));
+        }
+        coins = [...fresh, ...again].sort((a, b) => (b.value > a.value ? 1 : -1)).slice(0, MAX_COINS_PER_ROUND);
       } catch { await sleep(RETRY_MS); continue; }
-      if (!coins.length) { this.set({ stage: 'done', detail: undefined }); return; }
+      if (!coins.length) {
+        // Mixed outputs still waiting for a confirmation before their next round: wait, up to a few hours.
+        const pending = keys.mixedPrivate && target > 1 && Object.values(this.scores).some((v) => v.anon < target && v.rounds < MAX_REMIXES);
+        if (pending && Date.now() - (this.lastSaved?.at ?? 0) < CONFIRM_WAIT_MS) { this.set({ stage: 'waiting', detail: 'confirmations' }); await sleep(60_000); continue; }
+        this.set({ stage: 'done', detail: undefined });
+        return;
+      }
       this.agents.clear();
       const transport = this.o.transport ?? coordinatorTransport(this.o.coordinator(), (id) => {
         if (!this.agents.has(id)) this.agents.set(id, this.o.newAgent());
@@ -156,9 +219,21 @@ export class BtcMixer {
       await this.save({ next: this.reserved, last }).catch(() => undefined);
       this.set({ last });
       if (result.ok) {
-        for (const c of result.inputs) { const k = keys.coinKeys.get(`${c.txid}:${c.vout}`); k?.fill(0); keys.coinKeys.delete(`${c.txid}:${c.vout}`); }
+        const known = (c: MixCoin) => this.scores[`${c.txid}:${c.vout}`];
+        const rounds = Math.max(0, ...result.inputs.map((c) => known(c)?.rounds ?? 0)) + 1;
+        for (const o of outputScores(result, (c) => known(c)?.anon ?? 1)) this.scores[o.id] = { anon: o.anon, rounds };
+        for (const c of result.inputs) {
+          const id = `${c.txid}:${c.vout}`;
+          keys.coinKeys.get(id)?.fill(0);
+          keys.coinKeys.delete(id);
+          delete this.scores[id];
+        }
+        await this.save({ next: this.reserved, last }).catch(() => undefined);
         this.o.onMixed?.();
-        if (!keys.coinKeys.size) { this.set({ stage: 'done', detail: undefined }); return; }
+        // Done when no regular coin is left to mix and every mixed one is hidden enough. The new outputs need a
+        // confirmation before they can go round again, so remixing waits for that.
+        const pending = Object.values(this.scores).some((v) => v.anon < target && v.rounds < MAX_REMIXES);
+        if (!keys.coinKeys.size && (!pending || !keys.mixedPrivate || target <= 1)) { this.set({ stage: 'done', detail: undefined }); return; }
       }
       await sleep(result.ok ? 5_000 : RETRY_MS);
     }

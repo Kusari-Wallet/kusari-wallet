@@ -95,3 +95,49 @@ test('the mixer stops when asked and wipes its keys', async () => {
   assert.ok(key.every((b) => b === 0));
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test('scores: an output hides among the others of its amount, on top of its least hidden input', () => {
+  const { outputScores } = require('../dist/main/btc-mix');
+  const s = (n) => Uint8Array.from([0x51, 32, ...Array(32).fill(n)]);
+  const result = {
+    ok: true, roundId: 'r', txid: 'ab'.repeat(32), inputs: [{ txid: '01'.repeat(32), vout: 0 }, { txid: '02'.repeat(32), vout: 0 }],
+    outputs: [{ value: 100000n, script: s(1), vout: 3 }, { value: 50000n, script: s(2), vout: 7 }],
+    all: [{ value: 100000n, script: s(1) }, { value: 50000n, script: s(2) }, ...[9, 10, 11, 12].map((n) => ({ value: 100000n, script: s(n) })), { value: 50000n, script: s(20) }, { value: 777n, script: s(30) }],
+  };
+  assert.deepEqual(outputScores(result, (c) => (c.txid.startsWith('01') ? 3 : 1)), [{ id: `${'ab'.repeat(32)}:3`, anon: 5 }, { id: `${'ab'.repeat(32)}:7`, anon: 2 }]);
+});
+
+test('remixing: mixed coins go round again until hidden among the target, with keys from the CoinJoin account', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kw-remix-'));
+  const mixedPriv = root.derive("m/86'/0'/1'");
+  const mixedPub = HDKey.fromExtendedKey(mixedPriv.publicExtendedKey);
+  const s = (n) => Uint8Array.from([0x51, 32, ...Array(32).fill(n)]);
+  const pub = { txid: '11'.repeat(32), vout: 0, value: 500000n, script: s(1) };
+  const wallet = { mixed: [] };
+  const rounds = [];
+  const mix = async (coins, o) => {
+    rounds.push(coins.map((c) => `${c.txid}:${c.vout}`));
+    for (const c of coins) assert.ok(o.keyFor(c).length === 32);
+    const dest = o.destinations(1)[0];
+    const txid = ['aa', 'bb', 'cc', 'dd'][rounds.length - 1].repeat(32);
+    // Each round puts the output among 2 others of the same amount.
+    const out = { value: 400000n, script: dest, vout: 0 };
+    wallet.mixed = [{ txid, vout: 0, value: 400000n, script: dest, chain: 0, index: 0 }];
+    return { ok: true, roundId: 'r', txid, inputs: coins, outputs: [out], all: [out, { value: 400000n, script: s(8) }, { value: 400000n, script: s(9) }] };
+  };
+  let mixedCalls = 0;
+  const mixer = new BtcMixer({
+    dir, coordinator: () => 'x', newAgent: () => undefined, coins: async () => [pub].filter(() => rounds.length === 0), firstUnused: () => 0,
+    mixedCoins: async () => { mixedCalls++; return wallet.mixed; }, maxFeePerK: async () => 1000n, canConnect: () => true, mix,
+  });
+  const done = new Promise((r) => { mixer.onChange = () => { if (process.env.DBG) console.log(JSON.stringify(mixer.status)); if (!mixer.status.running) r(); }; });
+  await mixer.start({ coinKeys: new Map([[`${pub.txid}:0`, new Uint8Array(32).fill(3)]]), idKey: new Uint8Array(32), mixedAccount: mixedPub, mixedPrivate: mixedPriv, target: 5 });
+  await Promise.race([done, new Promise((r) => setTimeout(r, 30_000))]);
+  // Public coin: 1 + 2 = 3; again: 3 + 2 = 5, which meets the target.
+  assert.equal(rounds.length, 2, JSON.stringify(rounds));
+  assert.deepEqual(rounds[1], [`${'aa'.repeat(32)}:0`], 'the second round mixes the first round\'s output');
+  assert.equal(await mixer.scoreOf(`${'bb'.repeat(32)}:0`), 5);
+  assert.equal(mixer.status.stage, 'done');
+  assert.ok(mixedCalls >= 2);
+  fs.rmSync(dir, { recursive: true, force: true });
+});

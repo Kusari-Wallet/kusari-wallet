@@ -4,7 +4,7 @@ const http = require('node:http');
 const os = require('node:os');
 const fs = require('node:fs');
 const path = require('node:path');
-const { coingecko, kraken, cryptocompare, mexc, gate, binance, okx, bybit, coinbase, PRICE_SOURCES } = require('../dist/main/prices');
+const { coingecko, kraken, cryptocompare, mexc, gate, binance, okx, bybit, coinbase, gateOne, xtOne, nonkycOne, PRICE_SOURCES } = require('../dist/main/prices');
 const { WalletService } = require('../dist/main/service');
 
 const CG = { bitcoin: { usd: 70000, usd_24h_change: 1 }, ethereum: { usd: 3000, usd_24h_change: 2 }, tron: { usd: 0.3, usd_24h_change: 3 }, tether: { usd: 1, usd_24h_change: 0 }, monero: { usd: 150, usd_24h_change: -1 } };
@@ -51,9 +51,60 @@ test('exchanges: each one read for the coins it lists, and nothing made up', () 
   assert.throws(() => coinbase('x').parse({ data: { rates: { SOL: '0' } } }));
 });
 
-test('every source is an https address', () => {
-  assert.equal(PRICE_SOURCES.length, 8);
+test('Gate and XT.com: one pair each, and a pair that stopped trading is no price', () => {
+  assert.deepEqual(gateOne('ARRR', 'x').parse([{ currency_pair: 'ARRR_USDT', last: '0.14', change_percentage: '2.5' }]), { ARRR: { usd: 0.14, change: 2.5 } });
+  assert.throws(() => gateOne('ARRR', 'x').parse({ label: 'INVALID_CURRENCY' }));
+  const xt = (t) => ({ rc: 0, result: [{ s: 'zano_usdt', t, c: '3.7', cr: '0.0145' }] });
+  const z = xtOne('ZANO', 'x').parse(xt(Date.now() - 60_000)).ZANO;
+  assert.equal(z.usd, 3.7);
+  assert.ok(Math.abs(z.change - 1.45) < 1e-9, 'a fraction, shown as percent');
+  assert.throws(() => xtOne('ZANO', 'x').parse(xt(Date.now() - 2 * 24 * 3600_000)), /no trade/, 'last traded two days ago');
+  assert.throws(() => xtOne('ZANO', 'x').parse({ rc: 1, result: null }));
+});
+
+test('NonKYC: one market, its change from yesterday, and a stopped or switched-off market is no price', () => {
+  const m = (over) => ({ symbol: 'FIRO/USDT', primaryTicker: 'FIRO', isActive: true, lastPrice: '0.66', yesterdayPrice: '0.6', lastTradeAt: Date.now() - 60_000, ...over });
+  const f = nonkycOne('FIRO', 'x').parse(m({})).FIRO;
+  assert.equal(f.usd, 0.66);
+  assert.ok(Math.abs(f.change - 10) < 1e-9);
+  assert.throws(() => nonkycOne('FIRO', 'x').parse(m({ lastTradeAt: Date.now() - 2 * 24 * 3600_000 })), /no trade/);
+  assert.throws(() => nonkycOne('FIRO', 'x').parse(m({ isActive: false })));
+  assert.throws(() => nonkycOne('FIRO', 'x').parse(m({ primaryTicker: 'ZANO' })), 'another coin');
+});
+
+test('every source is an https address, and the bulk market lists that timed out over Tor are gone', () => {
+  assert.equal(PRICE_SOURCES.length, 10);
   for (const s of PRICE_SOURCES) assert.match(s.url, /^https:\/\//);
+  assert.ok(!PRICE_SOURCES.some((s) => /\/\/[^/]*(binance|bybit)|ticker\/24hr$|spot\/tickers$/.test(s.url)), 'no whole-market lists');
+  assert.ok(PRICE_SOURCES.every((s) => !/gateio|xt\.com/.test(s.url) || /currency_pair=|symbol=/.test(s.url)), 'Gate and XT.com one pair at a time');
+});
+
+test('CoinGecko alone, and the second tier alone, each price every coin (answers recorded 2026-11-12 and 13)', () => {
+  const { PRICE_TIERS } = require('../dist/main/prices');
+  const { DECIMALS } = require('../dist/main/config');
+  const rec = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'price-answers.json'), 'utf8'));
+  const cg = PRICE_TIERS[0][0].parse(rec.coingecko);
+  assert.deepEqual(Object.keys(DECIMALS).filter((a) => !cg[a]), [], 'nothing left for the slower tiers');
+  let v = {};
+  // Recorded XT.com and NonKYC answers count as stale a day later, as it should: the other sources still cover ZANO.
+  PRICE_TIERS[1].forEach((s, i) => { try { v = { ...s.parse(rec.tier2[i]), ...v }; } catch (e) { if (s.name !== 'XT.com' && s.name !== 'NonKYC') throw e; } });
+  assert.deepEqual(Object.keys(DECIMALS).filter((a) => !v[a]), [], 'a throttled CoinGecko costs no coin its price');
+  assert.ok(Math.abs(v.ZANO.change) < 100 && v.ZANO.usd > 0);
+});
+
+test('the last prices are kept on disk and shown at once after a restart, then refreshed', async (t) => {
+  let calls = 0;
+  const btc = { name: 'T', url: 'http://unused', parse: () => { calls++; throw new Error('down'); } };
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pr-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(dir, 'prices.json'), JSON.stringify({ at: Date.now() - 3600_000, value: { BTC: { usd: 70000, change: 1 }, EVIL: { usd: 1 } } }));
+  const s = new WalletService(dir, undefined, { priceSources: [btc] });
+  const p = await s.prices();
+  assert.equal(p.BTC.usd, 70000, 'shown straight away');
+  assert.equal(p.EVIL, undefined, 'only known coins are read back');
+  fs.writeFileSync(path.join(dir, 'prices.json'), JSON.stringify({ at: Date.now() - 25 * 3600_000, value: { BTC: { usd: 1, change: 0 } } }));
+  const s2 = new WalletService(dir, undefined, { priceSources: [btc] });
+  assert.equal(await s2.prices(), null, 'a day old is too old');
 });
 
 async function make(tt, sources) {

@@ -18,6 +18,11 @@ const FULL_SCAN_MS = 6 * 60 * 60_000;
 const COOLDOWN_MS = 90_000;
 const DUST = 294n;
 const CACHE_MS = 180_000;
+/** A server that failed is skipped for this long, so a scan doesn't wait out its timeout on every address. */
+const DOWN_MS = 60_000;
+/** Answers from a scan that broke off are reused this long, so the next try picks up where it stopped. */
+const RESUME_MS = 120_000;
+
 
 export interface BtcScanHints { used: string[]; nexts: Record<string, number>; lastFullScan: number }
 export interface BtcUtxo { txid: string; vout: number; value: bigint; address: string; chain: number; index: number; confirmed: boolean }
@@ -104,14 +109,15 @@ export class BtcClient {
   private inFlight: Promise<void> | null = null;
   private lastFullScan = 0;
   private readonly nexts = new Map<string, number>();
-  private readonly cooling = new Map<string, number>();
+  private readonly cooling = new Map<string, { until: number; limited: boolean }>();
+  private readonly resume = new Map<string, { at: number; value: any }>();
   private queue: Promise<unknown> = Promise.resolve();
   /** Public servers limit requests per IP, so they go out one at a time with a gap. */
   static defaultSpacingMs = 400;
   spacingMs = BtcClient.defaultSpacingMs;
   private lastError: string | null = null;
 
-  constructor(xpub: string, private readonly apis: string[], private readonly agent?: Agent, private readonly timeoutMs = 30_000, readonly coin: UtxoCoin = BITCOIN) {
+  constructor(xpub: string, private readonly apis: string[], private readonly agent?: Agent, private readonly timeoutMs = 30_000, readonly coin: UtxoCoin = BITCOIN, private readonly onFailure?: () => void) {
     this.account = HDKey.fromExtendedKey(xpub);
   }
 
@@ -134,18 +140,28 @@ export class BtcClient {
   /** The first receiving address index not seen in use, as of the last scan. */
   get nextReceiveIndex(): number { return this.state?.nextReceive ?? this.nexts.get('taproot0') ?? 0; }
 
-  /** A server that said "too many requests" is left alone for a while. */
-  private async get(path: string): Promise<any> {
+  /**
+   * A server that said "too many requests" is left alone for a while, and so is one that didn't answer, so the rest of
+   * a scan goes straight to the next server. Each failure also moves to a new Tor route.
+   */
+  private async get(path: string, agent: Agent | undefined = this.agent, onFailure: (() => void) | undefined = this.onFailure): Promise<any> {
     const turn = this.queue.then(async () => {
       let last: unknown;
-      for (const base of this.apis) {
-        if ((this.cooling.get(base) ?? 0) > Date.now()) continue;
+      const now = Date.now();
+      const open = this.apis.filter((b) => (this.cooling.get(b)?.until ?? 0) <= now);
+      // All of them down rather than limiting: asking again beats giving up.
+      const order = open.length ? open : this.apis.filter((b) => !this.cooling.get(b)?.limited);
+      for (const base of order) {
         try {
-          if (isBlockbook(base)) return await blockbookGet(base, path, { agent: this.agent, timeoutMs: this.timeoutMs });
-          return await getJson(base + path, { agent: this.agent, timeoutMs: this.timeoutMs });
+          const value = isBlockbook(base) ? await blockbookGet(base, path, { agent, timeoutMs: this.timeoutMs }) : await getJson(base + path, { agent, timeoutMs: this.timeoutMs });
+          this.cooling.delete(base);
+          return value;
         } catch (e) {
           last = e;
-          if (/429/.test((e as Error).message)) this.cooling.set(base, Date.now() + COOLDOWN_MS);
+          const limited = /429/.test((e as Error).message);
+          // A plain "not found" or bad request is an answer, not a server that's down. A refusal (403) is a blocked route.
+          if (!/\((400|404)\)/.test((e as Error).message)) this.cooling.set(base, { until: Date.now() + (limited ? COOLDOWN_MS : DOWN_MS), limited });
+          onFailure?.();
         }
       }
       if (!last || /429/.test((last as Error).message)) throw new Error(`The ${this.coin.symbol} server is limiting requests for now. Your coins are safe, and it will retry automatically.`);
@@ -153,6 +169,31 @@ export class BtcClient {
     });
     this.queue = turn.catch(() => undefined).then(() => (this.spacingMs ? new Promise((r) => setTimeout(r, this.spacingMs)) : undefined));
     return turn;
+  }
+
+  /** An address lookup, reusing what a scan that broke off already learned. */
+  /**
+   * Over Tor, each address is looked up on one of several routes, picked afresh for every scan, so no one server
+   * connection sees this wallet's whole list of addresses. An address and its coins share a route.
+   */
+  lookupRoutes: { agent: Agent; renew: () => void }[] = [];
+  private scanSalt = Math.random().toString(36);
+  private routeFor(path: string): { agent: Agent | undefined; renew: (() => void) | undefined } {
+    const address = /^\/address\/([^/]+)/.exec(path)?.[1];
+    if (!address || !this.lookupRoutes.length) return { agent: this.agent, renew: this.onFailure };
+    let h = 0;
+    for (const c of address + this.scanSalt) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+    const r = this.lookupRoutes[h % this.lookupRoutes.length];
+    return { agent: r.agent, renew: r.renew };
+  }
+
+  private async getAddress(path: string): Promise<any> {
+    const kept = this.resume.get(path);
+    if (kept && Date.now() - kept.at < RESUME_MS) return kept.value;
+    const { agent, renew } = this.routeFor(path);
+    const value = await this.get(path, agent, renew);
+    this.resume.set(path, { at: Date.now(), value });
+    return value;
   }
 
   /** Full: every address up to the gap. Otherwise only addresses seen in use, plus a few after them. */
@@ -166,7 +207,7 @@ export class BtcClient {
       const address = this.addressAt(chain, index);
       out.addresses.set(address, [chain, index]);
       if (!full && index < known && !usedBefore.has(address)) continue;
-      const info = await this.get(`/address/${address}`);
+      const info = await this.getAddress(`/address/${address}`);
       const c = info.chain_stats ?? {}; const m = info.mempool_stats ?? {};
       const count = (c.tx_count ?? 0) + (m.tx_count ?? 0);
       if (count === 0) continue;
@@ -174,7 +215,7 @@ export class BtcClient {
       next = Math.max(next, index + 1);
       out.total += BigInt(c.funded_txo_sum ?? 0) - BigInt(c.spent_txo_sum ?? 0) + BigInt(m.funded_txo_sum ?? 0) - BigInt(m.spent_txo_sum ?? 0);
       if (BigInt(c.funded_txo_sum ?? 0) + BigInt(m.funded_txo_sum ?? 0) === BigInt(c.spent_txo_sum ?? 0) + BigInt(m.spent_txo_sum ?? 0)) continue;
-      const list: any[] = await this.get(`/address/${address}/utxo`);
+      const list: any[] = await this.getAddress(`/address/${address}/utxo`);
       for (const u of list) {
         if (!/^[0-9a-f]{64}$/.test(u.txid) || !Number.isInteger(u.vout)) throw new Error(`The ${this.coin.symbol} server gave an unexpected answer.`);
         out.utxos.push({ txid: u.txid, vout: u.vout, value: BigInt(u.value), address, chain, index, confirmed: Boolean(u.status?.confirmed) });
@@ -197,6 +238,8 @@ export class BtcClient {
         const spendable = out.utxos.filter((u) => u.confirmed).reduce((s, u) => s + u.value, 0n);
         this.state = { at: Date.now(), utxos: out.utxos, total: out.total, spendable, nextReceive, nextChange, addresses: out.addresses, used: out.used };
         this.lastError = null;
+        this.resume.clear();
+        this.scanSalt = Math.random().toString(36); // the next scan spreads addresses differently
         this.onHints?.({ used: [...out.used], nexts: Object.fromEntries(this.nexts), lastFullScan: this.lastFullScan });
       })().catch((e) => { this.lastError = (e as Error).message; throw e; }).finally(() => { this.inFlight = null; });
     }
@@ -207,8 +250,9 @@ export class BtcClient {
   async getBalance(waitMs = 1500): Promise<{ total: bigint; spendable: bigint } | null> {
     const scan = this.refresh().catch(() => undefined);
     await Promise.race([scan, new Promise((r) => setTimeout(r, waitMs))]);
-    if (!this.state && this.lastError) throw new Error(this.lastError);
-    return this.state ? { total: this.state.total, spendable: this.state.spendable } : null;
+    if (this.state) return { total: this.state.total, spendable: this.state.spendable };
+    if (this.lastError) throw new Error(this.lastError);
+    return null;
   }
 
   async feeRate(): Promise<bigint> {
@@ -265,6 +309,7 @@ export class BtcClient {
     const answer = (await this.broadcast(hex)).trim();
     if (answer !== id) throw new Error(`The server returned a different transaction ID. Check ${id} on an explorer.`);
     this.state = null;
+    this.resume.clear();
     return id;
   }
 

@@ -7,7 +7,7 @@ export const ETH_PATH = "m/44'/60'/0'/0/0";
 const GWEI = 1_000_000_000n;
 const BALANCE_CACHE_MS = 20_000;
 
-export type EthAsset = 'ETH' | 'USDTE' | 'LINK' | 'WLD' | 'ETHP' | 'UNI' | 'PEPE' | 'AAVE' | 'POL' | 'USDTP' | 'ETHA' | 'ARB' | 'USDTA' | 'BNB' | 'USDTB' | 'ASTER' | 'CAKE' | 'USDCE' | 'USDCB' | 'USDCP' | 'USDCA' | 'HYPE' | 'SHIB' | 'SHIBB' | 'LINKB' | 'UNIB' | 'AAVEB';
+export type EthAsset = 'ETH' | 'USDTE' | 'LINK' | 'WLD' | 'ETHP' | 'UNI' | 'PEPE' | 'AAVE' | 'POL' | 'USDTP' | 'ETHA' | 'ARB' | 'USDTA' | 'BNB' | 'USDTB' | 'USDCE' | 'USDCB' | 'USDCP' | 'USDCA' | 'SHIB';
 export interface EvmToken { contract: string; decimals: number; symbol: string; label: string; dust: bigint }
 /** One EVM chain. The same key and address serve all of them, so the chain id is what keeps them apart. */
 export interface EvmChain {
@@ -24,7 +24,7 @@ export const ETHEREUM: EvmChain = {
     USDTE: { contract: '0xdAC17F958D2ee523a2206206994597C13D831ec7', decimals: 6, symbol: 'USDT', label: 'USDT (Eth)', dust: 100_000n },
     LINK: { contract: '0x514910771AF9Ca656af840dff83E8264EcF986CA', decimals: 18, symbol: 'LINK', label: 'LINK', dust: 10_000_000_000_000_000n },
     WLD: { contract: '0x163f8C2467924be0ae7B5347228CABF260318753', decimals: 18, symbol: 'WLD', label: 'WLD', dust: 10_000_000_000_000_000n },
-    // Contracts from Uniswap's default token list; NEAR's from MetaMask's contract metadata (Rainbow Bridge, 24 decimals).
+    // Contracts from Uniswap's default token list.
     UNI: { contract: '0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984', decimals: 18, symbol: 'UNI', label: 'UNI', dust: 1_000_000_000_000_000n },
     PEPE: { contract: '0x6982508145454Ce325dDbE47a25d4ec3d2311933', decimals: 18, symbol: 'PEPE', label: 'PEPE', dust: 10_000_000_000_000_000_000_000n },
     AAVE: { contract: '0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9', decimals: 18, symbol: 'AAVE', label: 'AAVE', dust: 100_000_000_000_000n },
@@ -57,37 +57,25 @@ export const ARBITRUM: EvmChain = {
   maxBaseFee: 100n * GWEI, minTip: 0n, defaultTip: 0n, maxTip: GWEI, gasToken: 3_000_000n, gasContract: 3_000_000n, dust: 10_000_000_000_000n,
 };
 // BNB Smart Chain: no base fee, validators take a small fixed tip. USDT here has 18 decimals, unlike elsewhere.
-// Contracts from PancakeSwap's token list; ASTER's from Trust Wallet's asset list.
+// Contracts from PancakeSwap's token list.
 export const BSC: EvmChain = {
   id: 56n, name: 'BNB Smart Chain', native: 'BNB', symbol: 'BNB', nativeLabel: 'BNB',
   tokens: {
     USDTB: { contract: '0x55d398326f99059fF775485246999027B3197955', decimals: 18, symbol: 'USDT', label: 'USDT (BNB)', dust: 100_000_000_000_000_000n },
     // USDC here has 18 decimals too.
     USDCB: { contract: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d', decimals: 18, symbol: 'USDC', label: 'USDC (BNB)', dust: 100_000_000_000_000_000n },
-    ASTER: { contract: '0x000Ae314E2A2172a039B26378814C252734f556A', decimals: 18, symbol: 'ASTER', label: 'ASTER', dust: 10_000_000_000_000_000n },
-    CAKE: { contract: '0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82', decimals: 18, symbol: 'CAKE', label: 'CAKE', dust: 10_000_000_000_000_000n },
-    // Binance-pegged tokens (BEP-20), each read on chain: symbol and 18 decimals.
-    SHIBB: { contract: '0x2859e4544C4bB03966803b044A93563Bd2D0DD4D', decimals: 18, symbol: 'SHIB', label: 'SHIB (BNB)', dust: 1_000_000_000_000_000_000_000n },
-    LINKB: { contract: '0xF8A0BF9cF54Bb92F17374d9e9A321E6a111a51bD', decimals: 18, symbol: 'LINK', label: 'LINK (BNB)', dust: 10_000_000_000_000_000n },
-    UNIB: { contract: '0xBf5140A22578168FD562DCcF235E5D43A02ce9B1', decimals: 18, symbol: 'UNI', label: 'UNI (BNB)', dust: 1_000_000_000_000_000n },
-    AAVEB: { contract: '0xfb6115445Bff7b52FeB98650C87f44907E58f802', decimals: 18, symbol: 'AAVE', label: 'AAVE (BNB)', dust: 100_000_000_000_000n },
   },
   maxBaseFee: 10n * GWEI, minTip: GWEI / 10n, defaultTip: GWEI / 10n, maxTip: 10n * GWEI, gasToken: 200_000n, gasContract: 300_000n, dust: 10_000_000_000_000n,
 };
-// HyperEVM: Hyperliquid's EVM chain. HYPE pays the fees; the base fee sits near 0.1 gwei and small blocks hold 3M gas.
-export const HYPEREVM: EvmChain = {
-  id: 999n, name: 'HyperEVM', native: 'HYPE', symbol: 'HYPE', nativeLabel: 'HYPE',
-  tokens: {},
-  maxBaseFee: 50n * GWEI, minTip: 0n, defaultTip: GWEI / 10n, maxTip: 5n * GWEI, gasToken: 200_000n, gasContract: 300_000n, dust: 1_000_000_000_000_000n,
-};
-export const EVM_CHAINS = [ETHEREUM, POLYGON, ARBITRUM, BSC, HYPEREVM];
+export const EVM_CHAINS = [ETHEREUM, POLYGON, ARBITRUM, BSC];
 export const chainOf = (asset: EthAsset): EvmChain => EVM_CHAINS.find((c) => c.native === asset || asset in c.tokens) as EvmChain;
 export interface EthDraft { asset: EthAsset; to: string; amount: bigint; gas: bigint; maxFee: bigint; tip: bigint; expectedFee: bigint; maxCost: bigint; data?: string }
 export interface EthHistoryItem { asset: EthAsset; hash: string; direction: 'in' | 'out' | 'self'; amount: string; counterparty: string; timestamp: number; status: 'confirmed' | 'failed' | 'pending'; dust: boolean }
 
-export function deriveEthAccount(mnemonic: string): { address: string; wallet: HDNodeWallet } {
+/** index 0 is the usual address (ETH_PATH); other EVM chains can have their own (see ServiceCore.evmIndex). */
+export function deriveEthAccount(mnemonic: string, index = 0): { address: string; wallet: HDNodeWallet } {
   const normalized = mnemonic.trim().toLowerCase().split(/\s+/).join(' ');
-  const wallet = HDNodeWallet.fromPhrase(normalized, undefined, ETH_PATH);
+  const wallet = HDNodeWallet.fromPhrase(normalized, undefined, index ? `m/44'/60'/0'/0/${index}` : ETH_PATH);
   return { address: wallet.address, wallet };
 }
 

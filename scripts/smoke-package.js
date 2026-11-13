@@ -7,7 +7,7 @@ const PHRASE = 'abandon abandon abandon abandon abandon abandon abandon abandon 
 app.whenReady().then(() => {
   try {
     const load = (name) => require(path.join(dir, 'dist/main', name));
-    for (const name of ['amount', 'config', 'request', 'insight', 'btc', 'eth', 'tron', 'dash', 'firo', 'doge', 'sol', 'zec', 'zano', 'kusari', 'arrr', 'swap', 'prices', 'tor', 'vault', 'service']) load(name);
+    for (const name of ['amount', 'config', 'request', 'insight', 'btc', 'eth', 'tron', 'dash', 'firo', 'doge', 'sol', 'zec', 'zano', 'arrr', 'swap', 'prices', 'tor', 'vault', 'service']) load(name);
     const sol = load('sol').solAddress(PHRASE);
     const dogeModule = load('doge');
     const doge = new dogeModule.DogeClient(dogeModule.dogeAccountXpub(PHRASE), []).addressAt(0, 0);
