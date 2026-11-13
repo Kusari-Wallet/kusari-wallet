@@ -1299,5 +1299,11 @@
 "Terms of Use": "Kullanım Koşulları",
 "Read the Terms of Use": "Kullanım Koşullarını oku",
 "I have read and agree to the Terms of Use. I understand that I alone hold my seeds and that lost seeds can't be recovered.": "Kullanım Koşullarını okudum ve kabul ediyorum. Kurtarma ifadelerimi yalnızca benim tuttuğumu ve kaybedilen ifadelerin geri alınamayacağını anlıyorum.",
-"Agree to the Terms of Use to continue.": "Devam etmek için Kullanım Koşullarını kabul edin."
+"Agree to the Terms of Use to continue.": "Devam etmek için Kullanım Koşullarını kabul edin.",
+"{0} {1} is still locked. New coins unlock after 10 confirmations.": "{0} {1} hâlâ kilitli. Yeni coinler 10 onaydan sonra açılır.",
+"{0} {1} is transparent or not yet confirmed. Transparent ZEC is shielded first, then it can be sent.": "{0} {1} şeffaf bakiyede ya da henüz onaylanmadı. Şeffaf ZEC önce korunur, sonra gönderilebilir.",
+"{0} {1} is mixed (CoinJoin) or not yet confirmed. Mixed coins are sent with the private send option.": "{0} {1} karıştırılmış (CoinJoin) ya da henüz onaylanmadı. Karıştırılmış coinler gizli gönderim seçeneğiyle gönderilir.",
+"{0} {1} sits with tokens or is not yet confirmed, so it can't be sent on its own.": "{0} {1} tokenlarla birlikte duruyor ya da henüz onaylanmadı, bu yüzden tek başına gönderilemez.",
+"{0} {1} is waiting for a confirmation. It can be sent once confirmed, usually within minutes.": "{0} {1} onay bekliyor. Onaylandıktan sonra gönderilebilir, genellikle birkaç dakika içinde.",
+"Available to send: {0} {1}.": "Gönderilebilir: {0} {1}."
 }

@@ -249,3 +249,28 @@ function subBar(title: string, back: () => void): HTMLElement {
     h('button', { class: 'icon-btn', id: 'back', 'aria-label': 'Back', onclick: back }, icon('back')),
     h('h2', {}, title), h('span', {}));
 }
+
+/**
+ * What part of a balance can't be sent yet, and why. The home screen shows the whole balance; sending and swapping
+ * can only use what's available, so the difference is explained wherever an amount is chosen.
+ */
+function notYetAvailable(a: Asset): string {
+  const b = overview?.balances?.[a];
+  if (!b?.ok) return '';
+  const total = Number(b.total), free = Number(b.spendable);
+  if (!(total > free) || !(total - free > 1e-12)) return '';
+  const amount = shortAmount((total - free).toFixed(12).replace(/0+$/, '').replace(/\.$/, ''));
+  const name = coinName(a);
+  if (a === 'XMR' || a === 'ZANO' || a === 'ARRR') return `${amount} ${name} is still locked. New coins unlock after 10 confirmations.`;
+  if (a === 'ZEC') return `${amount} ${name} is transparent or not yet confirmed. Transparent ZEC is shielded first, then it can be sent.`;
+  if (a === 'DASH') return `${amount} ${name} is mixed (CoinJoin) or not yet confirmed. Mixed coins are sent with the private send option.`;
+  if (a === 'ADA') return `${amount} ${name} sits with tokens or is not yet confirmed, so it can't be sent on its own.`;
+  return `${amount} ${name} is waiting for a confirmation. It can be sent once confirmed, usually within minutes.`;
+}
+
+/** The amount that can be sent now, with the reason for any part that can't. */
+function availableLine(a: Asset, id: string): HTMLElement {
+  const b = overview?.balances?.[a];
+  const later = notYetAvailable(a);
+  return h('div', { class: 'hint', id }, b?.ok ? `Available to send: ${shortAmount(b.spendable)} ${coinName(a)}.` : '', later ? h('div', { class: 'warn-text' }, later) : '');
+}

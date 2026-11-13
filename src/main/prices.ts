@@ -1,9 +1,10 @@
 import type { Asset } from './config';
+import { BUILTIN_SWAP_KEYS } from './swap-keys.generated';
 
 export type PriceMap = Record<Asset, { usd: number; change: number | null }>;
 type Row = { usd: number; change: number | null };
 
-export interface PriceSource { name: string; url: string; parse: (json: any) => PriceMap }
+export interface PriceSource { name: string; url: string; parse: (json: any) => PriceMap; headers?: Record<string, string> }
 
 function row(usd: unknown, change: unknown): Row {
   const n = typeof usd === 'string' ? Number(usd) : usd;
@@ -116,6 +117,33 @@ export const bybit = (url: string) => exchange('Bybit', url, (j, coin) => {
   return t && { last: t.lastPrice, change: percent(t.price24hPcnt, 100) };
 });
 
+/**
+ * CoinMarketCap, all coins in one request (one credit per 100 coins). A symbol can belong to several tokens; the one
+ * CoinMarketCap ranks highest is the real coin. Needs an API key, sent as a header.
+ */
+const cmcBest = (j: any, symbol: string): any => {
+  const list = j?.status?.error_code === 0 && Array.isArray(j?.data?.[symbol]) ? j.data[symbol] : [];
+  return list.filter((x: any) => Number.isInteger(x?.cmc_rank) && x?.quote?.USD?.price > 0).sort((a: any, b: any) => a.cmc_rank - b.cmc_rank)[0];
+};
+export const coinmarketcap = (key: string, url = `https://pro-api.coinmarketcap.com/v2/cryptocurrency/quotes/latest?convert=USD&symbol=USDT,${[...new Set(EXCHANGE_COINS.map((c) => MARKET_SYMBOL[c] ?? c))].join(',')}`): PriceSource => {
+  const base = exchange('CoinMarketCap', url, (j, coin) => {
+    const best = cmcBest(j, coin);
+    return best && { last: best.quote.USD.price, change: best.quote.USD.percent_change_24h };
+  });
+  return {
+    ...base,
+    // Unlike the exchanges, which price in USDT, it lists USDT itself, for every chain's USDT.
+    parse: (j) => {
+      const prices = base.parse(j);
+      const t = cmcBest(j, 'USDT');
+      const usdt = t && optional(() => row(t.quote.USD.price, t.quote.USD.percent_change_24h));
+      if (usdt && usdt.usd > 0.9 && usdt.usd < 1.1) for (const a of ['USDT', 'USDTE', 'USDTS', 'USDTP', 'USDTA', 'USDTB'] as Asset[]) prices[a] = usdt;
+      return prices;
+    },
+    headers: { 'X-CMC_PRO_API_KEY': key },
+  };
+};
+
 /** Rates here are how much of a coin one dollar buys, and there is no 24-hour change. */
 export const coinbase = (url: string) => exchange('Coinbase', url, (j, coin) => {
   const rate = Number(j?.data?.rates?.[coin]);
@@ -220,7 +248,8 @@ export const PRICE_TIERS: PriceSource[][] = [
     nonkycOne('FIRO', 'https://api.nonkyc.io/api/v2/market/getbysymbol/FIRO_USDT'),
     coinbase('https://api.coinbase.com/v2/exchange-rates?currency=USD'),
   ],
-  [okx('https://www.okx.com/api/v5/market/tickers?instType=SPOT')],
+  // Last: CoinMarketCap (its free plan has a monthly allowance shared by every copy of the app), then OKX's whole list.
+  [...(BUILTIN_SWAP_KEYS.coinmarketcap ? [coinmarketcap(BUILTIN_SWAP_KEYS.coinmarketcap)] : []), okx('https://www.okx.com/api/v5/market/tickers?instType=SPOT')],
 ];
 /** Kept for anything that lists the sources flat. */
 export const PRICE_SOURCES: PriceSource[] = PRICE_TIERS.flat();

@@ -1299,5 +1299,11 @@
 "Terms of Use": "Умови використання",
 "Read the Terms of Use": "Прочитати Умови використання",
 "I have read and agree to the Terms of Use. I understand that I alone hold my seeds and that lost seeds can't be recovered.": "Я прочитав(-ла) Умови використання й погоджуюся з ними. Я розумію, що seed-фрази є лише в мене і втрачені фрази неможливо відновити.",
-"Agree to the Terms of Use to continue.": "Щоб продовжити, погодьтеся з Умовами використання."
+"Agree to the Terms of Use to continue.": "Щоб продовжити, погодьтеся з Умовами використання.",
+"{0} {1} is still locked. New coins unlock after 10 confirmations.": "{0} {1} ще заблоковано. Нові монети розблоковуються після 10 підтверджень.",
+"{0} {1} is transparent or not yet confirmed. Transparent ZEC is shielded first, then it can be sent.": "{0} {1} — прозорий баланс або ще не підтверджено. Прозорий ZEC спершу захищається, а потім його можна надіслати.",
+"{0} {1} is mixed (CoinJoin) or not yet confirmed. Mixed coins are sent with the private send option.": "{0} {1} змішано (CoinJoin) або ще не підтверджено. Змішані монети надсилаються через приватне надсилання.",
+"{0} {1} sits with tokens or is not yet confirmed, so it can't be sent on its own.": "{0} {1} лежить разом із токенами або ще не підтверджено, тому окремо його не надіслати.",
+"{0} {1} is waiting for a confirmation. It can be sent once confirmed, usually within minutes.": "{0} {1} чекає на підтвердження. Його можна надіслати після підтвердження, зазвичай за кілька хвилин.",
+"Available to send: {0} {1}.": "Доступно для надсилання: {0} {1}."
 }

@@ -1299,5 +1299,11 @@
 "Terms of Use": "使用条款",
 "Read the Terms of Use": "阅读使用条款",
 "I have read and agree to the Terms of Use. I understand that I alone hold my seeds and that lost seeds can't be recovered.": "我已阅读并同意使用条款。我明白只有我自己持有助记词，丢失的助记词无法找回。",
-"Agree to the Terms of Use to continue.": "请同意使用条款以继续。"
+"Agree to the Terms of Use to continue.": "请同意使用条款以继续。",
+"{0} {1} is still locked. New coins unlock after 10 confirmations.": "{0} {1} 仍被锁定。新币在 10 次确认后解锁。",
+"{0} {1} is transparent or not yet confirmed. Transparent ZEC is shielded first, then it can be sent.": "{0} {1} 是透明余额或尚未确认。透明 ZEC 需要先屏蔽才能发送。",
+"{0} {1} is mixed (CoinJoin) or not yet confirmed. Mixed coins are sent with the private send option.": "{0} {1} 是已混合（CoinJoin）的币或尚未确认。混合的币通过私密发送选项发送。",
+"{0} {1} sits with tokens or is not yet confirmed, so it can't be sent on its own.": "{0} {1} 与代币在一起或尚未确认，因此无法单独发送。",
+"{0} {1} is waiting for a confirmation. It can be sent once confirmed, usually within minutes.": "{0} {1} 正在等待确认。确认后即可发送，通常几分钟内。",
+"Available to send: {0} {1}.": "可发送：{0} {1}"
 }

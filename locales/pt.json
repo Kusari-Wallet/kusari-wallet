@@ -1299,5 +1299,11 @@
 "Terms of Use": "Termos de Uso",
 "Read the Terms of Use": "Ler os Termos de Uso",
 "I have read and agree to the Terms of Use. I understand that I alone hold my seeds and that lost seeds can't be recovered.": "Li e concordo com os Termos de Uso. Entendo que só eu tenho minhas sementes e que sementes perdidas não podem ser recuperadas.",
-"Agree to the Terms of Use to continue.": "Concorde com os Termos de Uso para continuar."
+"Agree to the Terms of Use to continue.": "Concorde com os Termos de Uso para continuar.",
+"{0} {1} is still locked. New coins unlock after 10 confirmations.": "{0} {1} ainda está bloqueado. Moedas novas são liberadas após 10 confirmações.",
+"{0} {1} is transparent or not yet confirmed. Transparent ZEC is shielded first, then it can be sent.": "{0} {1} é transparente ou ainda não foi confirmado. ZEC transparente é blindado primeiro e depois pode ser enviado.",
+"{0} {1} is mixed (CoinJoin) or not yet confirmed. Mixed coins are sent with the private send option.": "{0} {1} está misturado (CoinJoin) ou ainda não foi confirmado. Moedas misturadas são enviadas pela opção de envio privado.",
+"{0} {1} sits with tokens or is not yet confirmed, so it can't be sent on its own.": "{0} {1} está junto com tokens ou ainda não foi confirmado, então não pode ser enviado sozinho.",
+"{0} {1} is waiting for a confirmation. It can be sent once confirmed, usually within minutes.": "{0} {1} está aguardando uma confirmação. Pode ser enviado depois de confirmado, geralmente em minutos.",
+"Available to send: {0} {1}.": "Disponível para enviar: {0} {1}."
 }

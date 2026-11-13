@@ -11,6 +11,7 @@ export const DOGE_PATH = "m/44'/3'/0'";
 export const DOGE_NET = { bech32: 'doge', pubKeyHash: 30, scriptHash: 22, wif: 158 };
 const FEE_SATS_PER_BYTE = 2_000n; // 0.02 DOGE per kB
 const DUST = 1_000_000n; // 0.01 DOGE
+const PRIMARY_DOWN_MS = 10 * 60_000;
 const SIZE_BASE = 10n;
 const SIZE_INPUT = 148n;
 const SIZE_OUTPUT = 34n;
@@ -144,9 +145,19 @@ export class DogeClient extends InsightWallet<'DOGE'> {
     return { utxoRows, txs };
   }
 
+  /** When BlockCypher failed, the backup is asked first for a while instead of waiting on it again each time. */
+  private primaryDownUntil = 0;
   protected async lookup(addresses: string[], round: number): Promise<{ utxoRows: any[]; txs: any[] }> {
-    try { return await this.lookupPrimary(addresses, round); } catch (e) {
+    if (this.backup && Date.now() < this.primaryDownUntil) {
+      try { return await this.lookupBackup(addresses); } catch { /* the backup failed too: try BlockCypher after all */ }
+    }
+    try {
+      const r = await this.lookupPrimary(addresses, round);
+      this.primaryDownUntil = 0;
+      return r;
+    } catch (e) {
       if (!this.backup) throw e;
+      this.primaryDownUntil = Date.now() + PRIMARY_DOWN_MS;
       return this.lookupBackup(addresses);
     }
   }

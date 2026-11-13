@@ -1299,5 +1299,11 @@
 "Terms of Use": "이용약관",
 "Read the Terms of Use": "이용약관 읽기",
 "I have read and agree to the Terms of Use. I understand that I alone hold my seeds and that lost seeds can't be recovered.": "이용약관을 읽었으며 동의합니다. 시드는 나만 가지고 있으며, 잃어버린 시드는 되찾을 수 없다는 것을 이해합니다.",
-"Agree to the Terms of Use to continue.": "계속하려면 이용약관에 동의하세요."
+"Agree to the Terms of Use to continue.": "계속하려면 이용약관에 동의하세요.",
+"{0} {1} is still locked. New coins unlock after 10 confirmations.": "{0} {1}은(는) 아직 잠겨 있습니다. 새 코인은 10번 확인된 뒤 풀립니다.",
+"{0} {1} is transparent or not yet confirmed. Transparent ZEC is shielded first, then it can be sent.": "{0} {1}은(는) 투명 잔액이거나 아직 확인되지 않았습니다. 투명 ZEC는 먼저 차폐한 뒤 보낼 수 있습니다.",
+"{0} {1} is mixed (CoinJoin) or not yet confirmed. Mixed coins are sent with the private send option.": "{0} {1}은(는) 섞인(CoinJoin) 코인이거나 아직 확인되지 않았습니다. 섞인 코인은 비공개 보내기로 보냅니다.",
+"{0} {1} sits with tokens or is not yet confirmed, so it can't be sent on its own.": "{0} {1}은(는) 토큰과 함께 묶여 있거나 아직 확인되지 않아 따로 보낼 수 없습니다.",
+"{0} {1} is waiting for a confirmation. It can be sent once confirmed, usually within minutes.": "{0} {1}은(는) 확인을 기다리는 중입니다. 확인되면 보낼 수 있으며 보통 몇 분 안에 됩니다.",
+"Available to send: {0} {1}.": "보낼 수 있는 금액: {0} {1}"
 }

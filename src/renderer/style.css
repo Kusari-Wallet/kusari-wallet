@@ -344,3 +344,5 @@ input[type="range"] { padding: 0; border: 0; background: none; accent-color: var
 @keyframes refresh-turn { to { transform: rotate(360deg); } }
 #refresh.spinning svg { animation: refresh-turn 0.8s linear infinite; transform-origin: 50% 50%; }
 @media (prefers-reduced-motion: reduce) { #refresh.spinning svg { animation-duration: 2.4s; } }
+/* Part of a balance that can't be sent yet, explained where an amount is chosen. */
+.warn-text { color: var(--warn-text); margin-top: 4px; }

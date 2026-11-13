@@ -340,6 +340,8 @@ const PASSWORD = 'correct horse battery';
 
   // TRX send
   await page.click('#go-send');
+  // What can be sent now is shown where the amount is chosen, with the reason for any part that can't.
+  await page.locator('#send-available', { hasText: /Available to send/ }).waitFor({ timeout: 30000 });
   await page.locator('#send-fee', { hasText: '$' }).waitFor({ timeout: 15000 });
   assert.equal(await page.locator('#review').evaluate((e) => getComputedStyle(e).webkitTapHighlightColor), 'rgba(0, 0, 0, 0)', 'no blue tap box');
   await shot('send-empty');

@@ -15,6 +15,8 @@ const keys = {
   ccecashKey: process.env.CCECASH_KEY || local.ccecashKey || '',
   changenow: process.env.CHANGENOW_KEY || local.changenow || '',
   uniswap: process.env.UNISWAP_KEY || local.uniswap || '',
+  // CoinMarketCap price API key: one more price source, asked only when the others leave coins unpriced.
+  coinmarketcap: process.env.CMC_KEY || local.coinmarketcap || '',
   // WalletConnect (Reown) project ID. Not a secret, but kept out of the source like the rest.
   ccecashSecret: process.env.CCECASH_SECRET || local.ccecashSecret || '',
   ccecashRefCode: process.env.CCECASH_REF_CODE || local.ccecashRefCode || '',

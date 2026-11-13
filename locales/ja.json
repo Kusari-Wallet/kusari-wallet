@@ -1299,5 +1299,11 @@
 "Terms of Use": "利用規約",
 "Read the Terms of Use": "利用規約を読む",
 "I have read and agree to the Terms of Use. I understand that I alone hold my seeds and that lost seeds can't be recovered.": "利用規約を読み、同意します。シードを持つのは自分だけであり、失ったシードは取り戻せないことを理解しています。",
-"Agree to the Terms of Use to continue.": "続けるには利用規約に同意してください。"
+"Agree to the Terms of Use to continue.": "続けるには利用規約に同意してください。",
+"{0} {1} is still locked. New coins unlock after 10 confirmations.": "{0} {1} はまだロックされています。新しいコインは10承認後に使えます。",
+"{0} {1} is transparent or not yet confirmed. Transparent ZEC is shielded first, then it can be sent.": "{0} {1} は透明残高か未承認です。透明ZECはまずシールドしてから送れます。",
+"{0} {1} is mixed (CoinJoin) or not yet confirmed. Mixed coins are sent with the private send option.": "{0} {1} はミックス済み（CoinJoin）か未承認です。ミックス済みコインはプライベート送金で送ります。",
+"{0} {1} sits with tokens or is not yet confirmed, so it can't be sent on its own.": "{0} {1} はトークンと一緒にあるか未承認のため、単独では送れません。",
+"{0} {1} is waiting for a confirmation. It can be sent once confirmed, usually within minutes.": "{0} {1} は承認待ちです。承認されると送れます。通常は数分以内です。",
+"Available to send: {0} {1}.": "送金可能: {0} {1}"
 }

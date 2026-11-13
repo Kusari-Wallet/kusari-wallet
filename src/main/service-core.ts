@@ -1038,7 +1038,7 @@ export class ServiceCore extends EventEmitter {
     const tiers = this.dev.priceSources ? [this.dev.priceSources] : this.dev.priceUrl ? [[coingecko(this.dev.priceUrl)]] : PRICE_TIERS;
     const tor = this.torActive;
     const agent = this.pricesAgent();
-    const ask = async (source: PriceSource) => source.parse(await getJson(source.url, { agent, timeoutMs: tor ? 30_000 : 10_000, headers: { Accept: 'application/json', 'User-Agent': 'KusariWallet' } }));
+    const ask = async (source: PriceSource) => source.parse(await getJson(source.url, { agent, timeoutMs: tor ? 30_000 : 10_000, headers: { Accept: 'application/json', 'User-Agent': 'KusariWallet', ...source.headers } }));
     const missing = (v: PriceMap | null) => !v || Object.keys(DECIMALS).some((a) => !v[a as Asset]);
     // Each tier only when the ones before it left a coin out; within a tier all at once, earlier sources winning.
     let value: PriceMap | null = null;

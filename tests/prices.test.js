@@ -4,7 +4,7 @@ const http = require('node:http');
 const os = require('node:os');
 const fs = require('node:fs');
 const path = require('node:path');
-const { coingecko, kraken, cryptocompare, mexc, gate, binance, okx, bybit, coinbase, gateOne, xtOne, nonkycOne, PRICE_SOURCES } = require('../dist/main/prices');
+const { coingecko, kraken, cryptocompare, mexc, gate, binance, okx, bybit, coinbase, gateOne, xtOne, nonkycOne, coinmarketcap, PRICE_SOURCES } = require('../dist/main/prices');
 const { WalletService } = require('../dist/main/service');
 
 const CG = { bitcoin: { usd: 70000, usd_24h_change: 1 }, ethereum: { usd: 3000, usd_24h_change: 2 }, tron: { usd: 0.3, usd_24h_change: 3 }, tether: { usd: 1, usd_24h_change: 0 }, monero: { usd: 150, usd_24h_change: -1 } };
@@ -72,8 +72,24 @@ test('NonKYC: one market, its change from yesterday, and a stopped or switched-o
   assert.throws(() => nonkycOne('FIRO', 'x').parse(m({ primaryTicker: 'ZANO' })), 'another coin');
 });
 
+test('CoinMarketCap: every coin in one answer, the highest-ranked token for a symbol, the key as a header', () => {
+  const { DECIMALS } = require('../dist/main/config');
+  const rec = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'cmc-answer.json'), 'utf8'));
+  const s = coinmarketcap('k');
+  assert.deepEqual(s.headers, { 'X-CMC_PRO_API_KEY': 'k' });
+  assert.match(s.url, /^https:\/\/pro-api\.coinmarketcap\.com\/v2\/cryptocurrency\/quotes\/latest\?/);
+  assert.doesNotMatch(s.url, /k$|key=/, 'the key is never in the address');
+  const p = s.parse(rec);
+  assert.deepEqual(Object.keys(DECIMALS).filter((a) => !p[a]), [], 'answers recorded 2026-11-13');
+  assert.ok(p.BTC.usd > 1000, 'bitcoin, not a token that borrows its symbol');
+  const fake = { status: { error_code: 0 }, data: { XMR: [{ cmc_rank: 7000, quote: { USD: { price: 0.001 } } }, { cmc_rank: 12, quote: { USD: { price: 500, percent_change_24h: 1 } } }] } };
+  assert.equal(s.parse(fake).XMR.usd, 500);
+  assert.throws(() => s.parse({ status: { error_code: 1002 } }), 'a refused key is no price');
+});
+
 test('every source is an https address, and the bulk market lists that timed out over Tor are gone', () => {
-  assert.equal(PRICE_SOURCES.length, 10);
+  const { BUILTIN_SWAP_KEYS } = require('../dist/main/swap-keys.generated');
+  assert.equal(PRICE_SOURCES.length, BUILTIN_SWAP_KEYS.coinmarketcap ? 11 : 10, 'CoinMarketCap only with its key');
   for (const s of PRICE_SOURCES) assert.match(s.url, /^https:\/\//);
   assert.ok(!PRICE_SOURCES.some((s) => /\/\/[^/]*(binance|bybit)|ticker\/24hr$|spot\/tickers$/.test(s.url)), 'no whole-market lists');
   assert.ok(PRICE_SOURCES.every((s) => !/gateio|xt\.com/.test(s.url) || /currency_pair=|symbol=/.test(s.url)), 'Gate and XT.com one pair at a time');

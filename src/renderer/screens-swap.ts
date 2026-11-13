@@ -28,6 +28,7 @@ async function renderSwap(from: Asset = selected, to: Asset = selected === 'XMR'
   const receiveNet = h('div', { class: 'swap-net', id: 'swap-net' });
   const info = h('div', { class: 'small muted swap-info', id: 'swap-info' });
   const balance = h('span', { class: 'small muted', id: 'swap-balance' });
+  const balanceNote = h('div', { class: 'hint warn-text', id: 'swap-not-yet', hidden: true });
   const box = errorBox();
   let chosen: any = null;
   let slippage = 50; // basis points, for Uniswap and PancakeSwap
@@ -101,7 +102,10 @@ async function renderSwap(from: Asset = selected, to: Asset = selected === 'XMR'
   const change = (nf: Asset, nt: Asset) => { void renderSwap(nf, nt, amount.value, privacy); };
   const paintBalance = () => {
     const b = overview?.balances?.[from];
-    balance.textContent = b?.ok ? `${b.spendable} ${coinName(from)}` : '';
+    balance.textContent = b?.ok ? `${shortAmount(b.spendable)} ${coinName(from)}` : '';
+    const later = notYetAvailable(from);
+    balanceNote.textContent = later;
+    balanceNote.hidden = !later;
   };
   // A share of the balance. At 100% the network fee is held back when it's paid in the same coin.
   const portion = (pct: number) => async () => {
@@ -123,7 +127,7 @@ async function renderSwap(from: Asset = selected, to: Asset = selected === 'XMR'
     h('div', { class: 'swap-cards' },
       h('div', { class: 'swap-card' }, h('span', { class: 'label' }, 'Send'),
         h('div', { class: 'swap-row' }, amount, coinSelect('swap-from', from, (a) => change(a, a === to && !privacy ? from : to))),
-        h('div', { class: 'swap-foot' }, balance, chips)),
+        h('div', { class: 'swap-foot' }, balance, chips), balanceNote),
       h('div', { class: 'swap-flip' }, h('button', { type: 'button', id: 'swap-flip', 'aria-label': 'Swap direction', onclick: () => change(to, from) }, icon('swap'))),
       h('div', { class: 'swap-card' }, h('span', { class: 'label' }, 'Receive'),
         h('div', { class: 'swap-row' }, receive, coinSelect('swap-to', to, (a) => change(a === from && !privacy ? to : from, a))),

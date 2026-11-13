@@ -265,4 +265,8 @@ test('when BlockCypher is down, the backup server gives the balance and coins', 
   assert.deepEqual(await c.getHistory(), [], 'the backup has no amounts per transaction, so no made-up history');
   const draft = await c.draft(OTHER, 100000000n);
   assert.equal(draft.inputs.length, 1);
+  // Once BlockCypher has failed, the next reads go straight to the backup instead of waiting on it again.
+  const before = down.log.length;
+  await c.refresh(true);
+  assert.equal(down.log.length, before, 'BlockCypher not asked again for a while');
 });

@@ -1299,5 +1299,11 @@
 "Terms of Use": "Điều khoản sử dụng",
 "Read the Terms of Use": "Đọc Điều khoản sử dụng",
 "I have read and agree to the Terms of Use. I understand that I alone hold my seeds and that lost seeds can't be recovered.": "Tôi đã đọc và đồng ý với Điều khoản sử dụng. Tôi hiểu rằng chỉ mình tôi giữ cụm từ khôi phục và cụm từ bị mất không thể lấy lại.",
-"Agree to the Terms of Use to continue.": "Hãy đồng ý với Điều khoản sử dụng để tiếp tục."
+"Agree to the Terms of Use to continue.": "Hãy đồng ý với Điều khoản sử dụng để tiếp tục.",
+"{0} {1} is still locked. New coins unlock after 10 confirmations.": "{0} {1} vẫn đang bị khóa. Coin mới mở khóa sau 10 xác nhận.",
+"{0} {1} is transparent or not yet confirmed. Transparent ZEC is shielded first, then it can be sent.": "{0} {1} là số dư công khai hoặc chưa được xác nhận. ZEC công khai cần được che chắn trước rồi mới gửi được.",
+"{0} {1} is mixed (CoinJoin) or not yet confirmed. Mixed coins are sent with the private send option.": "{0} {1} đã được trộn (CoinJoin) hoặc chưa được xác nhận. Coin đã trộn được gửi bằng tùy chọn gửi riêng tư.",
+"{0} {1} sits with tokens or is not yet confirmed, so it can't be sent on its own.": "{0} {1} nằm cùng token hoặc chưa được xác nhận, nên không thể gửi riêng.",
+"{0} {1} is waiting for a confirmation. It can be sent once confirmed, usually within minutes.": "{0} {1} đang chờ xác nhận. Có thể gửi khi đã xác nhận, thường trong vài phút.",
+"Available to send: {0} {1}.": "Có thể gửi: {0} {1}"
 }

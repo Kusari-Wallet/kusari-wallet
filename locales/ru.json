@@ -1299,5 +1299,11 @@
 "Terms of Use": "Условия использования",
 "Read the Terms of Use": "Прочитать Условия использования",
 "I have read and agree to the Terms of Use. I understand that I alone hold my seeds and that lost seeds can't be recovered.": "Я прочитал(а) Условия использования и согласен(на) с ними. Я понимаю, что seed-фразы есть только у меня и утерянные фразы восстановить нельзя.",
-"Agree to the Terms of Use to continue.": "Чтобы продолжить, примите Условия использования."
+"Agree to the Terms of Use to continue.": "Чтобы продолжить, примите Условия использования.",
+"{0} {1} is still locked. New coins unlock after 10 confirmations.": "{0} {1} ещё заблокировано. Новые монеты разблокируются после 10 подтверждений.",
+"{0} {1} is transparent or not yet confirmed. Transparent ZEC is shielded first, then it can be sent.": "{0} {1} — прозрачный баланс или ещё не подтверждено. Прозрачный ZEC сначала экранируется, затем его можно отправить.",
+"{0} {1} is mixed (CoinJoin) or not yet confirmed. Mixed coins are sent with the private send option.": "{0} {1} перемешано (CoinJoin) или ещё не подтверждено. Перемешанные монеты отправляются через приватную отправку.",
+"{0} {1} sits with tokens or is not yet confirmed, so it can't be sent on its own.": "{0} {1} лежит вместе с токенами или ещё не подтверждено, поэтому отдельно его не отправить.",
+"{0} {1} is waiting for a confirmation. It can be sent once confirmed, usually within minutes.": "{0} {1} ждёт подтверждения. Его можно отправить после подтверждения, обычно в течение нескольких минут.",
+"Available to send: {0} {1}.": "Доступно для отправки: {0} {1}."
 }
