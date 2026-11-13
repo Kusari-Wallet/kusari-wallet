@@ -24,6 +24,11 @@ else()
   set(Z ${ZANO_ROOT}/_install_linux)
   set(INCLUDE ${Z}/zano/x86_64/include-plain-wallet)
   file(GLOB LIBS "${Z}/zano/x86_64/lib/*.a" "${Z}/boost/x86_64/lib/*.a" "${Z}/openssl/x86_64/lib/*.a" "${Z}/iconv/x86_64/lib/*.a")
+  # The prebuilt Boost stack traces use libbacktrace, which the Linux package doesn't include: build it
+  # (github.com/ianlancetaylor/libbacktrace, BSD) and pass its folder as BACKTRACE_LIB_PATH.
+  if(BACKTRACE_LIB_PATH)
+    list(APPEND LIBS "${BACKTRACE_LIB_PATH}/libbacktrace.a")
+  endif()
   set(SYSTEM_LIBS z pthread dl)
 endif()
 

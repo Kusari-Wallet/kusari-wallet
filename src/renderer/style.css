@@ -346,3 +346,6 @@ input[type="range"] { padding: 0; border: 0; background: none; accent-color: var
 @media (prefers-reduced-motion: reduce) { #refresh.spinning svg { animation-duration: 2.4s; } }
 /* Part of a balance that can't be sent yet, explained where an amount is chosen. */
 .warn-text { color: var(--warn-text); margin-top: 4px; }
+/* Developer build: a ribbon on every screen. */
+.developer-ribbon { position: fixed; top: 0; left: 0; right: 0; z-index: 60; background: #b45309; color: #fff; font-size: 12px; text-align: center; padding: 3px 8px; pointer-events: none; }
+body.developer-build { padding-top: 22px; }

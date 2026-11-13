@@ -1328,5 +1328,6 @@
 "{0} KSR can be sent now. Received coins can be used after 10 confirmations.": "Şimdi {0} KSR gönderilebilir. Alınan coinler 10 onaydan sonra kullanılabilir.",
 "{0} engine stopped.": "{0} motoru durdu.",
 "{0} must finish scanning before it can send.": "{0} gönderebilmek için taramayı bitirmeli.",
-"host:port of a Kusari (KSR) node. KSR shows up once a node is set: there is no public node before the chain launches. It is reached through Tor like every other server.": "Bir Kusari (KSR) düğümünün host:port bilgisi. Bir düğüm ayarlandığında KSR görünür: zincir başlamadan önce herkese açık düğüm yoktur. Diğer tüm sunucular gibi Tor üzerinden bağlanılır."
+"host:port of a Kusari (KSR) node. KSR shows up once a node is set: there is no public node before the chain launches. It is reached through Tor like every other server.": "Bir Kusari (KSR) düğümünün host:port bilgisi. Bir düğüm ayarlandığında KSR görünür: zincir başlamadan önce herkese açık düğüm yoktur. Diğer tüm sunucular gibi Tor üzerinden bağlanılır.",
+"Developer build: for trying coins and features before release. Keep only test amounts here.": "Geliştirici sürümü: çıkmadan önce coinleri ve özellikleri denemek içindir. Burada yalnızca deneme tutarları tutun."
 }

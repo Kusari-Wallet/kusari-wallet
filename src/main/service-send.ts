@@ -819,7 +819,7 @@ export class SendService extends ServiceCore {
     const bridgeChanged = next.torBridge !== this.settings.torBridge || next.torBridgeLines !== this.settings.torBridgeLines;
     this.settings = next;
     await fs.mkdir(this.dir, { recursive: true });
-    const { evmSeparate: _perWallet, ...saved } = next;
+    const { evmSeparate: _perWallet, developer: _build, ...saved } = next;
     await fs.writeFile(this.settingsPath, JSON.stringify(saved, null, 2), { mode: 0o600 });
     // A new way in only restarts Tor; the wallet stays open, and traffic waits for Tor as at any restart.
     if (bridgeChanged && this.torActive) this.applyBridge();

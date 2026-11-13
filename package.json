@@ -1,6 +1,6 @@
 {
   "name": "kusari-wallet",
-  "version": "0.59.1",
+  "version": "0.60.0",
   "description": "XMR, BTC, ETH, TRX, USDT wallet",
   "main": "dist/main/app.js",
   "scripts": {
@@ -9,11 +9,12 @@
     "test": "npm run build && node --test tests/unit.test.js tests/tron.test.js tests/monero-busy.test.js tests/tor.test.js tests/swap.test.js tests/btc.test.js tests/eth.test.js tests/privacy.test.js tests/tornado.test.js tests/wallets.test.js tests/prices.test.js tests/buy.test.js tests/bch.test.js tests/ltc.test.js tests/scrt.test.js tests/tokens.test.js tests/dex.test.js tests/mweb.test.js tests/balances.test.js tests/balance-cache.test.js tests/bundle.test.js tests/dash.test.js tests/firo.test.js tests/locales.test.js tests/doge.test.js tests/sol.test.js tests/zec.test.js tests/zano.test.js tests/ksr.test.js tests/kusari-zano.test.js tests/arrr.test.js tests/spark.test.js tests/ada.test.js tests/coinjoin.test.js tests/tcp-bridge.test.js tests/tor-bridges.test.js tests/wabisabi.test.js tests/btc-mix.test.js",
     "test:monero": "npm run build && node tests/monero-regtest.js",
     "dist:win": "npm run build && electron-builder --win",
-    "dist:linux": "npm run build && electron-builder --linux dir",
+    "dist:linux": "npm run build && electron-builder --linux",
     "dist:mac": "npm run build && electron-builder --mac",
     "test:ui": "npm run build && xvfb-run -a node tests/ui-e2e.js",
     "dist:android": "bash scripts/build-android.sh",
-    "check:package": "node scripts/check-package.js"
+    "check:package": "node scripts/check-package.js",
+    "dist:win-dev": "node scripts/dist-dev.js"
   },
   "keywords": [],
   "author": "Edge",
@@ -89,48 +90,6 @@
     ],
     "extraResources": [
       {
-        "from": "native-bin/desktop",
-        "to": "zec",
-        "filter": [
-          "**/*"
-        ]
-      },
-      {
-        "from": "native-bin/zano",
-        "to": "zano",
-        "filter": [
-          "**/*"
-        ]
-      },
-      {
-        "from": "native-bin/ksr",
-        "to": "ksr",
-        "filter": [
-          "**/*"
-        ]
-      },
-      {
-        "from": "native-bin/arrr",
-        "to": "arrr",
-        "filter": [
-          "**/*"
-        ]
-      },
-      {
-        "from": "native-bin/mweb",
-        "to": "mweb",
-        "filter": [
-          "**/*"
-        ]
-      },
-      {
-        "from": "native-bin/spark",
-        "to": "spark",
-        "filter": [
-          "**/*"
-        ]
-      },
-      {
         "from": "THIRD-PARTY-NOTICES.md",
         "to": "THIRD-PARTY-NOTICES.md"
       }
@@ -139,11 +98,107 @@
       "target": [
         "zip"
       ],
-      "icon": "assets/icon.ico"
+      "icon": "assets/icon.ico",
+      "extraResources": [
+        {
+          "from": "native-bin/desktop",
+          "to": "zec",
+          "filter": [
+            "**/*"
+          ]
+        },
+        {
+          "from": "native-bin/zano",
+          "to": "zano",
+          "filter": [
+            "**/*"
+          ]
+        },
+        {
+          "from": "native-bin/ksr",
+          "to": "ksr",
+          "filter": [
+            "**/*"
+          ]
+        },
+        {
+          "from": "native-bin/arrr",
+          "to": "arrr",
+          "filter": [
+            "**/*"
+          ]
+        },
+        {
+          "from": "native-bin/mweb",
+          "to": "mweb",
+          "filter": [
+            "**/*"
+          ]
+        },
+        {
+          "from": "native-bin/spark",
+          "to": "spark",
+          "filter": [
+            "**/*"
+          ]
+        }
+      ]
     },
     "linux": {
-      "target": "dir",
-      "icon": "assets/icon.png"
+      "target": [
+        {
+          "target": "tar.gz",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.png",
+      "category": "Finance",
+      "extraResources": [
+        {
+          "from": "native-bin/params",
+          "to": "zec",
+          "filter": [
+            "**/*"
+          ]
+        },
+        {
+          "from": "native-bin/zec-linux",
+          "to": "zec",
+          "filter": [
+            "**/*"
+          ]
+        },
+        {
+          "from": "native-bin/zano-linux",
+          "to": "zano",
+          "filter": [
+            "**/*"
+          ]
+        },
+        {
+          "from": "native-bin/arrr-linux",
+          "to": "arrr",
+          "filter": [
+            "**/*"
+          ]
+        },
+        {
+          "from": "native-bin/mweb-linux",
+          "to": "mweb",
+          "filter": [
+            "**/*"
+          ]
+        },
+        {
+          "from": "native-bin/spark-linux",
+          "to": "spark",
+          "filter": [
+            "**/*"
+          ]
+        }
+      ]
     },
     "mac": {
       "target": "dmg",

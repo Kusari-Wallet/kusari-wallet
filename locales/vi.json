@@ -1328,5 +1328,6 @@
 "{0} KSR can be sent now. Received coins can be used after 10 confirmations.": "Có thể gửi {0} KSR ngay. Coin nhận được có thể dùng sau 10 xác nhận.",
 "{0} engine stopped.": "Bộ máy {0} đã dừng.",
 "{0} must finish scanning before it can send.": "{0} phải quét xong mới gửi được.",
-"host:port of a Kusari (KSR) node. KSR shows up once a node is set: there is no public node before the chain launches. It is reached through Tor like every other server.": "host:port của một nút Kusari (KSR). KSR sẽ hiện khi đã đặt nút: trước khi chuỗi ra mắt chưa có nút công khai. Kết nối qua Tor như mọi máy chủ khác."
+"host:port of a Kusari (KSR) node. KSR shows up once a node is set: there is no public node before the chain launches. It is reached through Tor like every other server.": "host:port của một nút Kusari (KSR). KSR sẽ hiện khi đã đặt nút: trước khi chuỗi ra mắt chưa có nút công khai. Kết nối qua Tor như mọi máy chủ khác.",
+"Developer build: for trying coins and features before release. Keep only test amounts here.": "Bản dành cho nhà phát triển: để thử coin và tính năng trước khi phát hành. Chỉ để số tiền thử nghiệm ở đây."
 }

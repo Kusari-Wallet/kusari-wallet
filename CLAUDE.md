@@ -23,6 +23,12 @@ Java WebView (`android/java`) running the same code as an esbuild bundle (`src/a
 - `node scripts/build-android-web.js --test && xvfb-run -a node tests/android-web.js`: Android WebView and proxy test
   (rebuild the test bundle first, it is not rebuilt automatically).
 - `npm run dist:win`, `npm run dist:android`: release builds into `release/` (Android needs the keystore files).
+- `npm run dist:linux`: Linux x64 tar.gz; engines come from `native-bin/*-linux` (zec, zano, arrr, mweb, spark). The
+  Linux zano-bridge links a static libbacktrace (`-DBACKTRACE_LIB_PATH`), which the Zano package lacks.
+- `npm run dist:win-dev` (`scripts/dist-dev.js`): "Kusari Wallet Dev" into `release/dev/`, with its own app ID and data
+  folder. It is built with `KUSARI_FLAVOR=developer` (`src/main/flavor.ts`, `DEVELOPER_BUILD`), shows a ribbon, and
+  carries coins and features not yet released (KSR, from `native-bin/_later/`). Gate new unreleased work on
+  `DEVELOPER_BUILD`. Regular builds never ship the KSR engine.
 - Bump `version` in `package.json` and `package-lock.json` for each release.
 - The desktop app runs one bundle: `npm run build` ends with `scripts/bundle-main.js`, which bundles `dist/main/main.js`
   into `dist/main/app.js` (the package `main`) and monero-ts's worker into `dist/main/monero-worker.js`. Only

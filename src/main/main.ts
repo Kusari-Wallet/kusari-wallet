@@ -5,6 +5,7 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { WalletService } from './service';
 import { configureMoneroWorker } from './monero';
+import { DEVELOPER_BUILD } from './flavor';
 
 // Keep stray output (node URLs, wallet paths) off the terminal; never log secrets.
 process.on('unhandledRejection', (e) => console.error('unhandled:', (e as Error)?.message));
@@ -12,7 +13,8 @@ process.on('unhandledRejection', (e) => console.error('unhandled:', (e as Error)
 if (!app.isPackaged && process.env.VAULT_WALLET_DATA) app.setPath('userData', process.env.VAULT_WALLET_DATA);
 // Wallets created before the rename stay in the old data folder.
 // The app has had other names. A wallet made under one of them keeps its folder, so nothing moves or goes missing.
-if (!process.env.VAULT_WALLET_DATA && !existsSync(path.join(app.getPath('userData'), 'vault.json'))) {
+// Not for the developer build: it keeps to its own folder and never opens the regular wallet's data.
+if (!DEVELOPER_BUILD && !process.env.VAULT_WALLET_DATA && !existsSync(path.join(app.getPath('userData'), 'vault.json'))) {
   for (const name of ['Vault Wallet', 'Shinobi Wallet']) {
     const legacyData = path.join(app.getPath('appData'), name);
     if (existsSync(path.join(legacyData, 'vault.json'))) { app.setPath('userData', legacyData); break; }
@@ -130,7 +132,7 @@ app.whenReady().then(async () => {
   handle('wallet:confirmSend', (id: string, pw: string) => service.confirmSend(id, pw));
   handle('wallet:revealSeeds', (pw: string) => service.revealSeeds(pw));
   handle('wallet:changePassword', (cur: string, next: string) => service.changePassword(cur, next));
-  handle('wallet:getSettings', () => service.settings);
+  handle('wallet:getSettings', () => ({ ...service.settings, developer: DEVELOPER_BUILD }));
   handle('wallet:updateSettings', (patch) => service.updateSettings(patch));
   handle('wallet:deleteWallet', (pw: string) => service.deleteWallet(pw));
   handle('wallet:openExplorer', async (asset, hash: string) => {

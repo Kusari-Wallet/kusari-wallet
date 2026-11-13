@@ -234,4 +234,10 @@ async function boot(first = false): Promise<void> {
   else if (s.unlocked) await enterWallet();
   else unlockScreen();
 }
+// The developer build says so on every screen, so it is never mistaken for the regular wallet.
+void Promise.resolve(wallet.getSettings()).then((s: any) => {
+  if (!s?.developer) return;
+  document.body.classList.add('developer-build');
+  document.body.prepend(h('div', { class: 'developer-ribbon', id: 'developer-ribbon', role: 'note' }, 'Developer build: for trying coins and features before release. Keep only test amounts here.'));
+}).catch(() => undefined);
 void boot(true);

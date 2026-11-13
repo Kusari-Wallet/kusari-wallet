@@ -1328,5 +1328,6 @@
 "{0} KSR can be sent now. Received coins can be used after 10 confirmations.": "{0} KSR podem ser enviados agora. As moedas recebidas podem ser usadas após 10 confirmações.",
 "{0} engine stopped.": "O motor {0} parou.",
 "{0} must finish scanning before it can send.": "O {0} precisa terminar a varredura antes de enviar.",
-"host:port of a Kusari (KSR) node. KSR shows up once a node is set: there is no public node before the chain launches. It is reached through Tor like every other server.": "host:port de um nó Kusari (KSR). O KSR aparece quando um nó é definido: não há nó público antes do lançamento da cadeia. Ele é acessado pelo Tor como todos os outros servidores."
+"host:port of a Kusari (KSR) node. KSR shows up once a node is set: there is no public node before the chain launches. It is reached through Tor like every other server.": "host:port de um nó Kusari (KSR). O KSR aparece quando um nó é definido: não há nó público antes do lançamento da cadeia. Ele é acessado pelo Tor como todos os outros servidores.",
+"Developer build: for trying coins and features before release. Keep only test amounts here.": "Versão de desenvolvedor: para testar moedas e recursos antes do lançamento. Guarde aqui só valores de teste."
 }

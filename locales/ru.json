@@ -1328,5 +1328,6 @@
 "{0} KSR can be sent now. Received coins can be used after 10 confirmations.": "Сейчас можно отправить {0} KSR. Полученные монеты можно использовать после 10 подтверждений.",
 "{0} engine stopped.": "Движок {0} остановился.",
 "{0} must finish scanning before it can send.": "{0} должен закончить сканирование, прежде чем отправлять.",
-"host:port of a Kusari (KSR) node. KSR shows up once a node is set: there is no public node before the chain launches. It is reached through Tor like every other server.": "host:port узла Kusari (KSR). KSR появляется, когда задан узел: до запуска цепи публичного узла нет. Подключение идёт через Tor, как и ко всем остальным серверам."
+"host:port of a Kusari (KSR) node. KSR shows up once a node is set: there is no public node before the chain launches. It is reached through Tor like every other server.": "host:port узла Kusari (KSR). KSR появляется, когда задан узел: до запуска цепи публичного узла нет. Подключение идёт через Tor, как и ко всем остальным серверам.",
+"Developer build: for trying coins and features before release. Keep only test amounts here.": "Сборка для разработчиков: чтобы опробовать монеты и функции до выпуска. Держите здесь только тестовые суммы."
 }

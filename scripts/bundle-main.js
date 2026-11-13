@@ -19,7 +19,7 @@ const moneroGlue = {
     });
   },
 };
-const common = { bundle: true, platform: 'node', format: 'cjs', target: 'node22', minify: true, legalComments: 'external', logLevel: 'error', external: ['electron', 'web-worker'], plugins: [moneroGlue] };
+const common = { define: { __KUSARI_FLAVOR__: JSON.stringify(process.env.KUSARI_FLAVOR || 'release') }, bundle: true, platform: 'node', format: 'cjs', target: 'node22', minify: true, legalComments: 'external', logLevel: 'error', external: ['electron', 'web-worker'], plugins: [moneroGlue] };
 Promise.all([esbuild.build({
   ...common,
   entryPoints: [path.join(root, 'dist/main/main.js')],

@@ -143,6 +143,8 @@ export interface Settings {
   torDefaultOn?: boolean;
   /** The open wallet's EVM layout (each chain its own address); kept with the wallet, not in the settings file. */
   evmSeparate?: boolean;
+  /** A developer build (see flavor.ts); never saved. */
+  developer?: boolean;
   /** How Tor connects: auto, straight, or through Snowflake, obfs4 or the user's own bridges. */
   torBridge: 'auto' | 'none' | 'snowflake' | 'obfs4' | 'custom';
   torBridgeLines: string;

@@ -1328,5 +1328,6 @@
 "{0} KSR can be sent now. Received coins can be used after 10 confirmations.": "{0} KSR를 지금 보낼 수 있습니다. 받은 코인은 10회 확인 후 사용할 수 있습니다.",
 "{0} engine stopped.": "{0} 엔진이 멈췄습니다.",
 "{0} must finish scanning before it can send.": "{0}이(가) 스캔을 마쳐야 보낼 수 있습니다.",
-"host:port of a Kusari (KSR) node. KSR shows up once a node is set: there is no public node before the chain launches. It is reached through Tor like every other server.": "Kusari(KSR) 노드의 host:port입니다. 노드를 설정하면 KSR이 나타납니다. 체인이 출시되기 전에는 공개 노드가 없습니다. 다른 모든 서버처럼 Tor를 통해 연결합니다."
+"host:port of a Kusari (KSR) node. KSR shows up once a node is set: there is no public node before the chain launches. It is reached through Tor like every other server.": "Kusari(KSR) 노드의 host:port입니다. 노드를 설정하면 KSR이 나타납니다. 체인이 출시되기 전에는 공개 노드가 없습니다. 다른 모든 서버처럼 Tor를 통해 연결합니다.",
+"Developer build: for trying coins and features before release. Keep only test amounts here.": "개발자용 빌드: 출시 전 코인과 기능을 미리 써 보는 용도입니다. 테스트용 소액만 넣으세요."
 }

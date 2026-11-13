@@ -41,6 +41,7 @@ import { parseCustomBridges } from './tor-bridges';
 import { SwapProviderId } from './swap';
 import { MoneroClient, MoneroOptions, generateMoneroSeed, validateMoneroSeed } from './monero';
 import { BALANCE_TTL_MS, OVERVIEW_WAIT_MS, STUCK_LOOKUP_MS, QUICK_REFUSAL_MS, bareBch, isLocalServer, COIN_ID, btcScript, btcScriptOfKey, within, EVM, isSpl, EXTRA_ASSETS, isEvm, LOOKUP_ROUTE, lookupRetryDelay, BALANCE_STALE_MS, Preview, BalanceView } from './service-common';
+import { DEVELOPER_BUILD } from './flavor';
 
 export class ServiceCore extends EventEmitter {
   protected vault: Vault;
@@ -361,6 +362,7 @@ export class ServiceCore extends EventEmitter {
     this.eth = new EthClient(this.dev.ethRpc ? [this.dev.ethRpc] : ETH_RPCS, this.dev.ethScout ?? ETH_SCOUT, ETH_USDT, deriveEthAccount(secrets.tronMnemonic).address, this.torRoute('eth'), slow ? 60_000 : 15_000);
     this.evmSplit = await this.readEvmLayout();
     this.settings.evmSeparate = this.evmSplit;
+    this.settings.developer = DEVELOPER_BUILD;
     this.pol = new EthClient(this.dev.polRpc ? [this.dev.polRpc] : POL_RPCS, this.dev.polScout ?? POL_SCOUT, this.dev.polUsdt ?? '', deriveEthAccount(secrets.tronMnemonic, this.evmIndex(POLYGON.id)).address, this.torRoute('pol'), slow ? 60_000 : 15_000, POLYGON);
     this.arb = new EthClient(this.dev.arbRpc ? [this.dev.arbRpc] : ARB_RPCS, this.dev.arbScout ?? ARB_SCOUT, this.dev.arbUsdt ?? '', deriveEthAccount(secrets.tronMnemonic, this.evmIndex(ARBITRUM.id)).address, this.torRoute('arb'), slow ? 60_000 : 15_000, ARBITRUM);
     this.bsc = new EthClient(this.dev.bscRpc ? [this.dev.bscRpc] : BSC_RPCS, this.dev.bscScout ?? BSC_SCOUT, '', deriveEthAccount(secrets.tronMnemonic, this.evmIndex(BSC.id)).address, this.torRoute('bsc'), slow ? 60_000 : 15_000, BSC);
@@ -575,7 +577,8 @@ export class ServiceCore extends EventEmitter {
     if (gen !== this.sessionGen) void Promise.resolve(client.stop()).catch(() => undefined); // locked while it started
   }
 
-  protected get ksrAvailable(): boolean { return ksrEngineAvailable(this.dev.ksrBin); }
+  /** KSR isn't launched: only the developer build (and the tests' stand-in engine) runs it. */
+  protected get ksrAvailable(): boolean { return (DEVELOPER_BUILD || Boolean(this.dev.ksrBin)) && ksrEngineAvailable(this.dev.ksrBin); }
 
   /** The node KSR uses: the person's own, or the public one (none until the chain launches). */
   protected get ksrNode(): string { return this.dev.ksrNode ?? ((this.settings.customKsrNode ?? '').trim() || KSR_NODE); }

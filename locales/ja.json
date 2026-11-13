@@ -1328,5 +1328,6 @@
 "{0} KSR can be sent now. Received coins can be used after 10 confirmations.": "{0} KSR を今すぐ送れます。受け取ったコインは 10 回の承認後に使えます。",
 "{0} engine stopped.": "{0} エンジンが停止しました。",
 "{0} must finish scanning before it can send.": "{0} はスキャンが終わるまで送金できません。",
-"host:port of a Kusari (KSR) node. KSR shows up once a node is set: there is no public node before the chain launches. It is reached through Tor like every other server.": "Kusari (KSR) ノードの host:port です。ノードを設定すると KSR が表示されます。チェーンの公開前は公開ノードがありません。ほかのすべてのサーバーと同じく Tor 経由で接続します。"
+"host:port of a Kusari (KSR) node. KSR shows up once a node is set: there is no public node before the chain launches. It is reached through Tor like every other server.": "Kusari (KSR) ノードの host:port です。ノードを設定すると KSR が表示されます。チェーンの公開前は公開ノードがありません。ほかのすべてのサーバーと同じく Tor 経由で接続します。",
+"Developer build: for trying coins and features before release. Keep only test amounts here.": "開発者向けビルド: リリース前のコインや機能を試すためのものです。テスト用の少額だけを入れてください。"
 }
