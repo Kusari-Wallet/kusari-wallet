@@ -177,11 +177,11 @@ async function main() {
 
   // Dandelion++: A handed it to one stem peer and did not broadcast it; D, at the end of the stem, did.
   await until('D to have it', async () => (await rpc(nodes.D.rpc, 'get_pool_info', {})) && log('D').includes('[DANDELION] broadcast'), 300000, 2000);
-  const aLog = log('A');
-  const stems = (aLog.match(/\[DANDELION\] stem \d+ tx\(s\) to/g) || []).length;
-  if (stems < 1) throw new Error('A did not send the transaction along a stem');
-  if (/\[DANDELION\] (broadcast|fluff)/.test(aLog)) throw new Error('A broadcast its own transaction');
-  if (!/\[DANDELION\] stem \d+ tx\(s\) to/.test(log('B') + log('C'))) throw new Error('the stem did not pass through B or C');
+  // A node's log reaches its file in buffered pieces, so its lines can land after D's broadcast: wait for them.
+  const stem = /\[DANDELION\] stem \d+ tx\(s\) to/;
+  try { await until('A\'s stem in its log', async () => stem.test(log('A')), 60000, 1000); } catch { throw new Error('A did not send the transaction along a stem'); }
+  try { await until('a middle node\'s stem in its log', async () => stem.test(log('B') + log('C')), 60000, 1000); } catch { throw new Error('the stem did not pass through B or C'); }
+  if (/\[DANDELION\] (broadcast|fluff)/.test(log('A'))) throw new Error('A broadcast its own transaction');
   console.log('dandelion ok: A stemmed it, a middle node passed it on, D broadcast it');
 
   await until('wallet two to receive it', async () => BigInt((await rpc(w2, 'getbalance')).balance) === amount, 3600000, 10000);
