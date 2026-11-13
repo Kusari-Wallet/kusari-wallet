@@ -5,7 +5,21 @@ const path = require('node:path');
 const esbuild = require('esbuild');
 const root = path.join(__dirname, '..');
 // web-worker starts its worker thread from its own file, so it can't be inside a bundle: it ships as a package (8 files).
-const common = { bundle: true, platform: 'node', format: 'cjs', target: 'node22', minify: true, legalComments: 'external', logLevel: 'error', external: ['electron', 'web-worker'] };
+// monero-ts's WebAssembly glue (monero.js) reads its helpers as this.HttpClient etc., which only works outside strict
+// mode; a bundle is strict, so `this` is undefined there and every request from the wallet failed. They are globals:
+// read them as such.
+const moneroGlue = {
+  name: 'monero-glue',
+  setup(b) {
+    b.onLoad({ filter: /monero-ts[\\/]dist[\\/]monero\.js$/ }, async (args) => {
+      const text = await require('node:fs/promises').readFile(args.path, 'utf8');
+      const fixed = text.replace(/const (HttpClient|LibraryUtils|GenUtils)=this\.\1/g, 'const $1=globalThis.$1');
+      if (fixed === text) throw new Error('monero.js changed: check how it reaches HttpClient before bundling it.');
+      return { contents: fixed, loader: 'js' };
+    });
+  },
+};
+const common = { bundle: true, platform: 'node', format: 'cjs', target: 'node22', minify: true, legalComments: 'external', logLevel: 'error', external: ['electron', 'web-worker'], plugins: [moneroGlue] };
 Promise.all([esbuild.build({
   ...common,
   entryPoints: [path.join(root, 'dist/main/main.js')],
