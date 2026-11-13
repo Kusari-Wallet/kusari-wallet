@@ -165,6 +165,30 @@ export const mexcOne = (coin: Asset, url: string): PriceSource => ({
   },
 });
 
+/** Gate, one pair: a list with one ticker, the change already in percent. */
+export const gateOne = (coin: Asset, url: string): PriceSource => ({
+  name: 'Gate', url,
+  parse: (j) => {
+    const t = Array.isArray(j) ? j.find((x) => x?.currency_pair === `${coin}_USDT`) : null;
+    if (!t) throw new Error('Gate has no such pair.');
+    const change = Number(t.change_percentage);
+    return { [coin]: row(Number(t.last), Number.isFinite(change) ? change : null) } as PriceMap;
+  },
+});
+
+/** XT.com, one pair. A pair that hasn't traded for a day is a dead market, not a price. */
+export const xtOne = (coin: Asset, url: string): PriceSource => ({
+  name: 'XT.com', url,
+  parse: (j) => {
+    const t = j?.rc === 0 && Array.isArray(j.result) ? j.result.find((x: any) => x?.s === `${coin.toLowerCase()}_usdt`) : null;
+    if (!t) throw new Error('XT.com has no such pair.');
+    if (!(Number(t.t) > Date.now() - 24 * 3600_000)) throw new Error('XT.com has had no trade in this pair for a day.');
+    // XT.com gives the change as a fraction.
+    const change = Number(t.cr);
+    return { [coin]: row(Number(t.c), Number.isFinite(change) ? change * 100 : null) } as PriceMap;
+  },
+});
+
 /**
  * Asked in tiers, each only for what the earlier ones left out. All are small (a few KB), so a slow Tor route still
  * gets an answer; the large all-market lists that used to time out over Tor are gone, except OKX as a last resort.
@@ -174,6 +198,9 @@ export const PRICE_TIERS: PriceSource[][] = [
   [
     krakenAll(`https://api.kraken.com/0/public/Ticker?pair=${KRAKEN_PAIRS.map(([, p]) => p).join(',')}`),
     ...(['FIRO', 'ZANO', 'ARRR'] as Asset[]).map((c) => mexcOne(c, `https://api.mexc.com/api/v3/ticker/24hr?symbol=${c}USDT`)),
+    // Backups for the coins Kraken doesn't list, where each one trades (checked 2026-11-13): MEXC's answers win.
+    xtOne('ZANO', 'https://sapi.xt.com/v4/public/ticker/24h?symbol=zano_usdt'),
+    gateOne('ARRR', 'https://api.gateio.ws/api/v4/spot/tickers?currency_pair=ARRR_USDT'),
     coinbase('https://api.coinbase.com/v2/exchange-rates?currency=USD'),
   ],
   [okx('https://www.okx.com/api/v5/market/tickers?instType=SPOT')],
