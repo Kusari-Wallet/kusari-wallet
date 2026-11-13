@@ -180,6 +180,9 @@ function edits(p, genesis) {
   add('src/CMakeLists.txt', 'set_property(TARGET daemon PROPERTY OUTPUT_NAME "zanod")',
     'set_property(TARGET daemon PROPERTY OUTPUT_NAME "kusarid")\nset_property(TARGET simplewallet PROPERTY OUTPUT_NAME "kusari-wallet")');
 
+  // Windows builds with MinGW-w64 (build-windows.sh).
+  require('./windows/mingw')(add);
+
   if (genesis) {
     // Monero's RandomX in place of ProgPoWZ. contrib/randomx is RandomX at the commit Monero pins.
     list.push({ file: 'src/currency_core/basic_pow_helpers.cpp', whole: fs.readFileSync(path.join(__dirname, 'randomx', 'basic_pow_helpers.cpp'), 'utf8') });

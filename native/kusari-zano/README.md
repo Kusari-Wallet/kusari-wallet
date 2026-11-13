@@ -137,6 +137,7 @@ node of their own or one whose RPC isn't public.
 - `selftest.js`: a private chain: RandomKSR mining, the emission, proof of stake switching on, and sends.
 - `stratum/xmrig-stratum.js`: XMRig's protocol in the node's stratum server.
 - `xmrig-test.js`: XMRig with RandomKSR mining a private chain through that stratum.
+- `build-windows.sh`, `windows/mingw.js`: the Windows build.
 
 ## Building
 
@@ -152,6 +153,23 @@ cmake --build kusari/build --target daemon simplewallet -j 4
 
 Zano asks for Boost 1.75 or newer and OpenSSL; `ZANO_USE_SYSTEM_BOOST=1` lets it use the system's Boost (Ubuntu 24.04:
 `build-essential cmake libboost-all-dev libssl-dev`). The binaries are `kusarid` and `kusari-wallet`.
+
+### Windows
+
+`build-windows.sh` cross-compiles `kusarid.exe` and `kusari-wallet.exe` on Linux with MinGW-w64 (Ubuntu 24.04:
+`g++-mingw-w64-x86-64-posix cmake git curl`), and XMRig with RandomKSR when its source is given:
+
+```
+bash native/kusari-zano/build-windows.sh kusari-zano-checkout /path/to/work [/path/to/xmrig-with-rx-ksr]
+```
+
+It builds Boost 1.83, OpenSSL 3.0 and libuv for Windows first (checked against fixed SHA-256 sums or a commit), then
+the same source archive `make-source.sh` makes; `windows/mingw.js` holds the build fixes MinGW needs. The programs
+are static and need only Windows' own DLLs (Windows 8 or newer). What was checked: RandomKSR built for Windows gives
+the Linux hashes in JIT, interpreter and full-dataset modes, and a wallet made by `kusari-wallet.exe` opens in the
+Linux wallet with the same `K…` address (both under Wine). Under Wine the node stops at opening its database, since
+Wine lacks the NT memory-section calls LMDB and MDBX use, and XMRig stops before connecting; both need a run on real
+Windows before a release.
 
 To test proof of stake switching on without waiting 129,600 blocks, make a second build with
 `-DCMAKE_CXX_FLAGS=-DKUSARI_TEST_POS_START_HEIGHT=40`; never release that build. `selftest.js` takes it.
