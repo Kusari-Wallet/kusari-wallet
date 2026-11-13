@@ -72,9 +72,10 @@ export const chainOf = (asset: EthAsset): EvmChain => EVM_CHAINS.find((c) => c.n
 export interface EthDraft { asset: EthAsset; to: string; amount: bigint; gas: bigint; maxFee: bigint; tip: bigint; expectedFee: bigint; maxCost: bigint; data?: string }
 export interface EthHistoryItem { asset: EthAsset; hash: string; direction: 'in' | 'out' | 'self'; amount: string; counterparty: string; timestamp: number; status: 'confirmed' | 'failed' | 'pending'; dust: boolean }
 
-export function deriveEthAccount(mnemonic: string): { address: string; wallet: HDNodeWallet } {
+/** index 0 is the usual address (ETH_PATH); other EVM chains can have their own (see ServiceCore.evmIndex). */
+export function deriveEthAccount(mnemonic: string, index = 0): { address: string; wallet: HDNodeWallet } {
   const normalized = mnemonic.trim().toLowerCase().split(/\s+/).join(' ');
-  const wallet = HDNodeWallet.fromPhrase(normalized, undefined, ETH_PATH);
+  const wallet = HDNodeWallet.fromPhrase(normalized, undefined, index ? `m/44'/60'/0'/0/${index}` : ETH_PATH);
   return { address: wallet.address, wallet };
 }
 

@@ -6,6 +6,7 @@ import path from 'node:path';
 import type { Agent } from 'node:http';
 import { requestJson } from './request';
 import { CoordinatorError, MixCoin, MixResult, MixStatus, Transport, mixOnce } from './wabisabi/client';
+import { Records, plainRecords } from './records';
 
 const btc = require('@scure/btc-signer');
 
@@ -80,6 +81,8 @@ export class BtcMixer {
 
   constructor(private readonly o: {
     dir: string;
+    /** Where the mixing progress is kept: encrypted while the wallet is unlocked. */
+    records?: Records;
     coordinator: () => string;
     newAgent: () => Agent | undefined;
     /** The coins still in the wallet and confirmed, for each new attempt. */
@@ -104,15 +107,15 @@ export class BtcMixer {
   private scores: Record<string, Score> = {};
   private async load(): Promise<{ next: number; last?: MixerStatus['last']; scores: Record<string, Score> }> {
     try {
-      const j = JSON.parse(await fs.readFile(this.file(), 'utf8'));
+      const j = await (this.o.records ?? plainRecords).read(this.file());
+      if (!j) return { next: 0, scores: {} };
       const scores: Record<string, Score> = {};
       for (const [k, v] of Object.entries(j.scores ?? {})) if (/^[0-9a-f]{64}:\d+$/.test(k) && Number.isInteger((v as any)?.anon) && Number.isInteger((v as any)?.rounds)) scores[k] = v as Score;
       return { next: Number.isInteger(j.next) && j.next >= 0 ? j.next : 0, last: j.last, scores };
     } catch { return { next: 0, scores: {} }; }
   }
   private async save(v: { next: number; last?: MixerStatus['last'] }): Promise<void> {
-    await fs.mkdir(this.o.dir, { recursive: true });
-    await fs.writeFile(this.file(), JSON.stringify({ ...v, scores: this.scores }), { mode: 0o600 });
+    await (this.o.records ?? plainRecords).write(this.file(), { ...v, scores: this.scores });
   }
   /** How many others a mixed coin hides among, as far as this wallet knows; undefined for coins it didn't mix. */
   async scoreOf(id: string): Promise<number | undefined> { return (await this.load()).scores[id]?.anon; }

@@ -1249,5 +1249,12 @@
 "Choose how many others to hide each coin among.": "코인마다 몇 명 사이에 숨길지 고르세요.",
 "First sync of {0} on this device, which can take a while. The total doesn't include them yet.": "{0} 이 기기에서 처음 동기화하는 중입니다. 시간이 걸릴 수 있습니다. 아직 총액에 포함되지 않았습니다.",
 "Loading {0} balances. First sync of {1} on this device, which can take a while. The total doesn't include them yet.": "{0} 잔액을 불러오는 중입니다. {1} 이 기기에서 처음 동기화하는 중입니다. 시간이 걸릴 수 있습니다. 아직 총액에 포함되지 않았습니다.",
-"Running in the background": "백그라운드에서 실행 중"
+"Running in the background": "백그라운드에서 실행 중",
+"Why syncing takes a while": "동기화가 느린 이유",
+"To keep your coins private, every connection goes through Tor (three relays around the world), each coin and each group of addresses has a Tor route of its own, sends leave on yet another, and Zcash, Pirate Chain, Zano, Litecoin MWEB and Firo Spark read the blockchain on this device instead of asking a server.": "코인을 비공개로 지키려고, 모든 연결이 Tor(전 세계 중계 서버 3곳)를 거칩니다. 코인마다, 주소 묶음마다 각자 다른 Tor 경로를 쓰고, 보낼 때는 또 다른 경로를 씁니다. Zcash, Pirate Chain, Zano, Litecoin MWEB, Firo Spark는 서버에 묻지 않고 이 기기에서 블록체인을 직접 읽습니다.",
+"So after opening the wallet, the first sync takes at least a few minutes (usually 2 to 5). The first sync of Zcash and Pirate Chain on a new device can take 30 minutes or more. After that, your last balances show at once and updates come faster.": "그래서 지갑을 연 뒤 첫 동기화는 최소 몇 분(보통 2~5분) 걸립니다. 새 기기에서 Zcash와 Pirate Chain을 처음 동기화하면 30분 이상 걸릴 수 있습니다. 그다음부터는 마지막 잔액이 바로 보이고 갱신도 빨라집니다.",
+"A separate address for each EVM chain": "EVM 체인마다 별도 주소 사용",
+"BNB Chain, Polygon and Arbitrum each get an address of their own instead of sharing your Ethereum address, so one address doesn't link your activity on all four. Switching changes those receiving addresses and reopens the wallet. Coins on the other addresses show again when you switch back, so move them first.": "BNB Chain, Polygon, Arbitrum이 이더리움 주소를 같이 쓰지 않고 각자 자기 주소를 가집니다. 그래서 주소 하나로 네 체인의 활동이 묶이지 않습니다. 바꾸면 이 체인들의 받는 주소가 바뀌고 지갑이 다시 열립니다. 다른 주소에 있는 코인은 다시 되돌리면 보이니, 먼저 옮겨 두세요.",
+"Could not install Tor: {0}": "Tor를 설치하지 못했습니다: {0}",
+"{0} {1} is on a public address. Tap to make it private.": "{0} {1}이(가) 공개 주소에 있습니다. 눌러서 비공개로 옮기세요."
 }

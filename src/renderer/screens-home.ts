@@ -113,6 +113,7 @@ function syncLabel(): HTMLElement {
 function renderHome(): void {
   const totalValue = h('div', { class: 'value', id: 'total' });
   const note = h('div', { class: 'total-note', id: 'total-note' });
+  const waiting = h('div', { id: 'make-private' });
   const eye = h('button', { class: 'icon-btn', id: 'eye', 'aria-label': 'Hide balances', onclick: () => {
     hideBalance = !hideBalance;
     try { localStorage.setItem('hideBalance', hideBalance ? '1' : '0'); } catch { /* no storage */ }
@@ -131,6 +132,8 @@ function renderHome(): void {
     const t = totalUsd();
     totalValue.textContent = t.value;
     note.textContent = t.note;
+    setKids(waiting, ...publicWaiting().map((w) => h('button', { class: 'warn private-prompt', id: `make-private-${w.asset}`, onclick: w.open },
+      `${w.amount} ${coinName(w.asset)} is on a public address. Tap to make it private.`)));
     setKids(eye, icon(hideBalance ? 'eyeOff' : 'eye'));
     torChip.hidden = !torState;
     if (torState) {
@@ -145,6 +148,7 @@ function renderHome(): void {
     h('div', { class: 'top' }, h('div', { class: 'acct' }, walletButton(), torChip)),
     h('div', { class: 'total' }, totalValue, spin, eye),
     note,
+    waiting,
     h('div', { class: 'actions' },
       h('button', { class: 'action', id: 'go-send', onclick: () => renderSend() }, h('span', { class: 'box' }, icon('send')), 'Send'),
       h('button', { class: 'action', id: 'go-receive', onclick: () => void renderReceive() }, h('span', { class: 'box' }, icon('receive')), 'Receive'),
@@ -157,6 +161,23 @@ function renderHome(): void {
   paint();
   if (homeTab === 'assets') setKids(body, list);
   else void renderAllHistory(body);
+}
+
+/**
+ * Coins that arrived on a public address while a private balance is ready for them. Moving them needs the password,
+ * so the home screen asks, and one tap opens that step.
+ */
+function publicWaiting(): { asset: Asset; amount: string; open: () => void }[] {
+  if (!overview || hideBalance) return [];
+  const out: { asset: Asset; amount: string; open: () => void }[] = [];
+  const num = (v: unknown) => Number(v ?? 0) || 0;
+  const zecT = num(overview.zec?.transparent);
+  if (zecT > 0) out.push({ asset: 'ZEC', amount: shortAmount(String(overview.zec.transparent)), open: () => { selected = 'ZEC'; renderZecShield(); } });
+  const ltcPublic = num(overview.balances?.LTC?.total) - num(overview.mweb?.balance?.total);
+  if (overview.mweb?.ready && overview.balances?.LTC?.ok && !overview.balances.LTC.stale && ltcPublic > 0) out.push({ asset: 'LTC', amount: shortAmount(ltcPublic.toFixed(8)), open: () => { selected = 'LTC'; void ltcPrivateStep(); } });
+  const firoPublic = num(overview.balances?.FIRO?.total) - num(overview.spark?.balance?.total);
+  if (overview.spark?.ready && overview.balances?.FIRO?.ok && !overview.balances.FIRO.stale && firoPublic > 0) out.push({ asset: 'FIRO', amount: shortAmount(firoPublic.toFixed(8)), open: () => { selected = 'FIRO'; void firoPrivateStep(); } });
+  return out;
 }
 
 let openGroups = new Set<Asset>();

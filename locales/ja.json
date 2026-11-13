@@ -1249,5 +1249,12 @@
 "Choose how many others to hide each coin among.": "各コインを何人の中に隠すか選んでください。",
 "First sync of {0} on this device, which can take a while. The total doesn't include them yet.": "{0} をこの端末で初めて同期しています。時間がかかることがあります。合計にはまだ含まれていません。",
 "Loading {0} balances. First sync of {1} on this device, which can take a while. The total doesn't include them yet.": "{0} の残高を読み込み中です。{1} をこの端末で初めて同期しています。時間がかかることがあります。合計にはまだ含まれていません。",
-"Running in the background": "バックグラウンドで実行中"
+"Running in the background": "バックグラウンドで実行中",
+"Why syncing takes a while": "同期に時間がかかる理由",
+"To keep your coins private, every connection goes through Tor (three relays around the world), each coin and each group of addresses has a Tor route of its own, sends leave on yet another, and Zcash, Pirate Chain, Zano, Litecoin MWEB and Firo Spark read the blockchain on this device instead of asking a server.": "コインを非公開に保つため、すべての接続はTor（世界中の3つの中継）を通ります。コインごと、アドレスのまとまりごとに別のTor経路を使い、送金はさらに別の経路で出ます。Zcash、Pirate Chain、Zano、Litecoin MWEB、Firo Sparkはサーバーに問い合わせず、この端末でブロックチェーンを読みます。",
+"So after opening the wallet, the first sync takes at least a few minutes (usually 2 to 5). The first sync of Zcash and Pirate Chain on a new device can take 30 minutes or more. After that, your last balances show at once and updates come faster.": "そのため、ウォレットを開いた後の最初の同期には少なくとも数分（通常2〜5分）かかります。新しい端末でのZcashとPirate Chainの初回同期は30分以上かかることがあります。その後は前回の残高がすぐに表示され、更新も速くなります。",
+"A separate address for each EVM chain": "EVMチェーンごとに別のアドレス",
+"BNB Chain, Polygon and Arbitrum each get an address of their own instead of sharing your Ethereum address, so one address doesn't link your activity on all four. Switching changes those receiving addresses and reopens the wallet. Coins on the other addresses show again when you switch back, so move them first.": "BNB Chain、Polygon、ArbitrumがEthereumのアドレスを共有せず、それぞれ専用のアドレスを持ちます。1つのアドレスで4つのチェーンの活動が結びつきません。切り替えるとこれらの受取アドレスが変わり、ウォレットが開き直されます。別のアドレスにあるコインは元に戻すと再び表示されるので、先に移してください。",
+"Could not install Tor: {0}": "Torをインストールできませんでした: {0}",
+"{0} {1} is on a public address. Tap to make it private.": "{0} {1} が公開アドレスにあります。タップして非公開にしてください。"
 }

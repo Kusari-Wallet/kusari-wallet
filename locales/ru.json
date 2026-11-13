@@ -1249,5 +1249,12 @@
 "Choose how many others to hide each coin among.": "Выберите, среди скольких других скрывать каждую монету.",
 "First sync of {0} on this device, which can take a while. The total doesn't include them yet.": "Первая синхронизация {0} на этом устройстве, это может занять время. Итог их пока не учитывает.",
 "Loading {0} balances. First sync of {1} on this device, which can take a while. The total doesn't include them yet.": "Загрузка балансов {0}. Первая синхронизация {1} на этом устройстве, это может занять время. Итог их пока не учитывает.",
-"Running in the background": "Работает в фоне"
+"Running in the background": "Работает в фоне",
+"Why syncing takes a while": "Почему синхронизация занимает время",
+"To keep your coins private, every connection goes through Tor (three relays around the world), each coin and each group of addresses has a Tor route of its own, sends leave on yet another, and Zcash, Pirate Chain, Zano, Litecoin MWEB and Firo Spark read the blockchain on this device instead of asking a server.": "Чтобы сохранить приватность, каждое соединение идёт через Tor (три ретранслятора по миру), у каждой монеты и каждой группы адресов свой маршрут Tor, отправки уходят ещё одним, а Zcash, Pirate Chain, Zano, Litecoin MWEB и Firo Spark читают блокчейн на этом устройстве, а не спрашивают сервер.",
+"So after opening the wallet, the first sync takes at least a few minutes (usually 2 to 5). The first sync of Zcash and Pirate Chain on a new device can take 30 minutes or more. After that, your last balances show at once and updates come faster.": "Поэтому после открытия кошелька первая синхронизация занимает минимум несколько минут (обычно 2–5). Первая синхронизация Zcash и Pirate Chain на новом устройстве может занять 30 минут и больше. Дальше последние балансы видны сразу, а обновления быстрее.",
+"A separate address for each EVM chain": "Отдельный адрес для каждой сети EVM",
+"BNB Chain, Polygon and Arbitrum each get an address of their own instead of sharing your Ethereum address, so one address doesn't link your activity on all four. Switching changes those receiving addresses and reopens the wallet. Coins on the other addresses show again when you switch back, so move them first.": "BNB Chain, Polygon и Arbitrum получают каждая свой адрес вместо общего с Ethereum, так что один адрес не связывает вашу активность во всех четырёх сетях. Переключение меняет эти адреса получения и заново открывает кошелёк. Монеты на других адресах снова появятся при переключении обратно, поэтому сначала переведите их.",
+"Could not install Tor: {0}": "Не удалось установить Tor: {0}",
+"{0} {1} is on a public address. Tap to make it private.": "{0} {1} на публичном адресе. Нажмите, чтобы сделать приватным."
 }

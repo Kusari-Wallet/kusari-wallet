@@ -128,6 +128,9 @@ export class TorManager extends EventEmitter {
     this.emit('state', this.state);
   }
 
+  /** Shows a problem that kept Tor from starting at all (a failed first install, say). */
+  reportError(message: string): void { this.patch({ phase: 'error', percent: 0, error: message }); }
+
   isInstalled(): boolean {
     return Boolean(this.opts.socksOverride) || existsSync(this.binPath);
   }

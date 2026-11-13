@@ -2,6 +2,7 @@
 import { EventEmitter } from 'node:events';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
+import { Records, lockedRecords, plainRecords, recordsKey, sealedRecords } from './records';
 import { balanceCacheKey, readBalanceCache, writeBalanceCache, SavedBalance, SAVED_BALANCE_MAX_AGE_MS } from './balance-cache';
 import path from 'node:path';
 import { formatAmount, parseAmount } from './amount';
@@ -9,6 +10,7 @@ import { Asset, BTC_APIS, BTC_ONION_APIS, DECIMALS, FIRO_APIS, SOL_RPCS, BCH_API
 import { MIN_PASSWORD, Secrets, Vault } from './vault';
 import { TronClient, deriveTronAccount, generateTronMnemonic } from './tron';
 import { socksAgent, getJson, newTorRoute } from './request';
+import type { Agent } from 'node:http';
 import { AAVE_MARKETS, aaveCall, readAave } from './aave';
 import { ScrtClient, scrtPrivacyKeys, scrtPublicKey } from './scrt';
 import { BITCOIN, BITCOIN_MIXED, BTC_MIXED_PATH, BTC_PATH, BtcClient, LITECOIN, btcAccountXpub, coinId, ltcAccountXpub } from './btc';
@@ -105,6 +107,8 @@ export class ServiceCore extends EventEmitter {
     nativeTor?: boolean;
   } = {}) {
     super();
+    // The test harness's stand-in servers aren't reachable over Tor, so its wallets start with Tor off.
+    if (dev.tronHost) this.settings.torEnabled = false;
     this.dir = baseDir;
     this.vault = new Vault(path.join(baseDir, 'vault.json'), kdf);
     this.tor = new TorManager(path.join(baseDir, 'tor'), { binPath: dev.torBin, socksOverride: dev.socks, sources: dev.socks ? { bundleBases: [], keyUrls: [], fingerprint: '' } : undefined });
@@ -116,7 +120,11 @@ export class ServiceCore extends EventEmitter {
 
   async init(): Promise<void> {
     try {
-      this.settings = { ...DEFAULT_SETTINGS, ...JSON.parse(await fs.readFile(this.settingsPath, 'utf8')) };
+      const saved = JSON.parse(await fs.readFile(this.settingsPath, 'utf8'));
+      this.settings = { ...DEFAULT_SETTINGS, ...saved };
+      // Tor is on by default from 0.57. Settings saved before then had it off by default, so it is turned on once;
+      // anyone who wants it off can still switch it off, and that choice stays.
+      if (!saved.torDefaultOn && !this.dev.tronHost) { this.settings.torEnabled = true; this.settings.torDefaultOn = true; await fs.writeFile(this.settingsPath, JSON.stringify(this.settings, null, 2), { mode: 0o600 }).catch(() => undefined); }
     } catch { /* first run */ }
     this.settings.network = 'mainnet'; // The app is mainnet only, including for older settings files.
     await this.tor.loadInstalledVersion();
@@ -236,6 +244,7 @@ export class ServiceCore extends EventEmitter {
     await this.vault.save(password, secrets);
     await this.commitPendingWallet();
     this.draftSeeds = null;
+    await this.writeEvmLayout(true);
     await this.startSession(secrets);
   }
 
@@ -294,7 +303,18 @@ export class ServiceCore extends EventEmitter {
     } else {
       this.tor.useDirect();
     }
-    if (this.torActive) { this.applyBridge(); this.tor.start(); } // Before anything tries to use it.
+    if (this.torActive) {
+      this.applyBridge();
+      // Tor is on by default, so the first unlock on a computer fetches it (checked as when installed by hand).
+      // Nothing goes out without it meanwhile: balances wait, as while Tor connects.
+      if (this.dev.nativeTor || this.tor.isInstalled()) this.tor.start();
+      else {
+        const gen = this.sessionGen;
+        void this.tor.install((message) => this.emit('tor-install', message))
+          .then(() => { if (gen === this.sessionGen && this.torActive) this.tor.start(); })
+          .catch((e) => { if (gen === this.sessionGen) this.tor.reportError(`Could not install Tor: ${(e as Error).message}`); });
+      }
+    }
     const net = NETWORKS[this.settings.network];
     const account = deriveTronAccount(secrets.tronMnemonic);
     const route = this.dev.route ?? ((u: string) => u);
@@ -312,19 +332,21 @@ export class ServiceCore extends EventEmitter {
     this.btc = new BtcClient(btcAccountXpub(secrets.tronMnemonic), btcApis, btcAgent, slow ? 60_000 : 30_000, BITCOIN, () => newTorRoute(btcAgent));
     if (this.dev.btcApi) this.btc.spacingMs = 0;
     const scanFile = path.join(this.dir, 'btc-scan.json');
-    try { this.btc.importHints(JSON.parse(await fs.readFile(scanFile, 'utf8') as unknown as string)); } catch { /* first time */ }
-    this.btc.onHints = (hints) => { void fs.mkdir(this.dir, { recursive: true }).then(() => fs.writeFile(scanFile, JSON.stringify(hints), { mode: 0o600 })).catch(() => undefined); };
+    try { const h = await this.records.read(scanFile); if (h) this.btc.importHints(h); } catch { /* damaged: scanned afresh */ }
+    this.btc.onHints = (hints) => { void this.records.write(scanFile, hints).catch(() => undefined); };
     if (!this.torNotReady) void this.btc.refresh().catch(() => undefined);
     // Its own Tor route, so the server can't tie the CoinJoin account's addresses to the regular ones.
     const mixedAgent = ownBtc && isLocalServer(ownBtc) ? undefined : this.torRoute('btc-mixed');
     this.btcMixed = new BtcClient(btcAccountXpub(secrets.tronMnemonic, BTC_MIXED_PATH), btcApis, mixedAgent, slow ? 60_000 : 30_000, BITCOIN_MIXED, () => newTorRoute(mixedAgent));
     if (this.dev.btcApi) this.btcMixed.spacingMs = 0;
     const mixedScanFile = path.join(this.dir, 'btc-mixed-scan.json');
-    try { this.btcMixed.importHints(JSON.parse(await fs.readFile(mixedScanFile, 'utf8') as unknown as string)); } catch { /* first time */ }
-    this.btcMixed.onHints = (hints) => { void fs.mkdir(this.dir, { recursive: true }).then(() => fs.writeFile(mixedScanFile, JSON.stringify(hints), { mode: 0o600 })).catch(() => undefined); };
+    try { const h = await this.records.read(mixedScanFile); if (h) this.btcMixed.importHints(h); } catch { /* damaged: scanned afresh */ }
+    this.btcMixed.onHints = (hints) => { void this.records.write(mixedScanFile, hints).catch(() => undefined); };
     if (!this.torNotReady) void this.btcMixed.refresh().catch(() => undefined);
     this.startBtcMixer();
     this.ltc = new BtcClient(ltcAccountXpub(secrets.tronMnemonic), this.dev.ltcApi ? [this.dev.ltcApi] : LTC_APIS, this.torRoute('ltc'), slow ? 60_000 : 30_000, LITECOIN);
+    if (!ownBtc || !isLocalServer(ownBtc)) { this.btc.lookupRoutes = this.lookupRoutes('btc'); this.btcMixed.lookupRoutes = this.lookupRoutes('btc-mixed'); }
+    this.ltc.lookupRoutes = this.lookupRoutes('ltc');
     if (this.dev.ltcApi) this.ltc.spacingMs = 0;
     this.scrt = new ScrtClient(scrtPublicKey(secrets.tronMnemonic), this.dev.scrtLcd ? this.dev.scrtLcd.split(',') : SCRT_LCDS, this.torRoute('scrt'), slow ? 60_000 : 20_000, scrtPrivacyKeys(secrets.tronMnemonic));
     this.firo = new FiroClient(firoAccountXpub(secrets.tronMnemonic), this.dev.firoApi ? [this.dev.firoApi] : FIRO_APIS, this.torRoute('firo'), slow ? 60_000 : 20_000);
@@ -335,10 +357,11 @@ export class ServiceCore extends EventEmitter {
     this.dash = new DashClient(dashAccountXpub(secrets.tronMnemonic), this.dev.dashApi ? [this.dev.dashApi] : DASH_APIS, this.torRoute('dash'), slow ? 60_000 : 20_000);
     this.startMixer(secrets, slow);
     this.eth = new EthClient(this.dev.ethRpc ? [this.dev.ethRpc] : ETH_RPCS, this.dev.ethScout ?? ETH_SCOUT, ETH_USDT, deriveEthAccount(secrets.tronMnemonic).address, this.torRoute('eth'), slow ? 60_000 : 15_000);
-    const evmAddress = deriveEthAccount(secrets.tronMnemonic).address;
-    this.pol = new EthClient(this.dev.polRpc ? [this.dev.polRpc] : POL_RPCS, this.dev.polScout ?? POL_SCOUT, this.dev.polUsdt ?? '', evmAddress, this.torRoute('pol'), slow ? 60_000 : 15_000, POLYGON);
-    this.arb = new EthClient(this.dev.arbRpc ? [this.dev.arbRpc] : ARB_RPCS, this.dev.arbScout ?? ARB_SCOUT, this.dev.arbUsdt ?? '', evmAddress, this.torRoute('arb'), slow ? 60_000 : 15_000, ARBITRUM);
-    this.bsc = new EthClient(this.dev.bscRpc ? [this.dev.bscRpc] : BSC_RPCS, this.dev.bscScout ?? BSC_SCOUT, '', evmAddress, this.torRoute('bsc'), slow ? 60_000 : 15_000, BSC);
+    this.evmSplit = await this.readEvmLayout();
+    this.settings.evmSeparate = this.evmSplit;
+    this.pol = new EthClient(this.dev.polRpc ? [this.dev.polRpc] : POL_RPCS, this.dev.polScout ?? POL_SCOUT, this.dev.polUsdt ?? '', deriveEthAccount(secrets.tronMnemonic, this.evmIndex(POLYGON.id)).address, this.torRoute('pol'), slow ? 60_000 : 15_000, POLYGON);
+    this.arb = new EthClient(this.dev.arbRpc ? [this.dev.arbRpc] : ARB_RPCS, this.dev.arbScout ?? ARB_SCOUT, this.dev.arbUsdt ?? '', deriveEthAccount(secrets.tronMnemonic, this.evmIndex(ARBITRUM.id)).address, this.torRoute('arb'), slow ? 60_000 : 15_000, ARBITRUM);
+    this.bsc = new EthClient(this.dev.bscRpc ? [this.dev.bscRpc] : BSC_RPCS, this.dev.bscScout ?? BSC_SCOUT, '', deriveEthAccount(secrets.tronMnemonic, this.evmIndex(BSC.id)).address, this.torRoute('bsc'), slow ? 60_000 : 15_000, BSC);
     // WalletConnect wallets are gone: one made before opens as a maximum-privacy wallet, same seed, same addresses.
     void fs.rm(path.join(this.dir, 'mode.json'), { force: true }).catch(() => undefined);
     void fs.rm(path.join(this.dir, 'walletconnect.json'), { force: true }).catch(() => undefined);
@@ -376,7 +399,7 @@ export class ServiceCore extends EventEmitter {
   protected startBtcMixer(): void {
     const btc = this.btc!, mixed = this.btcMixed!;
     const mixer = new BtcMixer({
-      dir: this.dir,
+      dir: this.dir, records: this.records,
       coordinator: () => this.dev.coinjoinCoordinator ?? this.settings.coinjoinCoordinator ?? COINJOIN_COORDINATORS[0].url,
       newAgent: () => { if (!this.torProxy) return undefined; const a = socksAgent(this.torProxy); newTorRoute(a); return a; },
       coins: async () => (await btc.coins()).filter((u) => u.confirmed).map((u) => ({ txid: u.txid, vout: u.vout, value: u.value, script: btcScript(u.address) })),
@@ -449,7 +472,7 @@ export class ServiceCore extends EventEmitter {
     const dial = devConnect ? (_h: string, _p: number) => real(devConnect[1], Number(devConnect[2])) : real;
     const mixer = new DashMixer({
       apis: this.dev.dashApi ? [this.dev.dashApi] : DASH_APIS, agent: this.torRoute('dash-mix'), timeoutMs: slow ? 60_000 : 20_000,
-      dir: this.dir, dial, seeds: this.dev.dashSeeds,
+      dir: this.dir, records: this.records, dial, seeds: this.dev.dashSeeds,
     }, DashMixer.account(secrets.tronMnemonic));
     this.mixer = mixer;
     void (async () => {
@@ -592,6 +615,11 @@ export class ServiceCore extends EventEmitter {
     if (this.balanceSaveTimer) await this.saveBalancesNow();
     this.balanceKey?.fill(0);
     this.balanceKey = null;
+    if (this.recordKey) {
+      this.recordKey.fill(0); // anything still holding the records object now writes nothing
+      this.recordKey = null;
+      this.records = lockedRecords;
+    }
     this.savedBalances = new Map();
     this.torActive = false;
     this.previews.clear();
@@ -684,6 +712,11 @@ export class ServiceCore extends EventEmitter {
     this.tor.setBridge(b, custom);
   }
 
+  /** Several Tor routes for one coin's address lookups (see BtcClient.lookupRoutes); none without Tor. */
+  protected lookupRoutes(name: string, count = 4): { agent: Agent; renew: () => void }[] {
+    if (!this.torActive) return [];
+    return Array.from({ length: count }, (_, i) => this.torRoute(`${name}-${i}`)).filter((a): a is NonNullable<typeof a> => Boolean(a)).map((agent) => ({ agent, renew: () => newTorRoute(agent) }));
+  }
   protected torRoute(name: string): ReturnType<typeof socksAgent> | undefined {
     if (!this.torProxy) return undefined;
     const agent = socksAgent(this.torProxy);
@@ -765,7 +798,12 @@ export class ServiceCore extends EventEmitter {
   protected balancesFile = '';
   protected savedBalances = new Map<string, SavedBalance>();
   protected balanceSaveTimer: ReturnType<typeof setTimeout> | null = null;
+  /** The wallet's records on this device, encrypted while a wallet is unlocked (see records.ts). */
+  protected records: Records = plainRecords;
+  protected recordKey: Uint8Array | null = null;
   protected async loadSavedBalances(seed: string): Promise<void> {
+    this.recordKey = recordsKey(seed);
+    this.records = sealedRecords(this.recordKey);
     this.balanceKey = balanceCacheKey(seed);
     this.balancesFile = path.join(this.dir, `balances-${this.settings.network}.enc`);
     this.savedBalances = await readBalanceCache(this.balancesFile, this.balanceKey);
@@ -904,7 +942,7 @@ export class ServiceCore extends EventEmitter {
       mweb: this.mweb ? { ...this.mweb.info(), balance: this.mweb.balance() ? { total: formatAmount(this.mweb.balance()!.total, 8), spendable: formatAmount(this.mweb.balance()!.spendable, 8) } : null } : null,
       arrr: arrr ? { scanning: arrr.isScanning, percent: arrr.percent } : null,
       zec: zec ? { ...zec.state(), address: zec.receive?.unified ?? '', transparentAddress: zec.transparentAddress } : null,
-      addresses: { ...Object.fromEntries(EVM.map((a) => [a, eth.address])), BTC: btc.receiveAddress, XMR: await monero.getPrimaryAddress(), ETH: eth.address, TRX: tron.address, USDTE: eth.address, USDT: tron.address, DASH: dash.receiveAddress, FIRO: firo.receiveAddress, SOL: this.sol!.receiveAddress, USDTS: this.sol!.receiveAddress, USDCS: this.sol!.receiveAddress, ORCA: this.sol!.receiveAddress, PUMP: this.sol!.receiveAddress, BCH: bareBch(this.bch!.receiveAddress), LTC: this.ltc!.receiveAddress, SCRT: this.scrt!.address, SSCRT: this.scrt!.address, DOGE: this.doge!.receiveAddress, ...(this.ada ? { ADA: this.ada.receiveAddress } : {}), ...(zec ? { ZEC: zec.receive?.unified ?? '' } : {}), ...(zano ? { ZANO: zano.receive } : {}), ...(arrr ? { ARRR: arrr.receive } : {}) },
+      addresses: { ...Object.fromEntries(EVM.map((a) => [a, this.evm(a).address])), BTC: btc.receiveAddress, XMR: await monero.getPrimaryAddress(), ETH: eth.address, TRX: tron.address, USDTE: eth.address, USDT: tron.address, DASH: dash.receiveAddress, FIRO: firo.receiveAddress, SOL: this.sol!.receiveAddress, USDTS: this.sol!.receiveAddress, USDCS: this.sol!.receiveAddress, ORCA: this.sol!.receiveAddress, PUMP: this.sol!.receiveAddress, BCH: bareBch(this.bch!.receiveAddress), LTC: this.ltc!.receiveAddress, SCRT: this.scrt!.address, SSCRT: this.scrt!.address, DOGE: this.doge!.receiveAddress, ...(this.ada ? { ADA: this.ada.receiveAddress } : {}), ...(zec ? { ZEC: zec.receive?.unified ?? '' } : {}), ...(zano ? { ZANO: zano.receive } : {}), ...(arrr ? { ARRR: arrr.receive } : {}) },
       monero: monero.state,
     };
   }
@@ -913,7 +951,7 @@ export class ServiceCore extends EventEmitter {
   async addresses() {
     const { tron, monero, btc, eth, dash } = this.session();
     // Every Ethereum, Polygon and Arbitrum coin and token lives on the one 0x address.
-    return { ...Object.fromEntries(EVM.map((a) => [a, eth.address])), DASH: dash.receiveAddress, FIRO: this.firo!.receiveAddress, SOL: this.sol!.receiveAddress, USDTS: this.sol!.receiveAddress, USDCS: this.sol!.receiveAddress, ORCA: this.sol!.receiveAddress, PUMP: this.sol!.receiveAddress, BCH: bareBch(this.bch!.receiveAddress), LTC: this.ltc!.receiveAddress, SCRT: this.scrt!.address, SSCRT: this.scrt!.address, DOGE: this.doge!.receiveAddress, ...(this.ada ? { ADA: this.ada.receiveAddress } : {}), BTC: btc.receiveAddress, XMR: await monero.getPrimaryAddress(), ETH: eth.address, TRX: tron.address, USDTE: eth.address, USDT: tron.address, ...(this.zec ? { ZEC: this.zec.receive?.unified ?? '', ZEC_T: this.zec.transparentAddress } : {}), ...(this.zano ? { ZANO: this.zano.receive } : {}), ...(this.arrr ? { ARRR: this.arrr.receive } : {}) };
+    return { ...Object.fromEntries(EVM.map((a) => [a, this.evm(a).address])), DASH: dash.receiveAddress, FIRO: this.firo!.receiveAddress, SOL: this.sol!.receiveAddress, USDTS: this.sol!.receiveAddress, USDCS: this.sol!.receiveAddress, ORCA: this.sol!.receiveAddress, PUMP: this.sol!.receiveAddress, BCH: bareBch(this.bch!.receiveAddress), LTC: this.ltc!.receiveAddress, SCRT: this.scrt!.address, SSCRT: this.scrt!.address, DOGE: this.doge!.receiveAddress, ...(this.ada ? { ADA: this.ada.receiveAddress } : {}), BTC: btc.receiveAddress, XMR: await monero.getPrimaryAddress(), ETH: eth.address, TRX: tron.address, USDTE: eth.address, USDT: tron.address, ...(this.zec ? { ZEC: this.zec.receive?.unified ?? '', ZEC_T: this.zec.transparentAddress } : {}), ...(this.zano ? { ZANO: this.zano.receive } : {}), ...(this.arrr ? { ARRR: this.arrr.receive } : {}) };
   }
 
   async torInfo() {
@@ -952,6 +990,27 @@ export class ServiceCore extends EventEmitter {
 
 
   /** The client for the chain an EVM coin or token lives on. */
+  /**
+   * Each EVM chain on an address of its own (Polygon, Arbitrum and BNB Chain on indexes 1-3 of the usual path), so one
+   * address doesn't tie a person's activity on four chains together. Wallets made before this, and restored ones (other
+   * wallets use one address everywhere), keep the shared address until switched in the settings.
+   */
+  protected evmSplit = false;
+  protected get evmLayoutPath() { return path.join(this.dir, 'evm-layout.json'); }
+  protected async readEvmLayout(): Promise<boolean> {
+    try { return JSON.parse(String(await fs.readFile(this.evmLayoutPath, 'utf8')))?.split === true; } catch { return false; }
+  }
+  protected async writeEvmLayout(split: boolean): Promise<void> {
+    await fs.mkdir(this.dir, { recursive: true });
+    await fs.writeFile(this.evmLayoutPath, JSON.stringify({ split }), { mode: 0o600 });
+  }
+  protected evmIndex(chainId: bigint): number {
+    if (!this.evmSplit) return 0;
+    return chainId === POLYGON.id ? 1 : chainId === ARBITRUM.id ? 2 : chainId === BSC.id ? 3 : 0;
+  }
+  /** The key for an EVM coin's own chain address. */
+  protected evmAccount(asset: Asset, mnemonic: string) { return deriveEthAccount(mnemonic, this.evmIndex(chainOf(asset as EthAsset).id)); }
+
   protected evm(asset: Asset): EthClient {
     const id = chainOf(asset as EthAsset).id;
     const client = id === POLYGON.id ? this.pol : id === ARBITRUM.id ? this.arb : id === BSC.id ? this.bsc : this.session().eth;
@@ -1053,7 +1112,7 @@ export class ServiceCore extends EventEmitter {
   /** Your notes on Bitcoin coins and which are frozen, kept on this device only. */
   protected async btcCoinNotes(): Promise<{ labels: Record<string, string>; frozen: string[] }> {
     try {
-      const j = JSON.parse(await fs.readFile(this.btcCoinsPath, 'utf8') as unknown as string);
+      const j = await this.records.read(this.btcCoinsPath);
       const labels = j?.labels && typeof j.labels === 'object' ? Object.fromEntries(Object.entries(j.labels).filter(([k, v]) => COIN_ID.test(k) && typeof v === 'string')) as Record<string, string> : {};
       const frozen = Array.isArray(j?.frozen) ? j.frozen.filter((k: unknown): k is string => typeof k === 'string' && COIN_ID.test(k)) : [];
       return { labels, frozen };

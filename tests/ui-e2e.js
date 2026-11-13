@@ -233,10 +233,11 @@ const PASSWORD = 'correct horse battery';
   if (await page.locator('#review-amount').count()) await page.click('#back');
   await page.locator('#detail-receive').waitFor();
   await page.click('#detail-receive');
-  await page.locator('#ltc-address-kind').waitFor({ timeout: 30000 });
-  await page.click('#ltc-address-kind');
-  await page.locator('#my-address', { hasText: /^ltcmweb1/ }).waitFor({ timeout: 20000 });
+  // The private (MWEB) address comes first; the public one is a tap away.
+  await page.locator('#my-address', { hasText: /^ltcmweb1/ }).waitFor({ timeout: 30000 });
   assert.match(await page.locator('.screen').innerText(), /private \(MWEB\) Litecoin address/);
+  await page.click('#ltc-address-kind');
+  await page.locator('#my-address', { hasText: /^ltc1/ }).waitFor({ timeout: 20000 });
   await page.click('#back');
   await page.locator('#asset-TRX').waitFor();
   await page.click('#asset-TRX');
@@ -271,7 +272,10 @@ const PASSWORD = 'correct horse battery';
     await page.click('#spark-mint');
     await page.locator('#toast', { hasText: /public FIRO/ }).waitFor({ timeout: 30000 });
     await page.click('#detail-receive');
-    await page.locator('#firo-address-kind').waitFor({ timeout: 30000 });
+    // The private (Spark) address comes first; the public one is a tap away.
+    await page.locator('#my-address', { hasText: /^sm1/ }).waitFor({ timeout: 30000 });
+    await page.click('#firo-address-kind');
+    await page.locator('#my-address', { hasText: /^[aZ]/ }).waitFor({ timeout: 20000 });
     await page.click('#firo-address-kind');
     await page.locator('#my-address', { hasText: /^sm1/ }).waitFor({ timeout: 20000 });
     assert.match(await page.locator('.screen').innerText(), /private \(Spark\) Firo address/);
@@ -1035,7 +1039,9 @@ const PASSWORD = 'correct horse battery';
     await page.locator('#review-amount').waitFor({ timeout: 30000 });
     assert.match(await page.locator('#review-amount').innerText(), /0\.0029/, 'max is all of the chosen coin, less the fee');
     const notes = JSON.parse(fs.readFileSync(fs.readdirSync(data, { recursive: true }).map((f) => path.join(data, f)).find((f) => f.endsWith('btc-coins.json')), 'utf8'));
-    assert.deepEqual(notes, { labels: { [`${C}:2`]: 'from the exchange' }, frozen: [`${A}:0`] });
+    // Kept on the device encrypted: neither the label nor the coin shows in the file.
+    assert.equal(notes.sealed, 1);
+    assert.doesNotMatch(JSON.stringify(notes), /exchange|abab/);
     await page.click('#back');
     await page.click('#back');
     await page.locator('#asset-TRX').waitFor();

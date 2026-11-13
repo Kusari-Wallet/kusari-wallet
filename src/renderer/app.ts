@@ -19,6 +19,7 @@ async function renderSettings(): Promise<void> {
   const key = h('input', { id: 'set-key', value: s.tronApiKey, spellcheck: 'false', autocomplete: 'off' });
   const auto = h('input', { id: 'set-auto', type: 'number', min: '1', max: '240', value: String(s.autoLockMinutes) });
   const showPrices = h('input', { type: 'checkbox', id: 'set-prices', checked: s.showPrices });
+  const evmSeparate = h('input', { type: 'checkbox', id: 'set-evm-separate', checked: Boolean(s.evmSeparate) });
   const zecInfo = await wallet.zecInfo();
   const zanoInfo = await wallet.zanoInfo();
   const arrrInfo = await wallet.arrrInfo();
@@ -66,7 +67,7 @@ async function renderSettings(): Promise<void> {
       await wallet.installTor();
       tor.installed = true;
     }
-    const relocked = await wallet.updateSettings({ customMoneroNode: node.value, customBtcServer: btcServer.value, customZanoNode: zanoNode.value, coinjoinCoordinator: coordinator.value === 'custom' ? coordinatorUrl.value : coordinator.value, coinjoinTarget: Number(mixTarget.value), tronApiKey: key.value, autoLockMinutes: Number(auto.value), showPrices: showPrices.checked, ...(tor.allowed === false ? {} : { torEnabled: useTor.checked, torBridge: bridge.value, torBridgeLines: bridgeLines.value }) });
+    const relocked = await wallet.updateSettings({ customMoneroNode: node.value, customBtcServer: btcServer.value, customZanoNode: zanoNode.value, coinjoinCoordinator: coordinator.value === 'custom' ? coordinatorUrl.value : coordinator.value, coinjoinTarget: Number(mixTarget.value), tronApiKey: key.value, autoLockMinutes: Number(auto.value), showPrices: showPrices.checked, evmSeparate: evmSeparate.checked, ...(tor.allowed === false ? {} : { torEnabled: useTor.checked, torBridge: bridge.value, torBridgeLines: bridgeLines.value }) });
     if (!relocked) { saved.textContent = 'Saved.'; void refresh(); }
   }) }, 'Save');
 
@@ -126,6 +127,9 @@ async function renderSettings(): Promise<void> {
   show('send',
     h('div', { class: 'bar' }, h('span', {}), h('h2', {}, 'Settings'), h('span', {})),
     h('div', { class: 'scroll' },
+      h('div', { class: 'section', id: 'sync-note' }, h('h3', {}, 'Why syncing takes a while'),
+        h('p', { class: 'small' }, 'To keep your coins private, every connection goes through Tor (three relays around the world), each coin and each group of addresses has a Tor route of its own, sends leave on yet another, and Zcash, Pirate Chain, Zano, Litecoin MWEB and Firo Spark read the blockchain on this device instead of asking a server.'),
+        h('p', { class: 'small' }, 'So after opening the wallet, the first sync takes at least a few minutes (usually 2 to 5). The first sync of Zcash and Pirate Chain on a new device can take 30 minutes or more. After that, your last balances show at once and updates come faster.')),
       h('div', { class: 'section', id: 'language-section' }, h('h3', {}, 'Language'),
         h('select', { id: 'set-language', 'aria-label': 'Language', 'data-no-translate': '', onchange: (e: Event) => (window as any).kusariI18n.set((e.target as HTMLSelectElement).value) },
           ...(window as any).kusariI18n.languages.map(([code, name]: [string, string]) => h('option', { value: code, selected: code === (window as any).kusariI18n.current() }, name)))),
@@ -139,6 +143,7 @@ async function renderSettings(): Promise<void> {
         h('label', { class: 'field' }, h('span', {}, 'TronGrid API key'), key, h('div', { class: 'hint' }, 'Works without one. Add a free key if lookups are often limited.')),
         h('label', { class: 'field' }, h('span', {}, 'Auto-lock (minutes)'), auto),
         h('label', { class: 'check' }, showPrices, h('span', {}, 'Show USD prices', h('div', { class: 'hint' }, 'Prices come from CoinGecko, then from other price services and exchanges if it\'s blocked or a coin is missing. Addresses and balances aren\'t sent, but your IP can be seen.'))),
+        h('label', { class: 'check' }, evmSeparate, h('span', {}, 'A separate address for each EVM chain', h('div', { class: 'hint' }, 'BNB Chain, Polygon and Arbitrum each get an address of their own instead of sharing your Ethereum address, so one address doesn\'t link your activity on all four. Switching changes those receiving addresses and reopens the wallet. Coins on the other addresses show again when you switch back, so move them first.'))),
         tor.allowed === false ? copyLog : h('div', { class: 'tor-block', id: 'tor-block' },
           h('h3', {}, 'Tor'), torBox.el, torProgress, torRouteNote,
           h('label', { class: 'check' }, useTor, h('span', {}, 'Connect through Tor',

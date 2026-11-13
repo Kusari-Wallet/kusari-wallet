@@ -358,7 +358,9 @@ async function renderReceive(current?: string): Promise<void> {
   const status = h('span', { class: 'status', role: 'status' });
   const box = errorBox();
   const extra = h('div', {});
-  let address = current ?? addresses?.[asset] ?? '';
+  // Private first where the coin has it: LTC on MWEB, FIRO on Spark (ZEC's first address is already shielded).
+  // The public one stays a tap away, for senders without MWEB or Spark.
+  let address = current ?? (asset === 'LTC' && overview?.mweb?.receive ? overview.mweb.receive : asset === 'FIRO' && overview?.spark?.receive ? overview.spark.receive : addresses?.[asset] ?? '');
   const copy = h('button', { class: 'icon-btn', id: 'copy', disabled: true, 'aria-label': 'Copy address', title: 'Copy address', onclick: async () => {
     await wallet.copy(address); status.textContent = 'Copied. It clears from the clipboard in 60 seconds.';
   } }, icon('copy'));

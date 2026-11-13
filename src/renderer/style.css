@@ -331,3 +331,5 @@ input[type="range"] { padding: 0; border: 0; background: none; accent-color: var
 .coin-row.frozen { opacity: .6; }
 .coin-edit { display: flex; gap: 10px; align-items: center; margin-top: 6px; }
 .coin-edit .coin-label { flex: 1; min-width: 0; padding: 6px 10px; font-size: 13px; }
+/* Public coins waiting to be made private: a tappable notice under the total. */
+.private-prompt { display: block; width: 100%; text-align: left; border: none; font: inherit; font-size: 14px; cursor: pointer; }

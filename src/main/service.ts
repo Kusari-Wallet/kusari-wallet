@@ -148,7 +148,7 @@ export class WalletService extends SendService {
     this.forgetViews();
     const { quote, from, calls } = preview.dex;
     const client = this.evm(from);
-    const account = deriveEthAccount(secrets.tronMnemonic);
+    const account = this.evmAccount(from, secrets.tronMnemonic);
     const now = Math.floor(Date.now() / 1000);
     let swap: DexCall;
     if (quote.provider === 'pancakeswap') {
@@ -167,7 +167,8 @@ export class WalletService extends SendService {
   protected get swapsPath() { return path.join(this.dir, 'swaps.json'); }
 
   async swapList(): Promise<SwapRecord[]> {
-    try { return JSON.parse(await fs.readFile(this.swapsPath, 'utf8') as unknown as string); } catch { return []; }
+    const list = await this.records.read(this.swapsPath).catch(() => undefined);
+    return Array.isArray(list) ? list : [];
   }
 
   /** Older records can name a coin the wallet no longer has, and the screen can't draw those. They stay on disk. */
@@ -177,7 +178,7 @@ export class WalletService extends SendService {
 
   protected async swapSave(list: SwapRecord[]): Promise<void> {
     await fs.mkdir(this.dir, { recursive: true });
-    await fs.writeFile(this.swapsPath, JSON.stringify(list.slice(0, 100)), { mode: 0o600 });
+    await this.records.write(this.swapsPath, list.slice(0, 100));
   }
 
   async swapQuote(from: Asset, to: Asset, amountInput: string) {
@@ -251,7 +252,7 @@ export class WalletService extends SendService {
       return this.zec.transparentAddress;
     }
     await (asset === 'LTC' ? this.ltc!.refresh().catch(() => undefined) : asset === 'BCH' ? this.bch!.refresh().catch(() => undefined) : asset === 'DOGE' ? this.doge!.refresh().catch(() => undefined) : asset === 'FIRO' ? this.firo!.refresh().catch(() => undefined) : asset === 'DASH' ? dash.refresh().catch(() => undefined) : asset === 'BTC' ? btc.refresh().catch(() => undefined) : undefined);
-    if (isEvm(asset)) return eth.address;
+    if (isEvm(asset)) return this.evm(asset).address; // each chain's own address
     return asset === 'SOL' || isSpl(asset) ? this.sol!.receiveAddress : asset === 'BCH' ? this.bch!.receiveAddress : asset === 'LTC' ? this.ltc!.receiveAddress : asset === 'SCRT' || asset === 'SSCRT' ? this.scrt!.address : asset === 'DOGE' ? this.doge!.receiveAddress : asset === 'ADA' ? this.ada!.receiveAddress : asset === 'FIRO' ? this.firo!.receiveAddress : asset === 'DASH' ? dash.receiveAddress : asset === 'BTC' ? btc.receiveAddress : asset === 'XMR' ? monero.getPrimaryAddress() : tron.address;
   }
 
@@ -284,12 +285,13 @@ export class WalletService extends SendService {
   protected get privacyPath() { return path.join(this.dir, 'privacy-swaps.json'); }
 
   async privacyList(): Promise<PrivacySwap[]> {
-    try { return JSON.parse(await fs.readFile(this.privacyPath, 'utf8') as unknown as string); } catch { return []; }
+    const list = await this.records.read(this.privacyPath).catch(() => undefined);
+    return Array.isArray(list) ? list : [];
   }
 
   protected async privacySave(list: PrivacySwap[]): Promise<void> {
     await fs.mkdir(this.dir, { recursive: true });
-    await fs.writeFile(this.privacyPath, JSON.stringify(list.slice(0, 50)), { mode: 0o600 });
+    await this.records.write(this.privacyPath, list.slice(0, 50));
   }
 
   protected assertPrivacyPair(from: Asset, to: Asset): void {

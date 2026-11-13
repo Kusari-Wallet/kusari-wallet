@@ -78,3 +78,42 @@ test('after a lock or restart the last balances show at once, marked as recent, 
   assert.ok(key.every((b) => b === 0));
   assert.equal(next.savedBalances.size, 0);
 });
+
+test('records: written encrypted, old plain files read once and rewritten encrypted, nothing after a lock', async (t) => {
+  const { recordsKey, sealedRecords } = require('../dist/main/records');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rc-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const key = recordsKey(SEED);
+  const r = sealedRecords(key);
+  const file = path.join(dir, 'swaps.json');
+  await r.write(file, [{ id: 'x', to: 'bc1qsecretaddress' }]);
+  assert.doesNotMatch(fs.readFileSync(file, 'utf8'), /bc1q|secretaddress/);
+  assert.deepEqual(await r.read(file), [{ id: 'x', to: 'bc1qsecretaddress' }]);
+  assert.equal(await sealedRecords(recordsKey(SEED + ' x')).read(file), undefined, 'another wallet reads nothing');
+  const old = path.join(dir, 'tornado.json');
+  fs.writeFileSync(old, JSON.stringify({ next: 2, notes: [{ tx: '0xabc' }] }));
+  assert.deepEqual(await r.read(old), { next: 2, notes: [{ tx: '0xabc' }] });
+  assert.doesNotMatch(fs.readFileSync(old, 'utf8'), /0xabc/, 'rewritten encrypted');
+  key.fill(0);
+  await r.write(path.join(dir, 'late.json'), { a: 1 });
+  assert.equal(fs.existsSync(path.join(dir, 'late.json')), false, 'a write after the lock is dropped');
+});
+
+test('EVM chains: a new layout gives Polygon, Arbitrum and BNB Chain addresses of their own; the old one shares', async (t) => {
+  const { deriveEthAccount, POLYGON, ARBITRUM, BSC, ETHEREUM } = require('../dist/main/eth');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ev-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const s = new WalletService(dir, undefined, { tronHost: 'http://x' });
+  assert.equal(await s.readEvmLayout(), false, 'older and restored wallets keep the shared address');
+  await s.writeEvmLayout(true);
+  s.evmSplit = await s.readEvmLayout();
+  const idx = [ETHEREUM, POLYGON, ARBITRUM, BSC].map((c) => s.evmIndex(c.id));
+  assert.deepEqual(idx, [0, 1, 2, 3]);
+  const addrs = idx.map((i) => deriveEthAccount(SEED, i).address);
+  assert.equal(new Set(addrs).size, 4, 'four different addresses');
+  assert.equal(addrs[0], deriveEthAccount(SEED).address, 'Ethereum keeps the usual one');
+  assert.equal(s.evmAccount('BNB', SEED).address, addrs[3]);
+  assert.equal(s.evmAccount('USDTP', SEED).address, addrs[1], 'a token signs with its chain\'s address');
+  s.evmSplit = false;
+  assert.equal(s.evmAccount('BNB', SEED).address, addrs[0]);
+});

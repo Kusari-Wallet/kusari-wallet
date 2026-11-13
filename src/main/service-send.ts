@@ -30,8 +30,9 @@ import { COINJOIN_COORDINATORS, MIX_TARGETS } from './btc-mix';
 import type { InsightUtxo } from './insight';
 import { chainOf, deriveEthAccount, isEthAddress } from './eth';
 import { TOR_BRIDGES, TorBridge, parseCustomBridges } from './tor-bridges';
-import { COIN_ID, checkOwnServer, isSpl, isEvm, EVM_EXPLORER, PREVIEW_TTL_MS, Preview, withTimeoutValue } from './service-common';
+import { checkOwnServer, COIN_ID, EVM_EXPLORER, isEvm, isSpl, Preview, PREVIEW_TTL_MS, withTimeoutValue } from './service-common';
 import { ServiceCore } from './service-core';
+import type { Secrets } from './vault';
 
 export class SendService extends ServiceCore {
   async flush(): Promise<void> { await this.monero?.flush(); }
@@ -98,7 +99,7 @@ export class SendService extends ServiceCore {
 
   // ---- Tornado Cash: fixed ETH pools on mainnet ----
 
-  protected get tornadoStore() { return new TornadoStore(this.dir, this.baseDir); }
+  protected get tornadoStore() { return new TornadoStore(this.dir, this.baseDir, this.records); }
   protected get tornadoPoolMap(): Record<string, string> { return this.dev.tornadoPools ?? TORNADO_POOLS; }
   protected poolAddress(pool: string): string {
     const address = this.tornadoPoolMap[pool];
@@ -286,7 +287,7 @@ export class SendService extends ServiceCore {
     }
     if (typeof change.frozen === 'boolean') notes.frozen = change.frozen ? [...new Set([...notes.frozen, id])] : notes.frozen.filter((k) => k !== id);
     await fs.mkdir(this.dir, { recursive: true });
-    await fs.writeFile(this.btcCoinsPath, JSON.stringify(notes), { mode: 0o600 });
+    await this.records.write(this.btcCoinsPath, notes);
     return { ok: true };
   }
 
@@ -414,7 +415,7 @@ export class SendService extends ServiceCore {
       }
     } else if (isEvm(asset)) {
       if (!isEthAddress(address)) throw new Error('Not an Ethereum address. Only addresses starting with 0x can be used.');
-      if (address.toLowerCase() === eth.address.toLowerCase()) throw new Error('You cannot send to your own address.');
+      if (address.toLowerCase() === eth.address.toLowerCase() || address.toLowerCase() === this.evm(asset).address.toLowerCase()) throw new Error('You cannot send to your own address.');
       const chain = chainOf(asset);
       const draft = await this.evm(asset).draft(asset, address, isMax ? 'max' : parseAmount(amountInput, decimals));
       if (asset === chain.native && isMax) warnings.push(`If the actual fee is lower than expected, a little ${chain.symbol} stays behind.`);
@@ -482,6 +483,14 @@ export class SendService extends ServiceCore {
     this.previews.delete(id); // one shot: a retry must go through a fresh preview
     this.balanceMemo.clear(); // money is about to move
     this.forgetViews();
+    // The send leaves on a Tor route of its own, and lookups carry on on yet another one afterwards, so the server
+    // that takes the transaction can't tie it to the addresses this wallet just looked up.
+    this.renewTorRoute(preview.asset);
+    try { return await this.broadcastPreview(preview, secrets); } finally { this.renewTorRoute(preview.asset); }
+  }
+
+  protected async broadcastPreview(preview: Preview, secrets: Secrets) {
+    const { tron, monero, btc, eth, dash } = this.session();
 
     if (preview.arrr) {
       if (!this.arrr) throw new Error('The Pirate Chain engine is off.');
@@ -532,7 +541,7 @@ export class SendService extends ServiceCore {
       return { hashes: [await btc.send(preview.btc, secrets.tronMnemonic)] };
     }
     if (preview.eth) {
-      return { hashes: [await this.evm(preview.eth.asset).send(preview.eth, deriveEthAccount(secrets.tronMnemonic).wallet)] };
+      return { hashes: [await this.evm(preview.eth.asset).send(preview.eth, this.evmAccount(preview.eth.asset, secrets.tronMnemonic).wallet)] };
     }
     if (preview.monero) {
       const hashes = await monero.relay(preview.monero);
@@ -775,16 +784,21 @@ export class SendService extends ServiceCore {
     if (typeof patch.autoLockMinutes === 'number' && patch.autoLockMinutes >= 1 && patch.autoLockMinutes <= 240) {
       next.autoLockMinutes = Math.floor(patch.autoLockMinutes);
     }
+    // Each EVM chain on its own address, or all on one: the wallet reopens with the other addresses.
+    const evmChanged = typeof patch.evmSeparate === 'boolean' && Boolean(this.tron) && patch.evmSeparate !== this.evmSplit;
+    if (evmChanged) await this.writeEvmLayout(patch.evmSeparate as boolean);
     const reconnect = next.network !== this.settings.network
       || next.customMoneroNode !== this.settings.customMoneroNode
       || next.customBtcServer !== this.settings.customBtcServer
       || next.customZanoNode !== this.settings.customZanoNode
       || next.tronApiKey !== this.settings.tronApiKey
-      || next.torEnabled !== this.settings.torEnabled;
+      || next.torEnabled !== this.settings.torEnabled
+      || evmChanged;
     const bridgeChanged = next.torBridge !== this.settings.torBridge || next.torBridgeLines !== this.settings.torBridgeLines;
     this.settings = next;
     await fs.mkdir(this.dir, { recursive: true });
-    await fs.writeFile(this.settingsPath, JSON.stringify(next, null, 2), { mode: 0o600 });
+    const { evmSeparate: _perWallet, ...saved } = next;
+    await fs.writeFile(this.settingsPath, JSON.stringify(saved, null, 2), { mode: 0o600 });
     // A new way in only restarts Tor; the wallet stays open, and traffic waits for Tor as at any restart.
     if (bridgeChanged && this.torActive) this.applyBridge();
     if (reconnect && this.tron) await this.lock();

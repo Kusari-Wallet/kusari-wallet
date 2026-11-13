@@ -1249,5 +1249,12 @@
 "Choose how many others to hide each coin among.": "Her coinin kaç kişi arasında gizleneceğini seçin.",
 "First sync of {0} on this device, which can take a while. The total doesn't include them yet.": "{0} bu cihazda ilk kez eşitleniyor, biraz sürebilir. Toplam henüz bunları içermiyor.",
 "Loading {0} balances. First sync of {1} on this device, which can take a while. The total doesn't include them yet.": "{0} bakiyeleri yükleniyor. {1} bu cihazda ilk kez eşitleniyor, biraz sürebilir. Toplam henüz bunları içermiyor.",
-"Running in the background": "Arka planda çalışıyor"
+"Running in the background": "Arka planda çalışıyor",
+"Why syncing takes a while": "Eşitleme neden zaman alır",
+"To keep your coins private, every connection goes through Tor (three relays around the world), each coin and each group of addresses has a Tor route of its own, sends leave on yet another, and Zcash, Pirate Chain, Zano, Litecoin MWEB and Firo Spark read the blockchain on this device instead of asking a server.": "Coinlerinizi gizli tutmak için her bağlantı Tor'dan (dünyanın dört bir yanındaki üç aktarıcı) geçer, her coin ve her adres grubu kendi Tor rotasını kullanır, gönderimler başka bir rotadan çıkar ve Zcash, Pirate Chain, Zano, Litecoin MWEB ve Firo Spark bir sunucuya sormak yerine blok zincirini bu cihazda okur.",
+"So after opening the wallet, the first sync takes at least a few minutes (usually 2 to 5). The first sync of Zcash and Pirate Chain on a new device can take 30 minutes or more. After that, your last balances show at once and updates come faster.": "Bu yüzden cüzdanı açtıktan sonraki ilk eşitleme en az birkaç dakika sürer (genellikle 2 ila 5). Yeni bir cihazda Zcash ve Pirate Chain'in ilk eşitlemesi 30 dakika veya daha uzun sürebilir. Sonrasında son bakiyeleriniz hemen görünür ve güncellemeler daha hızlı gelir.",
+"A separate address for each EVM chain": "Her EVM zinciri için ayrı adres",
+"BNB Chain, Polygon and Arbitrum each get an address of their own instead of sharing your Ethereum address, so one address doesn't link your activity on all four. Switching changes those receiving addresses and reopens the wallet. Coins on the other addresses show again when you switch back, so move them first.": "BNB Chain, Polygon ve Arbitrum, Ethereum adresinizi paylaşmak yerine her biri kendi adresini alır; böylece tek bir adres dört zincirdeki etkinliğinizi birbirine bağlamaz. Değiştirmek bu alıcı adreslerini değiştirir ve cüzdanı yeniden açar. Diğer adreslerdeki coinler geri döndüğünüzde yeniden görünür, bu yüzden önce onları taşıyın.",
+"Could not install Tor: {0}": "Tor yüklenemedi: {0}",
+"{0} {1} is on a public address. Tap to make it private.": "{0} {1} herkese açık bir adreste. Gizli yapmak için dokunun."
 }

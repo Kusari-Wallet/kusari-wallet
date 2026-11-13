@@ -132,6 +132,10 @@ export interface Settings {
   autoLockMinutes: number;
   showPrices: boolean;
   torEnabled: boolean;
+  /** Set once Tor has been turned on by default (0.57): older settings files had it off without anyone choosing that. */
+  torDefaultOn?: boolean;
+  /** The open wallet's EVM layout (each chain its own address); kept with the wallet, not in the settings file. */
+  evmSeparate?: boolean;
   /** How Tor connects: auto, straight, or through Snowflake, obfs4 or the user's own bridges. */
   torBridge: 'auto' | 'none' | 'snowflake' | 'obfs4' | 'custom';
   torBridgeLines: string;
@@ -150,7 +154,8 @@ export const DEFAULT_SETTINGS: Settings = {
   tronApiKey: '',
   autoLockMinutes: 10,
   showPrices: true,
-  torEnabled: false,
+  torEnabled: true,
+  torDefaultOn: true,
   torBridge: 'auto',
   torBridgeLines: '',
   simpleSwapKey: '',

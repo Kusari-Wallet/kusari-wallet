@@ -144,7 +144,7 @@ export class BtcClient {
    * A server that said "too many requests" is left alone for a while, and so is one that didn't answer, so the rest of
    * a scan goes straight to the next server. Each failure also moves to a new Tor route.
    */
-  private async get(path: string): Promise<any> {
+  private async get(path: string, agent: Agent | undefined = this.agent, onFailure: (() => void) | undefined = this.onFailure): Promise<any> {
     const turn = this.queue.then(async () => {
       let last: unknown;
       const now = Date.now();
@@ -153,7 +153,7 @@ export class BtcClient {
       const order = open.length ? open : this.apis.filter((b) => !this.cooling.get(b)?.limited);
       for (const base of order) {
         try {
-          const value = isBlockbook(base) ? await blockbookGet(base, path, { agent: this.agent, timeoutMs: this.timeoutMs }) : await getJson(base + path, { agent: this.agent, timeoutMs: this.timeoutMs });
+          const value = isBlockbook(base) ? await blockbookGet(base, path, { agent, timeoutMs: this.timeoutMs }) : await getJson(base + path, { agent, timeoutMs: this.timeoutMs });
           this.cooling.delete(base);
           return value;
         } catch (e) {
@@ -161,7 +161,7 @@ export class BtcClient {
           const limited = /429/.test((e as Error).message);
           // A plain "not found" or bad request is an answer, not a server that's down. A refusal (403) is a blocked route.
           if (!/\((400|404)\)/.test((e as Error).message)) this.cooling.set(base, { until: Date.now() + (limited ? COOLDOWN_MS : DOWN_MS), limited });
-          this.onFailure?.();
+          onFailure?.();
         }
       }
       if (!last || /429/.test((last as Error).message)) throw new Error(`The ${this.coin.symbol} server is limiting requests for now. Your coins are safe, and it will retry automatically.`);
@@ -172,10 +172,26 @@ export class BtcClient {
   }
 
   /** An address lookup, reusing what a scan that broke off already learned. */
+  /**
+   * Over Tor, each address is looked up on one of several routes, picked afresh for every scan, so no one server
+   * connection sees this wallet's whole list of addresses. An address and its coins share a route.
+   */
+  lookupRoutes: { agent: Agent; renew: () => void }[] = [];
+  private scanSalt = Math.random().toString(36);
+  private routeFor(path: string): { agent: Agent | undefined; renew: (() => void) | undefined } {
+    const address = /^\/address\/([^/]+)/.exec(path)?.[1];
+    if (!address || !this.lookupRoutes.length) return { agent: this.agent, renew: this.onFailure };
+    let h = 0;
+    for (const c of address + this.scanSalt) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+    const r = this.lookupRoutes[h % this.lookupRoutes.length];
+    return { agent: r.agent, renew: r.renew };
+  }
+
   private async getAddress(path: string): Promise<any> {
     const kept = this.resume.get(path);
     if (kept && Date.now() - kept.at < RESUME_MS) return kept.value;
-    const value = await this.get(path);
+    const { agent, renew } = this.routeFor(path);
+    const value = await this.get(path, agent, renew);
     this.resume.set(path, { at: Date.now(), value });
     return value;
   }
@@ -223,6 +239,7 @@ export class BtcClient {
         this.state = { at: Date.now(), utxos: out.utxos, total: out.total, spendable, nextReceive, nextChange, addresses: out.addresses, used: out.used };
         this.lastError = null;
         this.resume.clear();
+        this.scanSalt = Math.random().toString(36); // the next scan spreads addresses differently
         this.onHints?.({ used: [...out.used], nexts: Object.fromEntries(this.nexts), lastFullScan: this.lastFullScan });
       })().catch((e) => { this.lastError = (e as Error).message; throw e; }).finally(() => { this.inFlight = null; });
     }

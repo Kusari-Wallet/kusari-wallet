@@ -5,6 +5,7 @@ import type { Agent } from 'node:http';
 import { getJson, requestJson } from './request';
 import { EthClient } from './eth';
 import { runTornado } from './tornado-run';
+import { Records, plainRecords } from './records';
 
 /** The original immutable mainnet pools. */
 export const TORNADO_POOLS: Record<string, string> = {
@@ -49,14 +50,14 @@ export async function tornadoEngineCheck(): Promise<void> {
 }
 
 export class TornadoStore {
-  constructor(private readonly dir: string, private readonly cacheDir: string = dir) {}
+  constructor(private readonly dir: string, private readonly cacheDir: string = dir, private readonly records: Records = plainRecords) {}
   private get file() { return path.join(this.dir, 'tornado.json'); }
   async read(): Promise<Store> {
-    try { return JSON.parse(await fs.readFile(this.file, 'utf8') as unknown as string); } catch { return { next: 0, notes: [] }; }
+    const s = await this.records.read(this.file).catch(() => undefined);
+    return s && Number.isInteger(s.next) && Array.isArray(s.notes) ? s : { next: 0, notes: [] };
   }
   async write(store: Store): Promise<void> {
-    await fs.mkdir(this.dir, { recursive: true });
-    await fs.writeFile(this.file, JSON.stringify(store), { mode: 0o600 });
+    await this.records.write(this.file, store);
   }
   /** Every commitment ever deposited: an old snapshot, then logs since. The final root check catches any bad data. */
   async leaves(pool: string, address: string, eth: EthClient, opts: { seed: boolean; agent?: Agent; progress: (m: string) => void }): Promise<string[]> {

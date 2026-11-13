@@ -8,6 +8,7 @@ import { getJson, requestJson } from './request';
 import { formatAmount } from './amount';
 import { randomBelow, DashPeer, DashTx, Dial, DASH_PORT, Masternode, MasternodeList, Reader, TxOut, getMnListDiff, hashHex, readMasternodeList, readTx, txBytes, txId } from './dash-p2p';
 import { DENOMS, MAX_ENTRY, OwnCoin, collateralTx, denomBit, isCollateralAmount, isDenom, p2pkh, runSession, signAll, SessionStep, COLLATERAL, MAX_COLLATERAL } from './coinjoin';
+import { Records, plainRecords } from './records';
 
 const { HDKey } = require('@scure/bip32');
 const { mnemonicToSeedSync } = require('@scure/bip39');
@@ -49,6 +50,8 @@ export interface MixOptions {
   agent?: Agent;
   timeoutMs?: number;
   dir: string;
+  /** Where the mixing addresses are kept: encrypted while the wallet is unlocked. */
+  records?: Records;
   dial: Dial;
   /** Nodes to ask for the masternode list, as host or host:port. */
   seeds?: string[];
@@ -78,7 +81,7 @@ export class DashMixer {
   private async load(): Promise<void> {
     if (this.loaded) return;
     try {
-      const s = JSON.parse(await fs.readFile(this.file(), 'utf8'));
+      const s = await (this.opts.records ?? plainRecords).read(this.file());
       if (Number.isInteger(s?.next) && Number.isInteger(s?.next1) && s.addrs && typeof s.addrs === 'object') this.store = s;
     } catch { /* first use, or restored from the seed: found by scanning */ }
     if (!this.store.scanned) await this.recover();
@@ -86,10 +89,7 @@ export class DashMixer {
   }
 
   private async save(): Promise<void> {
-    await fs.mkdir(this.opts.dir, { recursive: true });
-    const tmp = this.file() + '.tmp';
-    await fs.writeFile(tmp, JSON.stringify(this.store));
-    await fs.rename(tmp, this.file());
+    await (this.opts.records ?? plainRecords).write(this.file(), this.store);
   }
 
   /** New addresses on the mixing chain, one per coin: mixing refuses any address used twice. */

@@ -259,6 +259,31 @@ test('a scan that broke off resumes where it stopped', async (t) => {
   assert.equal(hints.balance, undefined, 'no balance in this plain file: the encrypted cache keeps it');
 });
 
+test('over several routes: addresses are spread, an address and its coins share one, and the spread changes per scan', async (t) => {
+  const c = new BtcClient(xpub, []);
+  const used = c.addressAt(0, 0);
+  const m = await counting((a) => (a === used ? { chain_stats: { tx_count: 1, funded_txo_sum: 5000, spent_txo_sum: 0 }, mempool_stats: {} } : null));
+  t.after(() => { m.server.close(); m.server.closeAllConnections(); });
+  const seen = [];
+  const route = (n) => { const agent = new http.Agent(); const orig = agent.addRequest.bind(agent); agent.addRequest = (req, o) => { seen.push([n, req.path]); return orig(req, o); }; return { agent, renew: () => {} }; };
+  const client = new BtcClient(xpub, [m.url]);
+  client.spacingMs = 0;
+  client.lookupRoutes = [route(0), route(1), route(2), route(3)];
+  await client.refresh(true);
+  const byAddress = new Map();
+  for (const [n, p] of seen) {
+    const a = /\/address\/([^/]+)/.exec(p)[1];
+    if (byAddress.has(a)) assert.equal(byAddress.get(a), n, 'an address and its coins on one route');
+    byAddress.set(a, n);
+  }
+  assert.ok(new Set(byAddress.values()).size >= 3, 'spread over the routes');
+  const first = new Map(byAddress);
+  seen.length = 0; byAddress.clear();
+  await client.refresh(true);
+  for (const [n, p] of seen) byAddress.set(/\/address\/([^/]+)/.exec(p)[1], n);
+  assert.ok([...first].some(([a, n]) => byAddress.get(a) !== n), 'a different spread next time');
+});
+
 // Run with PBK_PATH pointing at an unpacked py-bitcoinkernel wheel.
 test("Bitcoin Core's consensus code accepts taproot signatures and rejects tampering", { skip: !process.env.PBK_PATH }, () => {
   const c = new BtcClient(xpub, []);

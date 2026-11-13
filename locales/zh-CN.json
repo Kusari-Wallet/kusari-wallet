@@ -1249,5 +1249,12 @@
 "Choose how many others to hide each coin among.": "请选择每枚币要藏在多少人之中。",
 "First sync of {0} on this device, which can take a while. The total doesn't include them yet.": "{0} 正在此设备上首次同步，可能需要一段时间。总额暂不包含它们。",
 "Loading {0} balances. First sync of {1} on this device, which can take a while. The total doesn't include them yet.": "正在加载 {0} 余额。{1} 正在此设备上首次同步，可能需要一段时间。总额暂不包含它们。",
-"Running in the background": "正在后台运行"
+"Running in the background": "正在后台运行",
+"Why syncing takes a while": "为什么同步需要一些时间",
+"To keep your coins private, every connection goes through Tor (three relays around the world), each coin and each group of addresses has a Tor route of its own, sends leave on yet another, and Zcash, Pirate Chain, Zano, Litecoin MWEB and Firo Spark read the blockchain on this device instead of asking a server.": "为了保护你的隐私，所有连接都经过 Tor（全球三个中继）。每个币、每组地址都有各自的 Tor 线路，发送交易又走另一条线路。Zcash、Pirate Chain、Zano、Litecoin MWEB 和 Firo Spark 在本设备上直接读取区块链，而不是询问服务器。",
+"So after opening the wallet, the first sync takes at least a few minutes (usually 2 to 5). The first sync of Zcash and Pirate Chain on a new device can take 30 minutes or more. After that, your last balances show at once and updates come faster.": "因此打开钱包后，首次同步至少需要几分钟（通常 2 到 5 分钟）。在新设备上首次同步 Zcash 和 Pirate Chain 可能需要 30 分钟或更久。之后会立即显示上次的余额，更新也会更快。",
+"A separate address for each EVM chain": "每条 EVM 链使用单独的地址",
+"BNB Chain, Polygon and Arbitrum each get an address of their own instead of sharing your Ethereum address, so one address doesn't link your activity on all four. Switching changes those receiving addresses and reopens the wallet. Coins on the other addresses show again when you switch back, so move them first.": "BNB Chain、Polygon 和 Arbitrum 各自使用自己的地址，不再共用你的以太坊地址，这样一个地址不会把你在四条链上的活动联系起来。切换会改变这些链的收款地址并重新打开钱包。其他地址上的币在切换回来时会再次显示，所以请先转出。",
+"Could not install Tor: {0}": "无法安装 Tor：{0}",
+"{0} {1} is on a public address. Tap to make it private.": "{0} {1} 在公开地址上。点按将其转为私密。"
 }
