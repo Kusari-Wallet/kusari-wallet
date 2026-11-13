@@ -140,8 +140,9 @@ of received coins can't hide among many like them. The ages decoys are drawn fro
 `--tx-proxy-tor 127.0.0.1:9050 --tx-proxy-node <node>:21081` (give several nodes; onion addresses work) sends this
 node's own transactions, from its wallet or RPC, only through Tor to those nodes' RPC, which start them on a stem
 there. Its peers never get them from it, so they never learn its IP address started anything. Each transaction gets
-its own Tor circuit (a fresh SOCKS login). A failed send, or one nobody broadcast within 90 seconds, is retried
-through Tor to another node, up to 10 times; it never falls back to the open network, and until it has been broadcast
+its own Tor circuit (a fresh SOCKS login). A failed send is retried through Tor after 15 seconds, one nobody broadcast
+within 90 seconds goes to another node, each wait twice the last up to 10 minutes, for as long as the transaction is
+in the pool. It never falls back to the open network (a Tor outage only delays it), and until it has been broadcast
 the node shows it to nobody. The nodes given should broadcast normally: two nodes that pass transactions to each
 other through Tor would wait for each other. `privacy/tor_relay.h`; `tor-test.js` checks it with a stand-in SOCKS5
 proxy, since a real Tor network isn't reachable from the test machine.

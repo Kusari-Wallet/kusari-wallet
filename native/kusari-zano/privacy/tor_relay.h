@@ -9,15 +9,16 @@
 //
 // - Each transaction gets a circuit of its own: Tor isolates streams by SOCKS user name, and each send uses a fresh
 //   random one.
-// - It never falls back to the open network. A send that fails, or a transaction nobody broadcast within 90 seconds,
-//   is sent again through Tor to another node, up to 10 times; after that it stays in the pool, unsent, and the node
-//   says so.
+// - It never falls back to the open network. A send that fails is tried again through Tor after 15 seconds, and one
+//   that went through but that nobody broadcast within 90 seconds is sent to another node; each wait is twice the
+//   last, up to 10 minutes, for as long as the transaction is in the pool (a Tor outage just delays it).
 // - Until it has been broadcast, the pool shows it to nobody (privacy/stem-hiding.js).
 // - The nodes given should broadcast normally: two nodes that pass transactions to each other through Tor would each
 //   wait for the other.
 
 #pragma once
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cstring>
@@ -315,7 +316,7 @@ namespace currency
             continue;
           }
           entry& e = it->second;
-          if (!e.in_flight && e.attempts < max_attempts && now >= e.next_ms)
+          if (!e.in_flight && now >= e.next_ms)
             again.push_back(it->first);
           ++it;
         }
@@ -325,8 +326,9 @@ namespace currency
     }
 
   private:
-    static const unsigned max_attempts = 10;
-    static const uint64_t retry_ms = 90000;
+    static const uint64_t retry_ms = 90000;        // nobody broadcast it after a send that went through
+    static const uint64_t retry_failed_ms = 15000; // a send that failed
+    static const uint64_t retry_max_ms = 600000;
 
     struct entry
     {
@@ -379,20 +381,20 @@ namespace currency
           return;
         entry& e = it->second;
         e.in_flight = false;
-        // Sooner after a failed send, later after one that went through but nobody has broadcast yet.
-        e.next_ms = now + (ok ? retry_ms : retry_ms / 6);
+        // Sooner after a failed send, later after one that went through but nobody has broadcast yet; each wait twice
+        // the last, up to retry_max_ms.
+        uint64_t wait = ok ? retry_ms : retry_failed_ms;
+        for (unsigned i = 1; i < e.attempts && wait < retry_max_ms; ++i)
+          wait *= 2;
+        e.next_ms = now + std::min(wait, retry_max_ms);
         const std::string tx = epee::string_tools::buff_to_hex_nodelimer(id);
         if (ok)
         {
           LOG_PRINT_L0("[TOR] sent tx " << tx << " to " << n.first << ":" << n.second << " through Tor");
         }
-        else if (e.attempts < max_attempts)
-        {
-          LOG_PRINT_YELLOW("[TOR] could not send tx " << tx << " through Tor (" << err << "), trying again", LOG_LEVEL_0);
-        }
         else
         {
-          LOG_PRINT_RED("[TOR] gave up sending tx " << tx << " through Tor (" << err << "); it stays unsent, never on the open network", LOG_LEVEL_0);
+          LOG_PRINT_YELLOW("[TOR] could not send tx " << tx << " through Tor (" << err << "), trying again in " << (e.next_ms - now) / 1000 << " s; never on the open network", LOG_LEVEL_0);
         }
       }).detach();
     }

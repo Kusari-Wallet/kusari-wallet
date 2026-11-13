@@ -227,18 +227,20 @@ async function main() {
   // ring is PoW rewards; a stake's ring is the kind of what it stakes.
   const kind = new Map();
   const genesisBlock = (await rpc(nodes.A.rpc, 'get_blocks_details', { height_start: 0, count: 1 })).blocks[0];
+  const details = async (id) => (await rpc(nodes.A.rpc, 'get_tx_details', { tx_hash: id })).tx_info; // block details leave outputs out
   for (const b of [genesisBlock, ...all]) {
-    (b.transactions_details ?? []).forEach((t, i) => {
-      for (const o of t.outs ?? []) kind.set(String(o.global_index), i === 0 ? (b.type === 0 ? 'PoS reward' : 'PoW reward') : 'regular');
-    });
+    const txs = b.transactions_details ?? [];
+    for (let i = 0; i < txs.length; i++) {
+      for (const o of (await details(txs[i].id)).outs ?? []) kind.set(String(o.global_index), i === 0 ? (b.type === 0 ? 'PoS reward' : 'PoW reward') : 'regular');
+    }
   }
   const ringKinds = (t) => (t.ins ?? []).filter((x) => (x.global_indexes ?? []).length > 1).map((x) => [...new Set(x.global_indexes.map((g) => kind.get(String(g)) ?? '?'))]);
-  const sentTx = (await rpc(nodes.A.rpc, 'get_tx_details', { tx_hash: tx.tx_hash })).tx_info;
+  const sentTx = await details(tx.tx_hash);
   const sentRings = ringKinds(sentTx);
   if (!sentRings.length || sentRings.some((k) => k.length !== 1 || k[0] !== 'PoW reward')) throw new Error(`the send's rings mix kinds: ${JSON.stringify(sentRings)}`);
   let stakeRings = 0;
   for (const b of pos) {
-    for (const k of ringKinds(b.transactions_details[0])) {
+    for (const k of ringKinds(await details(b.transactions_details[0].id))) {
       if (k.length !== 1 || k[0] === '?') throw new Error(`block ${b.height}'s stake ring mixes kinds: ${JSON.stringify(k)}`);
       stakeRings++;
     }

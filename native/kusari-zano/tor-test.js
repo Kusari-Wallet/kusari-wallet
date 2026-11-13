@@ -180,8 +180,8 @@ async function main() {
   const before = asked.length;
   const t2 = await send(a2, COIN);
   console.log('sent', t2, 'with the proxy down');
-  await until('A to try again', async () => /\[TOR\] could not send tx/.test(log('node-A.log')), 120000, 1000);
-  await sleep(20000);
+  // Node logs reach their files late, so this waits a fixed time: A's first try and its retry 15 s later both fail.
+  await sleep(25000);
   if (await known('D', t2) || await shown('D', t2)) throw new Error('D has the transaction although the proxy is down');
   if (await shown('A', t2) || await known('A', t2)) throw new Error('A shows a transaction it has not got out yet');
   if (aLeaks()) throw new Error('A sent the transaction to its peer with the proxy down');
@@ -190,6 +190,7 @@ async function main() {
   // 3. Proxy back: the next try gets it through.
   await socksUp();
   await until('the retry', async () => asked.length > before, 300000, 1000);
+  await until('A to log its failed tries', async () => /\[TOR\] could not send tx/.test(log('node-A.log')), 600000, 2000);
   await until('wallet two to receive the second', async () => BigInt((await rpc(W2, 'getbalance')).balance) === 2n * COIN, 1800000, 10000);
   if (asked.length > before && asked[before].user === q.user) throw new Error('two sends shared a SOCKS login (one Tor circuit)');
   if (aLeaks()) throw new Error('A sent a transaction to its peer');
