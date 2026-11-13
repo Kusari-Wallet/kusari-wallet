@@ -206,7 +206,7 @@ async function main() {
     if (after - before !== want) throw new Error(`block ${b.height} added ${after - before}, the curve says ${want}`);
     before = after;
   }
-  const total = BigInt((await rpc(nodes.A.rpc, 'getinfo', { flags: 0x8000 })).total_coins ?? before);
+  const total = before;
   console.log(`emission ok: ${all.length} blocks, block 1 made ${Number(BigInt(all[0].already_generated_coins) - COIN) / 1e12} KSR, ${Number(total) / 1e12} KSR in all`);
 
   await post(nodes.A.rpc, '/stop_mining', '{}');
