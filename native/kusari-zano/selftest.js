@@ -195,14 +195,16 @@ async function main() {
   const pos = all.filter((b) => b.type === 0);
   if (!pos.length) throw new Error(`no proof-of-stake block after ${POS_START}`);
 
-  // The emission, block by block: what each block added is (supply - before) >> 20, at least the tail.
+  // The emission, block by block: what each block added is (supply - before) >> 20, at least the tail, less the
+  // fees it burned (fees are burned, as in Zano since its HF4, and the total counts only coins that still exist).
   let before = BigInt((await rpc(nodes.A.rpc, 'get_blocks_details', { height_start: 0, count: 1 })).blocks[0].already_generated_coins);
   if (before !== BigInt(params.genesis.amount) * COIN) throw new Error(`genesis made ${before}`);
   for (const b of all) {
     const after = BigInt(b.already_generated_coins);
     let want = (SUPPLY - before) >> SHIFT;
     if (want < TAIL) want = TAIL;
-    if (after - before !== want) throw new Error(`block ${b.height} made ${after - before}, the curve says ${want}`);
+    const burned = BigInt(b.total_fee ?? 0);
+    if (after - before !== want - burned) throw new Error(`block ${b.height} added ${after - before}, the curve says ${want} less ${burned} burned`);
     before = after;
   }
   const total = BigInt((await rpc(nodes.A.rpc, 'getinfo', { flags: 0x8000 })).total_coins ?? before);
