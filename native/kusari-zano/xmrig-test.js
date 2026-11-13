@@ -79,13 +79,13 @@ async function main() {
   let shown = -1;
   await until(`${WANT} blocks from XMRig`, async () => {
     if (/login error|rejected|error:/i.test(read('xmrig.log'))) throw Object.assign(new Error(`xmrig: ${read('xmrig.log').split('\n').filter((l) => /error|rejected/i.test(l)).slice(-3).join(' | ')}`), { fatal: true });
-    const found = (read('node.log').match(/was successfully added to the blockchain/g) || []).length;
+    const found = (read(path.join('chain', 'kusarid.log')).match(/was successfully added to the blockchain/g) || []).length;
     if (found !== shown) { shown = found; console.log(`blocks from the stratum: ${found}`); }
     return found >= WANT;
   }, 3 * 3600000, 5000).catch((e) => { throw e; });
 
   const height = (await rpc(RPC, 'getinfo', { flags: 0 })).height;
-  if (/Miner thread was started/.test(read('node.log'))) throw new Error('the node\'s own miner ran');
+  if (/Miner thread was started/.test(read(path.join('chain', 'kusarid.log')))) throw new Error('the node\'s own miner ran');
   const accepted = (read('xmrig.log').match(/accepted \(/g) || []).length;
   // Every block after the genesis came from XMRig and paid the wallet.
   await until('the wallet to see the rewards', async () => BigInt((await rpc(WALLET, 'getbalance')).balance) > 0n, 300000, 5000);

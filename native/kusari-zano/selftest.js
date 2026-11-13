@@ -106,12 +106,14 @@ function walletRpc(file, port, node, extra = []) {
     '--rpc-bind-ip', '127.0.0.1', '--rpc-bind-port', String(port), '--unsecure-no-auth', '--no-white-list', '--log-level', '0', ...extra], `wallet-${port}.log`);
 }
 
-const log = (name) => { try { return fs.readFileSync(path.join(work, `node-${name}.log`), 'utf8'); } catch { return ''; } };
+// A node's own log in its data folder is written line by line; what it prints goes to its file in buffered pieces.
+const logFile = (name) => path.join(work, `chain-${name}`, 'kusarid.log');
+const log = (name) => { try { return fs.readFileSync(logFile(name), 'utf8'); } catch { return ''; } };
 
 // The end of a log, for checks made while waiting (a refused block logs a long stack, so logs grow fast).
 function logTail(name, bytes = 65536) {
   try {
-    const file = path.join(work, `node-${name}.log`);
+    const file = logFile(name);
     const size = fs.statSync(file).size, fd = fs.openSync(file, 'r');
     const buf = Buffer.alloc(Math.min(bytes, size));
     fs.readSync(fd, buf, 0, buf.length, size - buf.length);
@@ -166,7 +168,7 @@ async function main() {
     const h = (await rpc(nodes.A.rpc, 'getinfo', { flags: 0 })).height;
     if (h !== shown) { shown = h; console.log(`height ${h}`); }
     const refused = /mined block has failed to pass verification|coinbase transaction balance check failed/.exec(logTail('A'));
-    if (refused) throw Object.assign(new Error(`node A refuses its own blocks: ${refused[0]} (see ${work}/node-A.log)`), { fatal: true });
+    if (refused) throw Object.assign(new Error(`node A refuses its own blocks: ${refused[0]} (see ${logFile('A')})`), { fatal: true });
     const b = await rpc(w1, 'getbalance');
     if (BigInt(b.unlocked_balance) < amount * 2n) return false;
     const body = `{"jsonrpc":"2.0","id":0,"method":"transfer","params":{"destinations":[{"address":${JSON.stringify(a2)},"amount":${amount}}],"fee":10000000000,"mixin":15}}`;
@@ -192,7 +194,7 @@ async function main() {
   // Broadcast: public now, so it shows.
   await until('D to list it', async () => ((await rpc(nodes.D.rpc, 'get_all_pool_tx_list', {})).ids ?? []).includes(tx.tx_hash), 60000, 1000)
     .catch(async (e) => { if (!(await rpc(nodes.D.rpc, 'get_tx_details', { tx_hash: tx.tx_hash }).catch(() => null))) throw e; });
-  // A node's log reaches its file in buffered pieces, so its lines can land after D's broadcast: wait for them.
+  // Lines can still land a moment after D's broadcast: wait for them.
   const stem = /\[DANDELION\] stem \d+ tx\(s\) to/;
   try { await until('A\'s stem in its log', async () => stem.test(log('A')), 60000, 1000); } catch { throw new Error('A did not send the transaction along a stem'); }
   try { await until('a middle node\'s stem in its log', async () => stem.test(log('B') + log('C')), 60000, 1000); } catch { throw new Error('the stem did not pass through B or C'); }

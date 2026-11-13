@@ -64,6 +64,8 @@ function start(file, args, log) {
   return p;
 }
 const log = (name) => { try { return fs.readFileSync(path.join(work, name), 'utf8'); } catch { return ''; } };
+// A node's own log in its data folder is written line by line (what it prints reaches its file late).
+const nodeLog = (name) => log(path.join(`chain-${name}`, 'kusarid.log'));
 
 // A SOCKS5 proxy, as Tor's looks from outside: user name/password login (any), CONNECT by host name.
 const asked = [];
@@ -147,7 +149,7 @@ async function send(to, amount) {
 const shown = async (n, h) => ((await rpc(nodes[n].rpc, 'get_all_pool_tx_list', {})).ids ?? []).includes(h);
 const known = async (n, h) => !!(await rpc(nodes[n].rpc, 'get_tx_details', { tx_hash: h }).catch(() => null));
 // What A told its peer: any stem or broadcast of a transaction is a leak.
-const aLeaks = () => /\[DANDELION\] (stem|broadcast|fluff)/.test(log('node-A.log'));
+const aLeaks = () => /\[DANDELION\] (stem|broadcast|fluff)/.test(nodeLog('A'));
 
 async function main() {
   await socksUp();
@@ -155,7 +157,7 @@ async function main() {
   startNode('A', ['--tx-proxy-tor', `127.0.0.1:${SOCKS}`, '--tx-proxy-node', `localhost:${nodes.D.rpc}`], ['D']);
   for (const n of Object.keys(nodes)) await until(`node ${n}`, () => rpc(nodes[n].rpc, 'getinfo', { flags: 0 }), 180000);
   await until('A to connect to D', async () => (await rpc(nodes.A.rpc, 'getinfo', { flags: 0 })).outgoing_connections_count >= 1, 180000);
-  if (!/\[TOR\] this node's own transactions go only through Tor/.test(log('node-A.log'))) throw new Error('A did not take the Tor setting');
+  if (!/\[TOR\] this node's own transactions go only through Tor/.test(nodeLog('A'))) throw new Error('A did not take the Tor setting');
 
   walletRpc(makeWallet('one'), W1, 'A');
   walletRpc(makeWallet('two'), W2, 'D');
@@ -167,7 +169,7 @@ async function main() {
   // 1. Through the proxy.
   const t1 = await send(a2, COIN);
   console.log('sent', t1);
-  await until('the proxy to carry it', async () => asked.length > 0 && /\[TOR\] sent tx/.test(log('node-A.log')), 300000, 1000);
+  await until('the proxy to carry it', async () => asked.length > 0 && /\[TOR\] sent tx/.test(nodeLog('A')), 300000, 1000);
   const q = asked[0];
   if (q.atyp !== 3 || q.host !== 'localhost' || q.port !== nodes.D.rpc) throw new Error(`the proxy was asked for ${JSON.stringify(q)}`);
   if (!q.user) throw new Error('no SOCKS login: Tor could not give the transaction a circuit of its own');
@@ -190,7 +192,7 @@ async function main() {
   // 3. Proxy back: the next try gets it through.
   await socksUp();
   await until('the retry', async () => asked.length > before, 300000, 1000);
-  await until('A to log its failed tries', async () => /\[TOR\] could not send tx/.test(log('node-A.log')), 600000, 2000);
+  await until('A to log its failed tries', async () => /\[TOR\] could not send tx/.test(nodeLog('A')), 600000, 2000);
   await until('wallet two to receive the second', async () => BigInt((await rpc(W2, 'getbalance')).balance) === 2n * COIN, 1800000, 10000);
   if (asked.length > before && asked[before].user === q.user) throw new Error('two sends shared a SOCKS login (one Tor circuit)');
   if (aLeaks()) throw new Error('A sent a transaction to its peer');
