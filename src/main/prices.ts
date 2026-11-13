@@ -190,6 +190,21 @@ export const xtOne = (coin: Asset, url: string): PriceSource => ({
 });
 
 /**
+ * NonKYC, one market. Thinly traded, so it is only asked after MEXC, and a market that is switched off or hasn't
+ * traded for a day is refused.
+ */
+export const nonkycOne = (coin: Asset, url: string): PriceSource => ({
+  name: 'NonKYC', url,
+  parse: (j) => {
+    if (j?.primaryTicker !== coin || j?.symbol !== `${coin}/USDT` || j?.isActive !== true) throw new Error('NonKYC has no such market.');
+    if (!(Number(j.lastTradeAt) > Date.now() - 24 * 3600_000)) throw new Error('NonKYC has had no trade in this market for a day.');
+    const last = Number(j.lastPrice);
+    const before = Number(j.yesterdayPrice);
+    return { [coin]: row(last, before > 0 ? (last / before - 1) * 100 : null) } as PriceMap;
+  },
+});
+
+/**
  * Asked in tiers, each only for what the earlier ones left out. All are small (a few KB), so a slow Tor route still
  * gets an answer; the large all-market lists that used to time out over Tor are gone, except OKX as a last resort.
  */
@@ -201,6 +216,8 @@ export const PRICE_TIERS: PriceSource[][] = [
     // Backups for the coins Kraken doesn't list, where each one trades (checked 2026-11-13): MEXC's answers win.
     xtOne('ZANO', 'https://sapi.xt.com/v4/public/ticker/24h?symbol=zano_usdt'),
     gateOne('ARRR', 'https://api.gateio.ws/api/v4/spot/tickers?currency_pair=ARRR_USDT'),
+    // FIRO trades on MEXC, Biconomy and NonKYC only (CoinGecko, 2026-11-13); Biconomy has no one-market answer.
+    nonkycOne('FIRO', 'https://api.nonkyc.io/api/v2/market/getbysymbol/FIRO_USDT'),
     coinbase('https://api.coinbase.com/v2/exchange-rates?currency=USD'),
   ],
   [okx('https://www.okx.com/api/v5/market/tickers?instType=SPOT')],

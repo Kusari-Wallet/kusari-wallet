@@ -4,7 +4,7 @@ const http = require('node:http');
 const os = require('node:os');
 const fs = require('node:fs');
 const path = require('node:path');
-const { coingecko, kraken, cryptocompare, mexc, gate, binance, okx, bybit, coinbase, gateOne, xtOne, PRICE_SOURCES } = require('../dist/main/prices');
+const { coingecko, kraken, cryptocompare, mexc, gate, binance, okx, bybit, coinbase, gateOne, xtOne, nonkycOne, PRICE_SOURCES } = require('../dist/main/prices');
 const { WalletService } = require('../dist/main/service');
 
 const CG = { bitcoin: { usd: 70000, usd_24h_change: 1 }, ethereum: { usd: 3000, usd_24h_change: 2 }, tron: { usd: 0.3, usd_24h_change: 3 }, tether: { usd: 1, usd_24h_change: 0 }, monero: { usd: 150, usd_24h_change: -1 } };
@@ -62,8 +62,18 @@ test('Gate and XT.com: one pair each, and a pair that stopped trading is no pric
   assert.throws(() => xtOne('ZANO', 'x').parse({ rc: 1, result: null }));
 });
 
+test('NonKYC: one market, its change from yesterday, and a stopped or switched-off market is no price', () => {
+  const m = (over) => ({ symbol: 'FIRO/USDT', primaryTicker: 'FIRO', isActive: true, lastPrice: '0.66', yesterdayPrice: '0.6', lastTradeAt: Date.now() - 60_000, ...over });
+  const f = nonkycOne('FIRO', 'x').parse(m({})).FIRO;
+  assert.equal(f.usd, 0.66);
+  assert.ok(Math.abs(f.change - 10) < 1e-9);
+  assert.throws(() => nonkycOne('FIRO', 'x').parse(m({ lastTradeAt: Date.now() - 2 * 24 * 3600_000 })), /no trade/);
+  assert.throws(() => nonkycOne('FIRO', 'x').parse(m({ isActive: false })));
+  assert.throws(() => nonkycOne('FIRO', 'x').parse(m({ primaryTicker: 'ZANO' })), 'another coin');
+});
+
 test('every source is an https address, and the bulk market lists that timed out over Tor are gone', () => {
-  assert.equal(PRICE_SOURCES.length, 9);
+  assert.equal(PRICE_SOURCES.length, 10);
   for (const s of PRICE_SOURCES) assert.match(s.url, /^https:\/\//);
   assert.ok(!PRICE_SOURCES.some((s) => /\/\/[^/]*(binance|bybit)|ticker\/24hr$|spot\/tickers$/.test(s.url)), 'no whole-market lists');
   assert.ok(PRICE_SOURCES.every((s) => !/gateio|xt\.com/.test(s.url) || /currency_pair=|symbol=/.test(s.url)), 'Gate and XT.com one pair at a time');
@@ -76,8 +86,8 @@ test('CoinGecko alone, and the second tier alone, each price every coin (answers
   const cg = PRICE_TIERS[0][0].parse(rec.coingecko);
   assert.deepEqual(Object.keys(DECIMALS).filter((a) => !cg[a]), [], 'nothing left for the slower tiers');
   let v = {};
-  // A recorded XT.com answer counts as stale a day later, as it should: the other sources still cover ZANO.
-  PRICE_TIERS[1].forEach((s, i) => { try { v = { ...s.parse(rec.tier2[i]), ...v }; } catch (e) { if (s.name !== 'XT.com') throw e; } });
+  // Recorded XT.com and NonKYC answers count as stale a day later, as it should: the other sources still cover ZANO.
+  PRICE_TIERS[1].forEach((s, i) => { try { v = { ...s.parse(rec.tier2[i]), ...v }; } catch (e) { if (s.name !== 'XT.com' && s.name !== 'NonKYC') throw e; } });
   assert.deepEqual(Object.keys(DECIMALS).filter((a) => !v[a]), [], 'a throttled CoinGecko costs no coin its price');
   assert.ok(Math.abs(v.ZANO.change) < 100 && v.ZANO.usd > 0);
 });
