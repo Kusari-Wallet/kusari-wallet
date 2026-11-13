@@ -22,7 +22,18 @@ namespace currency
       cfg.fluff_percent = static_cast<unsigned>(std::min(100, std::max(0, atoi(p))));
     if (const char* e = getenv("KUSARI_TEST_DANDELION_EMBARGO_MS"))
       cfg.embargo_avg_ms = static_cast<uint64_t>(std::max(0, atoi(e)));
+    if (const char* d = getenv("KUSARI_TEST_DANDELION_FLUFF_DELAY_MS"))
+      cfg.fluff_delay_avg_ms = static_cast<uint64_t>(std::max(0, atoi(d)));
     m_dandelion.set_config(cfg);
+    // The pool shows nothing that is still on its stem here (privacy/stem-hiding.js). It asks from outside this
+    // lock: nothing here calls the pool while holding it.
+    m_core.get_tx_pool().kusari_set_private_check([this](const crypto::hash& h) {
+      const std::string id(reinterpret_cast<const char*>(&h), sizeof(h));
+      if (m_kusari_tor.is_pending(id))
+        return true; // on its way through Tor
+      CRITICAL_REGION_LOCAL(m_dandelion_lock);
+      return m_dandelion.is_private(id);
+    });
   }
   //------------------------------------------------------------------------------------------------------------------------
   template<class t_core>
@@ -43,6 +54,8 @@ namespace currency
   void t_currency_protocol_handler<t_core>::dandelion_seen_fluff(const std::list<blobdata>& txs)
   {
     auto entries = dandelion_entries(txs);
+    for (const auto& e : entries)
+      m_kusari_tor.seen(e.id);
     CRITICAL_REGION_LOCAL(m_dandelion_lock);
     for (const auto& e : entries)
       m_dandelion.seen_fluff(e.id);
@@ -114,6 +127,12 @@ namespace currency
   void t_currency_protocol_handler<t_core>::dandelion_tick()
   {
     const uint64_t now = epee::misc_utils::get_tick_count();
+    // This node's own transactions sent through Tor: again through Tor if nobody broadcast them yet.
+    m_kusari_tor.tick(now, [this](const std::string& id) {
+      crypto::hash h = null_hash;
+      memcpy(&h, id.data(), sizeof(h));
+      return m_core.get_tx_pool().have_tx(h);
+    });
     typename dandelion_router<boost::uuids::uuid>::due_work w;
     {
       CRITICAL_REGION_LOCAL(m_dandelion_lock);

@@ -122,6 +122,26 @@ int main()
     CHECK(r.queued() == 1);
   }
 
+  // Private until broadcast: under embargo, or waiting out the delay; public once sent or seen broadcast.
+  {
+    router r(rng);
+    router::tx_entry a{"a", "blob-a"}, b{"b", "blob-b"}, c{"c", "blob-c"};
+    CHECK(!r.is_private("a"));
+    r.embargo(a, 0);
+    r.fluff(b, 0);
+    r.embargo(c, 0);
+    CHECK(r.is_private("a") && r.is_private("b") && r.is_private("c"));
+    r.seen_fluff("c");
+    CHECK(!r.is_private("c"));
+    r.due(10 * 5 * 1000); // b sent; a's random embargo may be over too
+    CHECK(!r.is_private("b") && r.is_private("a") == (r.embargoed() == 1));
+    r.due(10 * 39 * 1000); // a's embargo over: this node broadcasts it
+    CHECK(!r.is_private("a"));
+    r.fluff(b, 0);
+    r.seen_fluff("b"); // queued, but someone else broadcast it first
+    CHECK(!r.is_private("b"));
+  }
+
   // The numbers: about 20% of epochs fluff, delays average 39 s and 5 s.
   {
     router r(rng);

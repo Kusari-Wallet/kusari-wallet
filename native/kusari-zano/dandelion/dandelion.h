@@ -95,8 +95,12 @@ namespace currency
       m_embargo.emplace(tx.id, std::make_pair(now + sample(m_cfg.embargo_avg_ms), tx.blob));
     }
 
-    // Someone broadcast it, so the embargo is over.
-    void seen_fluff(const std::string& id) { m_embargo.erase(id); }
+    // Someone broadcast it, so the embargo is over and it is public.
+    void seen_fluff(const std::string& id) { m_embargo.erase(id); m_fluff_ids.erase(id); }
+
+    // Still private here: passed along a stem under embargo, or waiting out this node's delay before broadcasting
+    // it. Nobody but the stem's nodes has it yet, so the node shows it to nobody.
+    bool is_private(const std::string& id) const { return m_embargo.count(id) || m_fluff_ids.count(id); }
 
     // Broadcast after a random delay. Ends any embargo on it.
     void fluff(const tx_entry& tx, uint64_t now)

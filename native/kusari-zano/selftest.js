@@ -129,9 +129,11 @@ async function blocks(port, from, to) {
 async function main() {
   // A stems everything and waits long before its own fail-safe, so a broadcast it sees must come from elsewhere.
   startNode('A', { KUSARI_TEST_DANDELION_FLUFF_PERCENT: '0', KUSARI_TEST_DANDELION_EMBARGO_MS: '600000' });
-  startNode('B', { KUSARI_TEST_DANDELION_FLUFF_PERCENT: '0' });
-  startNode('C', { KUSARI_TEST_DANDELION_FLUFF_PERCENT: '0' });
-  startNode('D', {});
+  // B and C hold it under a long embargo too, and D waits about 30 s before broadcasting it: a window in which every
+  // node has it, or not, and none may show it.
+  startNode('B', { KUSARI_TEST_DANDELION_FLUFF_PERCENT: '0', KUSARI_TEST_DANDELION_EMBARGO_MS: '600000' });
+  startNode('C', { KUSARI_TEST_DANDELION_FLUFF_PERCENT: '0', KUSARI_TEST_DANDELION_EMBARGO_MS: '600000' });
+  startNode('D', { KUSARI_TEST_DANDELION_FLUFF_DELAY_MS: '30000' });
   for (const n of Object.keys(nodes)) await until(`node ${n}`, () => rpc(nodes[n].rpc, 'getinfo', { flags: 0 }), 180000);
   await until('the nodes to connect', async () => {
     const counts = await Promise.all(Object.keys(nodes).map(async (n) => {
@@ -175,8 +177,21 @@ async function main() {
   }, 6 * 3600000, 15000);
   console.log('sent', tx.tx_hash);
 
+  // Stem hiding: until D broadcasts it, no node lists it, finds it by id, or counts it.
+  for (const n of Object.keys(nodes)) {
+    const list = (await rpc(nodes[n].rpc, 'get_all_pool_tx_list', {})).ids ?? [];
+    const one = await rpc(nodes[n].rpc, 'get_pool_txs_brief_details', { ids: [tx.tx_hash] }).catch(() => ({}));
+    const size = (await rpc(nodes[n].rpc, 'getinfo', { flags: 0 })).tx_pool_size;
+    if (list.includes(tx.tx_hash) || (one.txs ?? []).length || size !== 0) throw new Error(`node ${n} shows a transaction still on its stem (list ${list.length}, lookup ${(one.txs ?? []).length}, size ${size})`);
+  }
+  if (log('D').includes('[DANDELION] broadcast')) throw new Error('D broadcast before the stem check ended: inconclusive');
+  console.log('stem hiding ok: no node shows it before its broadcast');
+
   // Dandelion++: A handed it to one stem peer and did not broadcast it; D, at the end of the stem, did.
-  await until('D to have it', async () => (await rpc(nodes.D.rpc, 'get_pool_info', {})) && log('D').includes('[DANDELION] broadcast'), 300000, 2000);
+  await until('D to have it', async () => (await rpc(nodes.D.rpc, 'get_pool_info', {})) && log('D').includes('[DANDELION] broadcast'), 700000, 2000);
+  // Broadcast: public now, so it shows.
+  await until('D to list it', async () => ((await rpc(nodes.D.rpc, 'get_all_pool_tx_list', {})).ids ?? []).includes(tx.tx_hash), 60000, 1000)
+    .catch(async (e) => { if (!(await rpc(nodes.D.rpc, 'get_tx_details', { tx_hash: tx.tx_hash }).catch(() => null))) throw e; });
   // A node's log reaches its file in buffered pieces, so its lines can land after D's broadcast: wait for them.
   const stem = /\[DANDELION\] stem \d+ tx\(s\) to/;
   try { await until('A\'s stem in its log', async () => stem.test(log('A')), 60000, 1000); } catch { throw new Error('A did not send the transaction along a stem'); }
@@ -207,6 +222,29 @@ async function main() {
     before = after;
   }
   const total = before;
+
+  // Decoys: every ring holds outputs of one kind only, as the chain shows kinds: the send spent PoW rewards, so its
+  // ring is PoW rewards; a stake's ring is the kind of what it stakes.
+  const kind = new Map();
+  const genesisBlock = (await rpc(nodes.A.rpc, 'get_blocks_details', { height_start: 0, count: 1 })).blocks[0];
+  for (const b of [genesisBlock, ...all]) {
+    (b.transactions_details ?? []).forEach((t, i) => {
+      for (const o of t.outs ?? []) kind.set(String(o.global_index), i === 0 ? (b.type === 0 ? 'PoS reward' : 'PoW reward') : 'regular');
+    });
+  }
+  const ringKinds = (t) => (t.ins ?? []).filter((x) => (x.global_indexes ?? []).length > 1).map((x) => [...new Set(x.global_indexes.map((g) => kind.get(String(g)) ?? '?'))]);
+  const sentTx = (await rpc(nodes.A.rpc, 'get_tx_details', { tx_hash: tx.tx_hash })).tx_info;
+  const sentRings = ringKinds(sentTx);
+  if (!sentRings.length || sentRings.some((k) => k.length !== 1 || k[0] !== 'PoW reward')) throw new Error(`the send's rings mix kinds: ${JSON.stringify(sentRings)}`);
+  let stakeRings = 0;
+  for (const b of pos) {
+    for (const k of ringKinds(b.transactions_details[0])) {
+      if (k.length !== 1 || k[0] === '?') throw new Error(`block ${b.height}'s stake ring mixes kinds: ${JSON.stringify(k)}`);
+      stakeRings++;
+    }
+  }
+  if (!stakeRings) throw new Error('no stake ring to check');
+  console.log(`decoys ok: the send's ${sentRings.length} ring(s) are all PoW rewards, ${stakeRings} stake rings each of one kind`);
   console.log(`emission ok: ${all.length} blocks, block 1 made ${Number(BigInt(all[0].already_generated_coins) - COIN) / 1e12} KSR, ${Number(total) / 1e12} KSR in all`);
 
   await post(nodes.A.rpc, '/stop_mining', '{}');

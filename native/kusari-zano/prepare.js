@@ -183,6 +183,9 @@ function edits(p, genesis) {
   // Windows builds with MinGW-w64 (build-windows.sh).
   require('./windows/mingw')(add);
 
+  // Decoys of the real output's own kind (privacy/decoys.js).
+  require('./privacy/decoys')(add);
+
   if (genesis) {
     // Monero's RandomX in place of ProgPoWZ. contrib/randomx is RandomX at the commit Monero pins.
     list.push({ file: 'src/currency_core/basic_pow_helpers.cpp', whole: fs.readFileSync(path.join(__dirname, 'randomx', 'basic_pow_helpers.cpp'), 'utf8') });
@@ -254,6 +257,10 @@ function edits(p, genesis) {
       '#ifdef ASYNC_RELAY_MODE'].join('\n'));
     add(inl, '      epee::misc_utils::sleep_no_w(500);', '      dandelion_tick();\n      epee::misc_utils::sleep_no_w(500);');
     list.push({ file: inl, append: '\n#include "dandelion_relay.inl"\n' });
+    // The pool shows nothing still on its stem (privacy/stem-hiding.js).
+    require('./privacy/stem-hiding')(add);
+    // This node's own transactions only through Tor, when asked (privacy/tor_relay.h).
+    require('./privacy/tor')(add, list);
 
     add('contrib/CMakeLists.txt', 'add_subdirectory(ethereum)\n', 'add_subdirectory(ethereum)\nadd_subdirectory(randomx)\n');
     add('src/CMakeLists.txt', 'target_link_libraries(currency_core lmdb mdbx)', 'target_link_libraries(currency_core lmdb mdbx randomx)\ntarget_include_directories(currency_core PRIVATE ${CMAKE_SOURCE_DIR}/contrib/randomx/src)');

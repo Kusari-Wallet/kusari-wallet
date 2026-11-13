@@ -85,6 +85,25 @@ test('the stratum speaks XMRig\'s protocol, and the PoW hash is read the way Mon
   assert.strictEqual((pow.match(/return rx_to_pow_order\(result\);/g) || []).length, 2, 'both hashing paths reverse the output');
 });
 
+test('privacy: decoys of the real output\'s kind, stem transactions hidden, own transactions only through Tor', () => {
+  const p = load(PARAMS);
+  const list = edits(p, loadGenesis(path.join(DIR, 'genesis')));
+  const text = list.map((e) => e.to ?? e.whole ?? '').join('\n');
+  // Decoys: the lone decoy of another kind is gone; both ring builders filter by the real output's kind.
+  assert.match(text, /bool include_one_opposite = false;/);
+  assert.strictEqual((text.match(/kusari_kind_of_flags\(oe\.flags\) == (real_kind|stake_kind)/g) || []).length, 2);
+  assert.match(text, /\(target_outputs \+ 1\) \* 8/);
+  // Stem hiding: every listing and lookup asks the router.
+  assert.ok((text.match(/kusari_is_private\(/g) || []).length >= 10);
+  assert.match(fs.readFileSync(path.join(DIR, 'dandelion', 'dandelion.h'), 'utf8'), /bool is_private\(const std::string& id\) const/);
+  // Tor: own transactions go to Tor and return before the stem; a bad setting stops the node.
+  assert.match(text, /if \(m_kusari_tor\.enabled\(\)\)[\s\S]{0,400}m_kusari_tor\.send\(txs[^;]*;\s*return true;/);
+  assert.match(text, /if \(!m_kusari_tor\.configure\(vm\)\)\s*return false;/);
+  const tor = fs.readFileSync(path.join(DIR, 'privacy', 'tor_relay.h'), 'utf8');
+  assert.match(tor, /\\x05\\x01\\x00\\x03/, 'CONNECT by host name, so nothing is resolved outside Tor');
+  assert.ok(!/stem_relay|broadcast_now|relay_transactions/.test(tor), 'the Tor path has no way to the peers');
+});
+
 test('params that would break the chain are refused', () => {
   const good = JSON.parse(fs.readFileSync(PARAMS, 'utf8'));
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kusari-zano-params-'));

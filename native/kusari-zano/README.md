@@ -119,9 +119,32 @@ paper with Monero's parameters, written for Kusari without Monero's code:
 - Stem transactions travel as their own message (`NOTIFY_STEM_TRANSACTIONS`); a broadcast seen from any peer ends the
   embargo.
 
-Known gap: Monero hides transactions still on their stem from its RPC; Kusari doesn't yet. A node whose RPC is
-public shows them in its pool listing, which tells a watcher they are on a stem there. Wallets should send through a
-node of their own or one whose RPC isn't public.
+A transaction still on its stem is private: until it has been broadcast, a node shows it to nobody. Its RPC leaves
+it out of pool listings, lookups by id and the pool size, a block template leaves it out, and "relay the pool" doesn't
+send it (`privacy/stem-hiding.js`). The pool still holds it and checks spends against it.
+
+## Decoys
+
+Anyone can see on the chain which kind an output is: a regular transaction's, a PoW block's reward or a PoS block's
+reward. Zano picks the decoys for a regular transaction from regular outputs and those for a stake from rewards, so
+spending mined coins (every first spend on Kusari for the first 90 days) or staking coins received in a transfer put
+the real output in a ring of the other kind, and it stood out. Kusari picks every decoy from the real output's own
+kind, from the blocks that kind comes from (rewards from any block, PoS rewards from PoS blocks, regular outputs from
+blocks with transactions), and asks for 8 blocks per ring member instead of 2 so enough of one kind turn up. Only when
+the chain holds too few of a kind does a ring fill up with others, and the wallet logs it: early on, the first spends
+of received coins can't hide among many like them. The ages decoys are drawn from stay Zano's, measured on its chain
+(also a block a minute). `privacy/decoys.js`.
+
+## Tor
+
+`--tx-proxy-tor 127.0.0.1:9050 --tx-proxy-node <node>:21081` (give several nodes; onion addresses work) sends this
+node's own transactions, from its wallet or RPC, only through Tor to those nodes' RPC, which start them on a stem
+there. Its peers never get them from it, so they never learn its IP address started anything. Each transaction gets
+its own Tor circuit (a fresh SOCKS login). A failed send, or one nobody broadcast within 90 seconds, is retried
+through Tor to another node, up to 10 times; it never falls back to the open network, and until it has been broadcast
+the node shows it to nobody. The nodes given should broadcast normally: two nodes that pass transactions to each
+other through Tor would wait for each other. `privacy/tor_relay.h`; `tor-test.js` checks it with a stand-in SOCKS5
+proxy, since a real Tor network isn't reachable from the test machine.
 
 ## Files
 
@@ -138,6 +161,8 @@ node of their own or one whose RPC isn't public.
 - `stratum/xmrig-stratum.js`: XMRig's protocol in the node's stratum server.
 - `xmrig-test.js`: XMRig with RandomKSR mining a private chain through that stratum.
 - `build-windows.sh`, `windows/mingw.js`: the Windows build.
+- `privacy/`: decoys of the real output's kind, stem transactions hidden, own transactions through Tor.
+- `tor-test.js`: a node sending through a SOCKS5 proxy, with the proxy up, down and back.
 
 ## Building
 
@@ -181,3 +206,5 @@ To test proof of stake switching on without waiting 129,600 blocks, make a secon
 2. Put two or more always-on nodes in `seedNodes`.
 3. Have miners ready from the first block, and add checkpoints with each release in the first months.
 4. If you want notices or short aliases, make the keys offline as above.
+5. Run `selftest.js` and `tor-test.js` against the release's code, and use Tor for any node that sends.
+6. Check the Windows programs on real Windows (see Windows above).
