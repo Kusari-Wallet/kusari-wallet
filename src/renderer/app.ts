@@ -138,7 +138,8 @@ async function renderSettings(): Promise<void> {
       h('div', { class: 'section' }, h('h3', {}, 'Connections'), netBox.el,
         h('label', { class: 'field' }, h('span', {}, 'Your own Bitcoin server'), btcServer, h('div', { class: 'hint' }, 'The Esplora or mempool API of your own node (for example on Umbrel or Start9), as https://, .onion, or an address on your network. Then only your server learns your Bitcoin addresses. Empty uses public servers.')),
         h('label', { class: 'field' }, h('span', {}, 'Your own Zano node'), zanoNode, h('div', { class: 'hint' }, 'host:port of a Zano node you run. Empty uses the public node.')),
-        h('label', { class: 'field' }, h('span', {}, 'Kusari node'), ksrNode, h('div', { class: 'hint' }, 'host:port of a Kusari (KSR) node. KSR shows up once a node is set: there is no public node before the chain launches. It is reached through Tor like every other server.')),
+        // KSR launches later: a build without its engine shows nothing of it.
+        ksrInfo.available && h('label', { class: 'field' }, h('span', {}, 'Kusari node'), ksrNode, h('div', { class: 'hint' }, 'host:port of a Kusari (KSR) node. KSR shows up once a node is set: there is no public node before the chain launches. It is reached through Tor like every other server.')),
         h('label', { class: 'field' }, h('span', {}, 'Bitcoin CoinJoin coordinator'), coordinator, h('div', { class: 'hint' }, 'The server that runs the CoinJoin rounds. It sees which coins are in a round, but not which outputs belong to whom. These charge no fee.')),
         coordinatorRow,
         h('label', { class: 'field' }, h('span', {}, 'How much to mix Bitcoin'), mixTarget, h('div', { class: 'hint' }, 'Mixed coins go round again until each one shares its amount with that many others. Each round costs a little mining fee.')),
@@ -165,7 +166,7 @@ async function renderSettings(): Promise<void> {
       h('div', { class: 'section', id: 'zano-info' }, h('h3', {}, 'Zano engine'),
         h('p', { class: 'small', id: 'zano-info-state' }, zanoInfo.available ? (zanoInfo.started ? `Running: ${zanoInfo.phase}` : 'Found but not running') : 'Not found'),
         zanoInfo.error && h('p', { class: 'small' }, zanoInfo.error)),
-      h('div', { class: 'section', id: 'ksr-info' }, h('h3', {}, 'Kusari engine'),
+      ksrInfo.available && h('div', { class: 'section', id: 'ksr-info' }, h('h3', {}, 'Kusari engine'),
         h('p', { class: 'small', id: 'ksr-info-state' }, !ksrInfo.available ? 'Not found' : !ksrInfo.hasNode ? 'Found, waiting for a Kusari node' : ksrInfo.started ? `Running: ${ksrInfo.phase}` : 'Found but not running'),
         ksrInfo.error && h('p', { class: 'small' }, ksrInfo.error)),
       h('div', { class: 'section', id: 'zec-info' }, h('h3', {}, 'Zcash engine'),
