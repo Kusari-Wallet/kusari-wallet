@@ -41,6 +41,12 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
 
 /** Point monero-ts at the unpacked worker when running from a packaged app. */
 export function configureMoneroWorker(): void {
+  // Bundled builds carry monero-ts's worker as one file next to the app's own bundle.
+  const bundled = path.join(__dirname, 'monero-worker.js');
+  if (path.basename(__filename) === 'app.js' && existsSync(bundled)) {
+    moneroTs.LibraryUtils.setWorkerDistPath(bundled.replace(`app.asar${path.sep}`, `app.asar.unpacked${path.sep}`));
+    return;
+  }
   const current = moneroTs.LibraryUtils.WORKER_DIST_PATH;
   if (current && current.includes('app.asar') && !current.includes('app.asar.unpacked')) {
     moneroTs.LibraryUtils.setWorkerDistPath(current.replace('app.asar', 'app.asar.unpacked'));

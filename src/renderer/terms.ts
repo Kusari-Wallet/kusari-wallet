@@ -20,7 +20,7 @@ const TERMS: [string, string][] = [
   ['14. Your responsibility to us', 'If your breach of these terms or unlawful use of the app leads to a claim against us, you agree to cover the resulting losses and reasonable costs.'],
   ['15. Name, logo and software', 'The Kusari Wallet name, logo and app belong to their developers. Parts of the app come from other projects under their own licenses, listed in the app\'s third-party notices; those licenses apply to those parts.'],
   ['16. Translations', 'These terms may be shown in other languages for convenience. If a translation differs from the English text, the English text applies.'],
-  ['17. Governing law', 'These terms are governed by the laws of the Republic of Korea, and disputes go to the courts of the Republic of Korea, unless the mandatory consumer laws of your country give you other rights.'],
+  ['17. Disputes', 'A dispute about these terms or the app is decided under the law that applies to the developers, by the courts that are competent for them, unless the mandatory consumer protection law where you live gives you other rights.'],
   ['18. Other terms', 'If part of these terms can\'t be enforced, the rest still applies. Not enforcing a term at one time doesn\'t waive it. These terms are the whole agreement between you and us about the app.'],
   ['19. Contact', 'Questions about these terms can be sent through the contact shown on the official Kusari Wallet download page.'],
 ];

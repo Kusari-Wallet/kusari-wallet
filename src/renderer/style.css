@@ -340,3 +340,7 @@ input[type="range"] { padding: 0; border: 0; background: none; accent-color: var
 .terms-sheet { background: var(--surface); color: var(--text); border: 1px solid var(--line); border-radius: 16px; max-width: 640px; width: 100%; max-height: 90vh; display: flex; flex-direction: column; padding: 18px; }
 .terms-body { overflow-y: auto; margin: 8px 0 14px; }
 .terms-body h3 { margin: 14px 0 4px; font-size: 15px; }
+/* The refresh arrow turns while balances reload. */
+@keyframes refresh-turn { to { transform: rotate(360deg); } }
+#refresh.spinning svg { animation: refresh-turn 0.8s linear infinite; transform-origin: 50% 50%; }
+@media (prefers-reduced-motion: reduce) { #refresh.spinning svg { animation-duration: 2.4s; } }

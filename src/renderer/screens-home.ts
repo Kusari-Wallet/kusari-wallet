@@ -119,7 +119,13 @@ function renderHome(): void {
     try { localStorage.setItem('hideBalance', hideBalance ? '1' : '0'); } catch { /* no storage */ }
     paint();
   } });
-  const spin = h('button', { class: 'icon-btn', id: 'refresh', 'aria-label': 'Refresh', onclick: () => void refresh() }, icon('refresh'));
+  // The arrow turns while the refresh runs, and at least one full turn, so a tap always shows it was taken.
+  const spin: HTMLButtonElement = h('button', { class: 'icon-btn', id: 'refresh', 'aria-label': 'Refresh', onclick: async () => {
+    if (spin.classList.contains('spinning')) return;
+    spin.classList.add('spinning');
+    spin.setAttribute('aria-busy', 'true');
+    try { await Promise.all([refresh(), new Promise((r) => setTimeout(r, 800))]); } finally { spin.classList.remove('spinning'); spin.removeAttribute('aria-busy'); }
+  } }, icon('refresh')) as HTMLButtonElement;
   const torChip = h('span', { class: 'chip tor', id: 'tor-chip', hidden: true });
   const body = h('div', { class: 'scroll' });
   const tab = (id: typeof homeTab, label: string) => h('button', {

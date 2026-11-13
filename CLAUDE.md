@@ -24,6 +24,13 @@ Java WebView (`android/java`) running the same code as an esbuild bundle (`src/a
   (rebuild the test bundle first, it is not rebuilt automatically).
 - `npm run dist:win`, `npm run dist:android`: release builds into `release/` (Android needs the keystore files).
 - Bump `version` in `package.json` and `package-lock.json` for each release.
+- The desktop app runs one bundle: `npm run build` ends with `scripts/bundle-main.js`, which bundles `dist/main/main.js`
+  into `dist/main/app.js` (the package `main`) and monero-ts's worker into `dist/main/monero-worker.js`. Only
+  `web-worker` ships as a package (it starts threads from its own file); every other library is a devDependency and is
+  bundled. A library that must ship as files goes in `dependencies` and `external`. `npm run check:package` checks
+  a Windows build.
+- Swap keys are masked in `src/main/swap-keys.generated.ts` with random bytes made fresh by `scripts/gen-keys.js`
+  on every build.
 
 ## Map
 
