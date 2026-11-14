@@ -610,12 +610,16 @@ export class ServiceCore extends EventEmitter {
    */
   protected async startKsr(secrets: Secrets): Promise<void> {
     const gen = this.sessionGen;
-    if (!this.ksrAvailable || !this.ksrNode) return;
+    // The developer build shows KSR before there is any node: the wallet, its address and the screens work, and
+    // the balance says no node is set. Until one is, the engine is pointed at a local port that refuses (through Tor,
+    // Tor refuses it), so nothing goes anywhere.
+    const node = this.ksrNode || (DEVELOPER_BUILD ? KSR_NO_NODE : '');
+    if (!this.ksrAvailable || !node) return;
     const torPort = this.torActive ? Number((await this.tor.allocate()).match(/:(\d+)$/)?.[1]) : undefined;
     if (this.torActive && !torPort) return; // Never fall back to a direct connection.
     const client = new ZanoClient({
       engine: () => startKsrEngine(this.dev.ksrBin, this.dir),
-      node: this.ksrNode,
+      node,
       socks: torPort,
       canConnect: () => !this.torNotReady,
       onChange: () => this.emit('balance-changed'),
@@ -1010,6 +1014,7 @@ export class ServiceCore extends EventEmitter {
       return { ok: false, pending: true, total: '', spendable: '' };
     };
     const ksrView = (): BalanceView => {
+      if (!this.ksrNode) return { ok: false, total: '', spendable: '', error: 'No Kusari node is set yet. KSR has no public network before it launches: add a node in Settings to try it.' };
       const b = ksr?.balance();
       if (b) return { ok: true, total: formatAmount(b[0], 12), spendable: formatAmount(b[1], 12) };
       if (ksr?.lastError && !this.torNotReady) return { ok: false, total: '', spendable: '', error: this.friendlyError(new Error(ksr.lastError)) };
@@ -1270,6 +1275,9 @@ export class ServiceCore extends EventEmitter {
   }
 
 }
+
+/** Where KSR points with no node set (developer build): a local port nothing listens on. */
+const KSR_NO_NODE = '127.0.0.1:1';
 
 /** The block a private Bitcoin sync starts from for a wallet first used on `date`: a week early, never before taproot. */
 export function btcBirthdayFor(date: Date): number {

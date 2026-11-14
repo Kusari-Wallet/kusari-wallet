@@ -1328,7 +1328,7 @@
 "{0} KSR can be sent now. Received coins can be used after 10 confirmations.": "现在可以发送 {0} KSR。收到的币在 10 次确认后可用。",
 "{0} engine stopped.": "{0} 引擎已停止。",
 "{0} must finish scanning before it can send.": "{0} 需要先完成扫描才能发送。",
-"host:port of a Kusari (KSR) node. KSR shows up once a node is set: there is no public node before the chain launches. It is reached through Tor like every other server.": "Kusari (KSR) 节点的 host:port。设置节点后才会显示 KSR:链上线之前没有公共节点。它和其他所有服务器一样通过 Tor 连接。",
+"host:port of a Kusari (KSR) node. There is no public node before the chain launches: KSR shows its address already, and its balance once a node is set. It is reached through Tor like every other server.": "Kusari（KSR）节点的 host:port。链上线前没有公共节点：现在已能看到 KSR 地址，设置节点后会显示余额。与其他服务器一样通过 Tor 连接。",
 "Developer build: for trying coins and features before release. Keep only test amounts here.": "开发者版本：用于在发布前试用币种和功能。这里只放测试用的小额资金。",
 "A duress password is set.": "已设置胁迫密码。",
 "No duress password is set.": "未设置胁迫密码。",
@@ -1358,5 +1358,6 @@
 "The two duress passwords don't match.": "两次输入的胁迫密码不一致。",
 "Your wallet password": "你的钱包密码",
 "A Bitcoin node sent a filter that does not match.": "一个 Bitcoin 节点发送了不匹配的过滤器。",
-"A Bitcoin node sent the wrong block.": "一个 Bitcoin 节点发送了错误的区块。"
+"A Bitcoin node sent the wrong block.": "一个 Bitcoin 节点发送了错误的区块。",
+"No Kusari node is set yet. KSR has no public network before it launches: add a node in Settings to try it.": "尚未设置 Kusari 节点。KSR 上线前没有公共网络：要试用，请在设置中添加节点。"
 }

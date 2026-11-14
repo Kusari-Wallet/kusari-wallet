@@ -101,13 +101,19 @@
   observer.observe(document.documentElement, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ATTRIBUTES });
   document.documentElement.lang = language;
 
+  let offered = LANGUAGES;
   (window as any).kusariI18n = {
-    languages: LANGUAGES,
+    get languages() { return offered; },
+    /** Offers only these languages (the developer build: English and Korean); any other choice goes back to English. */
+    only(codes: string[]) {
+      offered = LANGUAGES.filter(([c]) => codes.includes(c));
+      if (!offered.some(([c]) => c === language)) (window as any).kusariI18n.set('en');
+    },
     current: () => language,
     /** One string in the current language, for text shown outside the page (an Android notification). */
     t: (text: string) => translate(text),
     set(code: string) {
-      if (!LANGUAGES.some(([c]) => c === code)) return;
+      if (!offered.some(([c]) => c === code)) return;
       language = code;
       try { localStorage.setItem(KEY, code); } catch { /* it just won't be remembered */ }
       document.documentElement.lang = code;

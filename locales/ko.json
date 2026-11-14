@@ -1328,7 +1328,7 @@
 "{0} KSR can be sent now. Received coins can be used after 10 confirmations.": "{0} KSR를 지금 보낼 수 있습니다. 받은 코인은 10회 확인 후 사용할 수 있습니다.",
 "{0} engine stopped.": "{0} 엔진이 멈췄습니다.",
 "{0} must finish scanning before it can send.": "{0}이(가) 스캔을 마쳐야 보낼 수 있습니다.",
-"host:port of a Kusari (KSR) node. KSR shows up once a node is set: there is no public node before the chain launches. It is reached through Tor like every other server.": "Kusari(KSR) 노드의 host:port입니다. 노드를 설정하면 KSR이 나타납니다. 체인이 출시되기 전에는 공개 노드가 없습니다. 다른 모든 서버처럼 Tor를 통해 연결합니다.",
+"host:port of a Kusari (KSR) node. There is no public node before the chain launches: KSR shows its address already, and its balance once a node is set. It is reached through Tor like every other server.": "Kusari(KSR) 노드의 host:port입니다. 체인이 출시되기 전에는 공개 노드가 없습니다. KSR 주소는 지금도 보이고, 잔액은 노드를 설정하면 나타납니다. 다른 모든 서버처럼 Tor를 통해 연결합니다.",
 "Developer build: for trying coins and features before release. Keep only test amounts here.": "개발자용 빌드: 출시 전 코인과 기능을 미리 써 보는 용도입니다. 테스트용 소액만 넣으세요.",
 "A duress password is set.": "긴급 비밀번호가 설정되어 있습니다.",
 "No duress password is set.": "긴급 비밀번호가 설정되어 있지 않습니다.",
@@ -1358,5 +1358,6 @@
 "The two duress passwords don't match.": "두 긴급 비밀번호가 일치하지 않습니다.",
 "Your wallet password": "지갑 비밀번호",
 "A Bitcoin node sent a filter that does not match.": "Bitcoin 노드가 맞지 않는 필터를 보냈습니다.",
-"A Bitcoin node sent the wrong block.": "Bitcoin 노드가 잘못된 블록을 보냈습니다."
+"A Bitcoin node sent the wrong block.": "Bitcoin 노드가 잘못된 블록을 보냈습니다.",
+"No Kusari node is set yet. KSR has no public network before it launches: add a node in Settings to try it.": "아직 Kusari 노드가 설정되지 않았습니다. KSR은 출시 전이라 공개 네트워크가 없습니다. 써보려면 설정에서 노드를 추가하세요."
 }

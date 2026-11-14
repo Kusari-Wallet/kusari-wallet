@@ -165,7 +165,7 @@ async function renderSettings(): Promise<void> {
         h('label', { class: 'field' }, h('span', {}, 'Your own Bitcoin server'), btcServer, h('div', { class: 'hint' }, 'The Esplora or mempool API of your own node (for example on Umbrel or Start9), as https://, .onion, or an address on your network. Then only your server learns your Bitcoin addresses. Empty uses public servers.')),
         h('label', { class: 'field' }, h('span', {}, 'Your own Zano node'), zanoNode, h('div', { class: 'hint' }, 'host:port of a Zano node you run. Empty uses the public node.')),
         // KSR launches later: a build without its engine shows nothing of it.
-        ksrInfo.available && h('label', { class: 'field' }, h('span', {}, 'Kusari node'), ksrNode, h('div', { class: 'hint' }, 'host:port of a Kusari (KSR) node. KSR shows up once a node is set: there is no public node before the chain launches. It is reached through Tor like every other server.')),
+        ksrInfo.available && h('label', { class: 'field' }, h('span', {}, 'Kusari node'), ksrNode, h('div', { class: 'hint' }, 'host:port of a Kusari (KSR) node. There is no public node before the chain launches: KSR shows its address already, and its balance once a node is set. It is reached through Tor like every other server.')),
         h('label', { class: 'field' }, h('span', {}, 'Bitcoin CoinJoin coordinator'), coordinator, h('div', { class: 'hint' }, 'The server that runs the CoinJoin rounds. It sees which coins are in a round, but not which outputs belong to whom. These charge no fee.')),
         coordinatorRow,
         h('label', { class: 'field' }, h('span', {}, 'How much to mix Bitcoin'), mixTarget, h('div', { class: 'hint' }, 'Mixed coins go round again until each one shares its amount with that many others. Each round costs a little mining fee.')),
@@ -273,6 +273,7 @@ async function boot(first = false): Promise<void> {
 // The developer build says so on every screen, so it is never mistaken for the regular wallet.
 void Promise.resolve(wallet.getSettings()).then((s: any) => {
   if (!s?.developer) return;
+  (window as any).kusariI18n.only(['en', 'ko']);
   document.body.classList.add('developer-build');
   document.body.prepend(h('div', { class: 'developer-ribbon', id: 'developer-ribbon', role: 'note' }, 'Developer build: for trying coins and features before release. Keep only test amounts here.'));
 }).catch(() => undefined);

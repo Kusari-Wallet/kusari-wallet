@@ -1328,7 +1328,7 @@
 "{0} KSR can be sent now. Received coins can be used after 10 confirmations.": "Có thể gửi {0} KSR ngay. Coin nhận được có thể dùng sau 10 xác nhận.",
 "{0} engine stopped.": "Bộ máy {0} đã dừng.",
 "{0} must finish scanning before it can send.": "{0} phải quét xong mới gửi được.",
-"host:port of a Kusari (KSR) node. KSR shows up once a node is set: there is no public node before the chain launches. It is reached through Tor like every other server.": "host:port của một nút Kusari (KSR). KSR sẽ hiện khi đã đặt nút: trước khi chuỗi ra mắt chưa có nút công khai. Kết nối qua Tor như mọi máy chủ khác.",
+"host:port of a Kusari (KSR) node. There is no public node before the chain launches: KSR shows its address already, and its balance once a node is set. It is reached through Tor like every other server.": "host:port của một nút Kusari (KSR). Trước khi chuỗi ra mắt chưa có nút công khai: địa chỉ KSR đã hiện ngay, còn số dư hiện khi đặt nút. Kết nối qua Tor như mọi máy chủ khác.",
 "Developer build: for trying coins and features before release. Keep only test amounts here.": "Bản dành cho nhà phát triển: để thử coin và tính năng trước khi phát hành. Chỉ để số tiền thử nghiệm ở đây.",
 "A duress password is set.": "Đã đặt mật khẩu khẩn cấp.",
 "No duress password is set.": "Chưa đặt mật khẩu khẩn cấp.",
@@ -1358,5 +1358,6 @@
 "The two duress passwords don't match.": "Hai mật khẩu khẩn cấp không khớp.",
 "Your wallet password": "Mật khẩu ví của bạn",
 "A Bitcoin node sent a filter that does not match.": "Một nút Bitcoin đã gửi bộ lọc không khớp.",
-"A Bitcoin node sent the wrong block.": "Một nút Bitcoin đã gửi sai khối."
+"A Bitcoin node sent the wrong block.": "Một nút Bitcoin đã gửi sai khối.",
+"No Kusari node is set yet. KSR has no public network before it launches: add a node in Settings to try it.": "Chưa đặt nút Kusari. KSR chưa có mạng công khai trước khi ra mắt: hãy thêm một nút trong Cài đặt để dùng thử."
 }
