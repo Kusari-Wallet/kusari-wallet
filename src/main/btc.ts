@@ -81,6 +81,14 @@ export function selectCoins(utxos: BtcUtxo[], amount: bigint | 'max', feeRate: b
     return { inputs: sorted, amount: total - fee, fee, change: 0n };
   }
   if (amount < dust) throw new Error(`The minimum to send is ${formatAmount(dust, 8)} ${symbol}.`);
+  // One coin when one is enough, and the smallest such: spending coins together shows they are one person's, and a
+  // big coin for a small payment shows more of the wallet in the change than needed.
+  const single = [...sorted].reverse().find((u) => u.value >= amount + size(1, 1) * feeRate);
+  if (single) {
+    const withChange = size(1, 2) * feeRate;
+    if (single.value >= amount + withChange + dust) return { inputs: [single], amount, fee: withChange, change: single.value - amount - withChange };
+    return { inputs: [single], amount, fee: single.value - amount, change: 0n };
+  }
   const inputs: BtcUtxo[] = [];
   let total = 0n;
   for (const u of sorted) {
@@ -350,7 +358,7 @@ export class BtcClient {
     }
   }
   sentList(): unknown {
-    const big = (k: string, v: unknown) => (typeof v === 'bigint' ? v.toString() : v);
+    const big = (_: string, v: unknown) => (typeof v === 'bigint' ? v.toString() : v);
     return JSON.parse(JSON.stringify([...this.sent.entries()].map(([id, r]) => ({ id, ...r })), big));
   }
   private rememberSent(id: string, draft: BtcDraft, hex: string): void {
@@ -423,9 +431,10 @@ export class BtcClient {
       const chosen = [...new Set(pick.use)].map((id) => state.utxos.find((u) => coinId(u) === id));
       if (chosen.some((u) => !u)) throw new Error('A chosen coin was spent or is no longer in this wallet. Choose again.');
       if (chosen.some((u) => !u!.confirmed)) throw new Error('A chosen coin is still waiting for its first confirmation.');
+      if (chosen.some((u) => this.reserved.has(coinId(u!)))) throw new Error('A chosen coin is already in a send that goes out later.');
       picked = spendExactly(chosen as BtcUtxo[], amount, rate, this.coin);
     } else {
-      picked = selectCoins(state.utxos.filter((u) => u.confirmed && !pick.frozen?.has(coinId(u))), amount, rate, this.coin);
+      picked = selectCoins(state.utxos.filter((u) => u.confirmed && !pick.frozen?.has(coinId(u)) && !this.reserved.has(coinId(u))), amount, rate, this.coin);
     }
     return { to, amount: picked.amount, fee: picked.fee, change: picked.change, changeAddress: this.addressAt(1, state.nextChange), changePath: [1, state.nextChange], inputs: picked.inputs };
   }
@@ -433,8 +442,14 @@ export class BtcClient {
   /** Signs here, checks the result against what was approved, then broadcasts. */
   async send(draft: BtcDraft, mnemonic: string): Promise<string> {
     const { hex, id } = this.coin.sign(draft, mnemonic);
-    if (this.filters && draft.replaces) this.filters.sync.dropPending(draft.replaces);
-    this.rememberSent(id, draft, hex);
+    return this.sendSigned(draft, hex, id);
+  }
+
+  /** Signed now, sent later (a delayed send): its coins are kept out of other sends until then. */
+  readonly reserved = new Set<string>();
+  sign(draft: BtcDraft, mnemonic: string): { hex: string; id: string } { return this.coin.sign(draft, mnemonic); }
+
+  async sendSigned(draft: BtcDraft, hex: string, id: string): Promise<string> {
     if (this.filters) {
       // Handed to Bitcoin nodes directly too, so the send doesn't depend on a server being up.
       const raw = Buffer.from(hex, 'hex');
@@ -442,12 +457,16 @@ export class BtcClient {
       let answer: string | null = null;
       try { answer = (await this.broadcast(hex)).trim(); } catch (e) { if (peers < 2) throw e; }
       if (answer !== null && answer !== id) throw new Error(`The server returned a different transaction ID. Check ${id} on an explorer.`);
+      // Only once it went out: a replacement frees the coins of the send it replaces.
+      if (draft.replaces) this.filters.sync.dropPending(draft.replaces);
       this.filters.sync.recordSent(raw);
+      this.rememberSent(id, draft, hex);
       this.stateFromFilters();
       return id;
     }
     const answer = (await this.broadcast(hex)).trim();
     if (answer !== id) throw new Error(`The server returned a different transaction ID. Check ${id} on an explorer.`);
+    this.rememberSent(id, draft, hex);
     this.state = null;
     this.resume.clear();
     return id;

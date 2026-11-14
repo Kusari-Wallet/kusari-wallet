@@ -376,7 +376,7 @@ test('coin control: chosen coins are all spent, frozen ones are left out, waitin
   const to = 'bc1qnjg0jd8228aq7egyzacy8cys3knf9xvrerkf9g';
   assert.equal((await client.coins()).length, 3);
   const auto = await client.draft(to, 100000n);
-  assert.deepEqual(auto.inputs.map((u) => u.txid), [A], 'left alone, the largest coin pays');
+  assert.deepEqual(auto.inputs.map((u) => u.txid), [B], 'left alone, the smallest coin that covers it pays, on its own');
   const frozen = await client.draft(to, 100000n, { frozen: new Set([`${A}:0`]) });
   assert.deepEqual(frozen.inputs.map((u) => u.txid), [B], 'a frozen coin is not picked');
   const both = await client.draft(to, 100000n, { use: [`${A}:0`, `${B}:3`] });
@@ -450,4 +450,41 @@ test('speeding up: a send replaced with a higher fee from its change (RBF), a pa
   assert.strictEqual(child.amount, 45000n - child.fee);
   assert.ok(signBtcDraft(child, MNEMONIC).hex);
   await assert.rejects(c.cpfpDraft('ef'.repeat(32)), /no waiting coins/);
+});
+
+test('coin selection: one coin when one is enough (the smallest), several only when needed', () => {
+  const coins = [utxo(500000n, 0), utxo(120000n, 1), utxo(90000n, 2), utxo(40000n, 3)];
+  assert.deepEqual(selectCoins(coins, 100000n, 2n).inputs.map((u) => u.value), [120000n], 'the smallest single coin that covers it');
+  assert.deepEqual(selectCoins(coins, 30000n, 2n).inputs.map((u) => u.value), [40000n]);
+  assert.deepEqual(selectCoins(coins, 600000n, 2n).inputs.map((u) => u.value), [500000n, 120000n], 'largest first once no single coin is enough');
+  const s = selectCoins(coins, 100000n, 2n);
+  assert.strictEqual(s.inputs[0].value - s.amount - s.fee, s.change);
+});
+
+test('delayed send: signed now, kept, its coins reserved, sent at its time, and picked up again after a lock', async (t) => {
+  const os = require('node:os'); const fs = require('node:fs'); const path = require('node:path');
+  const { WalletService } = require('../dist/main/service');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dl-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const s = new WalletService(dir, undefined, { tronHost: 'http://x' });
+  const sent = [];
+  const fake = { reserved: new Set(), sign: () => ({ hex: 'aa', id: 'f'.repeat(64) }), sendSigned: async (d, hex, id) => { sent.push(id); return id; } };
+  Object.assign(s, { tron: {}, monero: {}, btc: fake, eth: {}, dash: {}, firo: {} });
+  const input = { txid: 'ab'.repeat(32), vout: 1, value: 5000n, address: 'a', chain: 0, index: 0, confirmed: true };
+  const preview = { id: 'p', asset: 'BTC', to: 'bc1qx', amount: 4000n, fee: 1000n, expires: Date.now() + 60_000, btc: { to: 'bc1qx', amount: 4000n, fee: 1000n, change: 0n, changeAddress: 'c', changePath: [1, 0], inputs: [input] } };
+  await assert.rejects(s.scheduleSend(preview, 'words', 7), /Choose when/);
+  const res = await s.scheduleSend(preview, 'words', 10);
+  assert.ok(res.scheduledAt > Date.now() && res.scheduledAt <= Date.now() + 10 * 60_000);
+  assert.ok(fake.reserved.has(`${input.txid}:1`), 'its coin is kept out of other sends');
+  assert.deepEqual((await s.delayedSends()).map((d) => [d.amount, d.to]), [['0.00004', 'bc1qx']]);
+  assert.equal(sent.length, 0, 'nothing out yet');
+  // Locked: the timer stops, the signed send stays. Unlocked later, past its time: it goes out.
+  s.onLock();
+  const list = await s.delayedList();
+  list[0].at = Date.now() - 1000;
+  await s.records.write(s.delayedPath, list);
+  fake.reserved.clear();
+  await s.fireDelayed(list[0].id, fake, preview.btc, 'aa');
+  assert.deepEqual(sent, ['f'.repeat(64)]);
+  assert.deepEqual(await s.delayedSends(), [], 'done and forgotten');
 });

@@ -129,7 +129,8 @@ app.whenReady().then(async () => {
   handle('wallet:btcMixStop', () => service.btcMixStop());
   handle('wallet:btcCoinSet', (id: string, change: { label?: string; frozen?: boolean }) => service.btcCoinSet(id, change ?? {}));
   handle('wallet:cancelSend', (id: string) => service.cancelSend(id));
-  handle('wallet:confirmSend', (id: string, pw: string) => service.confirmSend(id, pw));
+  handle('wallet:confirmSend', (id: string, pw: string, opts?: { delayMinutes?: number }) => service.confirmSend(id, pw, opts && typeof opts === 'object' ? { delayMinutes: Number(opts.delayMinutes) || 0 } : {}));
+  handle('wallet:delayedSends', () => service.delayedSends());
   handle('wallet:revealSeeds', (pw: string) => service.revealSeeds(pw));
   handle('wallet:changePassword', (cur: string, next: string) => service.changePassword(cur, next));
   handle('wallet:getSettings', () => ({ ...service.settings, developer: DEVELOPER_BUILD }));

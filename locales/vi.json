@@ -1399,5 +1399,19 @@
 "Too many payments to one Silent Payments recipient in one send.": "Quá nhiều khoản cho cùng một người nhận Silent Payments trong một lần gửi.",
 "What {0} sees": "{0} thấy gì",
 "Working out the fee…": "Đang tính phí…",
-"Your own servers for other coins": "Máy chủ riêng cho các coin khác"
+"Your own servers for other coins": "Máy chủ riêng cho các coin khác",
+"A chosen coin is already in a send that goes out later.": "Một coin đã chọn đang nằm trong một giao dịch sẽ gửi sau.",
+"At a random time within 10 minutes": "Vào thời điểm ngẫu nhiên trong 10 phút",
+"At a random time within 4 hours": "Vào thời điểm ngẫu nhiên trong 4 giờ",
+"At a random time within an hour": "Vào thời điểm ngẫu nhiên trong 1 giờ",
+"Choose when to send.": "Hãy chọn thời điểm gửi.",
+"Done": "Xong",
+"Now": "Ngay",
+"Only Bitcoin sends can go out later.": "Chỉ giao dịch Bitcoin mới gửi sau được.",
+"Send scheduled": "Đã hẹn giờ gửi",
+"Signed now and sent later, even if the wallet is locked in between: it goes out when the wallet is next open. Its coins can't be used for anything else until then.": "Ký ngay và gửi sau, kể cả khi ví bị khóa giữa chừng: giao dịch đi khi ví được mở lần tới. Đến lúc đó các coin này không dùng được việc khác.",
+"Signed, and going out at about {0}. Keep the wallet open or open it again later: a send that is due goes out as soon as the wallet is unlocked.": "Đã ký, và sẽ gửi vào khoảng {0}. Hãy để ví mở hoặc mở lại sau: giao dịch đến giờ sẽ gửi ngay khi ví được mở khóa.",
+"The Monero wallet is busy syncing and couldn't make a new address for this swap yet. Try again in a minute.": "Ví Monero đang đồng bộ nên chưa tạo được địa chỉ mới cho lần swap này. Hãy thử lại sau một phút.",
+"This spends {0} of your coins together, which shows on the chain that they belong to one person. Sending a smaller amount that one coin covers, or choosing coins yourself, keeps them apart.": "Giao dịch này dùng chung {0} coin của bạn, cho thấy trên chuỗi rằng chúng thuộc về một người. Gửi số tiền mà một coin đủ trả, hoặc tự chọn coin, sẽ giữ chúng tách biệt.",
+"When to send": "Thời điểm gửi"
 }

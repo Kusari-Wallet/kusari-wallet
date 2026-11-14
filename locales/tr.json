@@ -1399,5 +1399,19 @@
 "Too many payments to one Silent Payments recipient in one send.": "Bir gönderimde aynı Silent Payments alıcısına çok fazla ödeme var.",
 "What {0} sees": "{0} ne görür",
 "Working out the fee…": "Ücret hesaplanıyor…",
-"Your own servers for other coins": "Diğer coinler için kendi sunucularınız"
+"Your own servers for other coins": "Diğer coinler için kendi sunucularınız",
+"A chosen coin is already in a send that goes out later.": "Seçilen bir coin zaten daha sonra gidecek bir gönderimde.",
+"At a random time within 10 minutes": "10 dakika içinde rastgele bir zamanda",
+"At a random time within 4 hours": "4 saat içinde rastgele bir zamanda",
+"At a random time within an hour": "1 saat içinde rastgele bir zamanda",
+"Choose when to send.": "Ne zaman gönderileceğini seçin.",
+"Done": "Tamam",
+"Now": "Şimdi",
+"Only Bitcoin sends can go out later.": "Yalnızca Bitcoin gönderimleri daha sonra gidebilir.",
+"Send scheduled": "Gönderim zamanlandı",
+"Signed now and sent later, even if the wallet is locked in between: it goes out when the wallet is next open. Its coins can't be used for anything else until then.": "Şimdi imzalanır, sonra gönderilir; arada cüzdan kilitlense bile cüzdan bir sonraki açılışta gönderir. O zamana kadar bu coinler başka bir şey için kullanılamaz.",
+"Signed, and going out at about {0}. Keep the wallet open or open it again later: a send that is due goes out as soon as the wallet is unlocked.": "İmzalandı ve yaklaşık {0} gidecek. Cüzdanı açık tutun ya da sonra yeniden açın: zamanı gelmiş bir gönderim cüzdanın kilidi açılır açılmaz gider.",
+"The Monero wallet is busy syncing and couldn't make a new address for this swap yet. Try again in a minute.": "Monero cüzdanı eşitleniyor ve bu takas için henüz yeni bir adres oluşturamadı. Bir dakika sonra yeniden deneyin.",
+"This spends {0} of your coins together, which shows on the chain that they belong to one person. Sending a smaller amount that one coin covers, or choosing coins yourself, keeps them apart.": "Bu gönderim {0} coininizi birlikte harcıyor; bu, zincirde onların aynı kişiye ait olduğunu gösterir. Tek bir coinin karşıladığı tutarı göndermek ya da coinleri kendiniz seçmek onları ayrı tutar.",
+"When to send": "Ne zaman gönderilsin"
 }

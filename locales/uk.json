@@ -1399,5 +1399,19 @@
 "Too many payments to one Silent Payments recipient in one send.": "Забагато платежів одному отримувачу Silent Payments в одному надсиланні.",
 "What {0} sees": "Що бачить {0}",
 "Working out the fee…": "Обчислюємо комісію…",
-"Your own servers for other coins": "Власні сервери для інших монет"
+"Your own servers for other coins": "Власні сервери для інших монет",
+"A chosen coin is already in a send that goes out later.": "Вибрана монета вже в надсиланні, яке піде пізніше.",
+"At a random time within 10 minutes": "У випадковий момент протягом 10 хвилин",
+"At a random time within 4 hours": "У випадковий момент протягом 4 годин",
+"At a random time within an hour": "У випадковий момент протягом години",
+"Choose when to send.": "Виберіть, коли надіслати.",
+"Done": "Готово",
+"Now": "Зараз",
+"Only Bitcoin sends can go out later.": "Пізніше можна надсилати лише Bitcoin.",
+"Send scheduled": "Надсилання заплановано",
+"Signed now and sent later, even if the wallet is locked in between: it goes out when the wallet is next open. Its coins can't be used for anything else until then.": "Підписується зараз і надсилається пізніше, навіть якщо гаманець тим часом заблокується: воно піде, коли гаманець відкриють знову. До того ці монети не можна використати ні на що інше.",
+"Signed, and going out at about {0}. Keep the wallet open or open it again later: a send that is due goes out as soon as the wallet is unlocked.": "Підписано, піде приблизно о {0}. Тримайте гаманець відкритим або відкрийте його пізніше: надсилання, час якого настав, іде одразу після розблокування.",
+"The Monero wallet is busy syncing and couldn't make a new address for this swap yet. Try again in a minute.": "Гаманець Monero синхронізується й ще не зміг створити нову адресу для цього обміну. Спробуйте за хвилину.",
+"This spends {0} of your coins together, which shows on the chain that they belong to one person. Sending a smaller amount that one coin covers, or choosing coins yourself, keeps them apart.": "Це надсилання витрачає разом {0} ваших монет, і в мережі видно, що вони належать одній людині. Надсилання суми, яку покриває одна монета, або власний вибір монет тримає їх окремо.",
+"When to send": "Коли надіслати"
 }

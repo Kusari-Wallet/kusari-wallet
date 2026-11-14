@@ -5,7 +5,7 @@ import { randomBytes, randomInt } from 'node:crypto';
 import { Credential, WabiSabiClient } from './credentials';
 import { readResponse, requestJson, toHex } from './messages';
 import {
-  Coin, EndRoundState, Phase, RoundState, SCRIPT_TYPE, TxOut, commitment, effectiveFeePerK, effectiveValue, fee, idMatches, inputVsize,
+  EndRoundState, Phase, RoundState, SCRIPT_TYPE, TxOut, commitment, effectiveFeePerK, effectiveValue, fee, idMatches, inputVsize,
   isBlame, outpointBytes, outputVsize, ownershipProofTaproot, readRound, scriptText, scriptType, signTaprootInput, sortedInputs, sortedOutputs, unsignedTransaction, verifyOwnership,
 } from './round';
 import { decompose } from './decompose';

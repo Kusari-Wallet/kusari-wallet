@@ -1399,5 +1399,19 @@
 "Too many payments to one Silent Payments recipient in one send.": "Слишком много платежей одному получателю Silent Payments в одной отправке.",
 "What {0} sees": "Что видит {0}",
 "Working out the fee…": "Считаем комиссию…",
-"Your own servers for other coins": "Собственные серверы для других монет"
+"Your own servers for other coins": "Собственные серверы для других монет",
+"A chosen coin is already in a send that goes out later.": "Выбранная монета уже в отправке, которая уйдёт позже.",
+"At a random time within 10 minutes": "В случайный момент в течение 10 минут",
+"At a random time within 4 hours": "В случайный момент в течение 4 часов",
+"At a random time within an hour": "В случайный момент в течение часа",
+"Choose when to send.": "Выберите, когда отправить.",
+"Done": "Готово",
+"Now": "Сейчас",
+"Only Bitcoin sends can go out later.": "Позже можно отправлять только Bitcoin.",
+"Send scheduled": "Отправка запланирована",
+"Signed now and sent later, even if the wallet is locked in between: it goes out when the wallet is next open. Its coins can't be used for anything else until then.": "Подписывается сейчас и отправляется позже, даже если кошелёк тем временем заблокируют: она уйдёт, когда кошелёк откроют снова. До тех пор эти монеты нельзя использовать ни на что другое.",
+"Signed, and going out at about {0}. Keep the wallet open or open it again later: a send that is due goes out as soon as the wallet is unlocked.": "Подписано, уйдёт примерно в {0}. Держите кошелёк открытым или откройте его позже: отправка, время которой наступило, уходит сразу после разблокировки.",
+"The Monero wallet is busy syncing and couldn't make a new address for this swap yet. Try again in a minute.": "Кошелёк Monero синхронизируется и пока не смог создать новый адрес для этого обмена. Попробуйте через минуту.",
+"This spends {0} of your coins together, which shows on the chain that they belong to one person. Sending a smaller amount that one coin covers, or choosing coins yourself, keeps them apart.": "Эта отправка тратит вместе {0} ваших монет, и в сети видно, что они принадлежат одному человеку. Отправка суммы, которую покрывает одна монета, или собственный выбор монет держит их отдельно.",
+"When to send": "Когда отправить"
 }

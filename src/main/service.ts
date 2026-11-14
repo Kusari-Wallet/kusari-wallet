@@ -20,9 +20,9 @@ import { isAdaAddress } from './ada';
 import { isBchAddress, normalBchAddress } from './bch';
 import { isSolAddress } from './sol';
 import { isDashAddress } from './dash';
-import { BSC, EvmChain, EthAsset, chainOf, deriveEthAccount, isEthAddress } from './eth';
+import { BSC, EvmChain, EthAsset, chainOf, isEthAddress } from './eth';
 import { BUILTIN_SWAP_KEYS, CCECASH_BASE, CHANGENOW_BASE, CceCashClient, ChangeNowClient, ETZSWAP_BASE, EtzSwapClient, GHOSTSWAP_BASE, GhostSwapClient, NOT_SWAPPABLE, PRIVACY_ASSETS, PrivacySwap, SIMPLESWAP_BASE, SWAP_BASE, SWAP_DEAD, SWAP_DONE, SimpleSwapClient, SwapClient, SwapProvider, SwapProviderId, SwapRecord } from './swap';
-import { QUOTE_DEADLINE_MS, QUOTE_DEADLINE_TOR_MS, QUOTE_EXTRAS_MS, SWAP_NAMES, within, EVM, isSpl, isEvm, ASSET_LABEL, swapCost } from './service-common';
+import { QUOTE_DEADLINE_MS, QUOTE_DEADLINE_TOR_MS, QUOTE_EXTRAS_MS, SWAP_NAMES, within, isSpl, isEvm, ASSET_LABEL, swapCost } from './service-common';
 import { SendService } from './service-send';
 export { checkOwnServer, isLocalServer, lookupRetryDelay, swapCost } from './service-common';
 export type { BalanceView } from './service-common';
@@ -238,7 +238,7 @@ export class WalletService extends SendService {
   }
 
   protected async myAddress(asset: Asset): Promise<string> {
-    const { tron, monero, btc, eth, dash } = this.session();
+    const { tron, monero, btc, dash } = this.session();
     if (asset === 'ARRR') {
       if (!this.arrr?.receive) throw new Error('The Pirate Chain wallet is getting ready. Try again shortly.');
       return this.arrr.receive;
@@ -258,7 +258,19 @@ export class WalletService extends SendService {
     }
     await (asset === 'LTC' ? this.ltc!.refresh().catch(() => undefined) : asset === 'BCH' ? this.bch!.refresh().catch(() => undefined) : asset === 'DOGE' ? this.doge!.refresh().catch(() => undefined) : asset === 'FIRO' ? this.firo!.refresh().catch(() => undefined) : asset === 'DASH' ? dash.refresh().catch(() => undefined) : asset === 'BTC' ? btc.refresh().catch(() => undefined) : undefined);
     if (isEvm(asset)) return this.evm(asset).address; // each chain's own address
-    return asset === 'SOL' || isSpl(asset) ? this.sol!.receiveAddress : asset === 'BCH' ? this.bch!.receiveAddress : asset === 'LTC' ? this.ltc!.receiveAddress : asset === 'SCRT' || asset === 'SSCRT' ? this.scrt!.address : asset === 'DOGE' ? this.doge!.receiveAddress : asset === 'ADA' ? this.ada!.receiveAddress : asset === 'FIRO' ? this.firo!.receiveAddress : asset === 'DASH' ? dash.receiveAddress : asset === 'BTC' ? btc.receiveAddress : asset === 'XMR' ? monero.getPrimaryAddress() : tron.address;
+    return asset === 'SOL' || isSpl(asset) ? this.sol!.receiveAddress : asset === 'BCH' ? this.bch!.receiveAddress : asset === 'LTC' ? this.ltc!.receiveAddress : asset === 'SCRT' || asset === 'SSCRT' ? this.scrt!.address : asset === 'DOGE' ? this.doge!.receiveAddress : asset === 'ADA' ? this.ada!.receiveAddress : asset === 'FIRO' ? this.firo!.receiveAddress : asset === 'DASH' ? dash.receiveAddress : asset === 'BTC' ? btc.receiveAddress : asset === 'XMR' ? this.swapSubaddress(monero) : tron.address;
+  }
+
+  /**
+   * A new Monero subaddress for each order (and each refund), never the primary address: a provider would otherwise
+   * see the same address on every swap and tie them all to one person. Waits for a wallet busy syncing rather than
+   * falling back to an address used before.
+   */
+  protected async swapSubaddress(monero: { createSubaddress(): Promise<string> }): Promise<string> {
+    const late = Symbol('late');
+    const sub = await within(90_000, monero.createSubaddress(), late);
+    if (sub === late) throw new Error('The Monero wallet is busy syncing and couldn\'t make a new address for this swap yet. Try again in a minute.');
+    return sub as string;
   }
 
   protected async openOrder(from: Asset, to: Asset, amount: string, providerId: SwapProviderId, withdrawal: string, refund: string, external: boolean, privacy?: { leg: 'first'; via: string; destination: string } | { leg: 'second'; id: string }) {

@@ -15,8 +15,16 @@ async function enterWallet(): Promise<void> {
   renderHome();
   void refresh(); // Balances fill in on the home screen; a slow node or Tor must not hold it back.
   window.clearInterval(pollTimer);
-  pollTimer = window.setInterval(() => void refresh(), 20_000);
+  // Every 20 seconds while the wallet is on screen; while it is hidden or minimized, every 3 minutes, so it doesn't
+  // keep asking servers (and using battery and data) for a screen nobody sees. Coming back looks at once.
+  let ticks = 0;
+  pollTimer = window.setInterval(() => { ticks++; if (!document.hidden || ticks % 9 === 0) void refresh(); }, 20_000);
+  if (!watchingVisibility) {
+    watchingVisibility = true;
+    document.addEventListener('visibilitychange', () => { if (!document.hidden && pollTimer) void refresh(); });
+  }
 }
+let watchingVisibility = false;
 
 async function refresh(): Promise<void> {
   // Prices and balances arrive on their own: a slow price service no longer holds back every balance, or the reverse.

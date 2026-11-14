@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events';
+import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import moneroTs from 'monero-ts';
@@ -157,6 +158,21 @@ export class MoneroClient extends EventEmitter {
     } catch {
       return 0;
     }
+  }
+
+  /**
+   * A fresh Tor circuit for what follows (a send): Tor puts connections with a different SOCKS login on a circuit of
+   * their own, so the wallet reconnects to its node with a new login. Without Tor (or with a local node) nothing
+   * changes.
+   */
+  async renewRoute(): Promise<void> {
+    if (!this.opts.proxyUri || !this.wallet || this.closed) return;
+    const u = new URL(this.opts.proxyUri.replace(/^socks5h?:/, 'http:'));
+    const login = randomBytes(12).toString('hex');
+    this.opts.proxyUri = `socks5h://${login}:${login}@${u.host}`;
+    const uri = this.state.node;
+    if (!uri || !this.proxyFor(uri)) return;
+    await withTimeout(this.wallet.setDaemonConnection(new moneroTs.MoneroRpcConnection({ uri, proxyUri: this.proxyFor(uri) } as any)), this.nodeTimeout).catch(() => undefined);
   }
 
   /** A node on this PC or local network never needs Tor, and Tor couldn't reach it anyway. */

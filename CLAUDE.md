@@ -65,6 +65,10 @@ Java WebView (`android/java`) running the same code as an esbuild bundle (`src/a
   Receiving needs a tweak index server, which isn't done.
 - BTC fee bumps: `BtcClient.bumpDraft` (RBF, own sends kept in `btc-sent.json`) and `cpfpDraft`; sends signal RBF.
 - Own servers per coin: `customServers` setting, `OWN_SERVER_COINS` in `config.ts`.
+- Swaps into XMR use a new subaddress per order (`swapSubaddress`); XMR sends reconnect with a new Tor login
+  (`MoneroClient.renewRoute`, desktop). Coin selection takes the smallest single coin that covers a payment.
+- Delayed Bitcoin sends: signed at confirm, kept sealed in `btc-delayed.json`, coins reserved, sent at a random
+  time (`scheduleSend`, re-armed on unlock).
 - `src/main/wabisabi/`: WabiSabi CoinJoin client (credentials, round, decomposer); `src/main/btc-mix.ts` runs it.
   `tests/fixtures/wabisabi-*.json` are vectors from the reference implementation and live coordinators.
 - `src/main/coinjoin.ts`, `dash-mix.ts`, `dash-p2p.ts`: Dash CoinJoin.

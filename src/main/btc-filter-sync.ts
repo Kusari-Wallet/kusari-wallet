@@ -243,6 +243,7 @@ export interface FilterSyncOptions {
 
 const BATCH = 1000;
 const CACHE_MS = 120_000;
+const FORCE_MIN_MS = 20_000;
 const PENDING_MS = 3 * 24 * 3600_000;
 
 export class FilterSync {
@@ -315,7 +316,8 @@ export class FilterSync {
   get synced(): boolean { return !!this.state && !!this.chain && this.state.scanned >= this.chain.tip && this.lastSync > 0; }
 
   sync(force = false): Promise<void> {
-    if (!force && Date.now() - this.lastSync < CACHE_MS) return Promise.resolve();
+    // A forced sync (a send being drafted, coins listed) within seconds of the last one has nothing new to find.
+    if (Date.now() - this.lastSync < (force ? FORCE_MIN_MS : CACHE_MS)) return Promise.resolve();
     if (!this.inFlight) {
       this.inFlight = this.run().then(() => { this.lastSync = Date.now(); this.lastError = null; }, (e) => { this.lastError = (e as Error).message; throw e; }).finally(() => { this.inFlight = null; });
     }

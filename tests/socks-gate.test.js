@@ -81,3 +81,19 @@ test('engine gate: refuses what it does not speak, and never connects anywhere b
   assert.deepStrictEqual(answer, [5, 0xff]);
   assert.strictEqual(tor.seen.length, 0);
 });
+
+test('Monero: before a send the wallet reconnects to its node with a new Tor login', async () => {
+  const { MoneroClient } = require('../dist/main/monero');
+  const seen = [];
+  const c = Object.create(MoneroClient.prototype);
+  Object.assign(c, { opts: { proxyUri: 'socks5h://127.0.0.1:9150' }, wallet: { setDaemonConnection: async (conn) => { seen.push(conn.getProxyUri ? conn.getProxyUri() : conn.proxyUri); } }, state: { node: 'http://node.example.onion:18089' }, closed: false });
+  await c.renewRoute();
+  await c.renewRoute();
+  assert.strictEqual(seen.length, 2);
+  for (const p of seen) assert.match(p, /^socks5h:\/\/[0-9a-f]{24}:[0-9a-f]{24}@127\.0\.0\.1:9150$/);
+  assert.notStrictEqual(seen[0], seen[1], 'a different login each time');
+  // A node on this machine is never reached through Tor, so nothing changes for it.
+  c.state.node = 'http://127.0.0.1:18081';
+  await c.renewRoute();
+  assert.strictEqual(seen.length, 2);
+});

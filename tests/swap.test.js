@@ -520,3 +520,15 @@ for (const [name, override, pattern] of [
     await assert.rejects(m.client.create('USDT', 'XMR', '10', '1500', ME_XMR, ME_TRON), pattern);
   });
 }
+
+test('XMR in a swap: a new subaddress for every order and refund, never the primary address', async (t) => {
+  const fs = require('node:fs'); const os = require('node:os'); const path = require('node:path');
+  const { WalletService } = require('../dist/main/service');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sub-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const s = new WalletService(dir, undefined, {});
+  let n = 0;
+  const monero = { createSubaddress: async () => `8sub${++n}`, getPrimaryAddress: async () => '4primary' };
+  Object.assign(s, { tron: {}, monero, btc: {}, eth: {}, dash: {}, firo: {} });
+  assert.deepEqual([await s.myAddress('XMR'), await s.myAddress('XMR')], ['8sub1', '8sub2']);
+});

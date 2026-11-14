@@ -1,7 +1,6 @@
 // Bitcoin CoinJoin for this wallet: runs WabiSabi rounds with a coordinator until the chosen coins are mixed, and
 // sends what comes out to the CoinJoin account (see BTC_MIXED_PATH), on fresh addresses each round. Mixed coins go
 // round again until each hides among enough others, as Wasabi Wallet's anonymity score target does.
-import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import type { Agent } from 'node:http';
 import { requestJson } from './request';

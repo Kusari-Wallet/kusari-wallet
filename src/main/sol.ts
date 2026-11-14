@@ -11,7 +11,6 @@ const { base58 } = require('@scure/base');
 export const SOL_PATH = [44, 501, 0, 0];
 export const SOL_FEE = 5_000n; // lamports, one signature
 export const SOL_RENT_MINIMUM = 890_880n; // what an empty account needs to exist
-const SYSTEM_PROGRAM = new Uint8Array(32);
 export const SOL_USDT_MINT = 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB';
 const TOKEN_PROGRAM = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
 const TOKEN_2022_PROGRAM = 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb';

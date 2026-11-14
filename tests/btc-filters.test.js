@@ -260,6 +260,7 @@ test('block-filter sync: a reorganisation undoes the replaced blocks and finds t
   await sync.sync(true);
   assert.deepStrictEqual(sync.view('main').coins.map((c) => c.height), [1090]);
   // A longer branch from 1085: the payment lands at 1095 there instead.
+  sync.lastSync = 0; // a forced sync right after another one would otherwise be skipped
   holder.chain = makeChain(1110, (h) => (h === 1095 ? [{ inputs: [], outputs: [{ value: 5000, script: scriptFor(0, 0) }] }] : []), { chain: first, at: 1085, salt: 'b' });
   await sync.sync(true);
   const v = sync.view('main');

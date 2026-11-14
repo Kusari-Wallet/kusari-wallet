@@ -470,7 +470,7 @@ const PASSWORD = 'correct horse battery';
   assert.equal(await page.locator('#swap-suggest-private').count(), 0, 'XMR on one side: no private swap offered');
   await shot('swap-review');
   assert.equal(state.broadcast.length, beforeSwap, 'nothing sent before confirming');
-  assert.equal(state.swapOrder.withdrawalAddress[0], '4', 'XMR arrives at my mainnet address');
+  assert.equal(state.swapOrder.withdrawalAddress[0], '8', 'XMR arrives at a new mainnet subaddress of this wallet, not the primary address');
   assert.equal(state.swapOrder.refundAddress, me.address);
   await page.fill('#confirm-pw', 'wrong password!');
   await page.click('#confirm-swap');

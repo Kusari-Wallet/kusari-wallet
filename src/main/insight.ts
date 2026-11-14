@@ -136,6 +136,13 @@ export abstract class InsightWallet<S extends string> {
       return { ...base, amount: sum - fee, fee, change: 0n, inputs: coins };
     }
     if (amount < this.cfg.dust) throw new Error(`The minimum to send is ${formatAmount(this.cfg.dust, 8)} ${this.cfg.symbol}.`);
+    // One coin when one is enough, and the smallest such (see selectCoins in btc.ts).
+    const single = [...coins].reverse().find((u) => u.value >= amount + this.size(1, 1) * this.cfg.feePerByte);
+    if (single) {
+      const withChange = this.size(1, 2) * this.cfg.feePerByte;
+      if (single.value >= amount + withChange + this.cfg.dust) return { ...base, amount, fee: withChange, change: single.value - amount - withChange, inputs: [single] };
+      return { ...base, amount, fee: single.value - amount, change: 0n, inputs: [single] };
+    }
     const inputs: InsightUtxo[] = [];
     let sum = 0n;
     for (const u of coins) {

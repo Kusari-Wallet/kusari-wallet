@@ -260,6 +260,7 @@ wallet.on('locked', () => {
   closeScanner?.();
   document.querySelectorAll('.modal').forEach((m) => m.remove());
   window.clearInterval(pollTimer);
+  pollTimer = undefined;
   overview = null;
   addresses = null;
   torState = null;

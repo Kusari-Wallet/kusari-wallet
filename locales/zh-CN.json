@@ -1399,5 +1399,19 @@
 "Too many payments to one Silent Payments recipient in one send.": "一次付款中给同一 Silent Payments 收款人的付款太多。",
 "What {0} sees": "{0} 能看到什么",
 "Working out the fee…": "正在计算手续费…",
-"Your own servers for other coins": "其他币的自有服务器"
+"Your own servers for other coins": "其他币的自有服务器",
+"A chosen coin is already in a send that goes out later.": "所选的币已在一笔稍后发出的付款中。",
+"At a random time within 10 minutes": "10 分钟内的随机时间",
+"At a random time within 4 hours": "4 小时内的随机时间",
+"At a random time within an hour": "1 小时内的随机时间",
+"Choose when to send.": "请选择发送时间。",
+"Done": "完成",
+"Now": "现在",
+"Only Bitcoin sends can go out later.": "只有 Bitcoin 付款可以稍后发出。",
+"Send scheduled": "已安排付款",
+"Signed now and sent later, even if the wallet is locked in between: it goes out when the wallet is next open. Its coins can't be used for anything else until then.": "现在签名、稍后发送，即使期间钱包被锁定：下次打开钱包时发出。在那之前这些币不能用于其他用途。",
+"Signed, and going out at about {0}. Keep the wallet open or open it again later: a send that is due goes out as soon as the wallet is unlocked.": "已签名，将在大约 {0} 发出。请保持钱包打开或稍后再打开：到时间的付款会在解锁后立即发出。",
+"The Monero wallet is busy syncing and couldn't make a new address for this swap yet. Try again in a minute.": "Monero 钱包正在同步，暂时无法为这次兑换生成新地址。请一分钟后再试。",
+"This spends {0} of your coins together, which shows on the chain that they belong to one person. Sending a smaller amount that one coin covers, or choosing coins yourself, keeps them apart.": "这笔付款同时花费了你的 {0} 个币，会在链上显示它们属于同一个人。只发送一个币就够的金额，或自己选择币，可以让它们分开。",
+"When to send": "发送时间"
 }

@@ -230,6 +230,10 @@ function addressCheck(address: string): HTMLElement {
 
 function renderReview(p: any, keep: { to: string; amount: string }): void {
   const pw = h('input', { type: 'password', id: 'confirm-pw', autocomplete: 'current-password' });
+  // Bitcoin can go out later, at a random moment, so its timing doesn't tie it to what just happened.
+  const when = p.asset === 'BTC' && !p.speedUp ? h('select', { id: 'send-when' },
+    h('option', { value: '0' }, 'Now'), h('option', { value: '10' }, 'At a random time within 10 minutes'),
+    h('option', { value: '60' }, 'At a random time within an hour'), h('option', { value: '240' }, 'At a random time within 4 hours')) as HTMLSelectElement : null;
   const box = errorBox();
   const send = h('button', { class: 'primary', id: 'confirm-send', type: 'submit' }, `Send ${p.amount} ${coinName(p.asset)}`);
   const back = () => { void wallet.cancelSend(p.id); renderSend(keep); };
@@ -237,9 +241,10 @@ function renderReview(p: any, keep: { to: string; amount: string }): void {
   const form = h('form', { onsubmit: (e: Event) => {
     e.preventDefault();
     busy(send, 'Sending…', box, async () => {
-      const res = await wallet.confirmSend(p.id, pw.value);
+      const delayMinutes = when ? Number(when.value) : 0;
+      const res = await wallet.confirmSend(p.id, pw.value, delayMinutes ? { delayMinutes } : undefined);
       pw.value = '';
-      renderSent(p, res.hashes);
+      if (res.scheduledAt) renderScheduled(p, res.scheduledAt); else renderSent(p, res.hashes);
       void refresh();
     });
   } },
@@ -253,10 +258,19 @@ function renderReview(p: any, keep: { to: string; amount: string }): void {
       typeof price === 'number' && h('div', { class: 'small muted' }, `≈ ${usdFormat(Number(p.amount) * price)}`))),
     h('tr', {}, h('th', {}, 'Receiving address'), h('td', {}, addressCheck(p.to))),
     h('tr', {}, h('th', {}, p.feeIsEstimate ? 'Estimated fee' : 'Fee'), h('td', { id: 'review-fee' }, reviewFee(p.fee, p.feeAsset)))))),
+  when && h('label', { class: 'field' }, h('span', {}, 'When to send'), when,
+    h('div', { class: 'hint' }, 'Signed now and sent later, even if the wallet is locked in between: it goes out when the wallet is next open. Its coins can\'t be used for anything else until then.')),
   h('label', { class: 'field' }, h('span', {}, 'Password'), pw),
   send);
   show('send', subBar('Review', back), h('div', { class: 'scroll' }, form));
   pw.focus();
+}
+
+function renderScheduled(p: any, at: number): void {
+  show('receive', subBar('Send scheduled', renderHome), h('div', { class: 'scroll' },
+    h('h2', { id: 'send-scheduled' }, `${p.amount} ${coinName(p.asset)}`),
+    h('p', { class: 'muted' }, `Signed, and going out at about ${new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. Keep the wallet open or open it again later: a send that is due goes out as soon as the wallet is unlocked.`),
+    h('button', { class: 'primary', onclick: renderHome }, 'Done')));
 }
 
 /** A Uniswap or PancakeSwap swap: one or two transactions this wallet signs and sends itself. */

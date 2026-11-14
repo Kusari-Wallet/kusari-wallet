@@ -3,7 +3,6 @@
 // masternodes until each has gone through enough rounds to be sent privately.
 import { bip39Seed } from './seed';
 import type { Agent } from 'node:http';
-import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { getJson, requestJson } from './request';
 import { formatAmount } from './amount';

@@ -1399,5 +1399,19 @@
 "Too many payments to one Silent Payments recipient in one send.": "1回の送金で同じ Silent Payments 受取人への支払いが多すぎます。",
 "What {0} sees": "{0} が見るもの",
 "Working out the fee…": "手数料を計算中…",
-"Your own servers for other coins": "他のコインの自分のサーバー"
+"Your own servers for other coins": "他のコインの自分のサーバー",
+"A chosen coin is already in a send that goes out later.": "選んだコインはすでに後で送る送金に含まれています。",
+"At a random time within 10 minutes": "10分以内のランダムな時刻に",
+"At a random time within 4 hours": "4時間以内のランダムな時刻に",
+"At a random time within an hour": "1時間以内のランダムな時刻に",
+"Choose when to send.": "送る時刻を選んでください。",
+"Done": "完了",
+"Now": "今すぐ",
+"Only Bitcoin sends can go out later.": "後で送れるのは Bitcoin の送金だけです。",
+"Send scheduled": "送金を予約しました",
+"Signed now and sent later, even if the wallet is locked in between: it goes out when the wallet is next open. Its coins can't be used for anything else until then.": "今署名して後で送ります。その間にウォレットがロックされても、次に開いたときに送られます。それまでこのコインは他に使えません。",
+"Signed, and going out at about {0}. Keep the wallet open or open it again later: a send that is due goes out as soon as the wallet is unlocked.": "署名済みで、{0}ごろに送られます。ウォレットを開いたままにするか、後でもう一度開いてください。時刻を過ぎた送金はロック解除後すぐに送られます。",
+"The Monero wallet is busy syncing and couldn't make a new address for this swap yet. Try again in a minute.": "Monero ウォレットが同期中のため、このスワップ用の新しいアドレスをまだ作れません。1分後にもう一度お試しください。",
+"This spends {0} of your coins together, which shows on the chain that they belong to one person. Sending a smaller amount that one coin covers, or choosing coins yourself, keeps them apart.": "この送金はコインを{0}個まとめて使うので、それらが同じ人のものだとチェーン上で分かります。コイン1つで足りる金額にするか、コインを自分で選ぶと分けておけます。",
+"When to send": "送る時刻"
 }

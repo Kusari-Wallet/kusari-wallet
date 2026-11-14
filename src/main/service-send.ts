@@ -9,7 +9,7 @@ import { TronTransfer, deriveTronAccount, isTronAddress } from './tron';
 import { requestJson } from './request';
 import { isScrtAddress } from './scrt';
 import { isSilentAddress } from './btc-silent';
-import { type BtcDraft, LITECOIN, coinId, estimateVbytes, isBtcAddress, isLtcAddress } from './btc';
+import { type BtcClient, type BtcDraft, LITECOIN, coinId, estimateVbytes, isBtcAddress, isLtcAddress } from './btc';
 import { DEPOSIT_GAS, TORNADO_POOLS, TornadoNote, TornadoStore, WITHDRAW_GAS, abi as tornadoAbi, checkRelayerUrl, denomination, noteSecrets, noteText, relayerFee, relayerStatus, relayerSubmit, tornadoEngineCheck } from './tornado';
 import { runTornado } from './tornado-run';
 import { isArrrAddress } from './arrr';
@@ -56,7 +56,7 @@ export class SendService extends ServiceCore {
   async feeEstimate(asset: Asset): Promise<{ fee: string; asset: string; usd: number | null } | null> {
     const cached = this.feeCache.get(asset);
     if (cached && Date.now() - cached.at < 60_000) return cached.value;
-    const { tron, btc, eth } = this.session();
+    const { tron, btc } = this.session();
     const read = async (): Promise<[bigint, number, string]> => {
       if (asset === 'BTC') return [estimateVbytes(1, 2) * (await btc.feeRate()), 8, 'BTC'];
       if (asset === 'LTC') return [estimateVbytes(1, 2, LITECOIN.inputVb, LITECOIN.outputVb) * (await this.ltc!.feeRate()), 8, 'LTC'];
@@ -465,6 +465,10 @@ export class SendService extends ServiceCore {
         preview = this.storePreview({ asset, to: address, amount, fee: probe.feeSun, tron: { asset, to: address, amount } });
       }
     }
+    // Coins spent together are tied together on the chain; say so, unless the person picked the coins themselves.
+    const utxoDraft: { inputs?: unknown[] } | undefined = preview.btc ?? preview.ltc ?? preview.doge ?? preview.bch ?? preview.dash ?? preview.firo;
+    const picked = Array.isArray(opts.coins) && opts.coins.length > 0;
+    if (!picked && (utxoDraft?.inputs?.length ?? 0) > 1) warnings.push(`This spends ${utxoDraft!.inputs!.length} of your coins together, which shows on the chain that they belong to one person. Sending a smaller amount that one coin covers, or choosing coins yourself, keeps them apart.`);
     // A look-alike of an address used before is the mark of address poisoning.
     const imitated = lookalikeOf(address, [...(await this.recipients()), ...Object.values(await this.addresses().catch(() => ({}))).filter((x): x is string => typeof x === 'string')]);
     const lookalike = imitated ? { address: imitated } : null;
@@ -510,8 +514,8 @@ export class SendService extends ServiceCore {
   cancelSend(id: string): void { this.previews.delete(id); this.pendingSwaps.delete(id); }
 
   /** Password is checked here so an unattended unlocked app can't move funds. */
-  async confirmSend(id: string, password: string) {
-    const { tron, monero, btc, eth, dash } = this.session();
+  async confirmSend(id: string, password: string, opts: { delayMinutes?: number } = {}) {
+    this.session();
     const preview = this.previews.get(id);
     if (!preview || preview.expires < Date.now()) {
       this.previews.delete(id);
@@ -519,15 +523,86 @@ export class SendService extends ServiceCore {
     }
     const secrets = await this.vault.open(password);
     this.previews.delete(id); // one shot: a retry must go through a fresh preview
+    const delay = Number(opts.delayMinutes ?? 0);
+    if (delay > 0) return this.scheduleSend(preview, secrets.tronMnemonic, delay);
     this.balanceMemo.clear(); // money is about to move
     this.forgetViews();
     // The send leaves on a Tor route of its own, and lookups carry on on yet another one afterwards, so the server
     // that takes the transaction can't tie it to the addresses this wallet just looked up.
     this.renewTorRoute(preview.asset);
+    // Monero's wallet keeps its connection to the node: it reconnects on a new circuit before the send goes out.
+    if (preview.asset === 'XMR' && this.torActive) await this.monero?.renewRoute().catch(() => undefined);
     let result;
-    try { result = await this.broadcastPreview(preview, secrets); } finally { this.renewTorRoute(preview.asset); }
+    try { result = await this.broadcastPreview(preview, secrets); } finally {
+      this.renewTorRoute(preview.asset);
+      if (preview.asset === 'XMR' && this.torActive) void this.monero?.renewRoute().catch(() => undefined);
+    }
     await this.records.write(this.recipientsPath, rememberRecipient(await this.records.read(this.recipientsPath), preview.to)).catch(() => undefined);
     return result;
+  }
+
+  // ---- delayed sends (Bitcoin) ----
+  // A send signed now goes out at a random moment within the chosen time, so its timing doesn't tie it to what
+  // happened just before (a swap, a CoinJoin, a payment received). The signed transaction is kept encrypted with
+  // the wallet's records until then, also across a lock or a restart; the seed is not kept.
+
+  protected delayedTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  protected override async afterBtcReady(): Promise<void> { for (const e of await this.delayedList()) this.armDelayed(e); }
+  protected override onLock(): void { for (const t of this.delayedTimers.values()) clearTimeout(t); this.delayedTimers.clear(); }
+  protected get delayedPath(): string { return path.join(this.dir, 'btc-delayed.json'); }
+
+  protected async scheduleSend(preview: Preview, mnemonic: string, minutes: number) {
+    const draft = preview.btc ?? preview.btcMixed;
+    if (!draft) throw new Error('Only Bitcoin sends can go out later.');
+    if (!DELAY_CHOICES.includes(minutes)) throw new Error('Choose when to send.');
+    const client = preview.btcMixed ? this.btcMixed! : this.session().btc;
+    const { hex, id } = client.sign(draft, mnemonic);
+    const at = Date.now() + Math.round((0.1 + Math.random() * 0.9) * minutes * 60_000);
+    const entry = { id, hex, at, mixed: Boolean(preview.btcMixed), draft: JSON.parse(JSON.stringify(draft, (_, v) => (typeof v === 'bigint' ? v.toString() : v))) };
+    const list = [...(await this.delayedList()), entry];
+    await this.records.write(this.delayedPath, list);
+    await this.records.write(this.recipientsPath, rememberRecipient(await this.records.read(this.recipientsPath), preview.to)).catch(() => undefined);
+    this.armDelayed(entry);
+    return { hashes: [id], scheduledAt: at };
+  }
+
+  protected async delayedList(): Promise<any[]> {
+    const j = await this.records.read(this.delayedPath).catch(() => undefined);
+    return Array.isArray(j) ? j.filter((e: any) => typeof e?.id === 'string' && typeof e?.hex === 'string' && Number.isFinite(e?.at)) : [];
+  }
+
+  /** Reserves the coins and sets the timer; one already due goes out within a minute, at a random moment. */
+  protected armDelayed(e: any): void {
+    const client = e.mixed ? this.btcMixed : this.btc;
+    if (!client) return;
+    const draft: BtcDraft = { ...e.draft, amount: BigInt(e.draft.amount), fee: BigInt(e.draft.fee), change: BigInt(e.draft.change), inputs: e.draft.inputs.map((u: any) => ({ ...u, value: BigInt(u.value) })) };
+    for (const u of draft.inputs) client.reserved.add(coinId(u));
+    clearTimeout(this.delayedTimers.get(e.id));
+    const wait = Math.max(e.at - Date.now(), 5_000 + Math.random() * 55_000);
+    this.delayedTimers.set(e.id, setTimeout(() => void this.fireDelayed(e.id, client, draft, e.hex), wait));
+  }
+
+  protected async fireDelayed(id: string, client: BtcClient, draft: BtcDraft, hex: string): Promise<void> {
+    this.delayedTimers.delete(id);
+    try {
+      this.renewTorRoute('BTC');
+      await client.sendSigned(draft, hex, id);
+    } catch (e) {
+      // Already in the chain or the mempool counts as sent; anything else tries again in a few minutes.
+      if (!/already|known|in block|duplicate/i.test((e as Error).message)) {
+        this.delayedTimers.set(id, setTimeout(() => void this.fireDelayed(id, client, draft, hex), 5 * 60_000));
+        return;
+      }
+    }
+    for (const u of draft.inputs) client.reserved.delete(coinId(u));
+    await this.records.write(this.delayedPath, (await this.delayedList()).filter((e) => e.id !== id)).catch(() => undefined);
+    this.emit('balance-changed');
+  }
+
+  /** Sends waiting to go out later, for the screen. */
+  async delayedSends() {
+    this.session();
+    return (await this.delayedList()).map((e) => ({ id: e.id, at: e.at, amount: formatAmount(BigInt(e.draft.amount), 8), to: e.draft.to }));
   }
 
   /** Addresses sent to before, kept encrypted with the wallet's other records. */
@@ -538,7 +613,7 @@ export class SendService extends ServiceCore {
   }
 
   protected async broadcastPreview(preview: Preview, secrets: Secrets) {
-    const { tron, monero, btc, eth, dash } = this.session();
+    const { tron, monero, btc, dash } = this.session();
 
     if (preview.arrr) {
       if (!this.arrr) throw new Error('The Pirate Chain engine is off.');
@@ -1003,3 +1078,6 @@ export class SendService extends ServiceCore {
     return (asset === 'XMR' ? net.monero.explorerTx : net.tron.explorerTx) + hash;
   }
 }
+
+/** How long a delayed Bitcoin send may wait: it goes out at a random moment within it. */
+export const DELAY_CHOICES = [10, 60, 240];

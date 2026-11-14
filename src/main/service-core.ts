@@ -379,6 +379,7 @@ export class ServiceCore extends EventEmitter {
     const mixedSentFile = path.join(this.dir, 'btc-mixed-sent.json');
     this.btcMixed.loadSent(await this.records.read(mixedSentFile).catch(() => undefined));
     this.btcMixed.onSent = (list) => { void this.records.write(mixedSentFile, list).catch(() => undefined); };
+    await this.afterBtcReady().catch(() => undefined);
     if (this.dev.btcApi) this.btcMixed.spacingMs = 0;
     const mixedScanFile = path.join(this.dir, 'btc-mixed-scan.json');
     try { const h = await this.records.read(mixedScanFile); if (h) this.btcMixed.importHints(h); } catch { /* damaged: scanned afresh */ }
@@ -765,9 +766,14 @@ export class ServiceCore extends EventEmitter {
     await this.tor.stop();
     this.tor.clearLog();
     clearPassphrases();
+    this.onLock();
     // Back from a decoy session: the next unlock starts from the real wallet again.
     if (this.duressOf) { const id = this.duressOf; this.duressOf = null; this.activate(id); }
   }
+
+  /** Hooks for the layers above: Bitcoin is set up (delayed sends come back), the wallet locked. */
+  protected async afterBtcReady(): Promise<void> {}
+  protected onLock(): void {}
 
   // ---- duress password ----
 
@@ -1129,7 +1135,7 @@ export class ServiceCore extends EventEmitter {
   }
 
   async history(asset: Asset) {
-    const { tron, monero, btc, eth, dash } = this.session();
+    const { tron, monero, btc, dash } = this.session();
     if (asset === 'DASH') return dash.getHistory();
     if (asset === 'FIRO') {
       const pub = await this.firo!.getHistory();

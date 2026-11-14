@@ -2,7 +2,7 @@
 // ownership proofs that bind inputs to the round, and the transaction everyone signs. Follows Wasabi Wallet's
 // coordinator protocol (WalletWasabi, MIT licence).
 import { StrobeHasher } from './strobe';
-import { IssuerParams, Point, pointBytes } from './credentials';
+import { IssuerParams, pointBytes } from './credentials';
 import { fromHex, readIssuerParams } from './messages';
 
 const { sha256 } = require('@noble/hashes/sha2.js');
