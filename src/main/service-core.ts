@@ -6,8 +6,9 @@ import { promises as fs } from 'node:fs';
 import { Records, lockedRecords, plainRecords, recordsKey, sealedRecords } from './records';
 import { balanceCacheKey, readBalanceCache, writeBalanceCache, SavedBalance, SAVED_BALANCE_MAX_AGE_MS } from './balance-cache';
 import path from 'node:path';
+const { wordlist: BIP39_WORDS } = require('@scure/bip39/wordlists/english');
 import { formatAmount, parseAmount } from './amount';
-import { Asset, BTC_APIS, BTC_ONION_APIS, DECIMALS, FIRO_APIS, SOL_RPCS, BCH_APIS, LTC_APIS, SCRT_LCDS, DOGE_APIS, DOGE_PUSH_URLS, DOGE_BACKUP, POL_RPCS, POL_SCOUT, ARB_RPCS, ARB_SCOUT, BSC_RPCS, BSC_SCOUT, DASH_APIS, DEFAULT_SETTINGS, ARRR_SERVERS, ZANO_NODE, KSR_NODE, ZEC_SERVERS, ETH_RPCS, ETH_SCOUT, ETH_USDT, NETWORKS, NetworkId, Settings, estimateMainnetHeight } from './config';
+import { Asset, BTC_APIS, BTC_ONION_APIS, DECIMALS, FIRO_APIS, SOL_RPCS, BCH_APIS, LTC_APIS, SCRT_LCDS, DOGE_APIS, DOGE_PUSH_URLS, DOGE_BACKUP, DOGE_RAW_URLS, POL_RPCS, POL_SCOUT, ARB_RPCS, ARB_SCOUT, BSC_RPCS, BSC_SCOUT, DASH_APIS, DEFAULT_SETTINGS, ARRR_SERVERS, ZANO_NODE, KSR_NODE, ZEC_SERVERS, ETH_RPCS, ETH_SCOUT, ETH_USDT, NETWORKS, NetworkId, Settings, estimateMainnetHeight } from './config';
 import { MIN_PASSWORD, Secrets, Vault } from './vault';
 import { TronClient, deriveTronAccount, generateTronMnemonic } from './tron';
 import { socksAgent, getJson, newTorRoute } from './request';
@@ -256,6 +257,7 @@ export class ServiceCore extends EventEmitter {
     // A new wallet syncs Bitcoin privately from the start: there are only days of filters to fetch.
     this.newBtcSync = { filters: true, birthday: btcBirthdayFor(new Date()), from: new Date().toISOString().slice(0, 10) };
     await this.startSession(secrets);
+    this.keepHiddenSlot();
   }
 
   /** restoreFrom: a block height, a YYYY-MM-DD date, or empty for a full scan. */
@@ -287,6 +289,7 @@ export class ServiceCore extends EventEmitter {
     await this.vault.save(password, secrets);
     await this.commitPendingWallet();
     await this.startSession(secrets);
+    this.keepHiddenSlot();
   }
 
   // ---- session ----
@@ -392,7 +395,7 @@ export class ServiceCore extends EventEmitter {
     if (this.dev.ltcApi) this.ltc.spacingMs = 0;
     this.scrt = new ScrtClient(scrtPublicKey(secrets.tronMnemonic), this.dev.scrtLcd ? this.dev.scrtLcd.split(',') : this.ownList('SCRT', SCRT_LCDS), this.ownAgent('SCRT', 'scrt'), slow ? 60_000 : 20_000, scrtPrivacyKeys(secrets.tronMnemonic));
     this.firo = new FiroClient(firoAccountXpub(secrets.tronMnemonic), this.dev.firoApi ? [this.dev.firoApi] : this.ownList('FIRO', FIRO_APIS), this.ownAgent('FIRO', 'firo'), slow ? 60_000 : 20_000);
-    this.doge = new DogeClient(dogeAccountXpub(secrets.tronMnemonic), this.dev.dogeApi ? [this.dev.dogeApi] : DOGE_APIS, this.torRoute('doge'), slow ? 60_000 : 20_000, this.dev.dogeApi ? (this.dev.dogeBackup ? { backup: this.dev.dogeBackup } : {}) : { pushUrls: DOGE_PUSH_URLS, backup: DOGE_BACKUP });
+    this.doge = new DogeClient(dogeAccountXpub(secrets.tronMnemonic), this.dev.dogeApi ? [this.dev.dogeApi] : DOGE_APIS, this.torRoute('doge'), slow ? 60_000 : 20_000, this.dev.dogeApi ? (this.dev.dogeBackup ? { backup: this.dev.dogeBackup } : {}) : { pushUrls: DOGE_PUSH_URLS, backup: DOGE_BACKUP, rawUrls: DOGE_RAW_URLS });
     this.ada = new AdaClient(adaAddress(secrets.tronMnemonic), this.dev.adaApi ?? (this.own('ADA') || ADA_API), this.ownAgent('ADA', 'ada'), slow ? 60_000 : 20_000);
     this.bch = new BchClient(bchAccountXpub(secrets.tronMnemonic), this.dev.bchApi ? [this.dev.bchApi] : this.ownList('BCH', BCH_APIS), this.ownAgent('BCH', 'bch'), slow ? 60_000 : 20_000);
     this.sol = new SolClient(solAddress(secrets.tronMnemonic), this.dev.solRpc ? [this.dev.solRpc] : this.ownList('SOL', SOL_RPCS), this.ownAgent('SOL', 'sol'), slow ? 60_000 : 20_000);
@@ -697,6 +700,7 @@ export class ServiceCore extends EventEmitter {
     try {
       await this.startSession(secrets);
       this.emit('unlocked');
+      this.keepHiddenSlot();
     } catch (e) {
       // Nothing half started stays behind: the next try starts clean.
       await this.lock().catch(() => undefined);
@@ -780,19 +784,63 @@ export class ServiceCore extends EventEmitter {
   /**
    * A second password that opens a decoy wallet (its own seed, made here) in place of this one, for when someone
    * forces the wallet open. The real wallet's files are never touched from a decoy session.
+   *
+   * Every wallet keeps a hidden wallet beside it, whether a duress password is set or not: when none is, it is one
+   * nobody can open (its password is random and kept nowhere). So the files look the same either way, and every
+   * unlock tries two vaults, which takes the same time either way. Whether one is set is in the wallet's sealed
+   * records.
    */
   protected duressOf: string | null = null;
+  /** The hidden wallet being made in the background after an unlock, for tests to wait on. */
+  slotting: Promise<void> | null = null;
   protected async duressId(dir = this.dir): Promise<string | null> {
     try {
       const j = JSON.parse(String(await fs.readFile(path.join(dir, 'duress.json'), 'utf8')));
       return typeof j?.id === 'string' && /^[0-9a-f]{16}$/.test(j.id) ? j.id : null;
     } catch { return null; }
   }
+  protected get duressStatePath(): string { return path.join(this.dir, 'duress-state.json'); }
 
   async duressStatus(): Promise<{ set: boolean }> {
     this.session();
     // In a decoy session, the decoy has none of its own: it looks like a wallet without one.
-    return { set: Boolean(await this.duressId()) };
+    if (this.duressOf) return { set: false };
+    const j = await this.records.read(this.duressStatePath).catch(() => undefined);
+    return { set: j?.set === true };
+  }
+
+  /** A hidden wallet that opens with `password`, set up like any new wallet. Returns its ID. */
+  protected async makeHidden(password: string, decoy: boolean): Promise<string> {
+    const id = randomBytes(8).toString('hex');
+    const dir = this.walletDir(id);
+    const tronMnemonic = generateTronMnemonic();
+    // One nobody can open needs no working Monero seed (making one starts the Monero engine): words of the same kind.
+    const moneroSeed = decoy ? await generateMoneroSeed('mainnet') : Array.from({ length: 25 }, () => BIP39_WORDS[randomBytes(2).readUInt16BE(0) % 2048]).join(' ');
+    const secrets = this.newSecrets(tronMnemonic, moneroSeed, { mainnet: Math.max(0, estimateMainnetHeight(new Date()) - 5040), testnet: -1 });
+    await fs.mkdir(dir, { recursive: true });
+    await new Vault(path.join(dir, 'vault.json'), this.kdf).save(password, secrets);
+    await fs.writeFile(path.join(dir, 'evm-layout.json'), JSON.stringify({ split: true }), { mode: 0o600 });
+    await sealedRecords(recordsKey(tronMnemonic)).write(path.join(dir, 'btc-sync.json'), { filters: true, birthday: btcBirthdayFor(new Date()), from: new Date().toISOString().slice(0, 10) });
+    return id;
+  }
+
+  protected async placeHidden(password: string, decoy: boolean): Promise<void> {
+    const dir = this.dir;
+    const id = await this.makeHidden(password, decoy);
+    if (this.dir !== dir) { await fs.rm(this.walletDir(id), { recursive: true, force: true }).catch(() => undefined); return; } // switched away meanwhile
+    await this.duressDrop();
+    await fs.writeFile(path.join(dir, 'duress.json'), JSON.stringify({ id }), { mode: 0o600 });
+    await this.records.write(path.join(dir, 'duress-state.json'), { set: decoy });
+  }
+
+  /** After the real wallet opens: a wallet from before this, or whose decoy was deleted, gets its hidden wallet. */
+  protected keepHiddenSlot(): void {
+    if (this.duressOf || this.slotting) return;
+    const dir = this.dir;
+    this.slotting = (async () => {
+      if (await this.duressId(dir)) return;
+      if (this.dir === dir && !this.duressOf) await this.placeHidden(randomBytes(32).toString('hex'), false);
+    })().catch(() => undefined).finally(() => { this.slotting = null; });
   }
 
   async duressSet(current: string, duress: string): Promise<void> {
@@ -800,32 +848,24 @@ export class ServiceCore extends EventEmitter {
     await this.vault.open(current); // the wallet's own password, checked
     if (duress === current) throw new Error('The duress password must be different from your wallet password.');
     if (duress.length < MIN_PASSWORD) throw new Error(`The password must be at least ${MIN_PASSWORD} characters.`);
-    await this.duressDrop();
-    const id = randomBytes(8).toString('hex');
-    const dir = this.walletDir(id);
-    const tronMnemonic = generateTronMnemonic();
-    const secrets = this.newSecrets(tronMnemonic, await generateMoneroSeed('mainnet'), { mainnet: Math.max(0, estimateMainnetHeight(new Date()) - 5040), testnet: -1 });
-    await fs.mkdir(dir, { recursive: true });
-    await new Vault(path.join(dir, 'vault.json'), this.kdf).save(duress, secrets);
-    // Set up like any new wallet.
-    await fs.writeFile(path.join(dir, 'evm-layout.json'), JSON.stringify({ split: true }), { mode: 0o600 });
-    await sealedRecords(recordsKey(tronMnemonic)).write(path.join(dir, 'btc-sync.json'), { filters: true, birthday: btcBirthdayFor(new Date()), from: new Date().toISOString().slice(0, 10) });
-    await fs.writeFile(path.join(this.dir, 'duress.json'), JSON.stringify({ id }), { mode: 0o600 });
+    await this.slotting;
+    await this.placeHidden(duress, true);
   }
 
   async duressRemove(current: string): Promise<void> {
     this.session();
     await this.vault.open(current);
-    await this.duressDrop();
+    await this.slotting;
+    await this.placeHidden(randomBytes(32).toString('hex'), false);
   }
 
-  protected async duressDrop(): Promise<void> {
-    const old = await this.duressId();
+  protected async duressDrop(dir = this.dir): Promise<void> {
+    const old = await this.duressId(dir);
     if (old) {
       await new Vault(path.join(this.walletDir(old), 'vault.json'), this.kdf).destroy().catch(() => undefined);
       await fs.rm(this.walletDir(old), { recursive: true, force: true }).catch(() => undefined);
     }
-    await fs.rm(path.join(this.dir, 'duress.json'), { force: true }).catch(() => undefined);
+    await fs.rm(path.join(dir, 'duress.json'), { force: true }).catch(() => undefined);
   }
 
   protected session() {

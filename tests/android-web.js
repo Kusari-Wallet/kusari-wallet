@@ -86,6 +86,8 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
   assert.equal(opt.status, 204);
   assert.equal(opt.headers.get('access-control-allow-origin'), origin);
   assert.equal((await fetch(`${t}/wallet/getnowblock`, { method: 'POST', headers: { Origin: 'https://evil.example' }, body: '{}' })).status, 403, 'other sites are refused');
+  // A web page in the phone's browser can send a plain GET with no Origin at all: refused, so it can't use or spot the forwarder.
+  assert.equal((await fetch(`${t}/wallet/getnowblock`)).status, 403, 'no origin: refused');
   console.log('ok forwarder: CORS, foreign origin refused, bad upstreams refused');
 
   // forwarder through SOCKS, against the real Java code: names unresolved, TLS checked, chunked replies, no fallback

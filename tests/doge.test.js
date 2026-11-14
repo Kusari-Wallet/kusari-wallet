@@ -20,6 +20,17 @@ test('addresses: standard BIP44 result, other coins refused', () => {
 });
 
 const ID = (c) => c.repeat(32);
+const { prevTx } = require('./prev-tx');
+// Raw transactions the mock servers can hand out, by ID: a coin is only spent once it checks out against one.
+const RAW = new Map();
+const scriptOf = (a) => Buffer.from(btc.OutScript.encode(btc.Address(DOGE_NET).decode(a))).toString('hex');
+function coinTx(address, vout, value) {
+  const outs = Array.from({ length: vout + 1 }, (_, i) => (i === vout ? { value, script: scriptOf(address) } : { value: 1, script: '51' }));
+  const t = prevTx(outs);
+  RAW.set(t.txid, t.hex);
+  return t.txid;
+}
+const AB = (a) => coinTx(a, 1, 500000000);
 const fast = { paceMs: 0, verifyDelayMs: 1 };
 const idOf = (hex) => btc.Transaction.fromRaw(Buffer.from(hex, 'hex'), { allowLegacyWitnessUtxo: true }).id;
 
@@ -28,7 +39,7 @@ function funded(mine) {
   return {
     address: mine, balance: 500000000, unconfirmed_balance: 200000000, final_balance: 700000000, n_tx: 3, unconfirmed_n_tx: 1, final_n_tx: 3,
     txrefs: [
-      { tx_hash: ID('ab'), block_height: 100, tx_input_n: -1, tx_output_n: 1, value: 500000000, ref_balance: 500000000, spent: false, confirmations: 6, confirmed: '2026-10-28T18:40:09Z', double_spend: false },
+      { tx_hash: AB(mine), block_height: 100, tx_input_n: -1, tx_output_n: 1, value: 500000000, ref_balance: 500000000, spent: false, confirmations: 6, confirmed: '2026-10-28T18:40:09Z', double_spend: false },
       { tx_hash: ID('ee'), block_height: 90, tx_input_n: 0, tx_output_n: -1, value: 300000000, ref_balance: 0, confirmations: 20, confirmed: '2026-10-20T18:40:09Z', double_spend: false },
       { tx_hash: ID('ef'), block_height: 80, tx_input_n: -1, tx_output_n: 0, value: 300000000, ref_balance: 300000000, spent: true, spent_by: ID('ee'), confirmations: 30, confirmed: '2026-10-10T18:40:09Z', double_spend: false },
     ],
@@ -63,6 +74,7 @@ function server(answers = {}, { push, seen } = {}) {
         r.statusCode = a.status;
         return r.end(JSON.stringify(a.body));
       }
+      if (q.url.startsWith('/txs/') && q.url.includes('includeHex') && RAW.has(q.url.slice(5, 69))) return r.end(JSON.stringify({ hash: q.url.slice(5, 69), hex: RAW.get(q.url.slice(5, 69)) }));
       if (q.url.startsWith('/txs/')) {
         const id = q.url.slice(5, 69);
         if (seen === false || !known.has(id)) { r.statusCode = 404; return r.end('{}'); }
@@ -88,7 +100,7 @@ test('balance, history and sending, one address at a time', async (t) => {
   assert.ok(m.log.every((u) => !/xpub|dgub/.test(u)), 'the account key is never sent');
   const history = await c.getHistory();
   assert.deepEqual(history.map((h) => [h.hash, h.direction, h.amount, h.status]), [
-    [ID('cd'), 'in', '2', 'pending'], [ID('ab'), 'in', '5', 'confirmed'], [ID('ee'), 'out', '3', 'confirmed'], [ID('ef'), 'in', '3', 'confirmed'],
+    [ID('cd'), 'in', '2', 'pending'], [AB(mine), 'in', '5', 'confirmed'], [ID('ee'), 'out', '3', 'confirmed'], [ID('ef'), 'in', '3', 'confirmed'],
   ]);
   const draft = await c.draft(OTHER, 100000000n);
   assert.equal(draft.fee, typicalDogeFee());
@@ -250,15 +262,17 @@ test('when BlockCypher is down, the backup server gives the balance and coins', 
   const backup = http.createServer((q, r) => {
     asked.push(q.url);
     r.setHeader('content-type', 'application/json');
+    const raw = /^\/raw\/(\w{64})$/.exec(q.url);
+    if (raw) return r.end(JSON.stringify({ data: { [raw[1]]: { raw_transaction: RAW.get(raw[1]) } } }));
     const m = /^\/address\/(transactions|unspent)\/(\w+)$/.exec(q.url);
     if (!m) { r.statusCode = 404; return r.end('{}'); }
     const used = m[2] === mine;
     if (m[1] === 'transactions') return r.end(JSON.stringify({ success: 1, transactions: used ? [{ hash: ID('ab') }] : [] }));
-    r.end(JSON.stringify({ success: 1, unspent_outputs: used ? [{ address: mine, tx_hash: ID('ab'), tx_output_n: 0, value: 500000000, confirmations: 4 }, { address: mine, tx_hash: ID('cd'), tx_output_n: 1, value: 200000000, confirmations: 0 }] : [] }));
+    r.end(JSON.stringify({ success: 1, unspent_outputs: used ? [{ address: mine, tx_hash: coinTx(mine, 0, 500000000), tx_output_n: 0, value: 500000000, confirmations: 4 }, { address: mine, tx_hash: ID('cd'), tx_output_n: 1, value: 200000000, confirmations: 0 }] : [] }));
   });
   await new Promise((res) => backup.listen(0, '127.0.0.1', res));
   t.after(() => { backup.close(); backup.closeAllConnections(); });
-  const c = new DogeClient(xpub, [down.url], undefined, 5000, { ...fast, backup: `http://127.0.0.1:${backup.address().port}` });
+  const c = new DogeClient(xpub, [down.url], undefined, 5000, { ...fast, backup: `http://127.0.0.1:${backup.address().port}`, rawUrls: [`http://127.0.0.1:${backup.address().port}/raw/`] });
   assert.deepEqual(await c.getBalance(), { total: 700000000n, spendable: 500000000n });
   assert.equal(c.receiveAddress, new DogeClient(xpub, []).addressAt(0, 2), 'a used address is known as used');
   assert.ok(asked.some((u) => u.includes(mine)));

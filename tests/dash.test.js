@@ -4,6 +4,7 @@ const http = require('node:http');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const btc = require('@scure/btc-signer');
+const { prevTx } = require('./prev-tx');
 const { HDKey } = require('@scure/bip32');
 const { mnemonicToSeedSync } = require('@scure/bip39');
 const { DashClient, DASH_NET, dashAccountXpub, isDashAddress, signDashDraft, typicalDashFee } = require('../dist/main/dash');
@@ -27,12 +28,14 @@ test('balance and sending through the shared Insight logic', async (t) => {
   const c = new DashClient(xpub, []);
   const mine = c.addressAt(0, 1);
   const posted = [];
+  const made = prevTx([{ value: 1, script: '51' }, { value: 2000000, script: Buffer.from(btc.OutScript.encode(btc.Address(DASH_NET).decode(mine))).toString('hex') }]);
   const server = http.createServer((q, r) => {
     let b = '';
     q.on('data', (d) => { b += d; });
     q.on('end', () => {
       r.setHeader('content-type', 'application/json');
-      if (q.url.includes('/utxo')) return r.end(JSON.stringify([{ address: mine, txid: 'ab'.repeat(32), vout: 1, satoshis: 2000000, confirmations: 6 }, { address: mine, txid: 'cd'.repeat(32), vout: 0, satoshis: 7000, confirmations: 0 }]));
+      if (q.url.startsWith('/rawtx/')) return r.end(JSON.stringify({ rawtx: q.url === `/rawtx/${made.txid}` ? made.hex : '' }));
+      if (q.url.includes('/utxo')) return r.end(JSON.stringify([{ address: mine, txid: made.txid, vout: 1, satoshis: 2000000, confirmations: 6 }, { address: mine, txid: 'cd'.repeat(32), vout: 0, satoshis: 7000, confirmations: 0 }]));
       if (q.url.includes('/txs')) return r.end('{"items":[]}');
       posted.push(JSON.parse(b).rawtx); r.end('{}');
     });
@@ -78,4 +81,39 @@ test('a real script interpreter accepts the signatures and rejects tampering', {
   const res = JSON.parse(execFileSync('python3', [path.join(__dirname, 'btc_consensus.py')], { input, env: { ...process.env, PYTHONPATH: process.env.PBK_PATH } }).toString());
   assert.deepEqual(res.valid, [true, true]);
   assert.equal(res.wrong_script, false, 'signature is bound to the key');
+});
+
+test('a server that understates a coin is caught before anything is signed', async (t) => {
+  const c = new DashClient(xpub, []);
+  const mine = c.addressAt(0, 0);
+  const scr = Buffer.from(btc.OutScript.encode(btc.Address(DASH_NET).decode(mine))).toString('hex');
+  // The coin is really worth 50 DASH; the server says 0.02, which would leave 49.98 DASH to the miners.
+  const made = prevTx([{ value: 5_000_000_000n, script: scr }]);
+  const other = prevTx([{ value: 2_000_000n, script: '76a914' + '00'.repeat(20) + '88ac' }], 7);
+  let mode = 'understate';
+  const posted = [];
+  const server = http.createServer((q, r) => {
+    let b = '';
+    q.on('data', (d) => { b += d; });
+    q.on('end', () => {
+      r.setHeader('content-type', 'application/json');
+      if (q.url.startsWith('/rawtx/')) return r.end(JSON.stringify({ rawtx: mode === 'swap' ? other.hex : mode === 'junk' ? 'zz' : made.hex }));
+      if (q.url.includes('/utxo')) return r.end(JSON.stringify([{ address: mine, txid: made.txid, vout: 0, satoshis: mode === 'honest' ? 5_000_000_000 : 2_000_000, confirmations: 6 }]));
+      if (q.url.includes('/txs')) return r.end('{"items":[]}');
+      posted.push(b); r.end('{}');
+    });
+  });
+  await new Promise((res) => server.listen(0, '127.0.0.1', res));
+  t.after(() => { server.close(); server.closeAllConnections(); });
+  const client = new DashClient(xpub, [`http://127.0.0.1:${server.address().port}`]);
+  await assert.rejects(client.draft(OTHER, 1_000_000n), /described a coin differently/);
+  mode = 'swap'; // a different transaction under the coin's ID
+  await assert.rejects(client.draft(OTHER, 1_000_000n), /described a coin differently/);
+  mode = 'junk';
+  await assert.rejects(client.confirmedUtxos(), /described a coin differently/);
+  assert.equal(posted.length, 0);
+  mode = 'honest';
+  const d = await client.draft(OTHER, 1_000_000n);
+  assert.equal(d.inputs[0].value + 0n, 5_000_000_000n);
+  assert.equal(d.amount + d.change + d.fee, 5_000_000_000n);
 });

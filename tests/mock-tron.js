@@ -78,7 +78,22 @@ function mockNode() {
       if (url === '/bch/block/tip') return send({ height: 900000 });
       if (url.startsWith('/bch/address/')) return send([]);
       if (url.startsWith('/doge/addrs/')) return send({ address: url.match(/addrs\/(\w+)/)[1], final_balance: 0, n_tx: 0 });
-      if (url.startsWith('/dash/addrs/') && url.endsWith('/utxo')) return send(state.dashUtxos ?? []);
+      if (url.startsWith('/dash/addrs/') && url.endsWith('/utxo')) {
+        // Each coin gets a transaction that really pays it, under that transaction's ID: the wallet checks.
+        const { prevTx } = require('./prev-tx');
+        const btcs = require('@scure/btc-signer');
+        const NET = { bech32: 'dash', pubKeyHash: 0x4c, scriptHash: 0x10, wif: 0xcc };
+        state.dashRaws = state.dashRaws ?? {};
+        for (const c of state.dashUtxos ?? []) {
+          if (state.dashRaws[c.txid]) continue;
+          const outs = Array.from({ length: c.vout + 1 }, (_, i) => (i === c.vout ? { value: c.satoshis, script: Buffer.from(btcs.OutScript.encode(btcs.Address(NET).decode(c.address))).toString('hex') } : { value: 1, script: '51' }));
+          const t = prevTx(outs, Object.keys(state.dashRaws).length + 1);
+          state.dashRaws[t.txid] = t.hex;
+          c.txid = t.txid;
+        }
+        return send(state.dashUtxos ?? []);
+      }
+      if (url.startsWith('/dash/rawtx/')) return state.dashRaws?.[url.slice(12, 76)] ? send({ rawtx: state.dashRaws[url.slice(12, 76)] }) : send({ error: 'unknown' }, 404);
       if (url.startsWith('/dash/addrs/') && url.endsWith('/txs')) return send({ totalItems: 0, items: [] });
       if (url === '/dash/tx/send') { (state.dashRaw = state.dashRaw ?? []).push(json.rawtx); return send({}); }
       // NEAR: 1.6 NEAR held, 0.1 of it kept for 10 kB of storage.

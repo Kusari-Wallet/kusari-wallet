@@ -995,6 +995,10 @@ export class SendService extends ServiceCore {
     await cap(this.engineStops, 5000);
     const id = this.walletId;
     const dir = this.dir;
+    // Its hidden wallet goes with it, or a new wallet made in its place would open the old decoy.
+    await this.slotting;
+    await this.duressDrop(dir);
+    await fs.rm(path.join(dir, 'duress-state.json'), { force: true }).catch(() => undefined);
     // Off the list first, so the wallet is gone even if Windows still holds one of its files.
     const r = await this.walletRegistry();
     const left = r.list.filter((w) => w.id !== id);

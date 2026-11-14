@@ -36,6 +36,7 @@ export const DOGE_APIS = ['https://api.blockcypher.com/v1/doge/main'];
 export const DOGE_PUSH_URLS = ['https://api.blockchair.com/dogecoin/push/transaction', 'https://api.blockcypher.com/v1/doge/main/txs/push', 'https://dogechain.com/api/v1/pushtx'];
 /** Asked when BlockCypher can't answer: coins and used addresses, per address. */
 export const DOGE_BACKUP = 'https://dogechain.com/api/v1';
+export const DOGE_RAW_URLS = ['https://api.blockchair.com/dogecoin/raw/transaction/'];
 export const DOGE_EXPLORER_TX = 'https://dogechain.info/tx/';
 export const FIRO_APIS = ['https://insight.firo.org/insight-api-zcoin', 'https://explorer.firo.org/insight-api-zcoin'];
 export const FIRO_EXPLORER_TX = 'https://explorer.firo.org/tx/';

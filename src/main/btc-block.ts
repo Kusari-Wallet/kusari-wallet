@@ -130,3 +130,18 @@ export function parseBlock(raw: Uint8Array): { header: BlockHeader; txs: ParsedT
   if (!level.length || Buffer.compare(Buffer.from(level[0]), Buffer.from(header.merkle)) !== 0) throw new Error('A Bitcoin block did not match its header.');
   return { header, txs };
 }
+
+/**
+ * A transaction of a coin without witnesses (Dogecoin, Dash, Firo): its ID is the hash of all of it, and anything
+ * after the outputs (lock time, or a Dash/Firo special payload) isn't needed to read what an output holds.
+ */
+export function legacyTx(raw: Uint8Array): { txid: string; outputs: TxOutput[] } {
+  const c = new Cursor(raw, 0);
+  c.bytes(4);
+  if (c.b[c.at] === 0) throw new Error('A transaction came in a form this coin does not use.');
+  for (let n = c.count(41); n > 0; n--) { c.bytes(36); c.bytes(c.varint()); c.bytes(4); }
+  const outputs: TxOutput[] = [];
+  for (let n = c.count(9); n > 0; n--) outputs.push({ value: c.u64(), script: Uint8Array.from(c.bytes(c.varint())) });
+  c.bytes(4);
+  return { txid: hexLE(dsha(raw)), outputs };
+}

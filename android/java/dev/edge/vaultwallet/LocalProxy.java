@@ -23,7 +23,9 @@ import javax.net.ssl.SSLSocketFactory;
 /**
  * Forwards wallet requests from the WebView to one fixed outside server per local port.
  * Browsers block these requests otherwise, because Monero nodes send no CORS headers.
- * Listens on loopback only, strips browser headers, and answers only the app's own origin.
+ * Listens on loopback only, strips browser headers, and answers only the app's own origin. A request without an
+ * Origin is refused too: the page's requests here are always cross-origin, so they carry one, while a web page in
+ * the phone's browser can send a plain GET without one, and must not be able to use or detect the forwarder.
  */
 final class LocalProxy {
     private static final int MAX_BODY = 64 * 1024 * 1024;
@@ -114,7 +116,7 @@ final class LocalProxy {
                 else if ("x-kusari-route".equals(name) && value.matches("[A-Za-z0-9-]{1,64}")) swap.put(ROUTE, value);
                 else if ("content-length".equals(name)) length = Long.parseLong(value);
             }
-            if (allowedOrigin != null && origin != null && !allowedOrigin.equals(origin)) { respond(out, 403, null, new byte[0]); return; }
+            if (allowedOrigin != null && !allowedOrigin.equals(origin)) { respond(out, 403, null, new byte[0]); return; }
             if (length < 0 || length > MAX_BODY) { respond(out, 413, origin, new byte[0]); return; }
             if ("OPTIONS".equals(request[0])) { respond(out, 204, origin, new byte[0]); return; }
             // DELETE carries its parameters in the URL (Aster cancels orders this way), never a body.

@@ -4,6 +4,7 @@ const http = require('node:http');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const btc = require('@scure/btc-signer');
+const { prevTx } = require('./prev-tx');
 const { HDKey } = require('@scure/bip32');
 const { mnemonicToSeedSync } = require('@scure/bip39');
 const { FiroClient, FIRO_NET, firoAccountXpub, isFiroAddress, signFiroDraft, typicalFiroFee } = require('../dist/main/firo');
@@ -28,12 +29,14 @@ test('balance and sending through the shared Insight logic', async (t) => {
   const c = new FiroClient(xpub, []);
   const mine = c.addressAt(0, 1);
   const posted = [];
+  const made = prevTx([{ value: 1, script: '51' }, { value: 2000000, script: Buffer.from(btc.OutScript.encode(btc.Address(FIRO_NET).decode(mine))).toString('hex') }]);
   const server = http.createServer((q, r) => {
     let b = '';
     q.on('data', (d) => { b += d; });
     q.on('end', () => {
       r.setHeader('content-type', 'application/json');
-      if (q.url.includes('/utxo')) return r.end(JSON.stringify([{ address: mine, txid: 'ab'.repeat(32), vout: 1, satoshis: 2000000, confirmations: 6 }, { address: mine, txid: 'cd'.repeat(32), vout: 0, satoshis: 7000, confirmations: 0 }]));
+      if (q.url.startsWith('/rawtx/')) return r.end(JSON.stringify({ rawtx: q.url === `/rawtx/${made.txid}` ? made.hex : '' }));
+      if (q.url.includes('/utxo')) return r.end(JSON.stringify([{ address: mine, txid: made.txid, vout: 1, satoshis: 2000000, confirmations: 6 }, { address: mine, txid: 'cd'.repeat(32), vout: 0, satoshis: 7000, confirmations: 0 }]));
       if (q.url.includes('/txs')) return r.end('{"items":[]}');
       posted.push(JSON.parse(b).rawtx); r.end('{}');
     });

@@ -1,6 +1,7 @@
 import type { Agent } from 'node:http';
 import { getJson, requestJson } from './request';
 import { formatAmount } from './amount';
+import { legacyTx } from './btc-block';
 
 /** Wallet logic for coins with plain outputs served by an Insight API: one request covers every address. */
 const GAP_RECEIVE = 20;
@@ -19,12 +20,16 @@ export interface InsightCoin<S extends string> {
   /** For servers that charge per address: how far past the last used address to look, and how long to reuse a scan. */
   gapReceive?: number; gapChange?: number; cacheMs?: number;
   sign: (draft: InsightDraft, mnemonic: string) => { hex: string; id: string };
+  /** The output script an address of this wallet pays to. */
+  script?: (address: string) => Uint8Array;
 }
 
 export abstract class InsightWallet<S extends string> {
   private state: { at: number; utxos: InsightUtxo[]; total: bigint; spendable: bigint; txs: any[]; nextReceive: number; nextChange: number; mine: Map<string, [number, number]> } | null = null;
   private inFlight: Promise<void> | null = null;
   private failedAt = 0;
+  /** Coins whose value was checked against the transaction that made them. */
+  private readonly checked = new Map<string, bigint>();
 
   constructor(private readonly cfg: InsightCoin<S>, protected readonly apis: string[], protected readonly agent?: Agent, protected readonly timeoutMs = 30_000) {}
 
@@ -38,6 +43,39 @@ export abstract class InsightWallet<S extends string> {
       try { return await getJson(base + path, { agent: this.agent, timeoutMs: this.timeoutMs }); } catch (e) { last = e; }
     }
     throw last instanceof Error ? last : new Error(`Could not reach the ${this.cfg.symbol} server.`);
+  }
+
+  /** The raw transaction, as hex. */
+  protected async rawTx(txid: string): Promise<string> {
+    const r = await this.get(`/rawtx/${txid}`);
+    return String(r?.rawtx ?? '');
+  }
+
+  /**
+   * These coins sign with the legacy signature hash, which doesn't cover what an input is worth. A server that
+   * reported a coin as smaller than it is would have the rest of it paid away as fee, so every coin is checked
+   * against the transaction that made it (whose hash must be its ID) before it is spent.
+   */
+  async checkCoins(coins: InsightUtxo[]): Promise<void> {
+    const scriptOf = this.cfg.script;
+    if (!scriptOf) return; // a coin whose signatures cover the input values (BCH)
+    const todo = coins.filter((u) => this.checked.get(`${u.txid}:${u.vout}`) !== u.value);
+    const byTx = new Map<string, InsightUtxo[]>();
+    for (const u of todo) byTx.set(u.txid, [...(byTx.get(u.txid) ?? []), u]);
+    const bad = new Error(`The ${this.cfg.symbol} server described a coin differently from the network, so this was stopped. Try again later or choose another server.`);
+    for (const [txid, list] of byTx) {
+      let hex: string;
+      try { hex = await this.rawTx(txid); } catch { throw new Error(`Could not check a ${this.cfg.symbol} coin with the server, so this was stopped. Try again in a moment.`); }
+      if (!/^([0-9a-f]{2})+$/i.test(hex)) throw bad;
+      let tx: ReturnType<typeof legacyTx>;
+      try { tx = legacyTx(Buffer.from(hex, 'hex')); } catch { throw bad; }
+      if (tx.txid !== txid) throw bad;
+      for (const u of list) {
+        const out = tx.outputs[u.vout];
+        if (!out || out.value !== u.value || Buffer.compare(Buffer.from(out.script), Buffer.from(scriptOf(u.address))) !== 0) throw bad;
+        this.checked.set(`${u.txid}:${u.vout}`, u.value);
+      }
+    }
   }
 
   /** One request covers every address, so a scan is cheap. */
@@ -124,6 +162,12 @@ export abstract class InsightWallet<S extends string> {
   }
 
   async draft(to: string, amount: bigint | 'max'): Promise<InsightDraft> {
+    const d = await this.choose(to, amount);
+    await this.checkCoins(d.inputs);
+    return d;
+  }
+
+  private async choose(to: string, amount: bigint | 'max'): Promise<InsightDraft> {
     await this.refresh(true);
     const state = this.state!;
     const coins = [...state.utxos].sort((a, b) => (b.value > a.value ? 1 : -1));
@@ -165,7 +209,9 @@ export abstract class InsightWallet<S extends string> {
   /** Every coin with at least one confirmation, freshly read. */
   async confirmedUtxos(): Promise<InsightUtxo[]> {
     await this.refresh(true);
-    return [...this.state!.utxos];
+    const coins = [...this.state!.utxos];
+    await this.checkCoins(coins);
+    return coins;
   }
 
   /** A transaction signed elsewhere, to the first server that takes it. */

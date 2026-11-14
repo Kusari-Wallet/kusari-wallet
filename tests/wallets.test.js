@@ -210,11 +210,29 @@ test('duress password: opens a decoy in the wallet\'s place, the real one stays 
   t.after(async () => { await require('monero-ts').LibraryUtils.terminateWorker().catch(() => undefined); });
   await makeOldWallet(s, PW1, 'real seed');
   await s.unlock(PW1);
+  await s.slotting;
   assert.deepEqual(await s.duressStatus(), { set: false });
+  // Without a duress password the files look the same as with one: a hidden wallet nobody can open.
+  const shape = () => {
+    const id = JSON.parse(fs.readFileSync(path.join(dir, 'duress.json'), 'utf8')).id;
+    const hidden = path.join(dir, 'wallets', id);
+    return { id, files: fs.readdirSync(hidden).sort(), vault: Object.keys(JSON.parse(fs.readFileSync(path.join(hidden, 'vault.json'), 'utf8'))).sort(), size: fs.statSync(path.join(hidden, 'vault.json')).size };
+  };
+  const before = shape();
+  await s.lock();
+  await assert.rejects(s.unlock('decoy password'), /./, 'the hidden wallet opens with no password anyone knows');
+  await s.unlock(PW1);
+  await s.slotting;
+  assert.equal(shape().id, before.id, 'made once, then kept');
   await assert.rejects(s.duressSet('wrong password', 'decoy password'), /./);
   await assert.rejects(s.duressSet(PW1, PW1), /different/);
   await s.duressSet(PW1, 'decoy password');
   assert.deepEqual(await s.duressStatus(), { set: true });
+  const after = shape();
+  assert.notEqual(after.id, before.id);
+  assert.ok(!fs.existsSync(path.join(dir, 'wallets', before.id)), 'the unopenable one is gone');
+  assert.deepEqual([after.files, after.vault], [before.files, before.vault], 'same files, same vault fields');
+  assert.ok(Math.abs(after.size - before.size) < 120, `vaults of about the same size (${before.size}, ${after.size})`);
   await s.lock();
 
   await s.unlock('decoy password');
@@ -241,4 +259,24 @@ test('duress password: opens a decoy in the wallet\'s place, the real one stays 
   await assert.rejects(s.unlock('decoy password'), /./);
   await s.unlock(PW1);
   assert.equal(s.seen, 'real seed');
+  await s.slotting;
+  assert.ok(fs.existsSync(path.join(dir, 'duress.json')), 'the real wallet gets a hidden one again');
+  assert.deepEqual(await s.duressStatus(), { set: false });
+
+  // Removing the duress password leaves a hidden wallet nobody can open.
+  await s.duressSet(PW1, 'decoy password');
+  await s.duressRemove(PW1);
+  assert.deepEqual(await s.duressStatus(), { set: false });
+  assert.ok(fs.existsSync(path.join(dir, 'duress.json')));
+  await s.lock();
+  await assert.rejects(s.unlock('decoy password'), /./);
+
+  // Deleting the wallet takes its hidden wallet with it: a new wallet in its place never opens the old decoy.
+  await s.unlock(PW1);
+  await s.duressSet(PW1, 'decoy password');
+  const decoyDir = path.join(dir, 'wallets', shape().id);
+  await s.deleteWallet(PW1);
+  assert.ok(!fs.existsSync(decoyDir) && !fs.existsSync(path.join(dir, 'duress.json')));
+  await makeOldWallet(s, PW2, 'new seed');
+  await assert.rejects(s.unlock('decoy password'), /./, 'the old decoy password opens nothing');
 });

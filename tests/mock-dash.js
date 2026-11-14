@@ -229,6 +229,7 @@ async function startDashMock() {
         // Other participants sign too; then the mix is published and mined.
         for (const i of tx.inputs) if (!i.script.length) i.script = Buffer.from([0x00]);
         const id = txid(tx);
+        (state.raws = state.raws ?? {})[id] = writeTx(tx).toString('hex');
         state.sessions.push({ denom: session.denom, tx, id, ours: session.ours });
         state.utxos = state.utxos.filter((u) => !session.ours.inputs.some((i) => i.txid === u.txid && i.vout === u.vout));
         tx.outputs.forEach((o, vout) => {
@@ -258,13 +259,20 @@ async function startDashMock() {
       if (p === `/block-index/${state.height - 8}`) return json({ blockHash: c.blockHash });
       if (p === `/block/${c.blockHash}`) return json({ hash: c.blockHash, height: c.height, merkleroot: c.merkleRoot, tx: [c.coinbase] });
       let m = /^\/addrs\/([^/]+)\/utxo$/.exec(p);
-      if (m) { const list = m[1].split(','); return json(state.utxos.filter((x) => list.includes(x.address))); }
+      if (m) { const list = m[1].split(','); realIds(state); return json(state.utxos.filter((x) => list.includes(x.address))); }
+      // The wallet checks each coin against the transaction that made it: the mock serves one paying exactly it.
+      m = /^\/rawtx\/(\w{64})$/.exec(p);
+      if (m) {
+        if (state.raws?.[m[1]]) return json({ rawtx: state.raws[m[1]] });
+        return json({ error: 'unknown' }, 404);
+      }
       m = /^\/addrs\/([^/]+)\/txs$/.exec(p);
       if (m) return json({ items: [] });
       if (p === '/tx/send') {
         const raw = Buffer.from(JSON.parse(body).rawtx, 'hex');
         const t = new R(raw).tx();
         state.sent.push({ raw, tx: t });
+        (state.raws = state.raws ?? {})[rev(dsha(raw)).toString('hex')] = raw.toString('hex');
         const id = rev(dsha(raw)).toString('hex');
         state.utxos = state.utxos.filter((x) => !t.inputs.some((i) => i.txid === x.txid && i.vout === x.vout));
         return json({ txid: id });
@@ -277,6 +285,28 @@ async function startDashMock() {
     state, port, api: `http://127.0.0.1:${insight.address().port}`,
     close: async () => { for (const s of sockets) s.destroy(); await new Promise((r) => server.close(r)); insight.closeAllConnections?.(); await new Promise((r) => insight.close(r)); },
   };
+}
+
+/**
+ * Coins a test made up get a transaction that really pays them, and its ID: the wallet checks each coin against
+ * the transaction that made it.
+ */
+function realIds(state) {
+  const { prevTx } = require('./prev-tx');
+  state.raws = state.raws ?? {};
+  const byId = new Map();
+  for (const c of state.utxos) if (!state.raws[c.txid]) byId.set(c.txid, [...(byId.get(c.txid) ?? []), c]);
+  let salt = Object.keys(state.raws).length;
+  for (const coins of byId.values()) {
+    const top = Math.max(...coins.map((c) => c.vout));
+    const outs = Array.from({ length: top + 1 }, (_, i) => {
+      const c = coins.find((x) => x.vout === i);
+      return c ? { value: c.satoshis, script: Buffer.from(btc.OutScript.encode(btc.Address(DASH_NET).decode(c.address))).toString('hex') } : { value: 1, script: '51' };
+    });
+    const t = prevTx(outs, ++salt);
+    state.raws[t.txid] = t.hex;
+    for (const c of coins) c.txid = t.txid;
+  }
 }
 
 module.exports = { startDashMock, partialTree, merkle, verifyInput, writeTx, txid, buildChain, dsha, DASH_NET };

@@ -40,7 +40,11 @@ export function isDogeAddress(address: string): boolean {
 export const typicalDogeFee = (): bigint => (SIZE_BASE + SIZE_INPUT + SIZE_OUTPUT * 2n) * FEE_SATS_PER_BYTE;
 
 /** backup: dogechain's API base, asked when the main server can't answer. */
-export interface DogeOptions { pushUrls?: string[]; paceMs?: number; verifyDelayMs?: number; backup?: string }
+export interface DogeOptions {
+  pushUrls?: string[]; paceMs?: number; verifyDelayMs?: number; backup?: string;
+  /** Blockchair-style raw transaction lookups (the ID is appended), asked when BlockCypher can't give one. */
+  rawUrls?: string[];
+}
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const UNEXPECTED = 'The DOGE server gave an unexpected answer.';
 
@@ -52,6 +56,7 @@ export class DogeClient extends InsightWallet<'DOGE'> {
   private readonly account: any;
   private readonly pushUrls: string[];
   private readonly backup?: string;
+  private readonly rawUrls: string[];
   private readonly paceMs: number;
   private readonly verifyDelayMs: number;
   private answers = new Map<string, { at: number; info: any; unspent: any }>();
@@ -59,10 +64,11 @@ export class DogeClient extends InsightWallet<'DOGE'> {
   private lastAsked = 0;
 
   constructor(xpub: string, apis: string[], agent?: Agent, timeoutMs = 30_000, opts: DogeOptions = {}) {
-    super({ symbol: 'DOGE', dust: DUST, feePerByte: FEE_SATS_PER_BYTE, base: SIZE_BASE, input: SIZE_INPUT, output: SIZE_OUTPUT, sign: signDogeDraft, gapReceive: GAP_RECEIVE, gapChange: GAP_CHANGE, cacheMs: CACHE_MS }, apis, agent, timeoutMs);
+    super({ symbol: 'DOGE', dust: DUST, feePerByte: FEE_SATS_PER_BYTE, base: SIZE_BASE, input: SIZE_INPUT, output: SIZE_OUTPUT, sign: signDogeDraft, script: (a: string) => btc.OutScript.encode(btc.Address(DOGE_NET).decode(a)), gapReceive: GAP_RECEIVE, gapChange: GAP_CHANGE, cacheMs: CACHE_MS }, apis, agent, timeoutMs);
     this.account = HDKey.fromExtendedKey(xpub);
     this.pushUrls = opts.pushUrls ?? apis.map((a) => `${a}/txs/push`);
     this.backup = opts.backup;
+    this.rawUrls = opts.rawUrls ?? [];
     this.paceMs = opts.paceMs ?? PACE_MS;
     this.verifyDelayMs = opts.verifyDelayMs ?? VERIFY_DELAY_MS;
   }
@@ -80,6 +86,22 @@ export class DogeClient extends InsightWallet<'DOGE'> {
       try { return await getJson(base + path, { agent: this.agent, timeoutMs: this.timeoutMs, headers: { Accept: 'application/json', 'User-Agent': 'KusariWallet' } }); } catch (e) { last = e; }
     }
     throw last instanceof Error ? last : new Error('Could not reach the DOGE server.');
+  }
+
+  /** From any server: the caller checks the hash against the ID, so a wrong answer can't pass. */
+  protected async rawTx(txid: string): Promise<string> {
+    try {
+      const r = await this.get(`/txs/${txid}?includeHex=true&limit=1`);
+      if (typeof r?.hex === 'string' && r.hex) return r.hex;
+    } catch { /* try the others */ }
+    for (const base of this.rawUrls) {
+      try {
+        const r = await getJson(base + txid, { agent: this.agent, timeoutMs: this.timeoutMs, headers: { Accept: 'application/json', 'User-Agent': 'KusariWallet' } });
+        const hex = r?.data?.[txid]?.raw_transaction;
+        if (typeof hex === 'string' && hex) return hex;
+      } catch { /* next */ }
+    }
+    throw new Error('Could not read the DOGE transaction.');
   }
 
   /** A full history page answers most addresses; only one with more history needs a second request for its coins. */

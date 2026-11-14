@@ -29,7 +29,7 @@ export const typicalDashFee = (): bigint => (SIZE_BASE + SIZE_INPUT + SIZE_OUTPU
 export class DashClient extends InsightWallet<'DASH'> {
   private readonly account: any;
   constructor(xpub: string, apis: string[], agent?: Agent, timeoutMs = 30_000) {
-    super({ symbol: 'DASH', dust: DUST, feePerByte: FEE_DUFFS_PER_BYTE, base: SIZE_BASE, input: SIZE_INPUT, output: SIZE_OUTPUT, sign: signDashDraft }, apis, agent, timeoutMs);
+    super({ symbol: 'DASH', dust: DUST, feePerByte: FEE_DUFFS_PER_BYTE, base: SIZE_BASE, input: SIZE_INPUT, output: SIZE_OUTPUT, sign: signDashDraft, script: (a: string) => btc.OutScript.encode(btc.Address(DASH_NET).decode(a)) }, apis, agent, timeoutMs);
     this.account = HDKey.fromExtendedKey(xpub);
   }
   addressAt(chain: number, index: number): string {

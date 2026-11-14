@@ -30,7 +30,7 @@ export const typicalFiroFee = (): bigint => (SIZE_BASE + SIZE_INPUT + SIZE_OUTPU
 export class FiroClient extends InsightWallet<'FIRO'> {
   private readonly account: any;
   constructor(xpub: string, apis: string[], agent?: Agent, timeoutMs = 30_000) {
-    super({ symbol: 'FIRO', dust: DUST, feePerByte: FEE_SATS_PER_BYTE, base: SIZE_BASE, input: SIZE_INPUT, output: SIZE_OUTPUT, sign: signFiroDraft }, apis, agent, timeoutMs);
+    super({ symbol: 'FIRO', dust: DUST, feePerByte: FEE_SATS_PER_BYTE, base: SIZE_BASE, input: SIZE_INPUT, output: SIZE_OUTPUT, sign: signFiroDraft, script: (a: string) => btc.OutScript.encode(btc.Address(FIRO_NET).decode(a)) }, apis, agent, timeoutMs);
     this.account = HDKey.fromExtendedKey(xpub);
   }
   addressAt(chain: number, index: number): string {

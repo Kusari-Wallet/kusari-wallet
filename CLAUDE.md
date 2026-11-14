@@ -54,7 +54,12 @@ Java WebView (`android/java`) running the same code as an esbuild bundle (`src/a
   matching on the device, reorgs), `btc-p2p.ts` (onion peers over Tor), `btc-gcs.ts` (filters), `btc-block.ts`.
   `BtcClient.useFilters` switches a client over. On for new wallets (`btc-sync.json`, sealed); needs Tor.
 - Duress password: `duressSet`/`unlock` in `service-core.ts`. A decoy wallet in `wallets/<id>` (never listed)
-  opens in the real one's place; from a decoy session the real wallet's files are never touched.
+  opens in the real one's place; from a decoy session the real wallet's files are never touched. Every wallet keeps
+  such a hidden wallet (`duress.json`), one nobody can open when no duress password is set, so files and unlock time
+  don't show whether one is; the setting itself is in the sealed `duress-state.json`.
+- DOGE, DASH and FIRO sign with the legacy hash, which doesn't cover input values: `InsightWallet.checkCoins` checks
+  every coin against its raw transaction (hash = ID) before it is spent, so a lying server can't burn coins as fee.
+- Android `LocalProxy` answers only requests carrying the app's Origin (a browser page's plain GET has none).
 - `src/main/lookalike.ts`: address-poisoning check on every send review.
 - `src/main/socks-gate.ts` (desktop) and `android/java/.../SocksGate.java`: a SOCKS gateway per engine (Zano, KSR,
   ZEC, ARRR) that logs in to Tor; `renewTorRoute` changes the login, so each send gets a fresh circuit.
