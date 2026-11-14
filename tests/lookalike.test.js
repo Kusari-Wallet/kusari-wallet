@@ -14,6 +14,25 @@ test('address poisoning: a look-alike of a used address is caught, the real one 
   assert.strictEqual(lookalikeOf('short', ['short1']), null);
 });
 
+test('address poisoning: judged on the characters that identify an address, not the part all of a kind share', () => {
+  const eth = '0x7a250d5630b4cf539739df2c5dacb4c659f2488d';
+  // 3 at the start and 6 at the end, which a fixed "first 6" rule missed.
+  assert.strictEqual(lookalikeOf('0x7a2ffffffffffffffffffffffffffffff9f2488d', [eth]), eth);
+  assert.strictEqual(lookalikeOf('0x7a250dfffffffffffffffffffffffffffffff88d', [eth]), eth, '6 and 3');
+  assert.strictEqual(lookalikeOf('0x7a2fffffffffffffffffffffffffffffffff488d', [eth]), eth, '3 and 4');
+  assert.strictEqual(lookalikeOf('0x7afffffffffffffffffffffffffffffffff2488d', [eth]), null, 'only 2 at the start: chance');
+  assert.strictEqual(lookalikeOf('0x7a2fffffffffffffffffffffffffffffffffff8d', [eth]), null, '3 and 2: chance');
+  // Taproot: "bc1p" is in every such address, so two shared characters after it are not a match.
+  const btc = 'bc1p5d7rjq7g6rdk2yhzks9smlaqtedr4dekq08ge8ztwac72sfr9rusxg3297';
+  const fake = (a, start, end) => a.slice(0, start) + 'q'.repeat(a.length - start - end) + a.slice(-end);
+  assert.strictEqual(lookalikeOf(fake(btc, 6, 5), [btc]), null);
+  assert.strictEqual(lookalikeOf(fake(btc, 7, 7), [btc]), btc);
+  // Tron: "T" is in every address.
+  const trx = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
+  assert.strictEqual(lookalikeOf('TR7NHzzzzzzzzzzzzzzzzzzzzzzzzzLj6t', [trx]), trx);
+  assert.strictEqual(lookalikeOf('TR7zzzzzzzzzzzzzzzzzzzzzzzzzzzzj6t', [trx]), null);
+});
+
 test('recipients: newest first, no repeats, capped', () => {
   let list = [];
   for (let i = 0; i < 310; i++) list = rememberRecipient(list, `addr-${i}`);

@@ -80,12 +80,15 @@ export class UniswapClient {
     return res.body;
   }
 
-  /** Classic pool routes only: UniswapX orders are filled by third parties later, which this wallet doesn't track. */
+  /**
+   * Classic pool routes only: UniswapX orders are filled by third parties later, which this wallet doesn't track. V2
+   * and V3 pools only, whose router calls this wallet reads in full before signing (see checkRouterCommands).
+   */
   async quote(chainId: bigint, tokenIn: string, tokenOut: string, amountIn: bigint, swapper: string, slippageBps: number): Promise<DexQuote> {
     if (!UNIVERSAL_ROUTER[String(chainId)]) throw new Error('Uniswap isn\'t offered on this network here.');
     const b = await this.post('/quote', {
       type: 'EXACT_INPUT', amount: amountIn.toString(), tokenInChainId: String(chainId), tokenOutChainId: String(chainId),
-      tokenIn, tokenOut, swapper, slippageTolerance: slippageBps / 100, routingPreference: 'BEST_PRICE', protocols: ['V2', 'V3', 'V4'],
+      tokenIn, tokenOut, swapper, slippageTolerance: slippageBps / 100, routingPreference: 'BEST_PRICE', protocols: ['V2', 'V3'],
     });
     const q = b?.quote;
     if (b?.routing !== 'CLASSIC' || !q) throw new Error('Uniswap offered a kind of route this wallet doesn\'t use.');
@@ -117,8 +120,78 @@ export class UniswapClient {
   }
 }
 
+const MSG_SENDER = '0x0000000000000000000000000000000000000001';
+const ADDRESS_THIS = '0x0000000000000000000000000000000000000002';
+const routerAbi = AbiCoder.defaultAbiCoder();
+const router = new Interface(['function execute(bytes commands, bytes[] inputs, uint256 deadline)']);
+/** Wrapped ETH (or BNB, POL) per network: what the router swaps when ETH itself is bought or sold. */
+const WRAPPED: Record<string, string> = {
+  1: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', 137: '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270',
+  42161: '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1', 56: WBNB,
+};
+
+/**
+ * What the router will do, read from the call itself rather than from the quote that came with it: only swaps,
+ * the Permit2 signature, wrapping and sweeping are allowed; every coin goes to this wallet or stays in the router
+ * on the way; and what reaches this wallet is guaranteed to be at least the quote's minimum. A swap service that
+ * was broken into could otherwise hand back a call that sends the coins bought somewhere else.
+ */
+export function checkRouterCommands(data: string, quote: DexQuote, swapper: string): void {
+  const stop = (why: string): never => { throw new Error(`Uniswap's transaction differs from the swap (${why}), so it was not signed.`); };
+  let commands: string; let inputs: string[];
+  try { [commands, inputs] = router.decodeFunctionData('execute', data) as unknown as [string, string[]]; } catch { return stop('unreadable'); }
+  const ops = Buffer.from(commands.slice(2), 'hex');
+  if (!ops.length || ops.length !== inputs.length) stop('unreadable');
+  const out = quote.tokenIn !== NATIVE && quote.tokenOut === NATIVE ? WRAPPED[String(quote.chainId)] : quote.tokenOut;
+  const mine = (a: string) => same(a, swapper) || same(a, MSG_SENDER);
+  const kept = (a: string) => mine(a) || same(a, ADDRESS_THIS);
+  let direct = 0n; // the least the swaps themselves pay straight to this wallet in the coin bought
+  let swept = 0n; // the least a sweep or unwrap pays this wallet at the end
+  ops.forEach((op, i) => {
+    const d = (types: string[]) => { try { return routerAbi.decode(types, inputs[i]); } catch { return stop('unreadable'); } };
+    switch (op) {
+      case 0x00: { // V3_SWAP_EXACT_IN
+        const [to, , min, path] = d(['address', 'uint256', 'uint256', 'bytes', 'bool']);
+        if (!kept(to)) stop('receiver');
+        if (mine(to)) { if (!same('0x' + String(path).slice(-40), quote.tokenOut)) stop('coin received'); direct += BigInt(min); }
+        break;
+      }
+      case 0x08: { // V2_SWAP_EXACT_IN
+        const [to, , min, path] = d(['address', 'uint256', 'uint256', 'address[]', 'bool']);
+        if (!kept(to)) stop('receiver');
+        if (mine(to)) { if (!same(path[path.length - 1], quote.tokenOut)) stop('coin received'); direct += BigInt(min); }
+        break;
+      }
+      case 0x0a: { // PERMIT2_PERMIT: only for the coin sold, to this router
+        const [permit] = d(['tuple(tuple(address token,uint160 amount,uint48 expiration,uint48 nonce) details,address spender,uint256 sigDeadline)', 'bytes']);
+        if (!same(permit.details.token, quote.tokenIn) || BigInt(permit.details.amount) > quote.amountIn || !same(permit.spender, UNIVERSAL_ROUTER[String(quote.chainId)])) stop('permit');
+        break;
+      }
+      case 0x0b: { // WRAP_ETH
+        const [to] = d(['address', 'uint256']);
+        if (!same(to, ADDRESS_THIS)) stop('receiver');
+        break;
+      }
+      case 0x0c: { // UNWRAP_WETH: ETH out
+        const [to, min] = d(['address', 'uint256']);
+        if (!kept(to)) stop('receiver');
+        if (mine(to)) { if (quote.tokenOut !== NATIVE) stop('coin received'); swept = BigInt(min) > swept ? BigInt(min) : swept; }
+        break;
+      }
+      case 0x04: { // SWEEP
+        const [token, to, min] = d(['address', 'address', 'uint256']);
+        if (!mine(to)) stop('receiver');
+        if (same(token, out) || same(token, quote.tokenOut)) swept = BigInt(min) > swept ? BigInt(min) : swept;
+        break;
+      }
+      default: stop(`command ${op}`);
+    }
+  });
+  if ((direct > swept ? direct : swept) < quote.minOut) stop('minimum received');
+}
+
 /** The transaction Uniswap built must go to the pinned router, from this wallet, with the right value. */
-export function checkRouterTx(tx: any, quote: DexQuote): DexCall {
+export function checkRouterTx(tx: any, quote: DexQuote, swapper?: string): DexCall {
   const stop = (why: string): never => { throw new Error(`Uniswap's transaction differs from the swap (${why}), so it was not signed.`); };
   if (!tx || typeof tx.data !== 'string' || !/^0x[0-9a-fA-F]+$/.test(tx.data) || tx.data.length < 10) stop('no call data');
   if (!tx.data.startsWith(EXECUTE)) stop('not a router call');
@@ -126,6 +199,7 @@ export function checkRouterTx(tx: any, quote: DexQuote): DexCall {
   if (tx.chainId !== undefined && BigInt(tx.chainId) !== quote.chainId) stop('network');
   const value = BigInt(tx.value ?? 0);
   if (value !== (quote.tokenIn === NATIVE ? quote.amountIn : 0n)) stop('amount');
+  checkRouterCommands(tx.data, quote, swapper ?? String(quote.raw?.quote?.swapper ?? tx.from ?? ''));
   const gas = tx.gasLimit ? BigInt(tx.gasLimit) : undefined;
   return { label: 'swap', to: getAddress(tx.to), data: tx.data, value, gas };
 }

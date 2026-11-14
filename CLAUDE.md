@@ -60,7 +60,11 @@ Java WebView (`android/java`) running the same code as an esbuild bundle (`src/a
 - DOGE, DASH and FIRO sign with the legacy hash, which doesn't cover input values: `InsightWallet.checkCoins` checks
   every coin against its raw transaction (hash = ID) before it is spent, so a lying server can't burn coins as fee.
 - Android `LocalProxy` answers only requests carrying the app's Origin (a browser page's plain GET has none).
-- `src/main/lookalike.ts`: address-poisoning check on every send review.
+- `src/main/lookalike.ts`: address-poisoning check on every send review, judged on matching characters past the
+  part every address of a kind shares (3+ at each end, 7+ in all).
+- Uniswap: `checkRouterCommands` (`dex.ts`) decodes the router call the Trading API returns and allows only V2/V3
+  swaps, the Permit2 permit, wrap/unwrap and sweep, all paying this wallet, with at least the quoted minimum.
+  V4 routes aren't asked for: their calls aren't read.
 - `src/main/socks-gate.ts` (desktop) and `android/java/.../SocksGate.java`: a SOCKS gateway per engine (Zano, KSR,
   ZEC, ARRR) that logs in to Tor; `renewTorRoute` changes the login, so each send gets a fresh circuit.
 - `src/main/seed.ts`: the BIP39 seed with the open wallet's optional passphrase. Every key from the 12 words goes
