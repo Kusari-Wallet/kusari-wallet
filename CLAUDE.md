@@ -73,6 +73,19 @@ Java WebView (`android/java`) running the same code as an esbuild bundle (`src/a
 - `src/main/btc-silent.ts`: paying Silent Payments (sp1) addresses (BIP352); the output is made at signing time.
   Receiving needs a tweak index server, which isn't done.
 - BTC fee bumps: `BtcClient.bumpDraft` (RBF, own sends kept in `btc-sent.json`) and `cpfpDraft`; sends signal RBF.
+- BTC/LTC sends look like Bitcoin Core's (`coreLike`): lock time at the tip (sometimes up to 99 lower), coins in
+  random order, change at a random place. Beside a non-taproot payment the change is bc1q (BIP84 `m/84'/0'/0'/1/i`,
+  "chain 2" of the main account, `V0_CHAIN`), found by the scan or its own filter account (`btc:v0`); never mixed.
+- On private sync a BTC send goes only to onion peers when two took it; `checkLater` asks peers for it after the
+  2 minutes nodes wait before handing a transaction out, and only if nobody has it does a server get it.
+- Monero sends go out through another node than the sync node (`MoneroClient.submitElsewhere`), own Tor login.
+- Extra Ethereum addresses (`ethAddresses`/`ethAddressNew`/`ethAddressesFind`, sealed `eth-addresses.json`): account
+  4, 5, ... (`ETH_EXTRA_FIRST`), each its own `EthClient` and Tor route; sends pick one with `fromAddress`.
+- Tornado: relayers from the registry's events and ENS (`mainnet-tornado.<name>` "url" text), picked as the site does
+  (random among the cheapest 30%); withdrawals to a new wallet address ("new"); deposits after yours shown from the
+  local deposit list; withdrawals later (proof made now, sealed in `tornado-later.json`, relayer only); split deposits
+  (`splitPlan`, later ones pre-signed with following nonces).
+- Android launcher: two activity-aliases (`.Launcher`, `.PlainLauncher` "Tools"); `setPlainLauncher` swaps them.
 - Own servers per coin: `customServers` setting, `OWN_SERVER_COINS` in `config.ts`.
 - Swaps into XMR use a new subaddress per order (`swapSubaddress`); XMR sends reconnect with a new Tor login
   (`MoneroClient.renewRoute`, desktop). Coin selection takes the smallest single coin that covers a payment.

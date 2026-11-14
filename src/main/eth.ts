@@ -80,6 +80,19 @@ export function deriveEthAccount(mnemonic: string, index = 0): { address: string
   return { address: wallet.address, wallet };
 }
 
+/**
+ * Ethereum addresses besides the main one, to receive at (and for Tornado withdrawals), each spent on its own. They
+ * follow the ones other chains may use (1-3) as account 4, 5, ...: MetaMask and Rabby find them by adding accounts.
+ */
+export const ETH_EXTRA_FIRST = 4;
+
+/** Public keys only, for the extra addresses' addresses while the wallet is open. */
+export function ethAddressNode(mnemonic: string): { addressAt(n: number): string } {
+  const normalized = mnemonic.trim().toLowerCase().split(/\s+/).join(' ');
+  const node = HDNodeWallet.fromPhrase(normalized, passphraseOf(normalized), "m/44'/60'/0'/0").neuter();
+  return { addressAt: (n: number) => node.deriveChild(ETH_EXTRA_FIRST + n).address };
+}
+
 /** Plain 0x form with a good checksum when mixed case. Also excludes ICAP, which isAddress accepts. */
 export function isEthAddress(address: string): boolean {
   return /^0x[0-9a-fA-F]{40}$/.test(address) && isAddress(address) && !/^0x0{40}$/.test(address);
@@ -156,6 +169,12 @@ export class EthClient {
     this.balances = { at: Date.now(), native: quantity(native, `${this.chain.symbol} balance`), tokens: new Map(list.map(([a, t], i) => [a, quantity(held[i], `${t.symbol} balance`)])) };
     return this.balances;
   }
+
+  /** This chain's coin at this address, asked on its own (no token reads). */
+  async nativeBalance(): Promise<bigint> { return quantity(await this.rpc('eth_getBalance', [this.address, 'latest']), `${this.chain.symbol} balance`); }
+
+  /** How many transactions this address has sent. */
+  async nonce(): Promise<bigint> { return quantity(await this.rpc('eth_getTransactionCount', [this.address, 'latest']), 'nonce'); }
 
   async getEthBalance(force = false): Promise<bigint> { return (await this.readBalances(force)).native; }
   async getUsdtBalance(force = false): Promise<bigint> { return (await this.readBalances(force)).tokens.get((Object.keys(this.tokens) as EthAsset[]).find((a) => same(this.tokens[a]!.contract, this.usdt))!) ?? 0n; }
@@ -284,10 +303,20 @@ export class EthClient {
   async gasPrice(): Promise<bigint> { return (await this.fees()).maxFee; }
 
   async send(draft: EthDraft, wallet: HDNodeWallet): Promise<string> {
+    const nonce = quantity(await this.rpc('eth_getTransactionCount', [this.address, 'pending']), 'nonce');
+    const { raw, hash } = await this.signOnly(draft, wallet, nonce);
+    await this.sendRaw(raw);
+    return hash;
+  }
+
+  /** The next nonce, counting sends still waiting. */
+  async pendingNonce(): Promise<bigint> { return quantity(await this.rpc('eth_getTransactionCount', [this.address, 'pending']), 'nonce'); }
+
+  /** Signed and checked, not sent: for a send that goes out later. */
+  async signOnly(draft: EthDraft, wallet: HDNodeWallet, nonce: bigint): Promise<{ raw: string; hash: string }> {
     if (wallet.address !== this.address) throw new Error('The wallet address does not match, so this was stopped.');
     const token = this.token(draft.asset);
     if (!token && draft.asset !== this.chain.native) throw new Error('This coin is not on this network.');
-    const nonce = quantity(await this.rpc('eth_getTransactionCount', [this.address, 'pending']), 'nonce');
     const tx = {
       type: 2, chainId: Number(this.chain.id), nonce: Number(nonce),
       to: token ? token.contract : draft.to,
@@ -300,6 +329,10 @@ export class EthClient {
     if (parsed.chainId !== this.chain.id || parsed.from !== this.address || !same(parsed.to ?? '', tx.to) || parsed.value !== tx.value || parsed.data !== tx.data) {
       throw new Error('The signed transaction differs from the request, so this was stopped.');
     }
+    return { raw, hash: parsed.hash as string };
+  }
+
+  async sendRaw(raw: string): Promise<void> {
     try {
       await this.rpc('eth_sendRawTransaction', [raw]);
     } catch (e) {
@@ -307,7 +340,6 @@ export class EthClient {
       if (!/already known|known transaction/i.test((e as Error).message)) throw e;
     }
     this.balances = null;
-    return parsed.hash as string;
   }
 
   /** Etherscan's API shape, as Routescan serves it without a key, for chains Blockscout doesn't run. */

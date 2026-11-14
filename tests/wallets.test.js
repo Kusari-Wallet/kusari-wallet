@@ -280,3 +280,42 @@ test('duress password: opens a decoy in the wallet\'s place, the real one stays 
   await makeOldWallet(s, PW2, 'new seed');
   await assert.rejects(s.unlock('decoy password'), /./, 'the old decoy password opens nothing');
 });
+
+test('extra Ethereum addresses: made on demand, read on their own, found again after a restore, spent on their own', async (t) => {
+  const http = require('node:http');
+  const { ethAddressNode, deriveEthAccount, ETH_EXTRA_FIRST } = require('../dist/main/eth');
+  const PHRASE = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+  const node = ethAddressNode(PHRASE);
+  assert.equal(node.addressAt(0), deriveEthAccount(PHRASE, ETH_EXTRA_FIRST).address, 'account 4, as MetaMask numbers them');
+  // A node where only the third extra address has been used.
+  const used = node.addressAt(2).toLowerCase();
+  const asked = [];
+  const server = http.createServer((q, r) => {
+    let b = ''; q.on('data', (c) => { b += c; });
+    q.on('end', () => {
+      const { id, method, params } = JSON.parse(b);
+      const ok = (result) => r.end(JSON.stringify({ jsonrpc: '2.0', id, result }));
+      if (method === 'eth_chainId') return ok('0x1');
+      asked.push([method, JSON.stringify(params)]);
+      if (method === 'eth_getBalance') return ok(params[0].toLowerCase() === used ? '0xde0b6b3a7640000' : '0x0');
+      if (method === 'eth_call') return ok('0x' + '0'.repeat(64));
+      if (method === 'eth_getTransactionCount') return ok('0x0');
+      ok(null);
+    });
+  });
+  await new Promise((res) => server.listen(0, '127.0.0.1', res));
+  t.after(() => { server.close(); server.closeAllConnections(); });
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ea-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const s = new WalletService(dir, { N: 2 ** 10, r: 8, p: 1 }, { ethRpc: `http://127.0.0.1:${server.address().port}` });
+  s.startSession = async () => { s.tron = {}; s.btc = {}; s.eth = { address: deriveEthAccount(PHRASE).address }; s.dash = {}; s.firo = {}; s.monero = { close: async () => {} }; s.ethNode = node; };
+  await s.init();
+  await s.startSession();
+
+  assert.equal(await s.ethAddressesFind(), 1, 'the used one is found, looking on past unused ones');
+  assert.deepEqual((await s.ethAddresses()).map((x) => [x.n, x.address, x.eth]), [[2, node.addressAt(2), '1']]);
+  const fresh = await s.ethAddressNew();
+  assert.deepEqual(fresh, { n: 3, address: node.addressAt(3) }, 'the next one after those known');
+  assert.equal((await s.ethAddresses()).length, 2);
+  await assert.rejects(s.prepareSend('ETH', node.addressAt(9), '0.1', { fromAddress: 7 }), /not in this wallet/);
+});

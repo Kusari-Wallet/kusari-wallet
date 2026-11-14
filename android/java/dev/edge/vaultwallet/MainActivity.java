@@ -6,6 +6,7 @@ import android.content.ActivityNotFoundException;
 import android.content.ClipData;
 import android.content.ClipDescription;
 import android.content.ClipboardManager;
+import android.content.ComponentName;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
@@ -369,6 +370,18 @@ public class MainActivity extends Activity {
         }
         @JavascriptInterface public void tcpClose(int id) { tcp.close(id, ""); }
 
+        /** Whether the launcher shows the plain "Tools" entry instead of Kusari Wallet. */
+        @JavascriptInterface public boolean plainLauncher() {
+            return getPackageManager().getComponentEnabledSetting(new ComponentName(MainActivity.this, getPackageName() + ".PlainLauncher")) == PackageManager.COMPONENT_ENABLED_STATE_ENABLED;
+        }
+        /** Swaps the launcher entry. The other is turned off, so only one icon shows; the app keeps running. */
+        @JavascriptInterface public void setPlainLauncher(boolean plain) {
+            PackageManager pm = getPackageManager();
+            pm.setComponentEnabledSetting(new ComponentName(MainActivity.this, getPackageName() + ".PlainLauncher"),
+                plain ? PackageManager.COMPONENT_ENABLED_STATE_ENABLED : PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP);
+            pm.setComponentEnabledSetting(new ComponentName(MainActivity.this, getPackageName() + ".Launcher"),
+                plain ? PackageManager.COMPONENT_ENABLED_STATE_DISABLED : PackageManager.COMPONENT_ENABLED_STATE_DEFAULT, PackageManager.DONT_KILL_APP);
+        }
         @JavascriptInterface public boolean bioAvailable() { return biometric.available(); }
         @JavascriptInterface public boolean bioEnabled(String wallet) { return biometric.enabled(wallet); }
         @JavascriptInterface public void bioDisable(String wallet) { biometric.disable(wallet); }

@@ -1,5 +1,5 @@
 import { passphraseOf } from './seed';
-import { Interface, Mnemonic, computeHmac, id as keccakId, isAddress, toUtf8Bytes } from 'ethers';
+import { AbiCoder, Interface, Mnemonic, computeHmac, id as keccakId, isAddress, namehash, toUtf8Bytes } from 'ethers';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import type { Agent } from 'node:http';
@@ -28,7 +28,13 @@ export const abi = new Interface([
   'function isKnownRoot(bytes32) view returns (bool)',
 ]);
 
-export interface TornadoNote { id: string; pool: string; index: number; commitment: string; status: 'sending' | 'deposited' | 'withdrawing' | 'withdrawn'; txHash?: string; withdrawTx?: string; recipient?: string; createdAt: number }
+export interface TornadoNote {
+  id: string; pool: string; index: number; commitment: string;
+  /** scheduled: a deposit or withdrawal signed and waiting for its time (see `at`). */
+  status: 'sending' | 'deposited' | 'withdrawing' | 'withdrawn' | 'scheduled';
+  txHash?: string; withdrawTx?: string; recipient?: string; createdAt: number;
+  at?: number; scheduledKind?: 'deposit' | 'withdraw'; problem?: string;
+}
 interface Store { next: number; notes: TornadoNote[] }
 
 export const denomination = (pool: string): bigint => BigInt(Math.round(Number(pool) * 10)) * 10n ** 17n;
@@ -61,6 +67,44 @@ export class TornadoStore {
   async write(store: Store): Promise<void> {
     await this.records.write(this.file, store);
   }
+  /** How many deposits came after this one, from the deposit list kept on this device; null when unknown. */
+  async depositsAfter(pool: string, commitment: string): Promise<number | null> {
+    try {
+      const cache: { leaves: string[] } = JSON.parse(await fs.readFile(path.join(this.cacheDir, `tornado-cache-${pool}.json`), 'utf8') as unknown as string);
+      const i = cache.leaves.findIndex((l) => l.toLowerCase() === commitment.toLowerCase());
+      return i < 0 ? null : cache.leaves.length - i - 1;
+    } catch { return null; }
+  }
+
+  /** Registered relayers' ENS names, read from the registry's events once and kept up to date after. */
+  async relayerNames(eth: EthClient, progress: (m: string) => void, registry = RELAYER_REGISTRY, start = RELAYER_REGISTRY_FROM): Promise<{ name: string; address: string }[]> {
+    const file = path.join(this.cacheDir, 'tornado-relayers.json');
+    let cache: { block: number; list: { name: string; address: string }[] } = { block: start - 1, list: [] };
+    try { const c = JSON.parse(await fs.readFile(file, 'utf8') as unknown as string); if (Number.isInteger(c.block) && Array.isArray(c.list)) cache = c; } catch { /* first time */ }
+    const latest = await eth.blockNumber();
+    let from = cache.block + 1;
+    let span = 200_000;
+    while (from <= latest) {
+      const to = Math.min(from + span - 1, latest);
+      let logs: any[];
+      try { logs = await eth.logs(registry, RELAYER_REGISTERED, from, to); } catch (e) {
+        if (span <= 500) throw e;
+        span = Math.floor(span / 4);
+        continue;
+      }
+      for (const log of logs) {
+        const r = parseRelayerLog(log);
+        if (r && !cache.list.some((x) => x.name === r.name)) cache.list.push(r);
+      }
+      cache.block = to;
+      from = to + 1;
+      progress(`Reading the relayer list… ${Math.round(((to - start) / Math.max(1, latest - start)) * 100)}%`);
+      await fs.mkdir(this.cacheDir, { recursive: true });
+      await fs.writeFile(file, JSON.stringify(cache), { mode: 0o600 });
+    }
+    return cache.list;
+  }
+
   /** Every commitment ever deposited: an old snapshot, then logs since. The final root check catches any bad data. */
   async leaves(pool: string, address: string, eth: EthClient, opts: { seed: boolean; agent?: Agent; progress: (m: string) => void }): Promise<string[]> {
     const file = path.join(this.cacheDir, `tornado-cache-${pool}.json`);
@@ -100,6 +144,69 @@ export class TornadoStore {
     }
     return cache.leaves;
   }
+}
+
+// ---- finding relayers ----
+
+/**
+ * Relayers register with the Tornado relayer registry, under an ENS name; each publishes where it answers in the
+ * "url" text of mainnet-tornado.<name> (the Tornado docs, "How to become a relayer"). The list is read from the
+ * registry's events and the addresses from ENS, both on the chain, so no list server is trusted.
+ */
+export const RELAYER_REGISTRY = '0x58E8dCC13BE9780fC42E8723D8EaD4CF46943dF2';
+export const RELAYER_REGISTRY_FROM = 14_173_129;
+export const RELAYER_REGISTERED = keccakId('RelayerRegistered(bytes32,string,address,uint256)');
+const ENS_REGISTRY = '0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e';
+const ens = new Interface(['function resolver(bytes32 node) view returns (address)', 'function text(bytes32 node, string key) view returns (string)']);
+
+/** The ENS name and address in a registration event, or null for one that doesn't read as such. */
+export function parseRelayerLog(log: { data?: string }): { name: string; address: string } | null {
+  const coder = AbiCoder.defaultAbiCoder();
+  // The relayer's node may be indexed (then it's a topic) or not.
+  for (const types of [['bytes32', 'string', 'address', 'uint256'], ['string', 'address', 'uint256']]) {
+    try {
+      const v = coder.decode(types, String(log.data ?? '0x'));
+      const name = String(v[types.length === 4 ? 1 : 0]).toLowerCase();
+      const address = String(v[types.length === 4 ? 2 : 1]);
+      if (/^([a-z0-9-]+\.)+eth$/.test(name) && name.length < 100 && isAddress(address)) return { name, address };
+    } catch { /* the other layout */ }
+  }
+  return null;
+}
+
+/** Where a registered relayer answers, from ENS: an https:// or onion address, or null. */
+export async function relayerHost(eth: EthClient, name: string): Promise<string | null> {
+  const node = namehash(`mainnet-tornado.${name}`);
+  const [resolver] = ens.decodeFunctionResult('resolver', await eth.call(ENS_REGISTRY, ens.encodeFunctionData('resolver', [node])));
+  if (!isAddress(resolver) || /^0x0{40}$/i.test(resolver)) return null;
+  const [text] = ens.decodeFunctionResult('text', await eth.call(resolver, ens.encodeFunctionData('text', [node, 'url'])));
+  const raw = String(text).trim().replace(/\/+$/, '');
+  if (!raw) return null;
+  const url = /^https?:\/\//i.test(raw) ? raw : /\.onion$/i.test(raw) ? `http://${raw}` : `https://${raw}`;
+  try { return checkRelayerUrl(url, false); } catch { return null; }
+}
+
+/**
+ * As the Tornado site picks: among the cheapest 30% of working relayers, one at random. Using the same rule keeps
+ * this wallet's withdrawals looking like everyone else's.
+ */
+export function pickRelayer<T extends { feePercent: number }>(list: T[], rand: () => number = Math.random): T | null {
+  if (!list.length) return null;
+  const sorted = [...list].sort((a, b) => a.feePercent - b.feePercent);
+  const pool = sorted.slice(0, Math.max(1, Math.ceil(sorted.length * 0.3)));
+  return pool[Math.floor(rand() * pool.length) % pool.length];
+}
+
+/** An amount made of the pools' fixed amounts, largest first; what's left (under the smallest) stays. */
+export function splitPlan(amount: bigint, pools: string[], maxDeposits = 10): { pools: string[]; left: bigint } {
+  const sizes = [...pools].sort((a, b) => Number(b) - Number(a));
+  const out: string[] = [];
+  let left = amount;
+  for (const p of sizes) {
+    const d = denomination(p);
+    while (left >= d && out.length < maxDeposits) { out.push(p); left -= d; }
+  }
+  return { pools: out, left };
 }
 
 export interface RelayerInfo { url: string; rewardAccount: string; feePercent: number }

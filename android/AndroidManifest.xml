@@ -25,12 +25,32 @@
             android:exported="true"
             android:launchMode="singleTask"
             android:configChanges="orientation|screenSize|screenLayout|keyboard|keyboardHidden|smallestScreenSize|uiMode"
-            android:windowSoftInputMode="adjustResize">
+            android:windowSoftInputMode="adjustResize" />
+        <!-- The launcher entry: Kusari Wallet, or a plain "Tools" one when hidden in Settings. One is on at a time. -->
+        <activity-alias
+            android:name=".Launcher"
+            android:targetActivity=".MainActivity"
+            android:label="Kusari Wallet"
+            android:icon="@mipmap/ic_launcher"
+            android:enabled="true"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
+        </activity-alias>
+        <activity-alias
+            android:name=".PlainLauncher"
+            android:targetActivity=".MainActivity"
+            android:label="Tools"
+            android:icon="@mipmap/ic_plain"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
         <service
             android:name=".KeepRunningService"
             android:exported="false"

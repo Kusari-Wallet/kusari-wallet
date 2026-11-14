@@ -56,6 +56,12 @@ export async function blockbookGet(base: string, path: string, opts: Opts): Prom
       status: { confirmed: Number(t.confirmations ?? 0) > 0, block_time: t.blockTime },
     }));
   }
+  if (path === '/blocks/tip/height') {
+    const r = await get('/api/v2');
+    const h = Number(r?.blockbook?.bestHeight ?? r?.backend?.blocks);
+    if (!Number.isSafeInteger(h) || h <= 0) throw new Error(UNEXPECTED);
+    return h;
+  }
   if (path === '/fee-estimates') {
     // Blockbook gives coins per kilobyte for a target of blocks.
     const r = await get('/api/v2/estimatefee/3');

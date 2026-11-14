@@ -3,7 +3,7 @@
 // transaction. Connections go over Tor to onion nodes, each on a route of its own.
 import { randomBytes } from 'node:crypto';
 import { Reader, Writer, type Link } from './dash-p2p';
-import { dsha } from './btc-block';
+import { dsha, fromHexLE, parseTx } from './btc-block';
 
 const { sha3_256 } = require('@noble/hashes/sha3.js');
 
@@ -16,6 +16,8 @@ export const NODE_COMPACT_FILTERS = 1n << 6n;
 export const NODE_NETWORK_LIMITED = 1n << 10n;
 const MSG_WITNESS_BLOCK = 0x40000002;
 const MSG_WITNESS_TX = 0x40000001;
+/** A transaction's ID in its travelling order, or nothing for bytes that aren't one. */
+const txidOf = (raw: Buffer): Buffer => { try { return Buffer.from(fromHexLE(parseTx(raw).txid)); } catch { return Buffer.alloc(0); } };
 
 export function frame(command: string, payload: Buffer = Buffer.alloc(0)): Buffer {
   const head = Buffer.alloc(24);
@@ -234,8 +236,18 @@ export class BtcPeer {
 
   /** Hands over a signed transaction. Peers accept it unasked; it then spreads like any other. */
   sendTx(raw: Buffer): void {
-    void MSG_WITNESS_TX;
     this.send('tx', raw);
+  }
+
+  /**
+   * Whether the peer has a transaction (`txidLE`: the ID in its travelling order). A node hands out a waiting
+   * transaction to anyone only once it has been in its pool a couple of minutes, so ask after that.
+   */
+  async hasTx(txidLE: Uint8Array, timeoutMs = 60_000): Promise<boolean> {
+    const id = Buffer.from(txidLE);
+    this.send('getdata', new Writer().varint(1).u32(MSG_WITNESS_TX).bytes(txidLE).done());
+    const m = await this.next(['tx', 'notfound'], timeoutMs, (p) => p.includes(id) || txidOf(p).equals(id));
+    return m.command === 'tx';
   }
 
   close(): void { this.fail(new Error('Closed.')); }

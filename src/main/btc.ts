@@ -5,6 +5,7 @@ import { blockbookGet, blockbookSend, isBlockbook } from './blockbook';
 import { formatAmount } from './amount';
 import type { FilterSync } from './btc-filter-sync';
 import { isSilentAddress, silentOutputs, taprootScript } from './btc-silent';
+import { randomInt } from 'node:crypto';
 
 // These packages are ESM only, which require() handles in this Node version.
 const { HDKey } = require('@scure/bip32');
@@ -13,6 +14,12 @@ const btc = require('@scure/btc-signer');
 export const BTC_PATH = "m/86'/0'/0'"; // taproot
 /** Coins out of a CoinJoin live in their own account, so they're never spent together with unmixed ones by accident. */
 export const BTC_MIXED_PATH = "m/86'/0'/1'";
+/**
+ * Change for a payment to an older (segwit v0) address goes to one of these (BIP84, bc1q), as Bitcoin Core does:
+ * taproot change beside a bc1q payment would show which output is the change. Kept as "chain 2" of the account.
+ */
+export const BTC_V0_PATH = "m/84'/0'/0'";
+export const V0_CHAIN = 2;
 const GAP = 20;
 const GAP_CHANGE = 5;
 const GAP_RECHECK = 3; // past the last used address, on the quick rechecks
@@ -32,6 +39,24 @@ export interface BtcDraft {
   to: string; amount: bigint; fee: bigint; change: bigint; changeAddress: string; changePath: [number, number]; inputs: BtcUtxo[];
   /** A fee bump: the send (by ID) this one replaces (RBF), or the waiting transaction it pulls along (CPFP). */
   replaces?: string; cpfpOf?: string;
+  /** Set as Bitcoin Core sets them, so a send doesn't stand out (see `coreLike`): lock time, change placed first. */
+  lockTime?: number; changeFirst?: boolean;
+}
+
+/**
+ * What Bitcoin Core does with a new send, so this wallet's look like the most common ones: the lock time is the
+ * current height (and one time in ten up to 99 blocks less), so a miner gains nothing by redoing the last block; the
+ * coins go in in random order; the change takes a random place among the outputs.
+ */
+export function coreLike(tip: number, rand: (n: number) => number = (n) => randomInt(n)): { lockTime: number; changeFirst: boolean; order: <T>(list: T[]) => T[] } {
+  let lockTime = tip > 0 && tip < 500_000_000 ? tip : 0;
+  if (lockTime && rand(10) === 0) lockTime = Math.max(0, lockTime - rand(100));
+  const order = <T>(list: T[]): T[] => {
+    const out = [...list];
+    for (let i = out.length - 1; i > 0; i--) { const j = rand(i + 1); [out[i], out[j]] = [out[j], out[i]]; }
+    return out;
+  };
+  return { lockTime, changeFirst: rand(2) === 0, order };
 }
 /** Each input says the transaction may be replaced by one paying more (BIP125), as most wallets do. */
 export const RBF_SEQUENCE = 0xfffffffd;
@@ -66,6 +91,28 @@ export function isBtcAddress(address: string): boolean {
  */
 export function estimateVbytes(inputs: number, outputs: number, inputVb = 57.5, outputVb = 43): bigint {
   return BigInt(Math.ceil(10.5 + inputVb * inputs + outputVb * outputs));
+}
+
+/** Virtual bytes of a payment to an address, by its kind. Silent Payments outputs are taproot. */
+function outputVbFor(address: string): number {
+  if (isSilentAddress(address)) return 43;
+  try {
+    const t = btc.Address().decode(address).type;
+    return t === 'wpkh' ? 31 : t === 'pkh' ? 34 : t === 'sh' ? 32 : 43;
+  } catch { return 43; }
+}
+
+/** Whether a payment's change should be segwit v0, as Bitcoin Core picks: taproot only beside a taproot payment. */
+export function v0ChangeFor(to: string): boolean {
+  if (isSilentAddress(to)) return false;
+  try { return btc.Address().decode(to).type !== 'tr'; } catch { return false; }
+}
+
+/** The send's real size, inputs and outputs counted by their kinds, for fees that hold up with mixed coins. */
+export function draftVbytes(d: { inputs: { chain: number }[]; to: string; change: bigint; changeAddress: string }): bigint {
+  const ins = d.inputs.reduce((s, u) => s + (u.chain === V0_CHAIN ? 68.25 : 57.5), 0);
+  const outs = outputVbFor(d.to) + (d.change > 0n ? outputVbFor(d.changeAddress) : 0);
+  return BigInt(Math.ceil(10.5 + ins + outs));
 }
 
 /** Largest coins first, with no change output when the remainder would be dust. */
@@ -104,6 +151,25 @@ export function selectCoins(utxos: BtcUtxo[], amount: bigint | 'max', feeRate: b
 
 export const coinId = (u: { txid: string; vout: number }): string => `${u.txid}:${u.vout}`;
 
+/**
+ * Coin selection counts every coin and output at taproot sizes; with bc1q coins in, the send is a little larger, so
+ * the fee is topped up to the rate for its real size: from the change, from the amount when sending everything, or
+ * by giving up a change too small to keep.
+ */
+export function fitFee(d: BtcDraft, rate: bigint, max: boolean, dust: bigint): BtcDraft {
+  const need = draftVbytes(d) * rate;
+  if (d.fee >= need) return d;
+  const short = need - d.fee;
+  if (d.change > 0n && d.change - short >= dust) return { ...d, change: d.change - short, fee: need };
+  if (max && d.amount - short >= dust) return { ...d, amount: d.amount - short, fee: need };
+  if (d.change > 0n) {
+    const without = { ...d, change: 0n };
+    const smaller = draftVbytes(without) * rate;
+    if (d.fee + d.change >= smaller) return { ...without, fee: d.fee + d.change };
+  }
+  throw new Error('Not enough BTC to cover the amount and fee.');
+}
+
 /** All of these coins go in; what's left over comes back as change, or goes to the fee when it would be dust. */
 export function spendExactly(inputs: BtcUtxo[], amount: bigint | 'max', feeRate: bigint, coin: UtxoCoin = BITCOIN): { inputs: BtcUtxo[]; amount: bigint; fee: bigint; change: bigint } {
   const { symbol, dust } = coin;
@@ -123,7 +189,7 @@ export function spendExactly(inputs: BtcUtxo[], amount: bigint | 'max', feeRate:
 
 export class BtcClient {
   private readonly account: any;
-  private state: { at: number; utxos: BtcUtxo[]; total: bigint; spendable: bigint; nextReceive: number; nextChange: number; used: Set<string>; addresses: Map<string, [number, number]> } | null = null;
+  private state: { at: number; utxos: BtcUtxo[]; total: bigint; spendable: bigint; nextReceive: number; nextChange: number; nextChangeV0: number; used: Set<string>; addresses: Map<string, [number, number]> } | null = null;
   private inFlight: Promise<void> | null = null;
   private lastFullScan = 0;
   private readonly nexts = new Map<string, number>();
@@ -139,6 +205,10 @@ export class BtcClient {
     this.account = HDKey.fromExtendedKey(xpub);
   }
 
+  /** The BIP84 account whose change addresses (chain 2 here) take change beside bc1q payments. Before useFilters. */
+  private v0: any = null;
+  useV0Change(xpub: string): void { this.v0 = HDKey.fromExtendedKey(xpub); }
+
   /**
    * Private sync: balances come from block filters checked on this device (see btc-filter-sync), so no server is
    * asked about any address. Fees and sends still use the servers, which learn nothing about the wallet from them.
@@ -147,29 +217,36 @@ export class BtcClient {
   useFilters(sync: FilterSync, id: string): void {
     this.filters = { sync, id };
     sync.addAccount({ id, gap: [this.coin.gap ?? GAP, GAP_CHANGE], script: (chain, index) => btc.OutScript.encode(btc.Address(btc.NETWORK).decode(this.addressAt(chain, index))) });
+    // The segwit v0 change addresses, as an account of their own with change only.
+    if (this.v0) sync.addAccount({ id: `${id}:v0`, gap: [0, GAP_CHANGE], script: (_chain, index) => btc.OutScript.encode(btc.Address(btc.NETWORK).decode(this.addressAt(V0_CHAIN, index))) });
   }
   get usesFilters(): boolean { return this.filters !== null; }
   /** How far the private sync has got, when it is on. */
   get filterProgress(): { scanned: number; tip: number; error: string | null } | null {
-    return this.filters ? { ...this.filters.sync.progress, error: this.filters.sync.lastError } : null;
+    if (!this.filters) return null;
+    const p = this.sendProblem;
+    return { ...this.filters.sync.progress, error: p ? `A send (${p.id.slice(0, 10)}…) did not go out: ${p.message}` : this.filters.sync.lastError };
   }
 
   private stateFromFilters(): void {
     const f = this.filters!;
     const v = f.sync.view(f.id);
     if (!v) return;
+    const v0 = this.v0 ? f.sync.view(`${f.id}:v0`) : null;
     const addresses = new Map<string, [number, number]>(this.state?.addresses ?? []);
     const used = new Set<string>();
-    const utxos: BtcUtxo[] = v.coins.map((c) => {
-      const address = this.addressAt(c.chain, c.index);
-      addresses.set(address, [c.chain, c.index]);
+    const coin = (c: { txid: string; vout: number; value: string; height: number; index: number }, chain: number): BtcUtxo => {
+      const address = this.addressAt(chain, c.index);
+      addresses.set(address, [chain, c.index]);
       used.add(address);
-      return { txid: c.txid, vout: c.vout, value: BigInt(c.value), address, chain: c.chain, index: c.index, confirmed: c.height > 0 };
-    });
+      return { txid: c.txid, vout: c.vout, value: BigInt(c.value), address, chain, index: c.index, confirmed: c.height > 0 };
+    };
+    const utxos: BtcUtxo[] = [...v.coins.map((c) => coin(c, c.chain)), ...(v0?.coins ?? []).map((c) => coin(c, V0_CHAIN))];
     const total = utxos.reduce((s, u) => s + u.value, 0n);
     const spendable = utxos.filter((u) => u.confirmed).reduce((s, u) => s + u.value, 0n);
     this.nexts.set('taproot0', v.next[0]); this.nexts.set('taproot1', v.next[1]);
-    this.state = { at: Date.now(), utxos, total, spendable, nextReceive: v.next[0], nextChange: v.next[1], addresses, used };
+    if (v0) this.nexts.set('taproot2', v0.next[1]);
+    this.state = { at: Date.now(), utxos, total, spendable, nextReceive: v.next[0], nextChange: v.next[1], nextChangeV0: v0?.next[1] ?? 0, addresses, used };
   }
 
   /** What the last scan learned, kept between launches so opening the app doesn't rescan every address. */
@@ -184,6 +261,10 @@ export class BtcClient {
   }
 
   addressAt(chain: number, index: number): string {
+    if (chain === V0_CHAIN) {
+      if (!this.v0) throw new Error('No segwit change account.');
+      return btc.p2wpkh(this.v0.deriveChild(1).deriveChild(index).publicKey).address;
+    }
     return this.coin.address(this.account.deriveChild(chain).deriveChild(index).publicKey);
   }
 
@@ -295,9 +376,10 @@ export class BtcClient {
         const usedBefore = this.state?.used ?? this.hintsUsed ?? new Set<string>();
         const nextReceive = await this.scanChain(0, out, full, usedBefore);
         const nextChange = await this.scanChain(1, out, full, usedBefore);
+        const nextChangeV0 = this.v0 ? await this.scanChain(V0_CHAIN, out, full, usedBefore) : 0;
         if (full) this.lastFullScan = Date.now();
         const spendable = out.utxos.filter((u) => u.confirmed).reduce((s, u) => s + u.value, 0n);
-        this.state = { at: Date.now(), utxos: out.utxos, total: out.total, spendable, nextReceive, nextChange, addresses: out.addresses, used: out.used };
+        this.state = { at: Date.now(), utxos: out.utxos, total: out.total, spendable, nextReceive, nextChange, nextChangeV0, addresses: out.addresses, used: out.used };
         this.lastError = null;
         this.resume.clear();
         this.scanSalt = Math.random().toString(36); // the next scan spreads addresses differently
@@ -330,6 +412,18 @@ export class BtcClient {
     const fee = BigInt(Math.max(1, Math.ceil(rate)));
     if (fee > this.coin.maxFeeRate) throw new Error(`The fee is abnormally high, so this was stopped (${fee} sat/vB).`);
     return fee;
+  }
+
+  /**
+   * The chain's height, for the lock time: from the private sync when on, else from the server. 0 when unknown,
+   * which is never wrong (a height above the real one would make the send invalid until then).
+   */
+  async tipHeight(): Promise<number> {
+    if (this.filters) return this.filters.sync.view(this.filters.id)?.tip ?? 0;
+    try {
+      const h = Number(await this.get('/blocks/tip/height'));
+      return Number.isSafeInteger(h) && h > 0 ? h : 0;
+    } catch { return 0; }
   }
 
   /** Confirmed coins, freshly listed: what a peg-in into MWEB spends. */
@@ -415,7 +509,8 @@ export class BtcClient {
     const total = coins.reduce((s, u) => s + u.value, 0n);
     if (total - fee < TAPROOT_DUST) throw new Error('These coins are too small to pay for speeding the transaction up.');
     const index = state.nextChange;
-    return { to: this.addressAt(1, index), amount: total - fee, fee, change: 0n, changeAddress: this.addressAt(1, index), changePath: [1, index], inputs: coins, cpfpOf: txid };
+    const look = coreLike(await this.tipHeight());
+    return { to: this.addressAt(1, index), amount: total - fee, fee, change: 0n, changeAddress: this.addressAt(1, index), changePath: [1, index], inputs: look.order(coins), cpfpOf: txid, lockTime: look.lockTime };
   }
 
   /**
@@ -436,7 +531,10 @@ export class BtcClient {
     } else {
       picked = selectCoins(state.utxos.filter((u) => u.confirmed && !pick.frozen?.has(coinId(u)) && !this.reserved.has(coinId(u))), amount, rate, this.coin);
     }
-    return { to, amount: picked.amount, fee: picked.fee, change: picked.change, changeAddress: this.addressAt(1, state.nextChange), changePath: [1, state.nextChange], inputs: picked.inputs };
+    const look = coreLike(await this.tipHeight());
+    const changePath: [number, number] = this.v0 && v0ChangeFor(to) ? [V0_CHAIN, state.nextChangeV0] : [1, state.nextChange];
+    const draft: BtcDraft = { to, amount: picked.amount, fee: picked.fee, change: picked.change, changeAddress: this.addressAt(...changePath), changePath, inputs: look.order(picked.inputs), lockTime: look.lockTime, changeFirst: look.changeFirst };
+    return this.v0 ? fitFee(draft, rate, amount === 'max', this.coin.dust) : draft;
   }
 
   /** Signs here, checks the result against what was approved, then broadcasts. */
@@ -451,11 +549,13 @@ export class BtcClient {
 
   async sendSigned(draft: BtcDraft, hex: string, id: string): Promise<string> {
     if (this.filters) {
-      // Handed to Bitcoin nodes directly too, so the send doesn't depend on a server being up.
+      // Handed to Bitcoin nodes over Tor. Only when fewer than two took it does a server get it too: a server that
+      // is sent a transaction can tie it to the connection, while a node can't tell it from the ones it relays.
       const raw = Buffer.from(hex, 'hex');
       const peers = await this.filters.sync.broadcast(raw).catch(() => 0);
       let answer: string | null = null;
-      try { answer = (await this.broadcast(hex)).trim(); } catch (e) { if (peers < 2) throw e; }
+      if (peers < 2) answer = (await this.broadcast(hex)).trim();
+      else this.checkLater(hex, id);
       if (answer !== null && answer !== id) throw new Error(`The server returned a different transaction ID. Check ${id} on an explorer.`);
       // Only once it went out: a replacement frees the coins of the send it replaces.
       if (draft.replaces) this.filters.sync.dropPending(draft.replaces);
@@ -472,6 +572,35 @@ export class BtcClient {
     return id;
   }
 
+  /** How long after handing a send to peers it is looked for: nodes give out a waiting transaction after 2 minutes. */
+  broadcastCheckMs = 150_000;
+  /** Sends handed to peers whose check hasn't run yet. */
+  private readonly checking = new Set<ReturnType<typeof setTimeout>>();
+  /**
+   * Peers don't say whether they took a transaction. If, once nodes would hand it out, none asked has it, it goes to
+   * a server as well, which says why when it is refused.
+   */
+  private checkLater(hex: string, id: string): void {
+    const sync = this.filters?.sync;
+    if (!sync) return;
+    const to = sync.lastBroadcastTo;
+    const timer = setTimeout(() => {
+      this.checking.delete(timer);
+      void (async () => {
+        const seen = await sync.seen(id, to).catch(() => null);
+        if (seen === true) return;
+        try {
+          const answer = (await this.broadcast(hex)).trim();
+          if (answer !== id) throw new Error(`The server returned a different transaction ID. Check ${id} on an explorer.`);
+        } catch (e) { this.sendProblem = { id, message: (e as Error).message }; }
+      })();
+    }, this.broadcastCheckMs);
+    (timer as any).unref?.(); // never what keeps the app running
+    this.checking.add(timer);
+  }
+  /** A send that peers didn't take and a server refused, for the screen to tell. */
+  sendProblem: { id: string; message: string } | null = null;
+
   private async broadcast(hex: string): Promise<string> {
     let last: unknown;
     for (const base of this.apis) {
@@ -486,11 +615,16 @@ export class BtcClient {
   async getHistory(): Promise<BtcHistoryItem[]> {
     await this.refresh().catch((e) => { if (!this.state) throw e; });
     if (this.filters) {
-      const v = this.filters.sync.view(this.filters.id);
+      const id = this.filters.id;
+      const v = this.filters.sync.view(id);
       if (!v) return [];
-      return v.txs.map((t): BtcHistoryItem => {
-        const a = t.accounts[this.filters!.id];
-        const got = BigInt(a.in); const spent = BigInt(a.out);
+      // The bc1q change account's transactions too, each counted once across both.
+      const v0 = this.v0 ? this.filters.sync.view(`${id}:v0`) : null;
+      const byId = new Map(v.txs.map((t) => [t.txid, t]));
+      for (const t of v0?.txs ?? []) if (!byId.has(t.txid)) byId.set(t.txid, t);
+      return [...byId.values()].map((t): BtcHistoryItem => {
+        const parts = [t.accounts[id], t.accounts[`${id}:v0`]].filter(Boolean);
+        const got = parts.reduce((s, a) => s + BigInt(a.in), 0n); const spent = parts.reduce((s, a) => s + BigInt(a.out), 0n);
         const net = got - spent;
         const direction = spent === 0n ? 'in' : net < 0n ? 'out' : 'self';
         return {
@@ -536,27 +670,47 @@ export function taprootOutputKey(internal: Uint8Array): Uint8Array {
 }
 
 export function signBtcDraft(draft: BtcDraft, mnemonic: string, path = BTC_PATH): { hex: string; id: string } {
-  const taproot = HDKey.fromMasterSeed(bip39Seed(mnemonic)).derive(path);
-  const tx = new btc.Transaction();
+  const root = HDKey.fromMasterSeed(bip39Seed(mnemonic));
+  const taproot = root.derive(path);
+  // bc1q change of the main account only: the CoinJoin account never has any.
+  const v0 = path === BTC_PATH ? root.derive(BTC_V0_PATH) : null;
+  const tx = new btc.Transaction({ lockTime: draft.lockTime ?? 0 });
   const keys: Uint8Array[] = [];
+  const isTaproot: boolean[] = [];
   for (const u of draft.inputs) {
+    if (u.chain === V0_CHAIN) {
+      if (!v0) throw new Error('An input address does not match this wallet\'s keys, so signing was stopped.');
+      const child = v0.deriveChild(1).deriveChild(u.index);
+      const pay = btc.p2wpkh(child.publicKey);
+      if (pay.address !== u.address) throw new Error('An input address does not match this wallet\'s keys, so signing was stopped.');
+      tx.addInput({ txid: u.txid, index: u.vout, witnessUtxo: { script: pay.script, amount: u.value }, sequence: RBF_SEQUENCE });
+      keys.push(child.privateKey); isTaproot.push(false);
+      continue;
+    }
     const child = taproot.deriveChild(u.chain).deriveChild(u.index);
     const pay = btc.p2tr(xOnly(child.publicKey));
     if (pay.address !== u.address) throw new Error('An input address does not match this wallet\'s keys, so signing was stopped.');
     tx.addInput({ txid: u.txid, index: u.vout, witnessUtxo: { script: pay.script, amount: u.value }, tapInternalKey: pay.tapInternalKey, sequence: RBF_SEQUENCE });
-    keys.push(child.privateKey);
+    keys.push(child.privateKey); isTaproot.push(true);
   }
-  if (isSilentAddress(draft.to)) {
-    // Silent Payments: the output key comes from the recipient's keys and these inputs' (tweaked) private keys.
-    const spend = draft.inputs.map((u, i) => ({ txid: u.txid, vout: u.vout, key: taprootOutputKey(keys[i]), taproot: true }));
-    const [out] = silentOutputs(spend, [draft.to]);
-    tx.addOutput({ script: taprootScript(out), amount: draft.amount });
-  } else tx.addOutputAddress(draft.to, draft.amount);
-  if (draft.change > 0n) {
-    const change = taproot.deriveChild(draft.changePath[0]).deriveChild(draft.changePath[1]);
-    if (btc.p2tr(xOnly(change.publicKey)).address !== draft.changeAddress) throw new Error('The change address does not match this wallet\'s keys, so signing was stopped.');
+  const pay = (): void => {
+    if (isSilentAddress(draft.to)) {
+      // Silent Payments: the output key comes from the recipient's keys and these inputs' (tweaked) private keys.
+      const spend = draft.inputs.map((u, i) => ({ txid: u.txid, vout: u.vout, key: isTaproot[i] ? taprootOutputKey(keys[i]) : keys[i], taproot: isTaproot[i] }));
+      const [out] = silentOutputs(spend, [draft.to]);
+      tx.addOutput({ script: taprootScript(out), amount: draft.amount });
+    } else tx.addOutputAddress(draft.to, draft.amount);
+  };
+  const change = (): void => {
+    if (draft.change <= 0n) return;
+    const [chain, index] = draft.changePath;
+    const mine = chain === V0_CHAIN
+      ? v0 !== null && btc.p2wpkh(v0.deriveChild(1).deriveChild(index).publicKey).address === draft.changeAddress
+      : btc.p2tr(xOnly(taproot.deriveChild(chain).deriveChild(index).publicKey)).address === draft.changeAddress;
+    if (!mine) throw new Error('The change address does not match this wallet\'s keys, so signing was stopped.');
     tx.addOutputAddress(draft.changeAddress, draft.change);
-  }
+  };
+  if (draft.changeFirst) { change(); pay(); } else { pay(); change(); }
   const totalIn = draft.inputs.reduce((s, u) => s + u.value, 0n);
   if (totalIn - draft.amount - draft.change !== draft.fee) throw new Error('The amounts do not add up, so signing was stopped.');
   keys.forEach((k, i) => tx.signIdx(k, i));
@@ -591,21 +745,25 @@ export function isLtcAddress(address: string): boolean {
 export function signLtcDraft(draft: BtcDraft, mnemonic: string): { hex: string; id: string } {
   if (!isLtcAddress(draft.to)) throw new Error('The receiving address is not an LTC address.');
   const account = HDKey.fromMasterSeed(bip39Seed(mnemonic)).derive(LTC_PATH);
-  const tx = new btc.Transaction();
+  const tx = new btc.Transaction({ lockTime: draft.lockTime ?? 0 });
   const keys: Uint8Array[] = [];
   for (const u of draft.inputs) {
     const child = account.deriveChild(u.chain).deriveChild(u.index);
     const pay = btc.p2wpkh(child.publicKey, LTC_NET);
     if (pay.address !== u.address) throw new Error('An input address does not match this wallet\'s keys, so signing was stopped.');
-    tx.addInput({ txid: u.txid, index: u.vout, witnessUtxo: { script: pay.script, amount: u.value } });
+    // As Litecoin Core's sends: final but for the lock time, not replaceable.
+    tx.addInput({ txid: u.txid, index: u.vout, witnessUtxo: { script: pay.script, amount: u.value }, sequence: 0xfffffffe });
     keys.push(child.privateKey);
   }
-  tx.addOutputAddress(draft.to, draft.amount, LTC_NET);
-  if (draft.change > 0n) {
-    const change = account.deriveChild(draft.changePath[0]).deriveChild(draft.changePath[1]);
-    if (btc.p2wpkh(change.publicKey, LTC_NET).address !== draft.changeAddress) throw new Error('The change address does not match this wallet\'s keys, so signing was stopped.');
+  const change = (): void => {
+    if (draft.change <= 0n) return;
+    const c = account.deriveChild(draft.changePath[0]).deriveChild(draft.changePath[1]);
+    if (btc.p2wpkh(c.publicKey, LTC_NET).address !== draft.changeAddress) throw new Error('The change address does not match this wallet\'s keys, so signing was stopped.');
     tx.addOutputAddress(draft.changeAddress, draft.change, LTC_NET);
-  }
+  };
+  if (draft.changeFirst) change();
+  tx.addOutputAddress(draft.to, draft.amount, LTC_NET);
+  if (!draft.changeFirst) change();
   const totalIn = draft.inputs.reduce((s, u) => s + u.value, 0n);
   if (totalIn - draft.amount - draft.change !== draft.fee) throw new Error('The amounts do not add up, so signing was stopped.');
   keys.forEach((k, i) => tx.signIdx(k, i));

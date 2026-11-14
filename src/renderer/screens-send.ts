@@ -11,6 +11,19 @@ function renderSend(keep?: { to: string; amount: string }): void {
   const mixed = asset === 'DASH' ? Number(overview?.coinjoin?.mixed ?? 0) : 0;
   const fromMixed = mixed > 0 ? h('input', { type: 'checkbox', id: 'cj-from-mixed' }) as HTMLInputElement : null;
   const coins = asset === 'BTC' ? coinControl() : null;
+  // Ethereum: which of the wallet's addresses pays, when it has more than one.
+  const fromEth = asset === 'ETH' || asset === 'USDTE' ? h('select', { id: 'eth-from', hidden: true }) as HTMLSelectElement : null;
+  const fromEthRow = h('div', { class: 'panel', id: 'eth-from-row', hidden: true }, h('label', { class: 'label', for: 'eth-from' }, 'Send from'), fromEth);
+  if (fromEth) void (async () => {
+    try {
+      const list: { n: number; address: string; eth: string | null; usdt: string | null }[] = await wallet.ethAddresses();
+      if (!list.length || !fromEth.isConnected) return;
+      setKids(fromEth, h('option', { value: '' }, `Main address (${shortAmount(overview?.balances?.[asset]?.spendable ?? '0')} ${unitOf(asset)})`),
+        ...list.map((x) => h('option', { value: String(x.n) }, `#${x.n + 1} ${x.address.slice(0, 8)}…${x.address.slice(-6)} (${x.eth === null ? '?' : shortAmount(asset === 'ETH' ? x.eth : x.usdt ?? '0')} ${unitOf(asset)})`)));
+      fromEth.hidden = false;
+      fromEthRow.hidden = false;
+    } catch { /* main address only */ }
+  })();
   const btcMixed = asset === 'BTC' && Number(overview?.btcMix?.mixedSpendable ?? 0) > 0;
   const fromMixedBtc = btcMixed ? h('input', { type: 'checkbox', id: 'btc-from-mixed' }) as HTMLInputElement : null;
   fromMixedBtc?.addEventListener('change', () => { if (coins) coins.el.hidden = fromMixedBtc.checked; });
@@ -28,7 +41,7 @@ function renderSend(keep?: { to: string; amount: string }): void {
     busy(next, asset === 'XMR' ? 'Creating the transaction…' : 'Calculating the fee…', box, async () => {
       const preview = asset === 'DASH' && fromMixed?.checked
         ? await wallet.prepareDashPrivate(to.value, amount.value)
-        : await wallet.prepareSend(asset, to.value, amount.value, fromMixedBtc?.checked ? { fromMixed: true } : coins?.chosen.size ? { coins: [...coins.chosen] } : undefined);
+        : await wallet.prepareSend(asset, to.value, amount.value, fromMixedBtc?.checked ? { fromMixed: true } : coins?.chosen.size ? { coins: [...coins.chosen] } : fromEth?.value ? { fromAddress: Number(fromEth.value) } : undefined);
       renderReview(preview, { to: to.value, amount: amount.value });
     });
   } },
@@ -45,6 +58,7 @@ function renderSend(keep?: { to: string; amount: string }): void {
       h('button', { type: 'button', class: 'max', id: 'max', onclick: () => { amount.value = 'max'; update(); } }, 'Max')),
     availableLine(asset, 'send-available')),
   usd,
+  fromEth && fromEthRow,
   fromMixedBtc && h('label', { class: 'check', id: 'btc-from-mixed-row' }, fromMixedBtc, h('span', {}, `Send from mixed coins (CoinJoin, ${shortAmount(overview.btcMix.mixedSpendable)} BTC)`)),
   coins?.el,
   fromMixed && h('label', { class: 'check', id: 'cj-from-mixed-row' }, fromMixed, h('span', {}, `Send from mixed coins (CoinJoin, ${shortAmount(overview.coinjoin.mixed)} DASH)`)),
@@ -463,6 +477,25 @@ async function renderReceive(current?: string): Promise<void> {
     const list = await wallet.addresses();
     const shieldedOn = address === list.ZEC;
     setKids(extra, h('button', { class: 'ghost', id: 'zec-address-kind', onclick: () => void renderReceive(shieldedOn ? list.ZEC_T : list.ZEC) }, shieldedOn ? 'Show transparent address' : 'Show shielded address'));
+    return;
+  }
+  if (asset === 'ETH' || asset === 'USDTE') {
+    // Extra Ethereum addresses: each a separate account on the chain, spent on its own.
+    const findBtn = h('button', { class: 'ghost', id: 'eth-find', onclick: () => busy(findBtn, 'Looking…', box, async () => { const n = await wallet.ethAddressesFind(); status.textContent = n ? `Found ${n} address(es) used before.` : 'No other used addresses found.'; await listEth(); }) }, 'Find addresses used before');
+    const add = h('button', { class: 'ghost', id: 'eth-new', onclick: () => busy(add, 'Creating…', box, async () => { const r = await wallet.ethAddressNew(); await renderReceive(r.address); }) }, 'New address');
+    const listEth = async () => {
+      const list: { n: number; address: string; eth: string | null; usdt: string | null }[] = await wallet.ethAddresses();
+      if (!extra.isConnected) return;
+      const main = addresses?.ETH ?? '';
+      setKids(extra, h('p', { class: 'small muted' }, 'A new address is a separate account on the chain: nobody can tell it belongs with the others until coins move between them. Each one pays its own fees, so keep a little ETH on any address you send USDT from.'),
+        add, findBtn,
+        list.length ? h('div', { class: 'sub-list', id: 'eth-addresses' },
+          h('button', { class: `mono${address === main ? ' on' : ''}`, onclick: () => void renderReceive(main) }, `Main  ${main.slice(0, 10)}…${main.slice(-8)}`),
+          ...list.map((x) => h('button', { class: `mono${x.address === address ? ' on' : ''}`, onclick: () => void renderReceive(x.address) },
+            `#${x.n + 1}  ${x.address.slice(0, 10)}…${x.address.slice(-8)}${x.eth === null ? '' : `  ${shortAmount(x.eth)} ETH · ${shortAmount(x.usdt ?? '0')} USDT`}`))) : null);
+    };
+    setKids(extra, add, findBtn);
+    try { await listEth(); } catch { /* the main address is already on screen */ }
     return;
   }
   if (asset !== 'XMR') return;

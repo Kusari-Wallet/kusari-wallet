@@ -141,3 +141,84 @@ test('deposit, proof, withdraw through a relayer and directly, on the real contr
   await (await chain.tornado.connect(chain.relayer).withdraw(proof, ...args)).wait();
   assert.equal(await chain.provider.getBalance(OUT), 2n * 10n ** 17n - ethers.parseEther(quote.fee));
 });
+
+test('relayer list and pick, split deposits over time, a withdrawal to a new address of this wallet at a later time', { timeout: 280_000 }, async (t) => {
+  const { pickRelayer, splitPlan, parseRelayerLog, RELAYER_REGISTERED } = require('../dist/main/tornado');
+  const { ethAddressNode } = require('../dist/main/eth');
+  // The pick: always among the cheapest 30%.
+  const list = Array.from({ length: 10 }, (_, i) => ({ url: `https://r${i}.example`, feePercent: 0.1 * (10 - i) }));
+  const seen = new Set(Array.from({ length: 200 }, () => pickRelayer(list).url));
+  assert.deepEqual([...seen].sort(), ['https://r7.example', 'https://r8.example', 'https://r9.example']);
+  assert.equal(pickRelayer([]), null);
+  assert.deepEqual(splitPlan(ethers.parseEther('11.35'), ['0.1', '1', '10', '100']), { pools: ['10', '1', '0.1', '0.1', '0.1'], left: ethers.parseEther('0.05') });
+  // A registration event, as the registry writes it.
+  const data = ethers.AbiCoder.defaultAbiCoder().encode(['bytes32', 'string', 'address', 'uint256'], [ethers.namehash('fast.eth'), 'fast.eth', OUT, 10n ** 21n]);
+  assert.deepEqual(parseRelayerLog({ data, topics: [RELAYER_REGISTERED] }), { name: 'fast.eth', address: OUT });
+  assert.equal(parseRelayerLog({ data: '0x1234' }), null);
+
+  const chain = await startChain(PHRASE);
+  t.after(() => chain.stop());
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tc-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const relayerAddress = await chain.relayer.getAddress();
+  const jobs = new Map();
+  const relay = http.createServer((q, r) => {
+    let b = ''; q.on('data', (c) => { b += c; });
+    q.on('end', async () => {
+      const send = (o, code = 200) => { r.statusCode = code; r.setHeader('content-type', 'application/json'); r.end(JSON.stringify(o)); };
+      if (q.url === '/status') return send({ netId: 1, rewardAccount: relayerAddress, tornadoServiceFee: 0.3 });
+      if (q.url === '/v1/tornadoWithdraw') {
+        const { proof, args } = JSON.parse(b);
+        try { const tx = await chain.tornado.connect(chain.relayer).withdraw(proof, ...args); await tx.wait(); jobs.set('j1', { status: 'CONFIRMED', txHash: tx.hash }); return send({ id: 'j1' }); } catch (e) { return send({ error: e.message }, 400); }
+      }
+      if (q.url === '/v1/jobs/j1') return send(jobs.get('j1'));
+      send({}, 404);
+    });
+  });
+  await new Promise((res) => relay.listen(0, '127.0.0.1', res));
+  t.after(() => relay.close());
+  const relayUrl = `http://127.0.0.1:${relay.address().port}`;
+
+  const s = new WalletService(dir, undefined, { tornadoPools: { 0.1: chain.address }, tornadoLocalRelayer: true, tornadoRelayerNames: [{ name: 'local.eth', address: relayerAddress, url: relayUrl }, { name: 'dead.eth', address: OUT, url: 'http://127.0.0.1:1' }] });
+  const me = deriveEthAccount(PHRASE);
+  s.tron = {}; s.monero = {}; s.btc = {}; s.dash = {}; s.firo = {}; s.eth = new EthClient([chain.url], chain.url, USDT, me.address);
+  s.ethNode = ethAddressNode(PHRASE);
+  s.vault.open = async (pw) => { if (pw !== 'pw') throw new Error('Wrong password.'); return { tronMnemonic: PHRASE }; };
+  t.after(() => s.onLock());
+
+  // 0.25 ETH: two deposits of 0.1, the second signed now and sent later; 0.05 stays.
+  const split = await s.tornadoSplitPrepare('0.25', true);
+  assert.deepEqual([split.pools, split.left], [['0.1', '0.1'], '0.05']);
+  const [first, second] = await s.tornadoSplitConfirm(split.id, 'pw');
+  assert.equal(first.status, 'deposited');
+  assert.equal(second.status, 'scheduled');
+  assert.ok(second.at > Date.now() + 25 * 60_000, 'the next one goes out later');
+  assert.equal(await chain.provider.getBalance(chain.address), 10n ** 17n, 'only the first is in the pool yet');
+  await s.fireTornado(second.id);
+  assert.equal(await chain.provider.getBalance(chain.address), 2n * 10n ** 17n);
+  assert.equal((await s.tornadoInfo()).notes.find((n) => n.id === second.id).status, 'deposited');
+
+  // The relayer picked from the list (the one that answers), and a new address of this wallet.
+  const q = await s.tornadoWithdrawQuote(first.id, 'new', 'auto');
+  assert.equal(q.relayerUrl, relayUrl);
+  assert.equal(q.recipient, s.ethNode.addressAt(0));
+  assert.equal(q.fresh, true);
+  assert.ok(q.warnings.some((w) => /less than a day/.test(w)), 'too soon is said');
+  assert.equal(q.after, null, 'unknown until the deposit list has been read on this device');
+  await assert.rejects(s.tornadoWithdraw(first.id, 'new', '', 'pw', { delayMinutes: 10 }), /through a relayer/);
+
+  // Later: the proof is made now, the relayer gets it at its time; the new address is kept in the wallet.
+  const waiting = await s.tornadoWithdraw(first.id, 'new', 'auto', 'pw', { delayMinutes: 10 });
+  assert.equal(waiting.status, 'scheduled');
+  // The deposit list is on the device now: how many came after each one is known.
+  const q2 = await s.tornadoWithdrawQuote(second.id, OUT, relayUrl);
+  assert.equal(q2.after, 0);
+  assert.ok(q2.warnings.some((w) => /Only 0 deposits/.test(w)));
+  assert.equal((await s.tornadoWithdrawQuote(first.id, OUT, relayUrl)).after, 1);
+  assert.deepEqual((await s.ethAddresses()).map((x) => x.address), [s.ethNode.addressAt(0)]);
+  assert.equal(await chain.provider.getBalance(s.ethNode.addressAt(0)), 0n);
+  await s.fireTornado(first.id);
+  const done = (await s.tornadoInfo()).notes.find((n) => n.id === first.id);
+  assert.equal(done.status, 'withdrawn');
+  assert.equal(await chain.provider.getBalance(s.ethNode.addressAt(0)), 10n ** 17n - ethers.parseEther(q.fee));
+});

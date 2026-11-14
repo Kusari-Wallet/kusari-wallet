@@ -60,6 +60,7 @@ function esplora() {
       const send = (o) => r.end(typeof o === 'string' ? o : JSON.stringify(o));
       if (q.method === 'POST' && q.url === '/tx') { state.posted.push(body); return send(btc.Transaction.fromRaw(Buffer.from(body, 'hex')).id); }
       if (q.url === '/v1/fees/recommended') return send({ halfHourFee: state.fee });
+      if (q.url === '/blocks/tip/height') return send('870000');
       if (q.url === `/address/${addr0}`) return send({ chain_stats: { tx_count: 1, funded_txo_sum: 500000, spent_txo_sum: 0 }, mempool_stats: { tx_count: 1, funded_txo_sum: 40000, spent_txo_sum: 0 } });
       if (q.url === `/address/${addr0}/utxo`) return send([{ txid: 'ab'.repeat(32), vout: 1, value: 500000, status: { confirmed: true } }, { txid: 'cd'.repeat(32), vout: 0, value: 40000, status: { confirmed: false } }]);
       if (q.url === `/address/${addr0}/txs`) return send([{ txid: 'ab'.repeat(32), status: { confirmed: true, block_time: 1700000000 }, vin: [{ prevout: { scriptpubkey_address: 'bc1qother', value: 600000 } }], vout: [{ scriptpubkey_address: addr0, value: 500000 }] }]);
@@ -87,10 +88,16 @@ test('balance, unconfirmed coins are not spent, signed transaction is what was a
   const tx = btc.Transaction.fromRaw(Buffer.from(state.posted[0], 'hex'));
   assert.equal(tx.id, id);
   assert.equal(tx.outputsLength, 2);
-  assert.equal(tx.getOutput(0).amount, 100000n);
-  assert.equal(btc.Address().encode(btc.OutScript.decode(tx.getOutput(0).script)), to);
-  assert.equal(btc.Address().encode(btc.OutScript.decode(tx.getOutput(1).script)), client.addressAt(1, 0));
-  assert.equal(tx.getOutput(1).amount, 500000n - 100000n - draft.fee);
+  // The change takes the place the draft drew for it; the outputs are otherwise as approved.
+  const [pay, change] = draft.changeFirst ? [1, 0] : [0, 1];
+  assert.equal(tx.getOutput(pay).amount, 100000n);
+  assert.equal(btc.Address().encode(btc.OutScript.decode(tx.getOutput(pay).script)), to);
+  assert.equal(btc.Address().encode(btc.OutScript.decode(tx.getOutput(change).script)), client.addressAt(1, 0));
+  assert.equal(tx.getOutput(change).amount, 500000n - 100000n - draft.fee);
+  // As Bitcoin Core: version 2, the lock time at the chain's height (or a little below), replaceable.
+  assert.equal(tx.version, 2);
+  assert.ok(tx.lockTime <= 870000 && tx.lockTime > 870000 - 100, `lock time ${tx.lockTime}`);
+  assert.equal(tx.getInput(0).sequence, 0xfffffffd);
   const hist = await client.getHistory();
   assert.deepEqual(hist.map((h) => [h.direction, h.amount, h.status]), [['in', '0.005', 'confirmed']]);
 });
@@ -487,4 +494,67 @@ test('delayed send: signed now, kept, its coins reserved, sent at its time, and 
   await s.fireDelayed(list[0].id, fake, preview.btc, 'aa');
   assert.deepEqual(sent, ['f'.repeat(64)]);
   assert.deepEqual(await s.delayedSends(), [], 'done and forgotten');
+});
+
+test('sends look like Bitcoin Core\'s: lock time at the tip, sometimes a little lower, coins and change placed at random', () => {
+  const { coreLike } = require('../dist/main/btc');
+  const seq = (list) => { let i = 0; return () => list[i++ % list.length]; };
+  assert.equal(coreLike(870000, seq([5, 0, 1])).lockTime, 870000, 'nine times in ten: the tip itself');
+  assert.equal(coreLike(870000, seq([0, 42, 1])).lockTime, 870000 - 42, 'one time in ten: up to 99 lower');
+  assert.equal(coreLike(0).lockTime, 0, 'height unknown: 0, never a height not yet reached');
+  const seen = new Set(); const firsts = new Set();
+  for (let i = 0; i < 200; i++) { const l = coreLike(870000); seen.add(l.order([1, 2, 3]).join('')); firsts.add(l.changeFirst); }
+  assert.equal(seen.size, 6, 'every order of the coins turns up');
+  assert.equal(firsts.size, 2, 'the change goes first or second');
+});
+
+test('change matches the payment: bc1q change beside a bc1q payment, taproot beside taproot; bc1q change spends', async (t) => {
+  const { BTC_V0_PATH, V0_CHAIN, draftVbytes } = require('../dist/main/btc');
+  const v0xpub = btcAccountXpub(MNEMONIC, BTC_V0_PATH);
+  const probe = new BtcClient(xpub, []);
+  probe.useV0Change(v0xpub);
+  // BIP84's own test vector for this phrase: m/84'/0'/0'/1/0.
+  assert.equal(probe.addressAt(V0_CHAIN, 0), 'bc1q8c6fshw2dlwun7ekn9qwf37cu2rn755upcp6el');
+  const tapAddr = probe.addressAt(0, 0);
+  const v0Addr = probe.addressAt(V0_CHAIN, 0);
+  const posted = [];
+  const server = http.createServer((q, r) => {
+    let body = ''; q.on('data', (d) => { body += d; });
+    q.on('end', () => {
+      const send = (o) => r.end(typeof o === 'string' ? o : JSON.stringify(o));
+      if (q.method === 'POST' && q.url === '/tx') { posted.push(body); return send(btc.Transaction.fromRaw(Buffer.from(body, 'hex')).id); }
+      if (q.url === '/v1/fees/recommended') return send({ halfHourFee: 3 });
+      if (q.url === '/blocks/tip/height') return send('870000');
+      if (q.url === `/address/${tapAddr}`) return send({ chain_stats: { tx_count: 1, funded_txo_sum: 300000, spent_txo_sum: 0 }, mempool_stats: {} });
+      if (q.url === `/address/${tapAddr}/utxo`) return send([{ txid: 'ab'.repeat(32), vout: 0, value: 300000, status: { confirmed: true } }]);
+      if (q.url === `/address/${v0Addr}`) return send({ chain_stats: { tx_count: 1, funded_txo_sum: 200000, spent_txo_sum: 0 }, mempool_stats: {} });
+      if (q.url === `/address/${v0Addr}/utxo`) return send([{ txid: 'cd'.repeat(32), vout: 1, value: 200000, status: { confirmed: true } }]);
+      if (q.url.startsWith('/address/')) return send(q.url.endsWith('/utxo') || q.url.endsWith('/txs') ? [] : { chain_stats: {}, mempool_stats: {} });
+      r.statusCode = 404; send('nope');
+    });
+  });
+  await new Promise((res) => server.listen(0, '127.0.0.1', res));
+  t.after(() => { server.close(); server.closeAllConnections(); });
+  const client = new BtcClient(xpub, [`http://127.0.0.1:${server.address().port}`]);
+  client.spacingMs = 0;
+  client.useV0Change(v0xpub);
+  assert.deepEqual(await client.getBalance(5000), { total: 500000n, spendable: 500000n }, 'bc1q change found by the scan');
+
+  const toV0 = 'bc1qnjg0jd8228aq7egyzacy8cys3knf9xvrerkf9g';
+  const d1 = await client.draft(toV0, 50000n);
+  assert.deepEqual(d1.changePath, [V0_CHAIN, 1], 'the next unused bc1q change address');
+  assert.match(d1.changeAddress, /^bc1q/);
+  const d2 = await client.draft(probe.addressAt(0, 7), 50000n);
+  assert.equal(d2.changePath[0], 1);
+  assert.match(d2.changeAddress, /^bc1p/);
+
+  // Spending the bc1q coin itself (it is the smallest that covers 150000): signed with the BIP84 key, fee for its real size.
+  const d3 = await client.draft(probe.addressAt(0, 7), 150000n);
+  assert.equal(d3.inputs[0].chain, V0_CHAIN);
+  const id = await client.send(d3, MNEMONIC);
+  const tx = btc.Transaction.fromRaw(Buffer.from(posted.at(-1), 'hex'));
+  assert.equal(tx.id, id);
+  assert.ok(d3.fee >= BigInt(tx.vsize) * 3n, `fee ${d3.fee} for ${tx.vsize} vB at 3 sat/vB`);
+  assert.ok(d3.fee >= draftVbytes(d3) * 3n);
+  assert.equal(tx.inputsLength, 1);
 });

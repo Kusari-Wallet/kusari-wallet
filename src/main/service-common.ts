@@ -104,6 +104,10 @@ export interface Preview {
   mint?: MintDraft;
   scrt?: ScrtDraft;
   eth?: EthDraft;
+  /** An Ethereum send from one of the extra addresses (its number), not the main one. */
+  ethFrom?: number;
+  /** Tornado deposits for an amount made of the pools' fixed amounts. */
+  tornadoSplit?: { pools: string[]; spread: boolean };
   dash?: DashDraft;
   dashMix?: { plan: SplitPlan; inputs: InsightUtxo[]; change: { address: string; index: number; value: bigint } | null; fee: bigint };
   dashPrivate?: Awaited<ReturnType<DashMixer['draftPrivate']>>;

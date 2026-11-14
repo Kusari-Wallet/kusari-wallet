@@ -150,6 +150,20 @@ async function renderSettings(): Promise<void> {
       h('p', { class: 'hint' }, 'For opening the wallet. Sending coins still needs your password. Enrolling a new fingerprint on the phone turns this off for security.'));
   }
 
+  // Android: the home screen can show a plain "Tools" icon instead of the wallet's.
+  let plainSection: Child = null;
+  if (wallet.plainLauncher) {
+    const plain = h('input', { type: 'checkbox', id: 'plain-launcher', checked: await wallet.plainLauncher.get() }) as HTMLInputElement;
+    const note = h('p', { class: 'small muted', id: 'plain-launcher-note', role: 'status' });
+    plain.addEventListener('change', async () => {
+      await wallet.plainLauncher.set(plain.checked);
+      note.textContent = plain.checked ? 'The home screen now shows "Tools". It can take a moment, and a shortcut you made before may need to be added again.' : 'The home screen shows Kusari Wallet again.';
+    });
+    plainSection = h('div', { class: 'section' }, h('h3', {}, 'App icon'),
+      h('label', { class: 'check' }, plain, h('span', {}, 'Show as "Tools" with a plain icon')),
+      h('p', { class: 'hint' }, 'Someone glancing at your phone won\'t see a crypto wallet on the home screen. The app list in the phone\'s settings still names it.'), note);
+  }
+
   const delPw = h('input', { type: 'password', autocomplete: 'current-password', id: 'del-pw' });
   const del = h('button', { class: 'danger', id: 'delete', onclick: () => busy(del, 'Deleting…', delBox, async () => {
     deleting = true;
@@ -199,6 +213,7 @@ async function renderSettings(): Promise<void> {
         h('div', { class: 'row' }, saveBtn, saved),
         h('p', { class: 'hint' }, tor.allowed === false ? 'Changing the node or API key locks the wallet. It applies when reopened.' : 'Changing the node, API key or Tor locks the wallet. It applies when reopened.')),
       bioSection,
+      plainSection,
       h('div', { class: 'section', id: 'arrr-info' }, h('h3', {}, 'Pirate Chain engine'),
         h('p', { class: 'small', id: 'arrr-info-state' }, arrrInfo.available ? (arrrInfo.started ? `Running: ${arrrInfo.phase}` : 'Found but not running') : 'Not found'),
         arrrInfo.error && h('p', { class: 'small' }, arrrInfo.error)),

@@ -10,7 +10,7 @@ import { requestJson } from './request';
 import { isScrtAddress } from './scrt';
 import { isSilentAddress } from './btc-silent';
 import { type BtcClient, type BtcDraft, LITECOIN, coinId, estimateVbytes, isBtcAddress, isLtcAddress } from './btc';
-import { DEPOSIT_GAS, TORNADO_POOLS, TornadoNote, TornadoStore, WITHDRAW_GAS, abi as tornadoAbi, checkRelayerUrl, denomination, noteSecrets, noteText, relayerFee, relayerStatus, relayerSubmit, tornadoEngineCheck } from './tornado';
+import { DEPOSIT_GAS, TORNADO_POOLS, TornadoNote, TornadoStore, WITHDRAW_GAS, abi as tornadoAbi, checkRelayerUrl, denomination, noteSecrets, noteText, pickRelayer, relayerFee, relayerHost, relayerStatus, relayerSubmit, splitPlan, tornadoEngineCheck } from './tornado';
 import { runTornado } from './tornado-run';
 import { isArrrAddress } from './arrr';
 import { arrrEngineInfo } from './arrr-process';
@@ -29,7 +29,7 @@ import { DASH_DUST, dashFee, isDashAddress, signDashOutputs, typicalDashFee } fr
 import { DashMixer, MIX_ROUNDS } from './dash-mix';
 import { COINJOIN_COORDINATORS, MIX_TARGETS } from './btc-mix';
 import type { InsightUtxo } from './insight';
-import { chainOf, deriveEthAccount, isEthAddress } from './eth';
+import { ETH_EXTRA_FIRST, chainOf, deriveEthAccount, isEthAddress } from './eth';
 import { TOR_BRIDGES, TorBridge, parseCustomBridges } from './tor-bridges';
 import { checkOwnServer, COIN_ID, EVM_EXPLORER, isEvm, isSpl, Preview, PREVIEW_TTL_MS, withTimeoutValue } from './service-common';
 import { ServiceCore, btcBirthdayFor } from './service-core';
@@ -167,35 +167,88 @@ export class SendService extends ServiceCore {
     return noteText(note.pool, noteSecrets(secrets.tronMnemonic, note.index));
   }
 
-  /** Fee and amounts for the review screen. Nothing heavy, nothing sent. */
+  /**
+   * Working relayers from the registry, each asked for its status over Tor; kept for an hour. Ones that don't answer,
+   * aren't on mainnet, or ask more than 1% are left out.
+   */
+  protected relayerList: { at: number; list: { url: string; feePercent: number; rewardAccount: string }[] } | null = null;
+  async tornadoRelayers(): Promise<{ url: string; feePercent: number }[]> {
+    const { eth } = this.session();
+    if (this.relayerList && Date.now() - this.relayerList.at < 3600_000) return this.relayerList.list;
+    const say = (m: string) => this.emit('tornado-progress', m);
+    const names: { name: string; address: string; url?: string }[] = this.dev.tornadoRelayerNames ?? await this.tornadoStore.relayerNames(eth, say);
+    say(`Checking ${names.length} registered relayers…`);
+    const hosts: string[] = [];
+    for (const r of names) {
+      const host = this.dev.tornadoRelayerNames ? r.url ?? null : await relayerHost(eth, r.name).catch(() => null);
+      if (host && !hosts.includes(host)) hosts.push(host);
+    }
+    const list: { url: string; feePercent: number; rewardAccount: string }[] = [];
+    for (let i = 0; i < hosts.length; i += 6) {
+      const batch = await Promise.all(hosts.slice(i, i + 6).map((url) => relayerStatus(url, this.priceAgent).catch(() => null)));
+      for (const info of batch) if (info && info.feePercent <= 1) list.push(info);
+    }
+    this.relayerList = { at: Date.now(), list };
+    return list;
+  }
+
+  /**
+   * Fee and amounts for the review screen. Nothing heavy, nothing sent. recipientInput "new": a never used address of
+   * this wallet (made when the withdrawal goes ahead). relayerInput "auto": one picked as the Tornado site does.
+   */
   async tornadoWithdrawQuote(noteId: string, recipientInput: string, relayerInput: string) {
     const { eth } = this.session();
     const store = await this.tornadoStore.read();
     const note = store.notes.find((n) => n.id === noteId);
     if (!note) throw new Error('No such deposit.');
-    const recipient = recipientInput.trim();
+    const fresh = recipientInput.trim() === 'new';
+    let recipient = recipientInput.trim();
+    if (fresh) {
+      const list = await this.ethExtraList();
+      if (!this.ethNode) throw new Error('The wallet is locked.');
+      recipient = this.ethNode.addressAt(list.length ? Math.max(...list) + 1 : 0);
+    }
     if (!isEthAddress(recipient)) throw new Error('The receiving address is not an Ethereum address.');
     if (recipient.toLowerCase() === eth.address.toLowerCase()) throw new Error('Receiving at the deposit address gives no privacy benefit. Enter a new address.');
     const total = denomination(note.pool);
+    // How hidden the deposit is by now: deposits after it, and time.
+    const after = await this.tornadoStore.depositsAfter(note.pool, note.commitment);
+    const hours = Math.floor((Date.now() - note.createdAt) / 3600_000);
+    const warnings: string[] = [];
+    if (hours < 24) warnings.push('This deposit is less than a day old. Withdrawing soon after depositing makes the two easy to match by time. Waiting days or longer helps.');
+    if (after !== null && after < 20) warnings.push(`Only ${after} deposits have been made to this pool since yours, so it hides among few. Waiting for more helps.`);
+    const base = { pool: note.pool, recipient, fresh, after, hours, warnings };
     if (!relayerInput.trim()) {
       const gas = (await eth.gasPrice()) * WITHDRAW_GAS;
-      return { mode: 'self' as const, pool: note.pool, recipient, fee: formatAmount(gas, 18), feeFrom: 'wallet' as const, receive: formatAmount(total, 18) };
+      return { ...base, mode: 'self' as const, fee: formatAmount(gas, 18), feeFrom: 'wallet' as const, receive: formatAmount(total, 18), relayerUrl: '' };
     }
-    const url = checkRelayerUrl(relayerInput, Boolean(this.dev.tornadoLocalRelayer));
+    let url: string;
+    if (relayerInput.trim() === 'auto') {
+      const chosen = pickRelayer(await this.tornadoRelayers());
+      if (!chosen) throw new Error('No working relayer was found right now. Enter one yourself, or try again later.');
+      url = chosen.url;
+    } else url = checkRelayerUrl(relayerInput, Boolean(this.dev.tornadoLocalRelayer));
     const info = await relayerStatus(url, this.priceAgent);
     const fee = relayerFee(note.pool, info.feePercent, await eth.gasPrice());
-    return { mode: 'relayer' as const, pool: note.pool, recipient, relayer: info.rewardAccount, fee: formatAmount(fee, 18), feeFrom: 'note' as const, receive: formatAmount(total - fee, 18) };
+    return { ...base, mode: 'relayer' as const, relayer: info.rewardAccount, relayerUrl: url, fee: formatAmount(fee, 18), feeFrom: 'note' as const, receive: formatAmount(total - fee, 18) };
   }
 
-  async tornadoWithdraw(noteId: string, recipientInput: string, relayerInput: string, password: string) {
+  async tornadoWithdraw(noteId: string, recipientInput: string, relayerInput: string, password: string, opts: { delayMinutes?: number } = {}) {
     const { eth } = this.session();
     const say = (m: string) => this.emit('tornado-progress', m);
     const tor = this.tornadoStore;
     const store = await tor.read();
     const note = store.notes.find((n) => n.id === noteId);
     if (!note) throw new Error('No such deposit.');
+    if (note.status === 'scheduled' || note.status === 'sending') throw new Error('This deposit is not ready to withdraw.');
+    const delay = Number(opts.delayMinutes) || 0;
+    if (delay && !DELAY_CHOICES.includes(delay)) throw new Error('Choose when to withdraw.');
+    if (delay && !relayerInput.trim()) throw new Error('A withdrawal can only wait for later through a relayer.');
     const secrets = await this.vault.open(password);
+    // A new address of this wallet: made now, so it is kept even if the withdrawal stops midway.
+    if (recipientInput.trim() === 'new') recipientInput = (await this.ethAddressNew()).address;
     const quote = await this.tornadoWithdrawQuote(noteId, recipientInput, relayerInput);
+    if (quote.mode === 'relayer') relayerInput = quote.relayerUrl;
     const address = this.poolAddress(note.pool);
     const keys = noteSecrets(secrets.tronMnemonic, note.index);
     const [{ commitment, nullifierHash }] = await runTornado('commit', { notes: [keys] });
@@ -213,6 +266,17 @@ export class SendService extends ServiceCore {
     });
     const known = tornadoAbi.decodeFunctionResult('isKnownRoot', await eth.call(address, tornadoAbi.encodeFunctionData('isKnownRoot', [args[0]])));
     if (!known[0]) throw new Error('The deposit records don\'t match the chain, so this was stopped. Your coins are safe. Try again.');
+
+    if (delay) {
+      // The proof is made now and kept sealed with the wallet's records; the relayer gets it at a random later time.
+      const at = Date.now() + Math.round((0.1 + Math.random() * 0.9) * delay * 60_000);
+      note.status = 'scheduled'; note.scheduledKind = 'withdraw'; note.at = at; note.recipient = quote.recipient; delete note.problem;
+      await tor.write(store);
+      const entry = { id: note.id, kind: 'withdraw' as const, at, url: relayerInput, contract: address, proof, args };
+      await this.records.write(this.tornadoLaterPath, [...(await this.tornadoLater()).filter((e) => e.id !== note.id), entry]);
+      this.armTornado(entry);
+      return note;
+    }
 
     note.status = 'withdrawing';
     note.recipient = quote.recipient;
@@ -237,6 +301,136 @@ export class SendService extends ServiceCore {
     await tor.write(store);
     this.emit('balance-changed');
     return note;
+  }
+
+  // ---- Tornado: things signed now that go out later ----
+
+  protected get tornadoLaterPath(): string { return path.join(this.dir, 'tornado-later.json'); }
+  protected tornadoTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  protected async tornadoLater(): Promise<any[]> {
+    const j = await this.records.read(this.tornadoLaterPath).catch(() => undefined);
+    return Array.isArray(j) ? j.filter((e: any) => typeof e?.id === 'string' && Number.isFinite(e?.at) && (e.kind === 'withdraw' || e.kind === 'deposit')) : [];
+  }
+  protected armTornado(e: any): void {
+    clearTimeout(this.tornadoTimers.get(e.id));
+    const wait = Math.max(e.at - Date.now(), 5_000 + Math.random() * 55_000);
+    const t = setTimeout(() => void this.fireTornado(e.id), wait);
+    (t as any).unref?.();
+    this.tornadoTimers.set(e.id, t);
+  }
+  protected async tornadoDone(id: string, update: (n: TornadoNote) => void): Promise<void> {
+    const store = await this.tornadoStore.read();
+    const note = store.notes.find((n) => n.id === id);
+    if (note) { update(note); await this.tornadoStore.write(store); }
+    await this.records.write(this.tornadoLaterPath, (await this.tornadoLater()).filter((e) => e.id !== id)).catch(() => undefined);
+    this.emit('balance-changed');
+  }
+  protected async fireTornado(id: string): Promise<void> {
+    this.tornadoTimers.delete(id);
+    const e = (await this.tornadoLater()).find((x) => x.id === id);
+    if (!e || !this.eth) return;
+    const eth = this.eth;
+    const retry = () => { const t = setTimeout(() => void this.fireTornado(id), 5 * 60_000); (t as any).unref?.(); this.tornadoTimers.set(id, t); };
+    if (e.kind === 'deposit') {
+      try {
+        await eth.sendRaw(e.raw);
+        await this.tornadoDone(id, (n) => { n.status = 'deposited'; n.txHash = e.hash; delete n.at; delete n.scheduledKind; });
+      } catch (err) {
+        // Another send from this address took its place in line: nothing was spent, and the note goes.
+        if (/nonce too low|replacement|already used/i.test((err as Error).message)) {
+          const store = await this.tornadoStore.read();
+          store.notes = store.notes.filter((n) => n.id !== id);
+          await this.tornadoStore.write(store);
+          await this.records.write(this.tornadoLaterPath, (await this.tornadoLater()).filter((x) => x.id !== id)).catch(() => undefined);
+          this.emit('balance-changed');
+          return;
+        }
+        retry();
+      }
+      return;
+    }
+    try {
+      const spent = tornadoAbi.decodeFunctionResult('isSpent', await eth.call(e.contract, tornadoAbi.encodeFunctionData('isSpent', [e.args[1]])));
+      if (spent[0]) { await this.tornadoDone(id, (n) => { n.status = 'withdrawn'; delete n.at; delete n.scheduledKind; }); return; }
+      const known = tornadoAbi.decodeFunctionResult('isKnownRoot', await eth.call(e.contract, tornadoAbi.encodeFunctionData('isKnownRoot', [e.args[0]])));
+      if (!known[0]) {
+        // Too many deposits since the proof was made: it no longer counts. The coins are still in the pool.
+        await this.tornadoDone(id, (n) => { n.status = 'deposited'; delete n.at; delete n.scheduledKind; n.problem = 'The scheduled withdrawal waited too long and its proof expired. Nothing was lost: withdraw again.'; });
+        return;
+      }
+      this.renewTorRoute('ETH');
+      const hash = await relayerSubmit(await relayerStatus(e.url, this.priceAgent), e.contract, e.proof, e.args, this.priceAgent, this.dev.tornadoLocalRelayer ? 200 : 5000);
+      await this.tornadoDone(id, (n) => { n.status = 'withdrawn'; n.withdrawTx = hash; delete n.at; delete n.scheduledKind; });
+    } catch { retry(); }
+  }
+  protected armAllTornado = async (): Promise<void> => { for (const e of await this.tornadoLater()) this.armTornado(e); };
+
+  /** Deposits for an amount that isn't one of the pools' own: as many fixed amounts as make it up. */
+  async tornadoSplitPrepare(amountInput: string, spread: boolean) {
+    const { eth } = this.session();
+    const amount = parseAmount(amountInput, 18);
+    const plan = splitPlan(amount, Object.keys(this.tornadoPoolMap));
+    if (!plan.pools.length) throw new Error(`The smallest deposit is ${Object.keys(this.tornadoPoolMap).sort((a, b) => Number(a) - Number(b))[0]} ETH.`);
+    const total = plan.pools.reduce((s2, p) => s2 + denomination(p), 0n);
+    const one = await eth.draftCall(this.poolAddress(plan.pools[0]), 0n, DEPOSIT_GAS);
+    const fees = one.expectedFee * BigInt(plan.pools.length);
+    if (total + one.maxCost * BigInt(plan.pools.length) > await eth.nativeBalance()) throw new Error('Not enough ETH for these deposits and their fees.');
+    const preview = this.storePreview({ asset: 'ETH', to: 'tornado', amount: total, fee: fees, tornadoSplit: { pools: plan.pools, spread } });
+    return { id: preview.id, pools: plan.pools, spread, total: formatAmount(total, 18), left: formatAmount(plan.left, 18), fee: formatAmount(fees, 18) };
+  }
+
+  /**
+   * Makes each deposit's record, then sends the first now. Spread: the rest are signed now (in order, one after
+   * another) and go out at random times over the next hours; otherwise all go now.
+   */
+  async tornadoSplitConfirm(id: string, password: string): Promise<TornadoNote[]> {
+    const { eth } = this.session();
+    const preview = this.previews.get(id);
+    if (!preview?.tornadoSplit || preview.expires < Date.now()) throw new Error('The review expired. Try again.');
+    const secrets = await this.vault.open(password);
+    this.previews.delete(id);
+    const wallet = deriveEthAccount(secrets.tronMnemonic).wallet;
+    const store = await this.tornadoStore.read();
+    let index = store.next;
+    const made: TornadoNote[] = [];
+    let nonce = await eth.pendingNonce();
+    let at = Date.now();
+    const later: any[] = [];
+    for (const [i, pool] of preview.tornadoSplit.pools.entries()) {
+      const contract = this.poolAddress(pool);
+      let commitment = '';
+      for (;; index++) {
+        [{ commitment }] = await runTornado('commit', { notes: [noteSecrets(secrets.tronMnemonic, index)] });
+        const used = tornadoAbi.decodeFunctionResult('commitments', await eth.call(contract, tornadoAbi.encodeFunctionData('commitments', [commitment])));
+        if (!used[0]) break;
+      }
+      const draft = await eth.draftCall(contract, denomination(pool), DEPOSIT_GAS);
+      const note: TornadoNote = { id: randomUUID(), pool, index, commitment, status: 'sending', createdAt: Date.now() };
+      index++;
+      store.next = index;
+      store.notes.unshift(note);
+      await this.tornadoStore.write(store);
+      const call = { ...draft, data: tornadoAbi.encodeFunctionData('deposit', [commitment]) };
+      if (i === 0 || !preview.tornadoSplit.spread) {
+        note.txHash = await eth.send(call, wallet).catch(async (e) => { store.notes = store.notes.filter((n) => n.id !== note.id); await this.tornadoStore.write(store); throw e; });
+        note.status = 'deposited';
+        nonce += 1n; // the one just sent took this place in line
+      } else {
+        // Between half an hour and four hours apart.
+        at += Math.round((30 + Math.random() * 210) * 60_000);
+        const { raw, hash } = await eth.signOnly(call, wallet, nonce++);
+        note.status = 'scheduled'; note.scheduledKind = 'deposit'; note.at = at;
+        later.push({ id: note.id, kind: 'deposit', at, raw, hash });
+      }
+      await this.tornadoStore.write(store);
+      made.push(note);
+    }
+    if (later.length) {
+      await this.records.write(this.tornadoLaterPath, [...(await this.tornadoLater()), ...later]);
+      for (const e of later) this.armTornado(e);
+    }
+    this.emit('balance-changed');
+    return made;
   }
 
   /** After restoring from the seed: looks through the pools for this seed's deposits. */
@@ -294,7 +488,7 @@ export class SendService extends ServiceCore {
     return { ok: true };
   }
 
-  async prepareSend(asset: Asset, to: string, amountInput: string, opts: { coins?: string[]; fromMixed?: boolean } = {}) {
+  async prepareSend(asset: Asset, to: string, amountInput: string, opts: { coins?: string[]; fromMixed?: boolean; fromAddress?: number } = {}) {
     const { tron, monero, btc, eth, dash } = this.session();
     if (this.torNotReady) throw new Error('Tor is connecting. Try again once it connects.');
     const address = to.trim();
@@ -427,12 +621,21 @@ export class SendService extends ServiceCore {
       }
     } else if (isEvm(asset)) {
       if (!isEthAddress(address)) throw new Error('Not an Ethereum address. Only addresses starting with 0x can be used.');
-      if (address.toLowerCase() === eth.address.toLowerCase() || address.toLowerCase() === this.evm(asset).address.toLowerCase()) throw new Error('You cannot send to your own address.');
+      // From one of the extra Ethereum addresses: that address pays, fee included, and nothing else is touched.
+      const from = Number.isInteger(opts.fromAddress) && (opts.fromAddress as number) >= 0 && (asset === 'ETH' || asset === 'USDTE') ? opts.fromAddress as number : undefined;
+      if (from !== undefined && !(await this.ethExtraList()).includes(from)) throw new Error('That address is not in this wallet.');
+      const client = from !== undefined ? this.ethExtraClient(from) : this.evm(asset);
+      if (address.toLowerCase() === client.address.toLowerCase()) throw new Error('You cannot send to your own address.');
+      if (from === undefined && address.toLowerCase() === eth.address.toLowerCase()) throw new Error('You cannot send to your own address.');
+      if (asset === 'ETH' || asset === 'USDTE') {
+        const mine = [eth.address, ...(await this.ethExtraList()).map((n) => this.ethExtraClient(n).address)];
+        if (mine.some((a) => a.toLowerCase() === address.toLowerCase())) warnings.push('This is another address of this wallet. Sending between them ties the two together on the chain for anyone to see.');
+      }
       const chain = chainOf(asset);
-      const draft = await this.evm(asset).draft(asset, address, isMax ? 'max' : parseAmount(amountInput, decimals));
+      const draft = await client.draft(asset, address, isMax ? 'max' : parseAmount(amountInput, decimals));
       if (asset === chain.native && isMax) warnings.push(`If the actual fee is lower than expected, a little ${chain.symbol} stays behind.`);
       if (chain.id !== 1n) warnings.push(`This sends on ${chain.name}. Make sure the receiver accepts ${chain.name}: the same 0x address on another network won't show it.`);
-      preview = this.storePreview({ asset, to: address, amount: draft.amount, fee: draft.expectedFee, eth: draft });
+      preview = this.storePreview({ asset, to: address, amount: draft.amount, fee: draft.expectedFee, eth: draft, ethFrom: from });
     } else if (asset === 'XMR') {
       if (!(await monero.isValidAddress(address))) throw new Error('Not a Monero address on this network.');
       const amount = isMax ? 'max' as const : parseAmount(amountInput, decimals);
@@ -547,8 +750,14 @@ export class SendService extends ServiceCore {
   // the wallet's records until then, also across a lock or a restart; the seed is not kept.
 
   protected delayedTimers = new Map<string, ReturnType<typeof setTimeout>>();
-  protected override async afterBtcReady(): Promise<void> { for (const e of await this.delayedList()) this.armDelayed(e); }
-  protected override onLock(): void { for (const t of this.delayedTimers.values()) clearTimeout(t); this.delayedTimers.clear(); }
+  protected override async afterBtcReady(): Promise<void> {
+    for (const e of await this.delayedList()) this.armDelayed(e);
+    await this.armAllTornado().catch(() => undefined);
+  }
+  protected override onLock(): void {
+    for (const t of this.delayedTimers.values()) clearTimeout(t); this.delayedTimers.clear();
+    for (const t of this.tornadoTimers.values()) clearTimeout(t); this.tornadoTimers.clear();
+  }
   protected get delayedPath(): string { return path.join(this.dir, 'btc-delayed.json'); }
 
   protected async scheduleSend(preview: Preview, mnemonic: string, minutes: number) {
@@ -666,6 +875,9 @@ export class SendService extends ServiceCore {
     }
     if (preview.btc) {
       return { hashes: [await btc.send(preview.btc, secrets.tronMnemonic)] };
+    }
+    if (preview.eth && preview.ethFrom !== undefined) {
+      return { hashes: [await this.ethExtraClient(preview.ethFrom).send(preview.eth, deriveEthAccount(secrets.tronMnemonic, ETH_EXTRA_FIRST + preview.ethFrom).wallet)] };
     }
     if (preview.eth) {
       return { hashes: [await this.evm(preview.eth.asset).send(preview.eth, this.evmAccount(preview.eth.asset, secrets.tronMnemonic).wallet)] };

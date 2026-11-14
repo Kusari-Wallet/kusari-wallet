@@ -91,6 +91,8 @@ export interface MoneroOptions {
   store?: { load(): Promise<{ keys: Uint8Array; cache: Uint8Array } | null>; save(keys: Uint8Array, cache: Uint8Array): Promise<void> };
   /** Tests only: a different wallet engine behind the same interface. */
   walletFactory?: () => Promise<any>;
+  /** Tests only: with walletFactory, still hand sends to another node. */
+  sendElsewhereInTests?: boolean;
 }
 
 export class MoneroClient extends EventEmitter {
@@ -318,8 +320,43 @@ export class MoneroClient extends EventEmitter {
     return { txs, fee, amount: sent };
   }
 
+  /**
+   * A send goes out through another node than the one the wallet syncs from, on a Tor route of its own: the sync
+   * node sees which outputs the wallet asks about, and handing it the send as well would tell it whose send it is.
+   * Only when no other node takes it does the wallet's own node relay it.
+   */
+  private async submitElsewhere(draft: MoneroDraft): Promise<string[] | null> {
+    if (this.opts.walletFactory && !this.opts.sendElsewhereInTests) return null;
+    const others = this.opts.nodes.filter((n) => n !== this.state.node).sort(() => Math.random() - 0.5).slice(0, 3);
+    for (const uri of others) {
+      try {
+        let proxy = this.proxyFor(uri);
+        if (proxy) {
+          const login = randomBytes(12).toString('hex');
+          proxy = `socks5h://${login}:${login}@${new URL(proxy.replace(/^socks5h?:/, 'http:')).host}`;
+        }
+        const daemon = await moneroTs.connectToDaemonRpc({ uri, proxyUri: proxy, proxyToWorker: false } as any);
+        const hashes: string[] = [];
+        for (const tx of draft.txs) {
+          const result: any = await withTimeout(daemon.submitTxHex(tx.getFullHex(), false), this.nodeTimeout);
+          if (!result?.getIsGood?.()) {
+            // Refused for what it is (spent, fee) rather than by a node that's unwell: no other node would take it.
+            if (result?.getIsDoubleSpendSeen?.() || result?.getIsFeeTooLow?.()) throw Object.assign(new Error(result?.getReason?.() || 'The Monero network refused the send.'), { final: true });
+            throw new Error(result?.getReason?.() || 'refused');
+          }
+          hashes.push(tx.getHash());
+        }
+        return hashes;
+      } catch (e) {
+        if ((e as any).final) throw e;
+      }
+    }
+    return null;
+  }
+
   async relay(draft: MoneroDraft): Promise<string[]> {
-    const hashes: string[] = await this.wallet.relayTxs(draft.txs);
+    const elsewhere = draft.txs.length === 1 ? await this.submitElsewhere(draft) : null;
+    const hashes: string[] = elsewhere ?? await this.wallet.relayTxs(draft.txs);
     await this.wallet.sync();
     await this.save();
     this.emit('balance');

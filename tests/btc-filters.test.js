@@ -97,7 +97,7 @@ function makeChain(length, plan, fork) {
   return { blocks, hashes, filters, fheaders, length, outputsAt, txids };
 }
 
-function mockPeer(src, { lie = false } = {}) {
+function mockPeer(src, { lie = false, drop = false } = {}) {
   const C = () => src.chain ?? src;
   const sent = [];
   return { sent, dial: () => {
@@ -131,6 +131,12 @@ function mockPeer(src, { lie = false } = {}) {
           } else if (m.command === 'getcfilters') {
             const start = p.readUInt32LE(1); const stop = heightOf(p.subarray(5, 37));
             for (let h = start; h <= stop; h++) { const f = filterAt(h); reply('cfilter', Buffer.concat([Buffer.from([0]), C().hashes[h], varint(f.length), f])); }
+          } else if (m.command === 'getdata' && p.readUInt32LE(1) === 0x40000001) {
+            // A waiting transaction: handed out if this node took it, "not found" otherwise.
+            const want = p.subarray(5, 37);
+            const idOf = (t) => Buffer.from(require('@scure/btc-signer').Transaction.fromRaw(t, { allowUnknownOutputs: true }).id, 'hex').reverse();
+            const have = drop ? null : sent.find((t) => idOf(t).equals(want));
+            if (have) reply('tx', have); else reply('notfound', p);
           } else if (m.command === 'getdata') {
             reply('block', C().blocks[heightOf(p.subarray(5, 37))]);
           } else if (m.command === 'tx') sent.push(p);
@@ -233,18 +239,23 @@ test('the Bitcoin client on private sync: balance, history and a draft from filt
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bc-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const client = new BtcClient(btcAccountXpub(SEED), ['http://127.0.0.1:1'], undefined, 2000);
+  const { BTC_V0_PATH, V0_CHAIN } = require('../dist/main/btc');
+  client.useV0Change(btcAccountXpub(SEED, BTC_V0_PATH));
   const scriptOf = (chain, i) => Buffer.from(btcSigner.OutScript.encode(btcSigner.Address(btcSigner.NETWORK).decode(client.addressAt(chain, i))));
-  const chain = makeChain(1060, (h) => (h === 1010 ? [{ inputs: [], outputs: [{ value: 120000, script: scriptOf(0, 0) }] }] : h === 1020 ? [{ inputs: [], outputs: [{ value: 3000, script: scriptOf(0, 1) }] }] : []));
+  // A bc1q change coin too, found through its own filter account.
+  const chain = makeChain(1060, (h) => (h === 1010 ? [{ inputs: [], outputs: [{ value: 120000, script: scriptOf(0, 0) }] }] : h === 1020 ? [{ inputs: [], outputs: [{ value: 3000, script: scriptOf(0, 1) }] }] : h === 1030 ? [{ inputs: [], outputs: [{ value: 4000, script: scriptOf(V0_CHAIN, 0) }] }] : []));
   const peers = { 'a.onion': mockPeer(chain), 'b.onion': mockPeer(chain) };
   const sync = new FilterSync({ dir, records: plainRecords, birthday: 1001, checkpoints: [{ height: 0, hash: Buffer.from(chain.hashes[0]).reverse().toString('hex'), minDifficulty: 0 }], seeds: Object.keys(peers), dial: async (host) => peers[host].dial() });
   client.useFilters(sync, 'btc');
   await client.refresh(true);
-  assert.deepStrictEqual(await client.getBalance(), { total: 123000n, spendable: 123000n });
+  assert.deepStrictEqual(await client.getBalance(), { total: 127000n, spendable: 127000n });
   assert.strictEqual(client.nextReceiveIndex, 2);
   assert.strictEqual(client.receiveAddress, client.addressAt(0, 2));
   const hist = await client.getHistory();
-  assert.deepStrictEqual(hist.map((x) => [x.direction, x.amount, x.status]).sort(), [['in', '0.00003', 'confirmed'], ['in', '0.0012', 'confirmed']]);
-  assert.deepStrictEqual((await client.coins()).map((c) => c.value).sort((a, b) => (a < b ? -1 : 1)), [3000n, 120000n]);
+  assert.deepStrictEqual(hist.map((x) => [x.direction, x.amount, x.status]).sort(), [['in', '0.00003', 'confirmed'], ['in', '0.00004', 'confirmed'], ['in', '0.0012', 'confirmed']]);
+  const coins = await client.coins();
+  assert.deepStrictEqual(coins.map((c) => c.value).sort((a, b) => (a < b ? -1 : 1)), [3000n, 4000n, 120000n]);
+  assert.strictEqual(coins.find((c) => c.value === 4000n).chain, V0_CHAIN);
   sync.close();
 });
 
@@ -268,4 +279,45 @@ test('block-filter sync: a reorganisation undoes the replaced blocks and finds t
   assert.deepStrictEqual(v.coins.map((c) => c.height), [1095]);
   assert.deepStrictEqual(v.txs.map((x) => x.height), [1095]);
   sync.close();
+});
+
+test('a send on private sync goes to the peers only; a server gets it only when the network didn\'t take it', async (t) => {
+  const { BtcClient, btcAccountXpub } = require('../dist/main/btc');
+  const btcSigner = require('@scure/btc-signer');
+  const http = require('node:http');
+  const SEED = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+  const posted = [];
+  const server = http.createServer((q, r) => {
+    let b = ''; q.on('data', (c) => { b += c; });
+    q.on('end', () => {
+      if (q.url.startsWith('/v1/fees/recommended')) return r.end(JSON.stringify({ halfHourFee: 2 }));
+      if (q.method === 'POST' && q.url === '/tx') { posted.push(b); return r.end(btcSigner.Transaction.fromRaw(Buffer.from(b, 'hex')).id); }
+      r.statusCode = 404; r.end('{}');
+    });
+  });
+  await new Promise((res) => server.listen(0, '127.0.0.1', res));
+  t.after(() => { server.close(); server.closeAllConnections(); });
+  for (const drop of [false, true]) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bs-'));
+    t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+    const client = new BtcClient(btcAccountXpub(SEED), [`http://127.0.0.1:${server.address().port}`], undefined, 2000);
+    client.spacingMs = 0; client.broadcastCheckMs = 50;
+    const scriptOf = (chain, i) => Buffer.from(btcSigner.OutScript.encode(btcSigner.Address(btcSigner.NETWORK).decode(client.addressAt(chain, i))));
+    const chain = makeChain(1030, (h) => (h === 1010 ? [{ inputs: [], outputs: [{ value: 120000, script: scriptOf(0, 0) }] }] : []));
+    const peers = { 'a.onion': mockPeer(chain, { drop }), 'b.onion': mockPeer(chain, { drop }) };
+    const sync = new FilterSync({ dir, records: plainRecords, birthday: 1001, checkpoints: [{ height: 0, hash: Buffer.from(chain.hashes[0]).reverse().toString('hex'), minDifficulty: 0 }], seeds: Object.keys(peers), dial: async (host) => peers[host].dial() });
+    client.useFilters(sync, 'btc');
+    await client.refresh(true);
+    const before = posted.length;
+    const id = await client.send(await client.draft('bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu', 50000n), SEED);
+    assert.strictEqual(posted.length, before, 'no server is handed the send');
+    assert.ok(peers['a.onion'].sent.length + peers['b.onion'].sent.length >= 2);
+    await new Promise((r) => setTimeout(r, 400));
+    if (!drop) assert.strictEqual(posted.length, before, 'the peers had it: still no server');
+    else {
+      assert.strictEqual(posted.length, before + 1, 'nobody had it: a server gets it, and says if it is refused');
+      assert.strictEqual(btcSigner.Transaction.fromRaw(Buffer.from(posted.at(-1), 'hex')).id, id);
+    }
+    sync.close();
+  }
 });

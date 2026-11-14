@@ -15,7 +15,7 @@ import { socksAgent, getJson, newTorRoute } from './request';
 import type { Agent } from 'node:http';
 import { AAVE_MARKETS, aaveCall, readAave } from './aave';
 import { ScrtClient, scrtPrivacyKeys, scrtPublicKey } from './scrt';
-import { BITCOIN, BITCOIN_MIXED, BTC_MIXED_PATH, BTC_PATH, BtcClient, LITECOIN, btcAccountXpub, coinId, ltcAccountXpub } from './btc';
+import { BITCOIN, BITCOIN_MIXED, BTC_MIXED_PATH, BTC_PATH, BTC_V0_PATH, V0_CHAIN, BtcClient, LITECOIN, btcAccountXpub, coinId, ltcAccountXpub } from './btc';
 import { FilterSync, TAPROOT_HEIGHT, estimateBtcHeight } from './btc-filter-sync';
 import { clearPassphrases, setPassphrase } from './seed';
 import { PRICE_TIERS, PriceMap, PriceSource, coingecko, mirror, NO_MARKET } from './prices';
@@ -39,7 +39,7 @@ import { DashMixer, MIX_ROUNDS } from './dash-mix';
 import { tcpDial } from './dash-net';
 import { BtcMixer, COINJOIN_COORDINATORS, DEFAULT_MIX_TARGET, MAX_COINS_PER_ROUND } from './btc-mix';
 import { identificationKey } from './wabisabi/round';
-import { ARBITRUM, BSC, EthAsset, EthClient, POLYGON, chainOf, deriveEthAccount } from './eth';
+import { ARBITRUM, BSC, ETH_EXTRA_FIRST, EthAsset, EthClient, POLYGON, chainOf, deriveEthAccount, ethAddressNode } from './eth';
 import { TorManager } from './tor';
 import { parseCustomBridges } from './tor-bridges';
 import { SwapProviderId } from './swap';
@@ -105,7 +105,7 @@ export class ServiceCore extends EventEmitter {
   settings: Settings = { ...DEFAULT_SETTINGS };
 
   constructor(protected readonly baseDir: string, protected readonly kdf?: { N: number; r: number; p: number }, protected readonly dev: {
-    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; bchApi?: string; ltcApi?: string; scrtLcd?: string; polRpc?: string; polScout?: string; polUsdt?: string; arbRpc?: string; arbScout?: string; arbUsdt?: string; bscRpc?: string; bscScout?: string; uniswapKey?: string; uniswapBase?: string; dashApi?: string; dashSeeds?: string[]; dashConnect?: string; firoApi?: string; solRpc?: string; dogeApi?: string; dogeBackup?: string; adaApi?: string; zecBin?: string; zecServers?: string[]; zanoBin?: string; zanoNode?: string; ksrBin?: string; ksrNode?: string; arrrBin?: string; arrrServers?: string[]; mwebBin?: string; mwebConnect?: string; sparkBin?: string; sparkServer?: string; sparkConnect?: string; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; etzSwapBase?: string; cceCashBase?: string; changeNowBase?: string; quoteDeadlineMs?: number; btcApi?: string; coinjoinCoordinator?: string; coinjoinTest?: { pollMs?: number; registrationMarginMs?: number; minInputs?: number };
+    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; bchApi?: string; ltcApi?: string; scrtLcd?: string; polRpc?: string; polScout?: string; polUsdt?: string; arbRpc?: string; arbScout?: string; arbUsdt?: string; bscRpc?: string; bscScout?: string; uniswapKey?: string; uniswapBase?: string; dashApi?: string; dashSeeds?: string[]; dashConnect?: string; firoApi?: string; solRpc?: string; dogeApi?: string; dogeBackup?: string; adaApi?: string; zecBin?: string; zecServers?: string[]; zanoBin?: string; zanoNode?: string; ksrBin?: string; ksrNode?: string; arrrBin?: string; arrrServers?: string[]; mwebBin?: string; mwebConnect?: string; sparkBin?: string; sparkServer?: string; sparkConnect?: string; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; tornadoRelayerNames?: { name: string; address: string; url?: string }[]; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; etzSwapBase?: string; cceCashBase?: string; changeNowBase?: string; quoteDeadlineMs?: number; btcApi?: string; coinjoinCoordinator?: string; coinjoinTest?: { pollMs?: number; registrationMarginMs?: number; minInputs?: number };
     /** Android: every outside address goes through the app's local forwarder. */
     route?: (url: string) => string;
     moneroStore?: (net: NetworkId, walletId: string) => MoneroOptions['store'];
@@ -290,6 +290,8 @@ export class ServiceCore extends EventEmitter {
     await this.commitPendingWallet();
     await this.startSession(secrets);
     this.keepHiddenSlot();
+    // Extra Ethereum addresses used before this restore are found again in the background.
+    void this.ethAddressesFind().catch(() => undefined);
   }
 
   // ---- session ----
@@ -365,6 +367,7 @@ export class ServiceCore extends EventEmitter {
       });
     }
     this.btc = new BtcClient(btcAccountXpub(secrets.tronMnemonic), btcApis, btcAgent, slow ? 60_000 : 30_000, BITCOIN, () => newTorRoute(btcAgent));
+    this.btc.useV0Change(btcAccountXpub(secrets.tronMnemonic, BTC_V0_PATH));
     if (this.btcFilters) this.btc.useFilters(this.btcFilters, 'btc');
     // Own sends, kept (encrypted) so a stuck one can be sped up later.
     const sentFile = path.join(this.dir, 'btc-sent.json');
@@ -402,6 +405,8 @@ export class ServiceCore extends EventEmitter {
     this.dash = new DashClient(dashAccountXpub(secrets.tronMnemonic), this.dev.dashApi ? [this.dev.dashApi] : this.ownList('DASH', DASH_APIS), this.ownAgent('DASH', 'dash'), slow ? 60_000 : 20_000);
     this.startMixer(secrets, slow);
     this.eth = new EthClient(this.dev.ethRpc ? [this.dev.ethRpc] : this.ownList('ETH', ETH_RPCS), this.dev.ethScout ?? ETH_SCOUT, ETH_USDT, deriveEthAccount(secrets.tronMnemonic).address, this.ownAgent('ETH', 'eth'), slow ? 60_000 : 15_000);
+    this.ethNode = ethAddressNode(secrets.tronMnemonic);
+    this.ethExtra.clear();
     this.evmSplit = await this.readEvmLayout();
     this.settings.evmSeparate = this.evmSplit;
     this.settings.developer = DEVELOPER_BUILD;
@@ -465,7 +470,8 @@ export class ServiceCore extends EventEmitter {
     const { btc } = this.session();
     if (!this.btcMixer) throw new Error('CoinJoin is not available.');
     const frozen = new Set((await this.btcCoinNotes()).frozen);
-    const all = (await btc.coins()).filter((u) => u.confirmed && u.value >= 5000n);
+    // bc1q change isn't mixed: the coordinators here take taproot coins.
+    const all = (await btc.coins()).filter((u) => u.confirmed && u.value >= 5000n && u.chain !== V0_CHAIN);
     const chosen = coins?.length ? all.filter((u) => coins.includes(coinId(u))) : all.filter((u) => !frozen.has(coinId(u)));
     const use = chosen.sort((a, b) => (b.value > a.value ? 1 : -1));
     const coordinator = this.settings.coinjoinCoordinator || COINJOIN_COORDINATORS[0].url;
@@ -1237,6 +1243,68 @@ export class ServiceCore extends EventEmitter {
     await fs.mkdir(this.dir, { recursive: true });
     await fs.writeFile(this.evmLayoutPath, JSON.stringify({ split }), { mode: 0o600 });
   }
+  // ---- extra Ethereum addresses ----
+
+  protected ethNode: { addressAt(n: number): string } | null = null;
+  protected readonly ethExtra = new Map<number, EthClient>();
+  protected get ethExtraPath() { return path.join(this.dir, 'eth-addresses.json'); }
+  protected async ethExtraList(): Promise<number[]> {
+    const j = await this.records.read(this.ethExtraPath).catch(() => undefined);
+    return Array.isArray(j?.list) ? j.list.filter((n: unknown): n is number => Number.isInteger(n) && (n as number) >= 0 && (n as number) < 1000) : [];
+  }
+  /** Its own client on its own Tor route: no node connection sees two of these addresses together. */
+  protected ethExtraClient(n: number): EthClient {
+    if (!this.ethNode) throw new Error('The wallet is locked.');
+    let c = this.ethExtra.get(n);
+    if (!c) {
+      const own = this.own('ETH');
+      c = new EthClient(this.dev.ethRpc ? [this.dev.ethRpc] : this.ownList('ETH', ETH_RPCS), this.dev.ethScout ?? ETH_SCOUT, ETH_USDT, this.ethNode.addressAt(n), own && isLocalServer(own) ? undefined : this.torRoute(`eth-${n}`), this.torProxy ? 60_000 : 15_000);
+      this.ethExtra.set(n, c);
+    }
+    return c;
+  }
+
+  /** The extra addresses with what each holds. One that can't be read shows no amounts. */
+  async ethAddresses(): Promise<{ n: number; address: string; eth: string | null; usdt: string | null }[]> {
+    this.session();
+    const list = await this.ethExtraList();
+    return Promise.all(list.map(async (n) => {
+      const c = this.ethExtraClient(n);
+      try {
+        const [eth, usdt] = await Promise.all([c.getEthBalance(), c.getUsdtBalance()]);
+        return { n, address: c.address, eth: formatAmount(eth, 18), usdt: formatAmount(usdt, 6) };
+      } catch { return { n, address: c.address, eth: null, usdt: null }; }
+    }));
+  }
+
+  /** A never used Ethereum address of this wallet. */
+  async ethAddressNew(): Promise<{ n: number; address: string }> {
+    this.session();
+    const list = await this.ethExtraList();
+    const n = list.length ? Math.max(...list) + 1 : 0;
+    await this.records.write(this.ethExtraPath, { list: [...list, n] });
+    return { n, address: this.ethExtraClient(n).address };
+  }
+
+  /**
+   * After a restore the list is gone: addresses that hold or held something are found again, each asked about on
+   * its own route, until twenty in a row are unused (made with "New address" but never paid, perhaps).
+   */
+  async ethAddressesFind(): Promise<number> {
+    this.session();
+    const known = new Set(await this.ethExtraList());
+    let empty = 0; let found = 0;
+    for (let n = 0; n < 200 && empty < 20; n++) {
+      const c = this.ethExtraClient(n);
+      const used = known.has(n) || (await c.getEthBalance(true)) > 0n || (await c.getUsdtBalance()) > 0n || (await c.nonce()) > 0n;
+      if (!used) { empty++; continue; }
+      empty = 0;
+      if (!known.has(n)) { known.add(n); found++; }
+    }
+    if (found) await this.records.write(this.ethExtraPath, { list: [...known].sort((a, b) => a - b) });
+    return found;
+  }
+
   protected evmIndex(chainId: bigint): number {
     if (!this.evmSplit) return 0;
     return chainId === POLYGON.id ? 1 : chainId === ARBITRUM.id ? 2 : chainId === BSC.id ? 3 : 0;

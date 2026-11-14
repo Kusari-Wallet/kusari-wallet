@@ -496,10 +496,29 @@ export class FilterSync {
   }
 
   /** Hands a transaction to the connected peers. */
+  /**
+   * Whether the network took a transaction: asked of two peers other than ones it was handed to when there are
+   * such. true when one has it, false when every one asked says it doesn't, null when none could be asked.
+   */
+  async seen(txid: string, avoid: string[] = []): Promise<boolean | null> {
+    const all = await this.pool.get(2).catch(() => this.pool.connected);
+    const others = all.filter((p) => !avoid.includes(p.host));
+    const ask = (others.length ? others : all).slice(0, 2);
+    let answered = 0;
+    for (const p of ask) {
+      try { if (await p.hasTx(fromHexLE(txid))) return true; answered++; } catch { /* no answer */ }
+    }
+    return answered ? false : null;
+  }
+
+  /** The hosts the last broadcast went to. */
+  lastBroadcastTo: string[] = [];
+
   async broadcast(raw: Buffer): Promise<number> {
     const peers = await this.pool.get(2).catch(() => this.pool.connected);
     let sent = 0;
-    for (const p of peers) { try { p.sendTx(raw); sent++; } catch { /* closed */ } }
+    this.lastBroadcastTo = [];
+    for (const p of peers) { try { p.sendTx(raw); sent++; this.lastBroadcastTo.push(p.host); } catch { /* closed */ } }
     return sent;
   }
 
