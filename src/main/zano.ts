@@ -2,11 +2,11 @@
 // wallet file is the library's own, encrypted with a password from the vault. The key comes from the same BIP39 seed
 // as the other coins, so one seed brings this wallet back too. The derivation must never change, and each chain has
 // labels of its own: the same key on both would show that a Zano address and a K... address are one person's.
+import { bip39Seed } from './seed';
 import { computeHmac, toUtf8Bytes, sha256 } from 'ethers';
 import { formatAmount } from './amount';
 import type { ZanoEngine } from './zano-process';
 
-const { mnemonicToSeedSync } = require('@scure/bip39');
 
 export const ZANO_DECIMALS = 12;
 export const ZANO_FEE = 10_000_000_000n; // 0.01 ZANO, the network's fixed minimum
@@ -43,7 +43,7 @@ export const ZANO_CHAIN: ZanoChain = { asset: 'ZANO', name: 'Zano', label: 'zano
 export const KSR_CHAIN: ZanoChain = { asset: 'KSR', name: 'Kusari', label: 'ksr', filePrefix: 'ksr-', fee: KSR_FEE, isAddress: isKsrAddress };
 
 export function zanoKeys(mnemonic: string, vaultSecret: string, chain: ZanoChain = ZANO_CHAIN) {
-  const seed: Uint8Array = mnemonicToSeedSync(mnemonic);
+  const seed: Uint8Array = bip39Seed(mnemonic);
   return {
     secret: computeHmac('sha512', seed, toUtf8Bytes(`kusari/${chain.label}/v1`)).slice(2, 66),
     pass: sha256(toUtf8Bytes(`kusari/${chain.label}/file/v1\0${vaultSecret}`)).slice(2),

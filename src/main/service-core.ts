@@ -1,4 +1,5 @@
 // The wallet service, first layer: wallets, sessions, engines, Tor routes, balances and prices.
+import { bip39Seed } from './seed';
 import { EventEmitter } from 'node:events';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
@@ -15,6 +16,7 @@ import { AAVE_MARKETS, aaveCall, readAave } from './aave';
 import { ScrtClient, scrtPrivacyKeys, scrtPublicKey } from './scrt';
 import { BITCOIN, BITCOIN_MIXED, BTC_MIXED_PATH, BTC_PATH, BtcClient, LITECOIN, btcAccountXpub, coinId, ltcAccountXpub } from './btc';
 import { FilterSync, TAPROOT_HEIGHT, estimateBtcHeight } from './btc-filter-sync';
+import { clearPassphrases, setPassphrase } from './seed';
 import { PRICE_TIERS, PriceMap, PriceSource, coingecko, mirror, NO_MARKET } from './prices';
 import { ArrrClient } from './arrr';
 import { startArrrEngine, arrrEngineAvailable } from './arrr-process';
@@ -239,12 +241,14 @@ export class ServiceCore extends EventEmitter {
   }
 
   /** Commits the generated seeds once the user has confirmed the backup. */
-  async finishCreate(password: string): Promise<void> {
+  async finishCreate(password: string, passphrase = ''): Promise<void> {
     if (!this.draftSeeds) throw new Error('Create the seeds first.');
+    checkPassphrase(passphrase);
     if (await this.vault.exists()) throw new Error('A wallet already exists.');
     // Nothing can have been sent to a brand new seed before today, so start near the tip.
     const heights = { mainnet: Math.max(0, estimateMainnetHeight(new Date()) - 5040), testnet: -1 };
     const secrets = this.newSecrets(this.draftSeeds.tronMnemonic, this.draftSeeds.moneroSeed, heights);
+    if (passphrase) secrets.passphrase = passphrase;
     await this.vault.save(password, secrets);
     await this.commitPendingWallet();
     this.draftSeeds = null;
@@ -255,8 +259,9 @@ export class ServiceCore extends EventEmitter {
   }
 
   /** restoreFrom: a block height, a YYYY-MM-DD date, or empty for a full scan. */
-  async restore(password: string, tronMnemonic: string, moneroSeed: string, restoreFrom: string): Promise<void> {
+  async restore(password: string, tronMnemonic: string, moneroSeed: string, restoreFrom: string, passphrase = ''): Promise<void> {
     if (await this.vault.exists()) throw new Error('A wallet already exists.');
+    checkPassphrase(passphrase);
     if (password.length < MIN_PASSWORD) throw new Error(`The password must be at least ${MIN_PASSWORD} characters.`);
     deriveTronAccount(tronMnemonic); // throws on a bad phrase
     const seed = await validateMoneroSeed(moneroSeed);
@@ -270,6 +275,7 @@ export class ServiceCore extends EventEmitter {
     } else if (from) throw new Error('Enter the restore point as a block height or YYYY-MM-DD.');
     const heights = { mainnet: height, testnet: /^\d+$/.test(from) ? height : 0 };
     const secrets = this.newSecrets(tronMnemonic.trim().toLowerCase().split(/\s+/).join(' '), seed, heights);
+    if (passphrase) secrets.passphrase = passphrase;
     // A Monero block height says nothing about Zcash, so only a date carries over.
     if (/^\d{4}-\d{2}-\d{2}$/.test(from)) {
       secrets.zecBirthday = zecHeightForDate(new Date(from + 'T00:00:00Z'));
@@ -295,6 +301,9 @@ export class ServiceCore extends EventEmitter {
 
   protected async startSession(secrets: Secrets): Promise<void> {
     await this.closing;
+    // Every key from the 12 words is made with the passphrase from here on (see seed.ts).
+    setPassphrase(secrets.tronMnemonic, secrets.passphrase);
+    this.settings.passphrase = Boolean(secrets.passphrase);
     await this.loadSavedBalances(secrets.tronMnemonic);
     this.priceAgent = undefined;
     this.pricesTorAgent = undefined;
@@ -329,8 +338,9 @@ export class ServiceCore extends EventEmitter {
     const route = this.dev.route ?? ((u: string) => u);
     const tronNet = this.dev.tronHost
       ? { ...net.tron, host: route(this.dev.tronHost), backup: undefined, usdt: NETWORKS.mainnet.tron.usdt }
+      : this.own('TRX') ? { ...net.tron, host: this.own('TRX'), backup: undefined }
       : { ...net.tron, host: route(net.tron.host), backup: net.tron.backup ? route(net.tron.backup) : undefined };
-    this.tron = new TronClient(tronNet, this.settings.tronApiKey, account.address, this.torRoute('tron'), this.torActive);
+    this.tron = new TronClient(tronNet, this.settings.tronApiKey, account.address, this.ownAgent('TRX', 'tron'), this.torActive);
 
     const slow = this.torActive;
     // A server of the person's own is the only one asked: no public server learns the addresses then. One on
@@ -353,6 +363,10 @@ export class ServiceCore extends EventEmitter {
     }
     this.btc = new BtcClient(btcAccountXpub(secrets.tronMnemonic), btcApis, btcAgent, slow ? 60_000 : 30_000, BITCOIN, () => newTorRoute(btcAgent));
     if (this.btcFilters) this.btc.useFilters(this.btcFilters, 'btc');
+    // Own sends, kept (encrypted) so a stuck one can be sped up later.
+    const sentFile = path.join(this.dir, 'btc-sent.json');
+    this.btc.loadSent(await this.records.read(sentFile).catch(() => undefined));
+    this.btc.onSent = (list) => { void this.records.write(sentFile, list).catch(() => undefined); };
     if (this.dev.btcApi) this.btc.spacingMs = 0;
     const scanFile = path.join(this.dir, 'btc-scan.json');
     try { const h = await this.records.read(scanFile); if (h) this.btc.importHints(h); } catch { /* damaged: scanned afresh */ }
@@ -362,31 +376,34 @@ export class ServiceCore extends EventEmitter {
     const mixedAgent = ownBtc && isLocalServer(ownBtc) ? undefined : this.torRoute('btc-mixed');
     this.btcMixed = new BtcClient(btcAccountXpub(secrets.tronMnemonic, BTC_MIXED_PATH), btcApis, mixedAgent, slow ? 60_000 : 30_000, BITCOIN_MIXED, () => newTorRoute(mixedAgent));
     if (this.btcFilters) this.btcMixed.useFilters(this.btcFilters, 'btc-mixed');
+    const mixedSentFile = path.join(this.dir, 'btc-mixed-sent.json');
+    this.btcMixed.loadSent(await this.records.read(mixedSentFile).catch(() => undefined));
+    this.btcMixed.onSent = (list) => { void this.records.write(mixedSentFile, list).catch(() => undefined); };
     if (this.dev.btcApi) this.btcMixed.spacingMs = 0;
     const mixedScanFile = path.join(this.dir, 'btc-mixed-scan.json');
     try { const h = await this.records.read(mixedScanFile); if (h) this.btcMixed.importHints(h); } catch { /* damaged: scanned afresh */ }
     this.btcMixed.onHints = (hints) => { void this.records.write(mixedScanFile, hints).catch(() => undefined); };
     if (!this.torNotReady) void this.btcMixed.refresh().catch(() => undefined);
     this.startBtcMixer();
-    this.ltc = new BtcClient(ltcAccountXpub(secrets.tronMnemonic), this.dev.ltcApi ? [this.dev.ltcApi] : LTC_APIS, this.torRoute('ltc'), slow ? 60_000 : 30_000, LITECOIN);
+    this.ltc = new BtcClient(ltcAccountXpub(secrets.tronMnemonic), this.dev.ltcApi ? [this.dev.ltcApi] : this.ownList('LTC', LTC_APIS), this.ownAgent('LTC', 'ltc'), slow ? 60_000 : 30_000, LITECOIN);
     if (!ownBtc || !isLocalServer(ownBtc)) { this.btc.lookupRoutes = this.lookupRoutes('btc'); this.btcMixed.lookupRoutes = this.lookupRoutes('btc-mixed'); }
     this.ltc.lookupRoutes = this.lookupRoutes('ltc');
     if (this.dev.ltcApi) this.ltc.spacingMs = 0;
-    this.scrt = new ScrtClient(scrtPublicKey(secrets.tronMnemonic), this.dev.scrtLcd ? this.dev.scrtLcd.split(',') : SCRT_LCDS, this.torRoute('scrt'), slow ? 60_000 : 20_000, scrtPrivacyKeys(secrets.tronMnemonic));
-    this.firo = new FiroClient(firoAccountXpub(secrets.tronMnemonic), this.dev.firoApi ? [this.dev.firoApi] : FIRO_APIS, this.torRoute('firo'), slow ? 60_000 : 20_000);
+    this.scrt = new ScrtClient(scrtPublicKey(secrets.tronMnemonic), this.dev.scrtLcd ? this.dev.scrtLcd.split(',') : this.ownList('SCRT', SCRT_LCDS), this.ownAgent('SCRT', 'scrt'), slow ? 60_000 : 20_000, scrtPrivacyKeys(secrets.tronMnemonic));
+    this.firo = new FiroClient(firoAccountXpub(secrets.tronMnemonic), this.dev.firoApi ? [this.dev.firoApi] : this.ownList('FIRO', FIRO_APIS), this.ownAgent('FIRO', 'firo'), slow ? 60_000 : 20_000);
     this.doge = new DogeClient(dogeAccountXpub(secrets.tronMnemonic), this.dev.dogeApi ? [this.dev.dogeApi] : DOGE_APIS, this.torRoute('doge'), slow ? 60_000 : 20_000, this.dev.dogeApi ? (this.dev.dogeBackup ? { backup: this.dev.dogeBackup } : {}) : { pushUrls: DOGE_PUSH_URLS, backup: DOGE_BACKUP });
-    this.ada = new AdaClient(adaAddress(secrets.tronMnemonic), this.dev.adaApi ?? ADA_API, this.torRoute('ada'), slow ? 60_000 : 20_000);
-    this.bch = new BchClient(bchAccountXpub(secrets.tronMnemonic), this.dev.bchApi ? [this.dev.bchApi] : BCH_APIS, this.torRoute('bch'), slow ? 60_000 : 20_000);
-    this.sol = new SolClient(solAddress(secrets.tronMnemonic), this.dev.solRpc ? [this.dev.solRpc] : SOL_RPCS, this.torRoute('sol'), slow ? 60_000 : 20_000);
-    this.dash = new DashClient(dashAccountXpub(secrets.tronMnemonic), this.dev.dashApi ? [this.dev.dashApi] : DASH_APIS, this.torRoute('dash'), slow ? 60_000 : 20_000);
+    this.ada = new AdaClient(adaAddress(secrets.tronMnemonic), this.dev.adaApi ?? (this.own('ADA') || ADA_API), this.ownAgent('ADA', 'ada'), slow ? 60_000 : 20_000);
+    this.bch = new BchClient(bchAccountXpub(secrets.tronMnemonic), this.dev.bchApi ? [this.dev.bchApi] : this.ownList('BCH', BCH_APIS), this.ownAgent('BCH', 'bch'), slow ? 60_000 : 20_000);
+    this.sol = new SolClient(solAddress(secrets.tronMnemonic), this.dev.solRpc ? [this.dev.solRpc] : this.ownList('SOL', SOL_RPCS), this.ownAgent('SOL', 'sol'), slow ? 60_000 : 20_000);
+    this.dash = new DashClient(dashAccountXpub(secrets.tronMnemonic), this.dev.dashApi ? [this.dev.dashApi] : this.ownList('DASH', DASH_APIS), this.ownAgent('DASH', 'dash'), slow ? 60_000 : 20_000);
     this.startMixer(secrets, slow);
-    this.eth = new EthClient(this.dev.ethRpc ? [this.dev.ethRpc] : ETH_RPCS, this.dev.ethScout ?? ETH_SCOUT, ETH_USDT, deriveEthAccount(secrets.tronMnemonic).address, this.torRoute('eth'), slow ? 60_000 : 15_000);
+    this.eth = new EthClient(this.dev.ethRpc ? [this.dev.ethRpc] : this.ownList('ETH', ETH_RPCS), this.dev.ethScout ?? ETH_SCOUT, ETH_USDT, deriveEthAccount(secrets.tronMnemonic).address, this.ownAgent('ETH', 'eth'), slow ? 60_000 : 15_000);
     this.evmSplit = await this.readEvmLayout();
     this.settings.evmSeparate = this.evmSplit;
     this.settings.developer = DEVELOPER_BUILD;
-    this.pol = new EthClient(this.dev.polRpc ? [this.dev.polRpc] : POL_RPCS, this.dev.polScout ?? POL_SCOUT, this.dev.polUsdt ?? '', deriveEthAccount(secrets.tronMnemonic, this.evmIndex(POLYGON.id)).address, this.torRoute('pol'), slow ? 60_000 : 15_000, POLYGON);
-    this.arb = new EthClient(this.dev.arbRpc ? [this.dev.arbRpc] : ARB_RPCS, this.dev.arbScout ?? ARB_SCOUT, this.dev.arbUsdt ?? '', deriveEthAccount(secrets.tronMnemonic, this.evmIndex(ARBITRUM.id)).address, this.torRoute('arb'), slow ? 60_000 : 15_000, ARBITRUM);
-    this.bsc = new EthClient(this.dev.bscRpc ? [this.dev.bscRpc] : BSC_RPCS, this.dev.bscScout ?? BSC_SCOUT, '', deriveEthAccount(secrets.tronMnemonic, this.evmIndex(BSC.id)).address, this.torRoute('bsc'), slow ? 60_000 : 15_000, BSC);
+    this.pol = new EthClient(this.dev.polRpc ? [this.dev.polRpc] : this.ownList('POL', POL_RPCS), this.dev.polScout ?? POL_SCOUT, this.dev.polUsdt ?? '', deriveEthAccount(secrets.tronMnemonic, this.evmIndex(POLYGON.id)).address, this.ownAgent('POL', 'pol'), slow ? 60_000 : 15_000, POLYGON);
+    this.arb = new EthClient(this.dev.arbRpc ? [this.dev.arbRpc] : this.ownList('ARB', ARB_RPCS), this.dev.arbScout ?? ARB_SCOUT, this.dev.arbUsdt ?? '', deriveEthAccount(secrets.tronMnemonic, this.evmIndex(ARBITRUM.id)).address, this.ownAgent('ARB', 'arb'), slow ? 60_000 : 15_000, ARBITRUM);
+    this.bsc = new EthClient(this.dev.bscRpc ? [this.dev.bscRpc] : this.ownList('BSC', BSC_RPCS), this.dev.bscScout ?? BSC_SCOUT, '', deriveEthAccount(secrets.tronMnemonic, this.evmIndex(BSC.id)).address, this.ownAgent('BSC', 'bsc'), slow ? 60_000 : 15_000, BSC);
     // WalletConnect wallets are gone: one made before opens as a maximum-privacy wallet, same seed, same addresses.
     void fs.rm(path.join(this.dir, 'mode.json'), { force: true }).catch(() => undefined);
     void fs.rm(path.join(this.dir, 'walletconnect.json'), { force: true }).catch(() => undefined);
@@ -470,8 +487,7 @@ export class ServiceCore extends EventEmitter {
     if (!info.count && !info.remix) throw new Error('No confirmed BTC to mix. Coins need 1 confirmation, at least 0.00005 BTC, and not frozen.');
     const secrets = await this.vault.open(password);
     const { HDKey } = require('@scure/bip32');
-    const { mnemonicToSeedSync } = require('@scure/bip39');
-    const root = HDKey.fromMasterSeed(mnemonicToSeedSync(secrets.tronMnemonic));
+    const root = HDKey.fromMasterSeed(bip39Seed(secrets.tronMnemonic));
     const account = root.derive(BTC_PATH);
     const coinKeys = new Map<string, Uint8Array>();
     for (const u of await btc.coins()) {
@@ -560,14 +576,17 @@ export class ServiceCore extends EventEmitter {
 
   protected async startArrr(secrets: Secrets): Promise<void> {
     const gen = this.sessionGen;
+    // Its engine makes keys from the 12 words without a passphrase, so a wallet with one leaves it off.
+    if (secrets.passphrase) return;
     if (!this.arrrAvailable) return;
-    const torPort = this.torActive ? Number((await this.tor.allocate()).match(/:(\d+)$/)?.[1]) : undefined;
+    // A lightwalletd on one's own network is reached directly: Tor can't reach it.
+    const torPort = this.torActive && !isLocalServer(this.own('ARRR')) ? (await this.tor.isolated('arrr')) || undefined : undefined; // its own gate: a fresh route per send
     if (this.torActive && !torPort) return; // Never fall back to a direct connection.
     const client = new ArrrClient({
       engine: () => startArrrEngine(this.dev.arrrBin),
       dir: this.dir,
       secret: secrets.moneroFilePasswords.mainnet,
-      servers: this.dev.arrrServers ?? ARRR_SERVERS,
+      servers: this.dev.arrrServers ?? this.ownList('ARRR', ARRR_SERVERS),
       socks: torPort,
       canConnect: () => !this.torNotReady,
       onChange: () => this.emit('balance-changed'),
@@ -583,7 +602,7 @@ export class ServiceCore extends EventEmitter {
   protected async startZano(secrets: Secrets): Promise<void> {
     const gen = this.sessionGen;
     if (!this.zanoAvailable) return;
-    const torPort = this.torActive ? Number((await this.tor.allocate()).match(/:(\d+)$/)?.[1]) : undefined;
+    const torPort = this.torActive ? (await this.tor.isolated('zano')) || undefined : undefined; // its own gate: a fresh route per send
     if (this.torActive && !torPort) return; // Never fall back to a direct connection.
     const client = new ZanoClient({
       engine: () => startZanoEngine(this.dev.zanoBin, this.dir),
@@ -615,7 +634,7 @@ export class ServiceCore extends EventEmitter {
     // Tor refuses it), so nothing goes anywhere.
     const node = this.ksrNode || (DEVELOPER_BUILD ? KSR_NO_NODE : '');
     if (!this.ksrAvailable || !node) return;
-    const torPort = this.torActive ? Number((await this.tor.allocate()).match(/:(\d+)$/)?.[1]) : undefined;
+    const torPort = this.torActive ? (await this.tor.isolated('ksr')) || undefined : undefined; // its own gate: a fresh route per send
     if (this.torActive && !torPort) return; // Never fall back to a direct connection.
     const client = new ZanoClient({
       engine: () => startKsrEngine(this.dev.ksrBin, this.dir),
@@ -636,14 +655,16 @@ export class ServiceCore extends EventEmitter {
   /** Every other coin works without this, so a problem here stays on the Zcash row. */
   protected async startZec(secrets: Secrets): Promise<void> {
     const gen = this.sessionGen;
+    // Its engine makes keys from the 12 words without a passphrase, so a wallet with one leaves it off.
+    if (secrets.passphrase) return;
     if (!this.zecAvailable) return;
-    const torPort = this.torActive ? Number((await this.tor.allocate()).match(/:(\d+)$/)?.[1]) : undefined;
+    const torPort = this.torActive && !isLocalServer(this.own('ZEC')) ? (await this.tor.isolated('zec')) || undefined : undefined; // its own gate: a fresh route per send
     if (this.torActive && !torPort) return; // Never fall back to a direct connection.
     const client = new ZecClient({
       engine: () => startZecEngine(this.dev.zecBin),
       dir: this.dir,
       secret: secrets.moneroFilePasswords.mainnet,
-      servers: this.dev.zecServers ?? ZEC_SERVERS,
+      servers: this.dev.zecServers ?? this.ownList('ZEC', ZEC_SERVERS),
       socks: torPort,
       canConnect: () => !this.torNotReady,
       onChange: () => this.emit('balance-changed'),
@@ -743,6 +764,7 @@ export class ServiceCore extends EventEmitter {
     await this.closing;
     await this.tor.stop();
     this.tor.clearLog();
+    clearPassphrases();
     // Back from a decoy session: the next unlock starts from the real wallet again.
     if (this.duressOf) { const id = this.duressOf; this.duressOf = null; this.activate(id); }
   }
@@ -858,6 +880,10 @@ export class ServiceCore extends EventEmitter {
   protected renewTorRoute(key: string): void {
     if (!this.torActive || key === 'XMR') return;
     newTorRoute(this.routes.get(LOOKUP_ROUTE[key]));
+    // Coins whose engine reaches its node itself: its gate logs in to Tor anew, so the next connection (the send)
+    // goes out on a circuit of its own.
+    const engine = ENGINE_GATE[key];
+    if (engine) this.tor.renewIsolated(engine);
   }
 
   protected noteFailure(key: string, startedAt: number, e: Error): void {
@@ -1136,6 +1162,13 @@ export class ServiceCore extends EventEmitter {
    * address doesn't tie a person's activity on four chains together. Wallets made before this, and restored ones (other
    * wallets use one address everywhere), keep the shared address until switched in the settings.
    */
+  /** The person's own server for a coin, or ''. */
+  protected own(coin: string): string { return (this.settings.customServers?.[coin] ?? '').trim(); }
+  /** Their own server alone when set (no public server learns the addresses then), else the public list. */
+  protected ownList(coin: string, list: string[]): string[] { const o = this.own(coin); return o ? [o] : list; }
+  /** One on their own network is reached directly (Tor can't reach it, nothing leaves the network); else Tor. */
+  protected ownAgent(coin: string, route: string) { const o = this.own(coin); return o && isLocalServer(o) ? undefined : this.torRoute(route); }
+
   /** Private Bitcoin sync (block filters): on or off for this wallet, and the block it scans from. */
   protected btcFilters: FilterSync | null = null;
   protected newBtcSync: { filters: boolean; birthday: number; from?: string } | null = null;
@@ -1276,10 +1309,20 @@ export class ServiceCore extends EventEmitter {
 
 }
 
+/** The engines that reach their node through a gate of their own (see socks-gate.ts). */
+const ENGINE_GATE: Record<string, string | undefined> = { ZANO: 'zano', KSR: 'ksr', ZEC: 'zec', ARRR: 'arrr' };
+
 /** Where KSR points with no node set (developer build): a local port nothing listens on. */
 const KSR_NO_NODE = '127.0.0.1:1';
 
 /** The block a private Bitcoin sync starts from for a wallet first used on `date`: a week early, never before taproot. */
 export function btcBirthdayFor(date: Date): number {
   return Math.max(TAPROOT_HEIGHT, estimateBtcHeight(date) - 1008);
+}
+
+/** A BIP39 passphrase: optional, but never only spaces, and short enough to type. */
+export function checkPassphrase(p: string): void {
+  if (!p) return;
+  if (typeof p !== 'string' || p.length > 200) throw new Error('The passphrase is too long.');
+  if (!p.trim()) throw new Error('The passphrase can\'t be only spaces.');
 }

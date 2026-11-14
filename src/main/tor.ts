@@ -2,6 +2,7 @@ import { ChildProcess, execFileSync, spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { promises as fs, existsSync, readFileSync, readlinkSync } from 'node:fs';
 import net from 'node:net';
+import { SocksGate } from './socks-gate';
 import path from 'node:path';
 // eslint-disable-next-line
 const openpgp: any = require('openpgp');
@@ -221,6 +222,22 @@ export class TorManager extends EventEmitter {
 
   useDirect(): void {}
 
+  private gates = new Map<string, SocksGate>();
+  /**
+   * A SOCKS port of its own for one engine (see socks-gate.ts), in front of Tor. renewIsolated() then gives that
+   * engine a fresh circuit, as the app's own lookups get one per send.
+   */
+  async isolated(name: string): Promise<number> {
+    const have = this.gates.get(name);
+    if (have) return have.port;
+    const upstream = Number((await this.allocate()).match(/:(\d+)$/)?.[1]);
+    if (!upstream) return 0;
+    const gate = new SocksGate(upstream);
+    this.gates.set(name, gate);
+    return gate.start();
+  }
+  renewIsolated(name: string): void { this.gates.get(name)?.renew(); }
+
   recentLog(): string[] { return [...this.log]; }
 
   /**
@@ -385,6 +402,8 @@ export class TorManager extends EventEmitter {
   private clearAuto(): void { if (this.autoTimer) clearTimeout(this.autoTimer); this.autoTimer = null; }
 
   async stop(): Promise<void> {
+    // The gates stay (engines keep their port across a restart of Tor); their connections go.
+    for (const g of this.gates.values()) g.renew();
     this.stopping = true;
     this.switching = false;
     this.clearAuto();

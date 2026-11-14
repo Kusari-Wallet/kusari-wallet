@@ -1,3 +1,4 @@
+import { passphraseOf } from './seed';
 import type { Agent } from 'node:http';
 import { HDNodeWallet, Transaction, isAddress } from 'ethers';
 import { getJson, requestJson } from './request';
@@ -75,7 +76,7 @@ export interface EthHistoryItem { asset: EthAsset; hash: string; direction: 'in'
 /** index 0 is the usual address (ETH_PATH); other EVM chains can have their own (see ServiceCore.evmIndex). */
 export function deriveEthAccount(mnemonic: string, index = 0): { address: string; wallet: HDNodeWallet } {
   const normalized = mnemonic.trim().toLowerCase().split(/\s+/).join(' ');
-  const wallet = HDNodeWallet.fromPhrase(normalized, undefined, index ? `m/44'/60'/0'/0/${index}` : ETH_PATH);
+  const wallet = HDNodeWallet.fromPhrase(normalized, passphraseOf(normalized), index ? `m/44'/60'/0'/0/${index}` : ETH_PATH);
   return { address: wallet.address, wallet };
 }
 

@@ -484,6 +484,15 @@ export class FilterSync {
     void this.save().catch(() => undefined);
   }
 
+  /** A send replaced by another (a fee bump): its coins are free again and its change is gone. */
+  dropPending(txid: string): void {
+    const s = this.state;
+    if (!s?.pending[txid]) return;
+    for (const k of s.pending[txid].spends) { const c = s.coins[k]; if (c?.spentBy === txid && c.spentHeight === 0) { delete c.spentBy; delete c.spentHeight; } }
+    for (const [k, c] of Object.entries(s.coins)) if (c.txid === txid && c.height === 0) delete s.coins[k];
+    delete s.pending[txid];
+  }
+
   /** Hands a transaction to the connected peers. */
   async broadcast(raw: Buffer): Promise<number> {
     const peers = await this.pool.get(2).catch(() => this.pool.connected);

@@ -1,10 +1,10 @@
+import { bip39Seed } from './seed';
 import type { SparkEngine } from './spark-process';
 import type { InsightUtxo } from './insight';
 import { FIRO_NET, FIRO_PATH } from './firo';
 import { formatAmount } from './amount';
 
 const { HDKey } = require('@scure/bip32');
-const { mnemonicToSeedSync } = require('@scure/bip39');
 const btc = require('@scure/btc-signer');
 const { sha256 } = require('@noble/hashes/sha2.js');
 
@@ -34,7 +34,7 @@ const hex = (b: Uint8Array) => Buffer.from(b).toString('hex');
 const join = (base: string, ...parts: string[]) => [base.replace(/[\\/]+$/, ''), ...parts].join(base.includes('\\') ? '\\' : '/');
 
 export function sparkKey(mnemonic: string): string {
-  return hex(HDKey.fromMasterSeed(mnemonicToSeedSync(mnemonic)).derive(SPARK_PATH).privateKey!);
+  return hex(HDKey.fromMasterSeed(bip39Seed(mnemonic)).derive(SPARK_PATH).privateKey!);
 }
 
 export interface SparkCoin { g: number; txid: string; value: number; d: number; type: number; lTagHash: string; memo: string; spent: boolean; spentTx: string }
@@ -251,7 +251,7 @@ export function signFiroMint(d: MintDraft, mnemonic: string): { hex: string; id:
   const totalOut = d.outputs.reduce((s, o) => s + o.value, 0n);
   if (totalIn - totalOut !== d.fee || totalOut !== d.amount) throw new Error('The amounts do not add up, so signing was stopped.');
   if (!d.outputs.every((o) => o.script.startsWith('d1'))) throw new Error('Not a Spark mint, so signing was stopped.');
-  const account = HDKey.fromMasterSeed(mnemonicToSeedSync(mnemonic)).derive(FIRO_PATH);
+  const account = HDKey.fromMasterSeed(bip39Seed(mnemonic)).derive(FIRO_PATH);
   const inputs = d.inputs.map((u) => {
     const child = account.deriveChild(u.chain).deriveChild(u.index);
     const pay = btc.p2pkh(child.publicKey, FIRO_NET);

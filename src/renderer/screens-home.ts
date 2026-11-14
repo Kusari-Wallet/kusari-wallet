@@ -248,10 +248,17 @@ function historyRow(i: any): HTMLElement {
   const status = i.status === 'failed' ? ' · failed' : i.status === 'pending' ? ' · pending'
     : i.asset === 'XMR' && i.confirmations < 10 ? ` · ${i.confirmations}/10 confirmations` : '';
   const sign = i.direction === 'in' ? '+' : i.direction === 'out' ? '-' : '';
-  return h('button', { class: `hist-row${i.dust ? ' dust' : ''}`, title: 'Open in explorer', onclick: () => void openExplorer(i.asset, i.hash) },
+  const row = h('button', { class: `hist-row${i.dust ? ' dust' : ''}`, title: 'Open in explorer', onclick: () => void openExplorer(i.asset, i.hash) },
     coin(i.asset),
     h('div', {}, h('div', {}, label + status), h('div', { class: 'small muted' }, when(i.timestamp))),
     h('div', { class: `amt${i.direction === 'in' ? ' in' : ''}` }, `${sign}${i.amount} ${coinName(i.asset)}`));
+  if (i.asset !== 'BTC' || i.status !== 'pending') return row;
+  // A waiting Bitcoin transaction can be sped up: a send by replacing it, a payment by spending it on.
+  const box = errorBox();
+  const speed = h('button', { type: 'button', class: 'link speed-up', id: `speed-up-${i.hash}`, onclick: () => busy(speed, 'Working out the fee…', box, async () => {
+    renderReview(await wallet.btcSpeedUp(i.hash), { to: '', amount: '' });
+  }) }, 'Speed up');
+  return h('div', { class: 'hist-wrap' }, row, h('div', { class: 'speed-up-row' }, speed, box.el));
 }
 
 async function renderAllHistory(body: HTMLElement): Promise<void> {

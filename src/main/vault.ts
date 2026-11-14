@@ -13,6 +13,8 @@ export interface Secrets {
   zecBirthday?: number;
   /** The date a restored wallet started from, for Pirate Chain, whose height needs asking the server. */
   restoreDate?: string;
+  /** The BIP39 passphrase ("13th word") of the 12 words, if the wallet has one. */
+  passphrase?: string;
 }
 
 interface VaultFile {

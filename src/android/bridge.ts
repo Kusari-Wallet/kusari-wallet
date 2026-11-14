@@ -106,8 +106,8 @@ const bioCall = (fn: (id: number) => void) => new Promise<string>((resolve, reje
 (window as any).wallet = {
   status: async () => { await ready; return service.status(); },
   generateSeeds: call(() => service.generateSeeds()),
-  finishCreate: call((pw: string) => service.finishCreate(pw)),
-  restore: call((pw: string, t: string, m: string, f: string) => service.restore(pw, t, m, f)),
+  finishCreate: call((pw: string, pass?: string) => service.finishCreate(pw, typeof pass === 'string' ? pass : '')),
+  restore: call((pw: string, t: string, m: string, f: string, pass?: string) => service.restore(pw, t, m, f, typeof pass === 'string' ? pass : '')),
   unlock: call((pw: string) => service.unlock(pw)),
   lock: call(() => service.lock()),
   overview: call(() => service.overview()),
@@ -171,6 +171,7 @@ const bioCall = (fn: (id: number) => void) => new Promise<string>((resolve, reje
   walletsList: call(() => service.walletsList()),
   walletRename: call((i: string, n: string) => service.walletRename(i, n)),
   duressStatus: call(() => service.duressStatus()),
+  btcSpeedUp: call((txid: string) => service.btcSpeedUp(txid)),
   duressSet: call((c: string, d: string) => service.duressSet(c, d)),
   duressRemove: call((c: string) => service.duressRemove(c)),
   walletSwitch: call((i: string) => service.walletSwitch(i)),

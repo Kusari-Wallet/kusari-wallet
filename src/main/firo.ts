@@ -1,8 +1,8 @@
+import { bip39Seed } from './seed';
 import type { Agent } from 'node:http';
 import { InsightDraft, InsightWallet } from './insight';
 
 const { HDKey } = require('@scure/bip32');
-const { mnemonicToSeedSync } = require('@scure/bip39');
 const btc = require('@scure/btc-signer');
 
 // Coin type 136 and these prefixes are the ones in Firo's own wallet and chain parameters.
@@ -17,7 +17,7 @@ const SIZE_OUTPUT = 34n;
 export type FiroDraft = InsightDraft;
 
 export function firoAccountXpub(mnemonic: string): string {
-  return HDKey.fromMasterSeed(mnemonicToSeedSync(mnemonic)).derive(FIRO_PATH).publicExtendedKey;
+  return HDKey.fromMasterSeed(bip39Seed(mnemonic)).derive(FIRO_PATH).publicExtendedKey;
 }
 
 export function isFiroAddress(address: string): boolean {
@@ -43,7 +43,7 @@ export function signFiroDraft(draft: InsightDraft, mnemonic: string): { hex: str
   if (!isFiroAddress(draft.to)) throw new Error('The receiving address is not a FIRO address.');
   const totalIn = draft.inputs.reduce((s, u) => s + u.value, 0n);
   if (totalIn - draft.amount - draft.change !== draft.fee) throw new Error('The amounts do not add up, so signing was stopped.');
-  const account = HDKey.fromMasterSeed(mnemonicToSeedSync(mnemonic)).derive(FIRO_PATH);
+  const account = HDKey.fromMasterSeed(bip39Seed(mnemonic)).derive(FIRO_PATH);
   const tx = new btc.Transaction({ allowLegacyWitnessUtxo: true, version: 1 });
   const keys: Uint8Array[] = [];
   for (const u of draft.inputs) {

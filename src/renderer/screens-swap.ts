@@ -164,6 +164,25 @@ async function paintSwapList(el: HTMLElement): Promise<void> {
     records.length > 0 && h('h3', {}, 'Recent swaps'), ...records.slice(0, 20).map(swapRow));
 }
 
+/** Coins whose chain hides senders, receivers and amounts: a provider learns nothing about the rest of the wallet. */
+const PRIVATE_CHAIN: Asset[] = ['XMR', 'ZANO', 'ARRR', 'KSR'];
+
+/** What the swap provider learns from this order, and the private swap when neither side hides it. */
+function swapSees(p: any, makePrivate: () => void): HTMLElement {
+  const s = p.swap;
+  const fromPrivate = PRIVATE_CHAIN.includes(s.from); const toPrivate = PRIVATE_CHAIN.includes(s.to);
+  const two = s.privacy?.leg === 'first';
+  return h('div', { class: 'panel swap-sees', id: 'swap-sees' },
+    h('h3', {}, `What ${s.provider} sees`),
+    h('ul', { class: 'small' },
+      h('li', {}, fromPrivate ? `That ${p.amount} ${coinName(s.from)} arrived, not which of your coins it came from.` : `The address your ${coinName(s.from)} is sent from, and through it everything that address did before.`),
+      h('li', {}, two ? 'Only the intermediate XMR address: a second order, on its own, swaps the XMR on to your final address.' : toPrivate ? `The ${coinName(s.to)} address it pays, not what happens to the coins after.` : `The address you receive at, and anything that address receives later.`),
+      h('li', {}, 'The amounts and the time. Not your IP address while Tor is on: the order goes through Tor.')),
+    !fromPrivate && !toPrivate && !s.privacy && h('div', { class: 'private-prompt', id: 'swap-suggest-private' },
+      h('p', { class: 'small' }, 'To keep both sides apart, make it a private swap: it goes through XMR in two orders, so no single provider sees both the address you send from and the one you receive at.'),
+      h('button', { type: 'button', id: 'swap-make-private', onclick: makePrivate }, 'Make it a private swap')));
+}
+
 function renderSwapReview(p: any, backTo: () => void): void {
   const pw = h('input', { type: 'password', id: 'confirm-pw', autocomplete: 'current-password' });
   const box = errorBox();
@@ -191,6 +210,7 @@ function renderSwapReview(p: any, backTo: () => void): void {
       h('tr', {}, h('th', {}, s.external ? 'Receiving address' : s.privacy?.leg === 'first' ? 'Intermediate XMR address' : 'Your receiving address'), h('td', {}, h('div', { class: 'addr-check', id: 'review-receive-address' }, s.receiveAddress))),
       s.privacy?.leg === 'first' && h('tr', {}, h('th', {}, 'Final receiving address'), h('td', {}, h('div', { class: 'addr-check', id: 'review-final-address' }, s.privacy.destination))),
       h('tr', {}, h('th', {}, 'Provider'), h('td', {}, `${s.provider}, order ${s.id}`))))),
+    swapSees(p, () => { void wallet.cancelSend(p.id); void renderSwap(p.asset, s.to, p.amount, true); }),
     h('p', { class: 'small muted' }, `The swap is handled by ${s.provider}, an outside provider. It holds the coins during the swap, so a deposit can't be cancelled, and it may hold funds for review or ask for KYC.${s.approximate ? ' The rate floats, so the amount received can change a little at deposit time.' : ''} ${s.providerId === 'ccecash' ? ' Trades are processed by CCECash under CCECash\'s service rules (cce.cash). CCECash takes no refund address in the order, so a refund is handled under those rules.' : ''} Test large amounts with a small one first.`),
     h('br'),
     h('label', { class: 'field' }, h('span', {}, 'Password'), pw),

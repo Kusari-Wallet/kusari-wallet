@@ -56,6 +56,15 @@ Java WebView (`android/java`) running the same code as an esbuild bundle (`src/a
 - Duress password: `duressSet`/`unlock` in `service-core.ts`. A decoy wallet in `wallets/<id>` (never listed)
   opens in the real one's place; from a decoy session the real wallet's files are never touched.
 - `src/main/lookalike.ts`: address-poisoning check on every send review.
+- `src/main/socks-gate.ts` (desktop) and `android/java/.../SocksGate.java`: a SOCKS gateway per engine (Zano, KSR,
+  ZEC, ARRR) that logs in to Tor; `renewTorRoute` changes the login, so each send gets a fresh circuit.
+- `src/main/seed.ts`: the BIP39 seed with the open wallet's optional passphrase. Every key from the 12 words goes
+  through `bip39Seed`/`passphraseOf`; never call `mnemonicToSeedSync` directly. ZEC and ARRR engines take the
+  words themselves, so they stay off in a wallet with a passphrase.
+- `src/main/btc-silent.ts`: paying Silent Payments (sp1) addresses (BIP352); the output is made at signing time.
+  Receiving needs a tweak index server, which isn't done.
+- BTC fee bumps: `BtcClient.bumpDraft` (RBF, own sends kept in `btc-sent.json`) and `cpfpDraft`; sends signal RBF.
+- Own servers per coin: `customServers` setting, `OWN_SERVER_COINS` in `config.ts`.
 - `src/main/wabisabi/`: WabiSabi CoinJoin client (credentials, round, decomposer); `src/main/btc-mix.ts` runs it.
   `tests/fixtures/wabisabi-*.json` are vectors from the reference implementation and live coordinators.
 - `src/main/coinjoin.ts`, `dash-mix.ts`, `dash-p2p.ts`: Dash CoinJoin.

@@ -131,6 +131,8 @@ export interface Settings {
   customBtcServer: string;
   customZanoNode: string;
   customKsrNode: string;
+  /** A server of one's own per coin (see OWN_SERVER_COINS), asked instead of the public ones. */
+  customServers?: Record<string, string>;
   /** The CoinJoin coordinator for Bitcoin, as its address. */
   coinjoinCoordinator: string;
   /** Mix until each Bitcoin coin hides among this many others (1: mix once). */
@@ -150,6 +152,8 @@ export interface Settings {
    * the wallet, encrypted, not in the settings file.
    */
   btcFilters?: boolean;
+  /** The open wallet has a BIP39 passphrase (never the passphrase itself). Not saved. */
+  passphrase?: boolean;
   btcFiltersFrom?: string;
   /** How Tor connects: auto, straight, or through Snowflake, obfs4 or the user's own bridges. */
   torBridge: 'auto' | 'none' | 'snowflake' | 'obfs4' | 'custom';
@@ -165,6 +169,7 @@ export const DEFAULT_SETTINGS: Settings = {
   customBtcServer: '',
   customZanoNode: '',
   customKsrNode: '',
+  customServers: {},
   coinjoinCoordinator: 'https://coinjoin.kruw.io/',
   coinjoinTarget: 5,
   tronApiKey: '',
@@ -186,3 +191,26 @@ export function estimateMainnetHeight(date: Date): number {
   const blocks = Math.floor((date.getTime() - anchorTime) / 120_000);
   return Math.max(0, anchorHeight + blocks);
 }
+
+/**
+ * Coins that can use a server of one's own, and what kind of server each one speaks. EVM chains and Solana take any
+ * JSON-RPC node, Tron a java-tron HTTP API, Litecoin an Esplora API (or Blockbook, written blockbook+https://...),
+ * Bitcoin Cash Bitcore (or Blockbook), Dash and Firo an Insight API, Cardano Koios, Secret a REST (LCD) server,
+ * Zcash and Pirate Chain a lightwalletd.
+ */
+export const OWN_SERVER_COINS: { coin: string; kind: string; example: string; blockbook?: boolean }[] = [
+  { coin: 'ETH', kind: 'JSON-RPC', example: 'http://192.168.1.20:8545' },
+  { coin: 'BSC', kind: 'JSON-RPC', example: 'https://bsc.example/rpc' },
+  { coin: 'POL', kind: 'JSON-RPC', example: 'https://polygon.example/rpc' },
+  { coin: 'ARB', kind: 'JSON-RPC', example: 'https://arbitrum.example/rpc' },
+  { coin: 'SOL', kind: 'JSON-RPC', example: 'http://192.168.1.20:8899' },
+  { coin: 'TRX', kind: 'java-tron HTTP API', example: 'http://192.168.1.20:8090' },
+  { coin: 'LTC', kind: 'Esplora or Blockbook', example: 'http://umbrel.local:3006/api', blockbook: true },
+  { coin: 'BCH', kind: 'Bitcore or Blockbook', example: 'blockbook+https://bch.example', blockbook: true },
+  { coin: 'DASH', kind: 'Insight API', example: 'http://192.168.1.20:3001/insight-api' },
+  { coin: 'FIRO', kind: 'Insight API', example: 'http://192.168.1.20:3001/insight-api-zcoin' },
+  { coin: 'ADA', kind: 'Koios', example: 'https://koios.example/api/v1' },
+  { coin: 'SCRT', kind: 'REST (LCD)', example: 'https://secret.example' },
+  { coin: 'ZEC', kind: 'lightwalletd', example: 'https://192.168.1.20:9067' },
+  { coin: 'ARRR', kind: 'lightwalletd', example: 'https://192.168.1.20:9067' },
+];

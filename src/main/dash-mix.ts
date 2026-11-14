@@ -1,6 +1,7 @@
 // The wallet side of Dash CoinJoin: coins kept on their own account (DIP-9, m/9'/5'/4'/0', as Dash's own
 // mobile wallets do, so they restore there too), split into the standard sizes, then mixed round by round with
 // masternodes until each has gone through enough rounds to be sent privately.
+import { bip39Seed } from './seed';
 import type { Agent } from 'node:http';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
@@ -11,7 +12,6 @@ import { DENOMS, MAX_ENTRY, OwnCoin, collateralTx, denomBit, isCollateralAmount,
 import { Records, plainRecords } from './records';
 
 const { HDKey } = require('@scure/bip32');
-const { mnemonicToSeedSync } = require('@scure/bip39');
 const btc = require('@scure/btc-signer');
 
 export const COINJOIN_PATH = "m/9'/5'/4'/0'";
@@ -71,7 +71,7 @@ export class DashMixer {
   /** The mixing account's private key stays in memory while the wallet is unlocked, so rounds run unattended. */
   constructor(private readonly opts: MixOptions, private readonly account: any) {}
 
-  static account(mnemonic: string): any { return HDKey.fromMasterSeed(mnemonicToSeedSync(mnemonic)).derive(COINJOIN_PATH); }
+  static account(mnemonic: string): any { return HDKey.fromMasterSeed(bip39Seed(mnemonic)).derive(COINJOIN_PATH); }
 
   private key(chain: number, index: number) { return this.account.deriveChild(chain).deriveChild(index); }
   addressAt(chain: number, index: number): string { return btc.p2pkh(this.key(chain, index).publicKey, DASH_NET).address; }

@@ -1,3 +1,4 @@
+import { passphraseOf } from './seed';
 import { TronWeb, utils as tronUtils } from 'tronweb';
 import type { NetworkConfig } from './config';
 import type { Agent } from 'node:http';
@@ -23,7 +24,7 @@ export function deriveTronAccount(mnemonic: string): TronAccount {
   const normalized = mnemonic.trim().toLowerCase().split(/\s+/).join(' ');
   let account;
   try {
-    account = TronWeb.fromMnemonic(normalized, TRON_PATH);
+    account = TronWeb.fromMnemonic(normalized, TRON_PATH, passphraseOf(normalized));
   } catch {
     throw new Error('The Tron seed phrase is not valid.');
   }

@@ -113,8 +113,8 @@ app.whenReady().then(async () => {
   handle('wallet:prepareScrtPrivate', (kind: 'wrap' | 'unwrap' | 'key', amount: string) => service.prepareScrtPrivate(kind, amount));
   handle('wallet:zecRescan', (date: string, pw: string) => service.zecRescan(date, pw));
   handle('wallet:generateSeeds', () => service.generateSeeds());
-  handle('wallet:finishCreate', (pw: string) => service.finishCreate(pw));
-  handle('wallet:restore', (pw: string, t: string, m: string, from: string) => service.restore(pw, t, m, from));
+  handle('wallet:finishCreate', (pw: string, pass?: string) => service.finishCreate(pw, typeof pass === 'string' ? pass : ''));
+  handle('wallet:restore', (pw: string, t: string, m: string, from: string, pass?: string) => service.restore(pw, t, m, from, typeof pass === 'string' ? pass : ''));
   handle('wallet:unlock', (pw: string) => service.unlock(pw));
   handle('wallet:lock', () => service.lock());
   handle('wallet:overview', () => service.overview());
@@ -161,6 +161,7 @@ app.whenReady().then(async () => {
   handle('wallet:walletsList', () => service.walletsList());
   handle('wallet:walletRename', (i: string, n: string) => service.walletRename(i, n));
   handle('wallet:duressStatus', () => service.duressStatus());
+  handle('wallet:btcSpeedUp', (txid: string) => service.btcSpeedUp(txid));
   handle('wallet:duressSet', (c: string, d: string) => service.duressSet(c, d));
   handle('wallet:duressRemove', (c: string) => service.duressRemove(c));
   handle('wallet:walletSwitch', (i: string) => service.walletSwitch(i));

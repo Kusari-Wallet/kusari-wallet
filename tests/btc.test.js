@@ -410,3 +410,44 @@ test('coin labels and freezing are kept per wallet and checked', async (t) => {
   assert.deepEqual(notes, { labels: {}, frozen: [] });
   await assert.rejects(s.btcCoinSet('../x', { label: 'a' }), /Not a coin/);
 });
+
+test('speeding up: a send replaced with a higher fee from its change (RBF), a payment pulled along (CPFP)', async () => {
+  const c = new BtcClient(xpub, []);
+  const answers = { '/v1/fees/recommended': { halfHourFee: 20 } };
+  c.get = async (p) => { if (p in answers) return answers[p]; throw new Error(`unexpected ${p}`); };
+  const input = { txid: 'ab'.repeat(32), vout: 0, value: 100000n, address: c.addressAt(0, 0), chain: 0, index: 0, confirmed: true };
+  const first = { to: c.addressAt(0, 7), amount: 50000n, fee: 1000n, change: 49000n, changeAddress: c.addressAt(1, 0), changePath: [1, 0], inputs: [input] };
+  const signed = signBtcDraft(first, MNEMONIC);
+  const tx = btc.Transaction.fromRaw(Buffer.from(signed.hex, 'hex'));
+  assert.strictEqual(tx.getInput(0).sequence, 0xfffffffd, 'every send says it may be replaced');
+  // A send made here is remembered, kept as plain data, and found again.
+  c.rememberSent(signed.id, first, signed.hex);
+  const again = new BtcClient(xpub, []); again.get = c.get; again.loadSent(JSON.parse(JSON.stringify(c.sentList())));
+  assert.ok(again.canReplace(signed.id));
+  answers[`/tx/${signed.id}/status`] = { confirmed: false };
+  const bump = await again.bumpDraft(signed.id);
+  const vsize = BigInt(tx.vsize);
+  assert.strictEqual(bump.fee, 20n * vsize, 'today\'s rate for the same size');
+  assert.strictEqual(bump.change, 49000n - (bump.fee - 1000n), 'paid from the change');
+  assert.deepStrictEqual([bump.to, bump.amount, bump.replaces], [first.to, first.amount, signed.id], 'same payment');
+  assert.ok(signBtcDraft(bump, MNEMONIC).hex, 'signs');
+  answers['/v1/fees/recommended'] = { halfHourFee: 2 };
+  assert.strictEqual((await again.bumpDraft(signed.id)).fee, 1250n, 'at least a quarter more than before, whatever the rate');
+  answers[`/tx/${signed.id}/status`] = { confirmed: true };
+  await assert.rejects(again.bumpDraft(signed.id), /already confirmed/);
+  await assert.rejects(new BtcClient(xpub, []).bumpDraft(signed.id), /made from this wallet/);
+
+  // CPFP: two waiting coins from one payment, its fee and weight from the server.
+  answers['/v1/fees/recommended'] = { halfHourFee: 30 };
+  const pay = 'cd'.repeat(32);
+  c.refresh = async () => {};
+  c.state = { at: Date.now(), utxos: [{ txid: pay, vout: 0, value: 40000n, address: c.addressAt(0, 2), chain: 0, index: 2, confirmed: false }, { txid: pay, vout: 1, value: 5000n, address: c.addressAt(0, 3), chain: 0, index: 3, confirmed: false }, input], total: 0n, spendable: 0n, nextReceive: 4, nextChange: 1, addresses: new Map(), used: new Set() };
+  answers[`/tx/${pay}`] = { fee: 200, weight: 800, status: { confirmed: false } };
+  const child = await c.cpfpDraft(pay);
+  const childVsize = estimateVbytes(2, 1);
+  assert.strictEqual(child.fee, 30n * (200n + childVsize) - 200n, 'enough for both at today\'s rate');
+  assert.deepStrictEqual([child.inputs.length, child.to, child.change, child.cpfpOf], [2, c.addressAt(1, 1), 0n, pay], 'to a fresh change address of this wallet');
+  assert.strictEqual(child.amount, 45000n - child.fee);
+  assert.ok(signBtcDraft(child, MNEMONIC).hex);
+  await assert.rejects(c.cpfpDraft('ef'.repeat(32)), /no waiting coins/);
+});

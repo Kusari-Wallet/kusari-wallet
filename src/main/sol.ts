@@ -1,9 +1,9 @@
+import { bip39Seed } from './seed';
 import type { Agent } from 'node:http';
 import { computeHmac, getBytes, sha256, toUtf8Bytes } from 'ethers';
 import { requestJson } from './request';
 import { formatAmount } from './amount';
 
-const { mnemonicToSeedSync } = require('@scure/bip39');
 const { ed25519 } = require('@noble/curves/ed25519.js');
 const { base58 } = require('@scure/base');
 
@@ -42,7 +42,7 @@ export interface SolUsdtDraft { to: string; toAccount: string; create: boolean; 
 /** SLIP-0010: on this curve every step is hardened. */
 function deriveSecret(mnemonic: string): Uint8Array {
   const step = (key: Uint8Array, data: Uint8Array) => getBytes(computeHmac('sha512', key, data));
-  let node = step(toUtf8Bytes('ed25519 seed'), mnemonicToSeedSync(mnemonic));
+  let node = step(toUtf8Bytes('ed25519 seed'), bip39Seed(mnemonic));
   for (const part of SOL_PATH) {
     const data = new Uint8Array(37);
     data.set(node.slice(0, 32), 1);

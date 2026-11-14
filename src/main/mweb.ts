@@ -1,10 +1,10 @@
+import { bip39Seed } from './seed';
 import type { MwebEngine } from './mweb-process';
 import { LTC_PATH } from './btc';
 import type { BtcUtxo } from './btc';
 
 // These packages are ESM only, which require() handles in this Node version.
 const { HDKey } = require('@scure/bip32');
-const { mnemonicToSeedSync } = require('@scure/bip39');
 const { p2wpkh } = require('@scure/btc-signer');
 
 /**
@@ -20,7 +20,7 @@ export const isMwebAddress = (a: string): boolean => /^ltcmweb1[02-9ac-hj-np-z]{
 const hex = (b: Uint8Array) => Buffer.from(b).toString('hex');
 
 export function mwebKeys(mnemonic: string): { scan: string; spendPub: string; spend: string } {
-  const root = HDKey.fromMasterSeed(mnemonicToSeedSync(mnemonic));
+  const root = HDKey.fromMasterSeed(bip39Seed(mnemonic));
   const scan = root.derive(MWEB_SCAN_PATH);
   const spend = root.derive(MWEB_SPEND_PATH);
   return { scan: hex(scan.privateKey!), spendPub: hex(spend.publicKey!), spend: hex(spend.privateKey!) };
@@ -151,7 +151,7 @@ export class MwebClient {
 
   async pegin(d: PeginDraft, mnemonic: string): Promise<string> {
     if (!this.engine) throw new Error('MWEB is not running.');
-    const account = HDKey.fromMasterSeed(mnemonicToSeedSync(mnemonic)).derive(LTC_PATH);
+    const account = HDKey.fromMasterSeed(bip39Seed(mnemonic)).derive(LTC_PATH);
     const inputs = d.inputs.map((u) => {
       const child = account.deriveChild(u.chain).deriveChild(u.index);
       return { txid: u.txid, vout: u.vout, value: Number(u.value), script: scriptOf(u, child.publicKey!), key: hex(child.privateKey!) };

@@ -1,10 +1,10 @@
+import { bip39Seed } from './seed';
 import type { Agent } from 'node:http';
 import { SigningKey, getBytes, ripemd160, sha256 } from 'ethers';
 import { getJson, requestJson } from './request';
 import { formatAmount } from './amount';
 
 const { HDKey } = require('@scure/bip32');
-const { mnemonicToSeedSync } = require('@scure/bip39');
 const { bech32 } = require('@scure/base');
 const { x25519 } = require('@noble/curves/ed25519.js');
 const { aessiv } = require('@noble/ciphers/aes.js');
@@ -44,7 +44,7 @@ const PAD_TO = 256;
 
 
 function key(mnemonic: string) {
-  return HDKey.fromMasterSeed(mnemonicToSeedSync(mnemonic)).derive(SCRT_PATH);
+  return HDKey.fromMasterSeed(bip39Seed(mnemonic)).derive(SCRT_PATH);
 }
 
 const hash160 = (b: Uint8Array) => getBytes(ripemd160(sha256(b)));

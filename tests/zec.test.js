@@ -181,12 +181,15 @@ test('rescan needs the password and starts over from the date', { timeout: 60000
   assert.equal(logged().filter((l) => l.m === 'account')[1].birthday, zecHeightForDate(new Date('2024-01-01T00:00:00Z')));
 });
 
-test('Tor mode: every connection carries the Tor port, and nothing leaves until Tor is ready', { timeout: 60000 }, async (t) => {
+test('Tor mode: every connection goes through the engine\'s gate to Tor, and nothing leaves until Tor is ready', { timeout: 60000 }, async (t) => {
   const { service, logged, moneroSeed } = await wallet(t, {}, { socks: 'socks5h://127.0.0.1:59999' });
   service.settings.torEnabled = true;
   await service.restore(PW, TRON, moneroSeed, '').catch(() => undefined);
   await until(() => logged().some((l) => l.m === 'open'));
-  assert.ok(logged().filter((l) => l.m === 'open').every((l) => l.socks === 59999));
+  // The engine's own gate in front of Tor (socks-gate.ts): one fixed local port, never Tor's port itself.
+  const ports = [...new Set(logged().filter((l) => l.m === 'open').map((l) => l.socks))];
+  assert.strictEqual(ports.length, 1);
+  assert.ok(Number.isInteger(ports[0]) && ports[0] > 0 && ports[0] !== 59999, `the gate port, got ${ports}`);
   await sleep(300);
   if (service.tor.state.phase !== 'ready') assert.equal(logged().some((l) => l.m === 'account'), false, 'no request before Tor is up');
 });

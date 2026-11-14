@@ -1,9 +1,9 @@
+import { bip39Seed } from './seed';
 import type { Agent } from 'node:http';
 import { getJson, requestJson } from './request';
 import { InsightDraft, InsightWallet } from './insight';
 
 const { HDKey } = require('@scure/bip32');
-const { mnemonicToSeedSync } = require('@scure/bip39');
 const btc = require('@scure/btc-signer');
 
 // Coin type 3 and these prefixes are Dogecoin's own.
@@ -29,7 +29,7 @@ const VERIFY_DELAY_MS = 5_000;
 export type DogeDraft = InsightDraft;
 
 export function dogeAccountXpub(mnemonic: string): string {
-  return HDKey.fromMasterSeed(mnemonicToSeedSync(mnemonic)).derive(DOGE_PATH).publicExtendedKey;
+  return HDKey.fromMasterSeed(bip39Seed(mnemonic)).derive(DOGE_PATH).publicExtendedKey;
 }
 
 export function isDogeAddress(address: string): boolean {
@@ -227,7 +227,7 @@ export function signDogeDraft(draft: InsightDraft, mnemonic: string): { hex: str
   if (!isDogeAddress(draft.to)) throw new Error('The receiving address is not a DOGE address.');
   const totalIn = draft.inputs.reduce((s, u) => s + u.value, 0n);
   if (totalIn - draft.amount - draft.change !== draft.fee) throw new Error('The amounts do not add up, so signing was stopped.');
-  const account = HDKey.fromMasterSeed(mnemonicToSeedSync(mnemonic)).derive(DOGE_PATH);
+  const account = HDKey.fromMasterSeed(bip39Seed(mnemonic)).derive(DOGE_PATH);
   const tx = new btc.Transaction({ allowLegacyWitnessUtxo: true, version: 1 });
   const keys: Uint8Array[] = [];
   for (const u of draft.inputs) {

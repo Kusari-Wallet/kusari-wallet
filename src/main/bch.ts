@@ -1,3 +1,4 @@
+import { bip39Seed } from './seed';
 import { BLOCKBOOK, blockbookSend, isBlockbook } from './blockbook';
 import type { Agent } from 'node:http';
 import { SigningKey, getBytes, ripemd160, sha256 } from 'ethers';
@@ -5,7 +6,6 @@ import { getJson, requestJson } from './request';
 import { InsightDraft, InsightWallet } from './insight';
 
 const { HDKey } = require('@scure/bip32');
-const { mnemonicToSeedSync } = require('@scure/bip39');
 
 // Coin type 145 is Bitcoin Cash's own, as Electron Cash and Bitcoin.com Wallet use it.
 export const BCH_PATH = "m/44'/145'/0'";
@@ -95,7 +95,7 @@ const sha256d = (b: Uint8Array) => getBytes(sha256(sha256(b)));
 const hex = (b: Uint8Array) => Buffer.from(b).toString('hex');
 
 export function bchAccountXpub(mnemonic: string): string {
-  return HDKey.fromMasterSeed(mnemonicToSeedSync(mnemonic)).derive(BCH_PATH).publicExtendedKey;
+  return HDKey.fromMasterSeed(bip39Seed(mnemonic)).derive(BCH_PATH).publicExtendedKey;
 }
 
 export const typicalBchFee = (): bigint => (SIZE_BASE + SIZE_INPUT + SIZE_OUTPUT * 2n) * FEE_SATS_PER_BYTE;
@@ -143,7 +143,7 @@ export function signBchDraft(draft: InsightDraft, mnemonic: string): { hex: stri
   if (!isBchAddress(draft.to)) throw new Error('The receiving address is not a BCH address.');
   const totalIn = draft.inputs.reduce((s, u) => s + u.value, 0n);
   if (totalIn - draft.amount - draft.change !== draft.fee) throw new Error('The amounts do not add up, so signing was stopped.');
-  const account = HDKey.fromMasterSeed(mnemonicToSeedSync(mnemonic)).derive(BCH_PATH);
+  const account = HDKey.fromMasterSeed(bip39Seed(mnemonic)).derive(BCH_PATH);
   const outputs: { script: Uint8Array; value: bigint }[] = [{ script: outputScript(draft.to), value: draft.amount }];
   if (draft.change > 0n) {
     const change = account.deriveChild(1).deriveChild(draft.changeIndex);

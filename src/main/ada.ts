@@ -1,3 +1,4 @@
+import { passphraseOf } from './seed';
 import type { Agent } from 'node:http';
 import { requestBytes, requestJson } from './request';
 import { formatAmount } from './amount';
@@ -42,7 +43,8 @@ export function publicKeyOf(k: XPrv): Uint8Array {
 /** The Icarus master key: PBKDF2 over the seed's entropy, then clamped. */
 export function adaMaster(mnemonic: string): XPrv {
   const entropy = mnemonicToEntropy(mnemonic.trim().normalize('NFKD').split(/\s+/).join(' '), wordlist);
-  const x = pbkdf2(sha512, new Uint8Array(0), entropy, { c: 4096, dkLen: 96 });
+  // Icarus (CIP-3): the BIP39 passphrase is the PBKDF2 password.
+  const x = pbkdf2(sha512, new TextEncoder().encode(passphraseOf(mnemonic).normalize('NFKD')), entropy, { c: 4096, dkLen: 96 });
   x[0] &= 0xf8;
   x[31] &= 0x1f;
   x[31] |= 0x40;

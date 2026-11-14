@@ -172,3 +172,7 @@ Linked into the Linux Zano engine (zano-bridge).
 # IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 ```
+
+## BIP 352 test vectors (https://github.com/bitcoin/bips/blob/master/bip-0352/send_and_receive_test_vectors.json)
+
+Used by tests/btc-silent.test.js (tests/fixtures/bip352-vectors.json). BIP 352 is licensed BSD-2-Clause.

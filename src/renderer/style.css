@@ -349,3 +349,8 @@ input[type="range"] { padding: 0; border: 0; background: none; accent-color: var
 /* Developer build: a ribbon on every screen. */
 .developer-ribbon { position: fixed; top: 0; left: 0; right: 0; z-index: 60; background: #b45309; color: #fff; font-size: 12px; text-align: center; padding: 3px 8px; pointer-events: none; }
 body.developer-build { padding-top: 22px; }
+.speed-up-row { display: flex; flex-direction: column; align-items: flex-end; margin: -6px 0 6px; }
+.speed-up-row .speed-up { font-size: 13px; }
+.swap-sees ul { margin: 6px 0 4px; padding-left: 18px; }
+.swap-sees li { margin: 4px 0; }
+.own-servers summary { cursor: pointer; font-weight: 600; margin: 8px 0; }

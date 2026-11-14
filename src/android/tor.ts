@@ -85,6 +85,13 @@ export class TorManager extends EventEmitter {
     if (!port) throw new Error('Could not prepare Tor.');
     return `socks5h://127.0.0.1:${port}`;
   }
+  /** An engine's own SOCKS port in front of Tor, whose route renewIsolated() changes (SocksGate.java). */
+  async isolated(name: string): Promise<number> {
+    const upstream = Number((await this.allocate()).match(/:(\d+)$/)?.[1]);
+    const port = Number(native().socksGateStart?.(name, upstream) ?? 0);
+    return port || upstream;
+  }
+  renewIsolated(name: string): void { native().socksGateRenew?.(name); }
   start() { this.running = true; void this.launch(); }
   useDirect() { this.running = false; this.clearAuto(); native().torDirect(); }
   async stop() { this.running = false; this.clearAuto(); native().torStop(); }

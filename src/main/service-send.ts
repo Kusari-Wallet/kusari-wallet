@@ -4,11 +4,12 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import QRCode from 'qrcode';
 import { formatAmount, parseAmount } from './amount';
-import { Asset, BTC_EXPLORER_TX, DECIMALS, FIRO_EXPLORER_TX, SOL_EXPLORER_TX, BUY_PAGE, BCH_EXPLORER_TX, LTC_EXPLORER_TX, SCRT_EXPLORER_TX, DOGE_EXPLORER_TX, DASH_EXPLORER_TX, ARRR_EXPLORER_TX, KSR_EXPLORER_TX, ZANO_EXPLORER_TX, ZEC_EXPLORER_TX, NETWORKS, Settings } from './config';
+import { Asset, BTC_EXPLORER_TX, DECIMALS, FIRO_EXPLORER_TX, SOL_EXPLORER_TX, BUY_PAGE, BCH_EXPLORER_TX, LTC_EXPLORER_TX, SCRT_EXPLORER_TX, DOGE_EXPLORER_TX, DASH_EXPLORER_TX, ARRR_EXPLORER_TX, KSR_EXPLORER_TX, ZANO_EXPLORER_TX, ZEC_EXPLORER_TX, NETWORKS, OWN_SERVER_COINS, Settings } from './config';
 import { TronTransfer, deriveTronAccount, isTronAddress } from './tron';
 import { requestJson } from './request';
 import { isScrtAddress } from './scrt';
-import { LITECOIN, coinId, estimateVbytes, isBtcAddress, isLtcAddress } from './btc';
+import { isSilentAddress } from './btc-silent';
+import { type BtcDraft, LITECOIN, coinId, estimateVbytes, isBtcAddress, isLtcAddress } from './btc';
 import { DEPOSIT_GAS, TORNADO_POOLS, TornadoNote, TornadoStore, WITHDRAW_GAS, abi as tornadoAbi, checkRelayerUrl, denomination, noteSecrets, noteText, relayerFee, relayerStatus, relayerSubmit, tornadoEngineCheck } from './tornado';
 import { runTornado } from './tornado-run';
 import { isArrrAddress } from './arrr';
@@ -407,7 +408,10 @@ export class SendService extends ServiceCore {
         preview = this.storePreview({ asset, to: address, amount: draft.amount, fee: draft.fee, ltc: draft });
       }
     } else if (asset === 'BTC') {
-      if (!isBtcAddress(address)) throw new Error('Not a Bitcoin address.');
+      const silent = isSilentAddress(address);
+      if (!isBtcAddress(address) && !silent) throw new Error('Not a Bitcoin address.');
+      if (silent && address.toLowerCase().startsWith('tsp')) throw new Error('This is a test-network Silent Payments address.');
+      if (silent) warnings.push('This is a Silent Payments address: the payment goes to a new address made from it and the coins you spend, so nobody can tie it to this sp1 address. The recipient\'s wallet must scan for Silent Payments to see it.');
       if (opts.fromMixed === true) {
         // Only mixed coins pay, and the change stays in the CoinJoin account.
         if (!this.btcMixed) throw new Error('CoinJoin is not available.');
@@ -472,6 +476,28 @@ export class SendService extends ServiceCore {
       feeAsset: preview.eth ? chainOf(preview.eth.asset).native : isSpl(asset) ? 'SOL' : asset === 'SSCRT' ? 'SCRT' : asset === 'SOL' || asset === 'ADA' || asset === 'DOGE' || asset === 'BCH' || asset === 'LTC' || asset === 'SCRT' || asset === 'XMR' || asset === 'BTC' || asset === 'DASH' || asset === 'FIRO' || asset === 'ZEC' || asset === 'ZANO' || asset === 'KSR' || asset === 'ARRR' ? asset : 'TRX',
       feeIsEstimate: asset !== 'SOL' && !isSpl(asset) && asset !== 'ADA' && asset !== 'DOGE' && asset !== 'BCH' && asset !== 'LTC' && asset !== 'SCRT' && asset !== 'SSCRT' && asset !== 'XMR' && asset !== 'BTC' && asset !== 'DASH' && asset !== 'FIRO' && asset !== 'ZEC' && asset !== 'ZANO' && asset !== 'KSR' && asset !== 'ARRR',
       warnings,
+    };
+  }
+
+  /**
+   * Speeds up a waiting Bitcoin transaction: a send from this wallet is replaced with one paying more (RBF), a
+   * payment to it is pulled along by spending its coins with a higher fee (CPFP). Confirmed like any send.
+   */
+  async btcSpeedUp(txid: string) {
+    const { btc } = this.session();
+    if (!/^[0-9a-f]{64}$/.test(txid)) throw new Error('Not a transaction ID.');
+    const mixed = this.btcMixed;
+    let draft: BtcDraft; let fromMixed = false;
+    if (btc.canReplace(txid)) draft = await btc.bumpDraft(txid);
+    else if (mixed?.canReplace(txid)) { draft = await mixed.bumpDraft(txid); fromMixed = true; }
+    else draft = await btc.cpfpDraft(txid);
+    const preview = this.storePreview({ asset: 'BTC', to: draft.to, amount: draft.amount, fee: draft.fee, ...(fromMixed ? { btcMixed: draft } : { btc: draft }) });
+    const warnings = [draft.replaces
+      ? 'This replaces your waiting send with the same one paying a higher fee, taken from its change. Only one of the two can confirm.'
+      : 'This sends the waiting coins to your own wallet with a fee high enough for both transactions together, so miners take them sooner.'];
+    return {
+      id: preview.id, asset: 'BTC', to: draft.to, lookalike: null, speedUp: draft.replaces ? 'replace' : 'cpfp',
+      amount: formatAmount(draft.amount, 8), fee: formatAmount(draft.fee, 8), feeAsset: 'BTC', feeIsEstimate: false, warnings,
     };
   }
 
@@ -761,7 +787,7 @@ export class SendService extends ServiceCore {
 
   async revealSeeds(password: string) {
     const s = await this.vault.open(password);
-    return { tronMnemonic: s.tronMnemonic, moneroSeed: s.moneroSeed };
+    return { tronMnemonic: s.tronMnemonic, moneroSeed: s.moneroSeed, ...(s.passphrase ? { passphrase: s.passphrase } : {}) };
   }
 
   async changePassword(current: string, next: string): Promise<void> {
@@ -778,6 +804,16 @@ export class SendService extends ServiceCore {
       next.customMoneroNode = node;
     }
     if (typeof patch.customBtcServer === 'string') next.customBtcServer = checkOwnServer(patch.customBtcServer);
+    if (patch.customServers && typeof patch.customServers === 'object') {
+      const servers: Record<string, string> = {};
+      for (const { coin, blockbook } of OWN_SERVER_COINS) {
+        const raw = String((patch.customServers as Record<string, unknown>)[coin] ?? '').trim();
+        if (!raw) continue;
+        const bb = blockbook && raw.startsWith('blockbook+');
+        try { servers[coin] = (bb ? 'blockbook+' : '') + checkOwnServer(bb ? raw.slice('blockbook+'.length) : raw); } catch (e) { throw new Error(`${coin}: ${(e as Error).message}`); }
+      }
+      next.customServers = servers;
+    }
     if (patch.coinjoinTarget !== undefined) {
       if (!MIX_TARGETS.includes(Number(patch.coinjoinTarget))) throw new Error('Choose how many others to hide each coin among.');
       next.coinjoinTarget = Number(patch.coinjoinTarget);
@@ -844,6 +880,7 @@ export class SendService extends ServiceCore {
     const reconnect = next.network !== this.settings.network
       || next.customMoneroNode !== this.settings.customMoneroNode
       || next.customBtcServer !== this.settings.customBtcServer
+      || JSON.stringify(next.customServers ?? {}) !== JSON.stringify(this.settings.customServers ?? {})
       || next.customZanoNode !== this.settings.customZanoNode
       || next.customKsrNode !== this.settings.customKsrNode
       || next.tronApiKey !== this.settings.tronApiKey
@@ -852,7 +889,7 @@ export class SendService extends ServiceCore {
     const bridgeChanged = next.torBridge !== this.settings.torBridge || next.torBridgeLines !== this.settings.torBridgeLines;
     this.settings = next;
     await fs.mkdir(this.dir, { recursive: true });
-    const { evmSeparate: _perWallet, developer: _build, btcFilters: _btcSync, btcFiltersFrom: _btcFrom, ...saved } = next;
+    const { evmSeparate: _perWallet, developer: _build, btcFilters: _btcSync, btcFiltersFrom: _btcFrom, passphrase: _pass, ...saved } = next;
     await fs.writeFile(this.settingsPath, JSON.stringify(saved, null, 2), { mode: 0o600 });
     // A new way in only restarts Tor; the wallet stays open, and traffic waits for Tor as at any restart.
     if (bridgeChanged && this.torActive) this.applyBridge();

@@ -1,8 +1,8 @@
+import { bip39Seed } from './seed';
 import type { Agent } from 'node:http';
 import { InsightDraft, InsightUtxo, InsightWallet } from './insight';
 
 const { HDKey } = require('@scure/bip32');
-const { mnemonicToSeedSync } = require('@scure/bip39');
 const btc = require('@scure/btc-signer');
 
 export const DASH_PATH = "m/44'/5'/0'";
@@ -16,7 +16,7 @@ const SIZE_OUTPUT = 34n;
 export type DashDraft = InsightDraft;
 
 export function dashAccountXpub(mnemonic: string): string {
-  return HDKey.fromMasterSeed(mnemonicToSeedSync(mnemonic)).derive(DASH_PATH).publicExtendedKey;
+  return HDKey.fromMasterSeed(bip39Seed(mnemonic)).derive(DASH_PATH).publicExtendedKey;
 }
 
 export function isDashAddress(address: string): boolean {
@@ -42,7 +42,7 @@ export function signDashDraft(draft: InsightDraft, mnemonic: string): { hex: str
   if (!isDashAddress(draft.to)) throw new Error('The receiving address is not a DASH address.');
   const totalIn = draft.inputs.reduce((s, u) => s + u.value, 0n);
   if (totalIn - draft.amount - draft.change !== draft.fee) throw new Error('The amounts do not add up, so signing was stopped.');
-  const account = HDKey.fromMasterSeed(mnemonicToSeedSync(mnemonic)).derive(DASH_PATH);
+  const account = HDKey.fromMasterSeed(bip39Seed(mnemonic)).derive(DASH_PATH);
   const tx = new btc.Transaction({ allowLegacyWitnessUtxo: true, version: 2 });
   const keys: Uint8Array[] = [];
   for (const u of draft.inputs) {
@@ -72,7 +72,7 @@ export function signDashOutputs(inputs: InsightUtxo[], outputs: { address: strin
   const totalOut = outputs.reduce((s, o) => s + o.value, 0n) + (change?.value ?? 0n);
   if (totalIn - totalOut !== fee || fee < 0n) throw new Error('The amounts do not add up, so signing was stopped.');
   if (outputs.some((o) => !isDashAddress(o.address) || o.value < DUST)) throw new Error('An output is not a usable DASH address or amount, so signing was stopped.');
-  const account = HDKey.fromMasterSeed(mnemonicToSeedSync(mnemonic)).derive(DASH_PATH);
+  const account = HDKey.fromMasterSeed(bip39Seed(mnemonic)).derive(DASH_PATH);
   const tx = new btc.Transaction({ allowLegacyWitnessUtxo: true, version: 2 });
   const keys: Uint8Array[] = [];
   for (const u of inputs) {

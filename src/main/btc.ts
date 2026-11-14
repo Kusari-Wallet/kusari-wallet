@@ -1,12 +1,13 @@
+import { bip39Seed } from './seed';
 import type { Agent } from 'node:http';
 import { getJson, requestText } from './request';
 import { blockbookGet, blockbookSend, isBlockbook } from './blockbook';
 import { formatAmount } from './amount';
 import type { FilterSync } from './btc-filter-sync';
+import { isSilentAddress, silentOutputs, taprootScript } from './btc-silent';
 
 // These packages are ESM only, which require() handles in this Node version.
 const { HDKey } = require('@scure/bip32');
-const { mnemonicToSeedSync } = require('@scure/bip39');
 const btc = require('@scure/btc-signer');
 
 export const BTC_PATH = "m/86'/0'/0'"; // taproot
@@ -27,7 +28,15 @@ const RESUME_MS = 120_000;
 
 export interface BtcScanHints { used: string[]; nexts: Record<string, number>; lastFullScan: number }
 export interface BtcUtxo { txid: string; vout: number; value: bigint; address: string; chain: number; index: number; confirmed: boolean }
-export interface BtcDraft { to: string; amount: bigint; fee: bigint; change: bigint; changeAddress: string; changePath: [number, number]; inputs: BtcUtxo[] }
+export interface BtcDraft {
+  to: string; amount: bigint; fee: bigint; change: bigint; changeAddress: string; changePath: [number, number]; inputs: BtcUtxo[];
+  /** A fee bump: the send (by ID) this one replaces (RBF), or the waiting transaction it pulls along (CPFP). */
+  replaces?: string; cpfpOf?: string;
+}
+/** Each input says the transaction may be replaced by one paying more (BIP125), as most wallets do. */
+export const RBF_SEQUENCE = 0xfffffffd;
+/** Below this a taproot output isn't relayed. */
+export const TAPROOT_DUST = 330n;
 /** What differs between Bitcoin and the coins that copy its server API: keys, addresses, sizes and signing. */
 export interface UtxoCoin {
   symbol: 'BTC' | 'LTC';
@@ -42,7 +51,7 @@ export interface BtcHistoryItem { asset: 'BTC' | 'LTC'; hash: string; direction:
 
 /** Public keys only: enough to find addresses and balances, not to spend. */
 export function btcAccountXpub(mnemonic: string, path = BTC_PATH): string {
-  return HDKey.fromMasterSeed(mnemonicToSeedSync(mnemonic)).derive(path).publicExtendedKey;
+  return HDKey.fromMasterSeed(bip39Seed(mnemonic)).derive(path).publicExtendedKey;
 }
 
 const xOnly = (publicKey: Uint8Array) => publicKey.slice(1);
@@ -327,6 +336,80 @@ export class BtcClient {
     return [...this.state!.utxos];
   }
 
+  /** This wallet's own sends, kept so a stuck one can be replaced with a higher fee. Saved by the service. */
+  private sent = new Map<string, { draft: BtcDraft; vsize: number; at: number }>();
+  onSent: ((list: unknown) => void) | null = null;
+  loadSent(list: unknown): void {
+    if (!Array.isArray(list)) return;
+    for (const r of list.slice(0, 50)) {
+      try {
+        const d = r.draft;
+        const draft: BtcDraft = { ...d, amount: BigInt(d.amount), fee: BigInt(d.fee), change: BigInt(d.change), inputs: d.inputs.map((u: any) => ({ ...u, value: BigInt(u.value) })) };
+        this.sent.set(String(r.id), { draft, vsize: Number(r.vsize), at: Number(r.at) });
+      } catch { /* a damaged entry: skipped */ }
+    }
+  }
+  sentList(): unknown {
+    const big = (k: string, v: unknown) => (typeof v === 'bigint' ? v.toString() : v);
+    return JSON.parse(JSON.stringify([...this.sent.entries()].map(([id, r]) => ({ id, ...r })), big));
+  }
+  private rememberSent(id: string, draft: BtcDraft, hex: string): void {
+    const vsize = btc.Transaction.fromRaw(Buffer.from(hex, 'hex')).vsize;
+    if (draft.replaces) this.sent.delete(draft.replaces);
+    this.sent.set(id, { draft: { ...draft, replaces: undefined, cpfpOf: undefined }, vsize, at: Date.now() });
+    // Two weeks is plenty: a send still waiting after that has dropped out of mempools.
+    for (const [k, r] of this.sent) if (Date.now() - r.at > 14 * 24 * 3600_000) this.sent.delete(k);
+    this.onSent?.(this.sentList());
+  }
+  canReplace(txid: string): boolean { return this.sent.has(txid); }
+
+  /**
+   * The same send again (same coins, same recipient and amount) with a higher fee, taken from the change, so the
+   * first one is replaced (BIP125: the new fee covers the old one plus the relay fee for its own size).
+   */
+  async bumpDraft(txid: string): Promise<BtcDraft> {
+    const was = this.sent.get(txid);
+    if (!was) throw new Error('Only a send made from this wallet on this device can be sped up this way.');
+    const status = await this.get(`/tx/${txid}/status`).catch(() => null);
+    if (status?.confirmed) throw new Error('This transaction is already confirmed.');
+    const rate = await this.feeRate();
+    const vsize = BigInt(was.vsize);
+    const old = was.draft.fee;
+    const fee = [rate * vsize, old + vsize, old + old / 4n].reduce((a, b) => (a > b ? a : b)); // at least a quarter more
+    const more = fee - old;
+    let change = was.draft.change - more;
+    let paid = fee;
+    if (change < TAPROOT_DUST) {
+      if (change < 0n || was.draft.change === 0n) throw new Error('There is not enough change in this send to pay a higher fee. Speeding up a payment you received works differently: open that one.');
+      paid = fee + change; change = 0n; // too little to keep: it goes to the fee
+    }
+    return { ...was.draft, fee: paid, change, replaces: txid };
+  }
+
+  /**
+   * Speeds up a waiting payment to this wallet (CPFP): a new transaction spends its coins to this wallet with a fee
+   * high enough for both together. Asks the server for the first one's fee and size.
+   */
+  async cpfpDraft(txid: string): Promise<BtcDraft> {
+    await this.refresh(true);
+    const state = this.state!;
+    const coins = state.utxos.filter((u) => u.txid === txid && !u.confirmed);
+    if (!coins.length) throw new Error('This wallet has no waiting coins from that transaction.');
+    const parent = await this.get(`/tx/${txid}`);
+    if (parent?.status?.confirmed) throw new Error('This transaction is already confirmed.');
+    const parentFee = BigInt(parent?.fee ?? -1);
+    const parentVsize = BigInt(Math.ceil(Number(parent?.weight ?? 0) / 4));
+    if (parentFee < 0n || parentVsize <= 0n) throw new Error(`The ${this.coin.symbol} server did not say what that transaction pays.`);
+    const rate = await this.feeRate();
+    const childVsize = estimateVbytes(coins.length, 1);
+    const want = rate * (parentVsize + childVsize) - parentFee;
+    const fee = want > childVsize * 2n ? want : childVsize * 2n;
+    const total = coins.reduce((s, u) => s + u.value, 0n);
+    if (total - fee < TAPROOT_DUST) throw new Error('These coins are too small to pay for speeding the transaction up.');
+    const index = state.nextChange;
+    return { to: this.addressAt(1, index), amount: total - fee, fee, change: 0n, changeAddress: this.addressAt(1, index), changePath: [1, index], inputs: coins, cpfpOf: txid };
+  }
+
   /**
    * `use`: spend exactly these coins (txid:vout), all of them, so only the coins chosen are linked together.
    * `frozen`: coins never spent unless chosen.
@@ -350,6 +433,8 @@ export class BtcClient {
   /** Signs here, checks the result against what was approved, then broadcasts. */
   async send(draft: BtcDraft, mnemonic: string): Promise<string> {
     const { hex, id } = this.coin.sign(draft, mnemonic);
+    if (this.filters && draft.replaces) this.filters.sync.dropPending(draft.replaces);
+    this.rememberSent(id, draft, hex);
     if (this.filters) {
       // Handed to Bitcoin nodes directly too, so the send doesn't depend on a server being up.
       const raw = Buffer.from(hex, 'hex');
@@ -420,18 +505,34 @@ export class BtcClient {
   }
 }
 
+/** The private key of a BIP86 output: the internal key, made even, plus the taproot tweak (BIP341). */
+export function taprootOutputKey(internal: Uint8Array): Uint8Array {
+  const { secp256k1, schnorr } = require('@noble/curves/secp256k1.js');
+  const n: bigint = secp256k1.Point.Fn.ORDER;
+  let d = BigInt('0x' + Buffer.from(internal).toString('hex'));
+  const P = secp256k1.Point.BASE.multiply(d);
+  if (!P.hasEvenY()) d = n - d;
+  const t = BigInt('0x' + Buffer.from(schnorr.utils.taggedHash('TapTweak', P.toBytes(true).slice(1))).toString('hex'));
+  return Uint8Array.from(Buffer.from(((d + t) % n).toString(16).padStart(64, '0'), 'hex'));
+}
+
 export function signBtcDraft(draft: BtcDraft, mnemonic: string, path = BTC_PATH): { hex: string; id: string } {
-  const taproot = HDKey.fromMasterSeed(mnemonicToSeedSync(mnemonic)).derive(path);
+  const taproot = HDKey.fromMasterSeed(bip39Seed(mnemonic)).derive(path);
   const tx = new btc.Transaction();
   const keys: Uint8Array[] = [];
   for (const u of draft.inputs) {
     const child = taproot.deriveChild(u.chain).deriveChild(u.index);
     const pay = btc.p2tr(xOnly(child.publicKey));
     if (pay.address !== u.address) throw new Error('An input address does not match this wallet\'s keys, so signing was stopped.');
-    tx.addInput({ txid: u.txid, index: u.vout, witnessUtxo: { script: pay.script, amount: u.value }, tapInternalKey: pay.tapInternalKey });
+    tx.addInput({ txid: u.txid, index: u.vout, witnessUtxo: { script: pay.script, amount: u.value }, tapInternalKey: pay.tapInternalKey, sequence: RBF_SEQUENCE });
     keys.push(child.privateKey);
   }
-  tx.addOutputAddress(draft.to, draft.amount);
+  if (isSilentAddress(draft.to)) {
+    // Silent Payments: the output key comes from the recipient's keys and these inputs' (tweaked) private keys.
+    const spend = draft.inputs.map((u, i) => ({ txid: u.txid, vout: u.vout, key: taprootOutputKey(keys[i]), taproot: true }));
+    const [out] = silentOutputs(spend, [draft.to]);
+    tx.addOutput({ script: taprootScript(out), amount: draft.amount });
+  } else tx.addOutputAddress(draft.to, draft.amount);
   if (draft.change > 0n) {
     const change = taproot.deriveChild(draft.changePath[0]).deriveChild(draft.changePath[1]);
     if (btc.p2tr(xOnly(change.publicKey)).address !== draft.changeAddress) throw new Error('The change address does not match this wallet\'s keys, so signing was stopped.');
@@ -459,7 +560,7 @@ export const LTC_PATH = "m/84'/2'/0'";
 export const LTC_NET = { bech32: 'ltc', pubKeyHash: 0x30, scriptHash: 0x32, wif: 0xb0 };
 
 export function ltcAccountXpub(mnemonic: string): string {
-  return HDKey.fromMasterSeed(mnemonicToSeedSync(mnemonic)).derive(LTC_PATH).publicExtendedKey;
+  return HDKey.fromMasterSeed(bip39Seed(mnemonic)).derive(LTC_PATH).publicExtendedKey;
 }
 
 /** ltc1, L and M addresses. Old 3 addresses are refused: they look exactly like Bitcoin ones. MWEB isn't supported. */
@@ -470,7 +571,7 @@ export function isLtcAddress(address: string): boolean {
 
 export function signLtcDraft(draft: BtcDraft, mnemonic: string): { hex: string; id: string } {
   if (!isLtcAddress(draft.to)) throw new Error('The receiving address is not an LTC address.');
-  const account = HDKey.fromMasterSeed(mnemonicToSeedSync(mnemonic)).derive(LTC_PATH);
+  const account = HDKey.fromMasterSeed(bip39Seed(mnemonic)).derive(LTC_PATH);
   const tx = new btc.Transaction();
   const keys: Uint8Array[] = [];
   for (const u of draft.inputs) {

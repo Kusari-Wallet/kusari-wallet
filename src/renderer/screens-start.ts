@@ -93,9 +93,35 @@ function seedQrCard(seeds: { tronMnemonic: string; moneroSeed: string }): HTMLEl
     show, holder);
 }
 
+/** The optional BIP39 passphrase chosen while creating: kept only until the wallet is made. */
+let createPassphrase = '';
+
+/** An optional passphrase for the 12 words, folded away: typed twice when making a wallet, once when restoring. */
+function passphraseFields(twice: boolean): { el: HTMLElement; value: () => string } {
+  const a = h('input', { type: 'password', id: 'passphrase', autocomplete: 'off', spellcheck: 'false' }) as HTMLInputElement;
+  const b = h('input', { type: 'password', id: 'passphrase-again', autocomplete: 'off', spellcheck: 'false' }) as HTMLInputElement;
+  const el = h('details', { class: 'passphrase', id: 'passphrase-box' },
+    h('summary', {}, 'Add a passphrase (advanced)'),
+    h('p', { class: 'small muted' }, twice
+      ? 'A passphrase is an extra word you choose for the 12-word seed (BIP39). The same 12 words with a different passphrase open a different wallet, so someone who finds the paper alone gets nothing. Write it down apart from the seed: without it the coins can\'t be recovered, and it can\'t be changed later. Zcash and Pirate Chain are left off in a wallet with a passphrase. The Monero seed doesn\'t use it.'
+      : 'Only if this wallet was made with a passphrase for its 12 words. A wrong passphrase opens a different, empty wallet without any error.'),
+    h('label', { class: 'field' }, h('span', {}, 'Passphrase'), a),
+    twice && h('label', { class: 'field' }, h('span', {}, 'Passphrase again'), b));
+  return {
+    el,
+    value() {
+      if (twice && a.value !== b.value) throw new Error('The two passphrases don\'t match.');
+      if (a.value && !a.value.trim()) throw new Error('The passphrase can\'t be only spaces.');
+      return a.value;
+    },
+  };
+}
+
 function createStep2(password: string, seeds: { tronMnemonic: string; moneroSeed: string }): void {
   const ok = h('input', { type: 'checkbox', id: 'saved' });
-  const go = h('button', { class: 'primary', id: 'next', disabled: true, onclick: () => createStep3(password, seeds) }, 'Continue to backup check');
+  const pass = passphraseFields(true);
+  const box = errorBox();
+  const go = h('button', { class: 'primary', id: 'next', disabled: true, onclick: () => { try { createPassphrase = pass.value(); createStep3(password, seeds); } catch (e) { box.show((e as Error).message); } } }, 'Continue to backup check');
   ok.addEventListener('change', () => { go.disabled = !ok.checked; });
   entry(
     h('h2', {}, 'Write both seed phrases on paper'),
@@ -103,6 +129,7 @@ function createStep2(password: string, seeds: { tronMnemonic: string; moneroSeed
     seedCard('BTC·ETH·Tron·SOL·DOGE·DASH seed, 12 words', 'For BTC, ETH, TRX, USDT, SOL, DOGE, DASH, FIRO, ZEC, ZANO, ARRR. Restores in BIP39 wallets such as Sparrow, MetaMask, TronLink and Phantom.', seeds.tronMnemonic),
     seedCard('Monero seed, 25 words', 'For XMR. Works with Monero GUI and Cake Wallet.', seeds.moneroSeed),
     seedQrCard(seeds),
+    pass.el, box.el,
     h('label', { class: 'check' }, ok, h('span', {}, 'I wrote down both seeds.')),
     h('div', { class: 'btn-row' }, h('button', { class: 'ghost', onclick: welcome }, 'Cancel'), go),
     skipBackupButton(password, seeds, () => createStep2(password, seeds)));
@@ -116,7 +143,8 @@ function createSkip(password: string, back: () => void): void {
   const box = errorBox();
   const go = h('button', { class: 'danger', id: 'skip-confirm', onclick: () => busy(go, 'Creating the wallet…', box, async () => {
     await withSplash('Creating the wallet…', async () => {
-      await wallet.finishCreate(password);
+      await wallet.finishCreate(password, createPassphrase);
+      createPassphrase = '';
       await enterWallet();
     });
   }) }, 'Skip and create wallet');
@@ -136,7 +164,8 @@ function createStep3(password: string, seeds: { tronMnemonic: string; moneroSeed
   const done = h('button', { class: 'primary', id: 'next', onclick: () => busy(done, 'Creating the wallet…', box, async () => {
     for (const q of qs) if (q.input.value.trim().toLowerCase() !== q.words[q.i]) throw new Error(`${q.label}: word ${q.i + 1} does not match.`);
     await withSplash('Creating the wallet…', async () => {
-      await wallet.finishCreate(password);
+      await wallet.finishCreate(password, createPassphrase);
+      createPassphrase = '';
       await enterWallet();
     });
   }) }, 'Create wallet');
@@ -153,11 +182,12 @@ function restoreForm(): void {
   const from = h('input', { placeholder: '2025-06-01 or 3400000', autocomplete: 'off', id: 'from' });
   const box = errorBox();
   const terms = termsAgreement();
+  const pass = passphraseFields(false);
   const go = h('button', { class: 'primary', id: 'next', disabled: true, onclick: () => busy(go, 'Restoring…', box, async () => {
     terms.check();
     const pw = f.check();
     await withSplash('Restoring the wallet…', async () => {
-      await wallet.restore(pw, tron.value, xmr.value, from.value);
+      await wallet.restore(pw, tron.value, xmr.value, from.value, pass.value());
       await enterWallet();
     });
   }) }, 'Restore');
@@ -177,6 +207,7 @@ function restoreForm(): void {
     h('label', { class: 'field' }, h('span', {}, 'Monero seed (25 words)'), xmr),
     h('label', { class: 'field' }, h('span', {}, 'When Monero was first used'), from,
       h('div', { class: 'hint' }, 'A date or block height. Empty scans from the start, which can take hours. A date also sets where Zcash starts scanning.')),
+    pass.el,
     ...f.nodes,
     terms.el,
     h('div', { class: 'btn-row' }, h('button', { class: 'ghost', onclick: welcome }, 'Back'), go));

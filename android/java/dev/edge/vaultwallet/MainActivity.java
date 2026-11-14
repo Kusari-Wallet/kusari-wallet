@@ -42,6 +42,7 @@ public class MainActivity extends Activity {
 
     private final LocalProxy proxy = new LocalProxy(ORIGIN);
     private volatile int torSocksPort = 0;
+    private final java.util.Map<String, SocksGate> gates = new java.util.HashMap<>();
     private final TcpBridge tcp = new TcpBridge(new TcpBridge.Listener() {
         @Override public void onOpen(int id) { toPage("window.__tcp&&window.__tcp(" + id + ",'o','')"); }
         @Override public void onData(int id, byte[] data, int length) { toPage("window.__tcp&&window.__tcp(" + id + ",'d','" + Base64.encodeToString(data, 0, length, Base64.NO_WRAP) + "')"); }
@@ -339,6 +340,24 @@ public class MainActivity extends Activity {
         @JavascriptInterface public boolean torHasBridges() { return new File(getApplicationInfo().nativeLibraryDir, "liblyrebird.so").exists(); }
         @JavascriptInterface public void torStop() { tor.stop(); }
         @JavascriptInterface public void torDirect() { tor.stop(); proxy.setSocksPort(0); tcp.setSocksPort(0); torSocksPort = 0; }
+
+        /** An engine's own SOCKS port in front of Tor's (SocksGate), whose circuit socksGateRenew changes. 0 if it can't. */
+        @JavascriptInterface public int socksGateStart(String name, int torPort) {
+            if (torPort <= 0 || torPort > 65535) return 0;
+            synchronized (gates) {
+                SocksGate g = gates.get(name);
+                if (g == null) {
+                    try { g = new SocksGate(torPort); } catch (java.io.IOException e) { return 0; }
+                    gates.put(name, g);
+                } else g.setTorPort(torPort);
+                return g.port();
+            }
+        }
+        @JavascriptInterface public void socksGateRenew(String name) {
+            SocksGate g;
+            synchronized (gates) { g = gates.get(name); }
+            if (g != null) g.renew();
+        }
 
         /** Dash and Bitcoin peer-to-peer sockets. With requireTor, refused unless Tor's SOCKS port is set: never a direct fallback. */
         @JavascriptInterface public boolean tcpOpen(int id, String host, int port, boolean requireTor) {

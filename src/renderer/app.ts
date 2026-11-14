@@ -6,6 +6,13 @@ async function renderSettings(): Promise<void> {
   const netBox = errorBox(), pwBox = errorBox(), seedBox = errorBox(), delBox = errorBox();
   const node = h('input', { id: 'set-node', value: s.customMoneroNode, placeholder: 'http://127.0.0.1:18081', spellcheck: 'false' });
   const btcServer = h('input', { id: 'set-btc-server', value: s.customBtcServer ?? '', placeholder: 'http://umbrel.local:3006/api', spellcheck: 'false' });
+  // A server of one's own for the other coins (the kinds as in OWN_SERVER_COINS on the main side).
+  const OWN: [string, string, string][] = [['ETH', 'JSON-RPC', 'http://192.168.1.20:8545'], ['BSC', 'JSON-RPC', 'https://bsc.example/rpc'], ['POL', 'JSON-RPC', 'https://polygon.example/rpc'], ['ARB', 'JSON-RPC', 'https://arbitrum.example/rpc'], ['SOL', 'JSON-RPC', 'http://192.168.1.20:8899'], ['TRX', 'java-tron HTTP API', 'http://192.168.1.20:8090'], ['LTC', 'Esplora or Blockbook', 'http://umbrel.local:3006/api'], ['BCH', 'Bitcore or Blockbook', 'blockbook+https://bch.example'], ['DASH', 'Insight API', 'http://192.168.1.20:3001/insight-api'], ['FIRO', 'Insight API', 'http://192.168.1.20:3001/insight-api-zcoin'], ['ADA', 'Koios', 'https://koios.example/api/v1'], ['SCRT', 'REST (LCD)', 'https://secret.example'], ['ZEC', 'lightwalletd', 'https://192.168.1.20:9067'], ['ARRR', 'lightwalletd', 'https://192.168.1.20:9067']];
+  const ownInputs = OWN.map(([coin, , example]) => [coin, h('input', { id: `set-own-${coin}`, value: s.customServers?.[coin] ?? '', placeholder: example, spellcheck: 'false' }) as HTMLInputElement] as const);
+  const ownSection = h('details', { class: 'own-servers', id: 'own-servers', ...(Object.values(s.customServers ?? {}).some(Boolean) ? { open: true } : {}) },
+    h('summary', {}, 'Your own servers for other coins'),
+    h('p', { class: 'small muted' }, 'A server you run is asked instead of the public ones, so only it learns those addresses. Use https://, an .onion address, or an address on your own network (reached directly, not through Tor). Ethereum-type chains still read history from Blockscout. Empty uses public servers.'),
+    ...ownInputs.map(([coin, input], i) => h('label', { class: 'field' }, h('span', {}, `${coinName(coin as Asset)} (${OWN[i][1]})`), input)));
   const zanoNode = h('input', { id: 'set-zano-node', value: s.customZanoNode ?? '', placeholder: '192.168.1.5:11211', spellcheck: 'false' });
   const ksrNode = h('input', { id: 'set-ksr-node', value: s.customKsrNode ?? '', placeholder: '192.168.1.5:21081', spellcheck: 'false' });
   const known = COORDINATORS.some(([url]) => url === s.coinjoinCoordinator);
@@ -76,7 +83,7 @@ async function renderSettings(): Promise<void> {
       await wallet.installTor();
       tor.installed = true;
     }
-    const relocked = await wallet.updateSettings({ customMoneroNode: node.value, customBtcServer: btcServer.value, customZanoNode: zanoNode.value, customKsrNode: ksrNode.value, coinjoinCoordinator: coordinator.value === 'custom' ? coordinatorUrl.value : coordinator.value, coinjoinTarget: Number(mixTarget.value), tronApiKey: key.value, autoLockMinutes: Number(auto.value), showPrices: showPrices.checked, evmSeparate: evmSeparate.checked, btcFilters: btcFilters.checked, ...(btcFilters.checked ? { btcFiltersFrom: btcFrom.value } : {}), ...(tor.allowed === false ? {} : { torEnabled: useTor.checked, torBridge: bridge.value, torBridgeLines: bridgeLines.value }) });
+    const relocked = await wallet.updateSettings({ customMoneroNode: node.value, customBtcServer: btcServer.value, customServers: Object.fromEntries(ownInputs.map(([coin, input]) => [coin, input.value])), customZanoNode: zanoNode.value, customKsrNode: ksrNode.value, coinjoinCoordinator: coordinator.value === 'custom' ? coordinatorUrl.value : coordinator.value, coinjoinTarget: Number(mixTarget.value), tronApiKey: key.value, autoLockMinutes: Number(auto.value), showPrices: showPrices.checked, evmSeparate: evmSeparate.checked, btcFilters: btcFilters.checked, ...(btcFilters.checked ? { btcFiltersFrom: btcFrom.value } : {}), ...(tor.allowed === false ? {} : { torEnabled: useTor.checked, torBridge: bridge.value, torBridgeLines: bridgeLines.value }) });
     if (!relocked) { saved.textContent = 'Saved.'; void refresh(); }
   }) }, 'Save');
 
@@ -113,7 +120,9 @@ async function renderSettings(): Promise<void> {
   const rev = h('button', { id: 'reveal', onclick: () => busy(rev, 'Opening…', seedBox, async () => {
     const seeds = await wallet.revealSeeds(seedPw.value);
     seedPw.value = '';
-    setKids(seedOut, h('br'), seedCard('BTC·ETH·Tron seed', '', seeds.tronMnemonic), seedCard('Monero seed', '', seeds.moneroSeed), seedQrCard(seeds),
+    setKids(seedOut, h('br'), seedCard('BTC·ETH·Tron seed', '', seeds.tronMnemonic),
+      seeds.passphrase && h('div', { class: 'panel', id: 'seed-passphrase' }, h('h3', {}, 'Passphrase of the 12 words'), h('p', { class: 'mono' }, seeds.passphrase), h('p', { class: 'small muted' }, 'Needed with the 12 words to restore. The seed QR code doesn\'t include it.')),
+      seedCard('Monero seed', '', seeds.moneroSeed), seedQrCard(seeds),
       h('button', { class: 'ghost', onclick: () => setKids(seedOut) }, 'Hide'));
   }) }, 'Show seeds');
 
@@ -163,6 +172,7 @@ async function renderSettings(): Promise<void> {
           ...(window as any).kusariI18n.languages.map(([code, name]: [string, string]) => h('option', { value: code, selected: code === (window as any).kusariI18n.current() }, name)))),
       h('div', { class: 'section' }, h('h3', {}, 'Connections'), netBox.el,
         h('label', { class: 'field' }, h('span', {}, 'Your own Bitcoin server'), btcServer, h('div', { class: 'hint' }, 'The Esplora or mempool API of your own node (for example on Umbrel or Start9), as https://, .onion, or an address on your network. Then only your server learns your Bitcoin addresses. Empty uses public servers.')),
+        ownSection,
         h('label', { class: 'field' }, h('span', {}, 'Your own Zano node'), zanoNode, h('div', { class: 'hint' }, 'host:port of a Zano node you run. Empty uses the public node.')),
         // KSR launches later: a build without its engine shows nothing of it.
         ksrInfo.available && h('label', { class: 'field' }, h('span', {}, 'Kusari node'), ksrNode, h('div', { class: 'hint' }, 'host:port of a Kusari (KSR) node. There is no public node before the chain launches: KSR shows its address already, and its balance once a node is set. It is reached through Tor like every other server.')),

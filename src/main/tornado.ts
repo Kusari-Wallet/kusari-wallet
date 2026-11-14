@@ -1,3 +1,4 @@
+import { passphraseOf } from './seed';
 import { Interface, Mnemonic, computeHmac, id as keccakId, isAddress, toUtf8Bytes } from 'ethers';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
@@ -34,7 +35,8 @@ export const denomination = (pool: string): bigint => BigInt(Math.round(Number(p
 
 /** Secrets come from the seed, so a deposit can be found again after restoring the wallet. */
 export function noteSecrets(mnemonic: string, index: number): { nullifier: string; secret: string } {
-  const seed = Mnemonic.fromPhrase(mnemonic.trim().toLowerCase().split(/\s+/).join(' ')).computeSeed();
+  const phrase = mnemonic.trim().toLowerCase().split(/\s+/).join(' ');
+  const seed = Mnemonic.fromPhrase(phrase, passphraseOf(phrase)).computeSeed();
   const mac = computeHmac('sha512', seed, toUtf8Bytes(`shinobi/tornado/v1/${index}`)).slice(2);
   return { nullifier: mac.slice(0, 62), secret: mac.slice(62, 124) };
 }
