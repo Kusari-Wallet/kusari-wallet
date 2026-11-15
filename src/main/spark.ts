@@ -10,8 +10,8 @@ const { sha256 } = require('@noble/hashes/sha2.js');
 
 /**
  * Firo Spark: private FIRO. Amounts, senders and receivers are hidden; a spend proves ownership of one coin among a
- * whole anonymity set. The key is m/44'/136'/0'/6/1 of the seed with spend key index 1, as in Firo's own wallet and
- * Stack Wallet; the default receive address is diversifier 0. Must never change.
+ * whole anonymity set. The key is m/44'/136'/0'/6/1 of the seed with spend key index 1, as in Firo's own wallet;
+ * the default receive address is diversifier 0. Must never change.
  *
  * The engine keeps the anonymity sets on disk and talks to Firo's ElectrumX servers itself, over Tor when it's on.
  */

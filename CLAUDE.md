@@ -10,9 +10,9 @@ Java WebView (`android/java`) running the same code as an esbuild bundle (`src/a
 - Never commit secrets. These stay local and are gitignored: `.swap-keys.json`, `src/main/swap-keys.generated.ts`,
   `android/release.keystore`, `android/keystore.properties`, `native-bin/`, `android/jniLibs/*/liblyrebird.so`.
   Before every commit, scan the staged diff for the values in `.swap-keys.json` (and pieces of them).
-- No private keys or API keys in source. Release builds may carry public-app swap partner keys (as Cake Wallet and
-  Stack Wallet ship theirs): they come from `.swap-keys.json` or CI secrets at build time only, masked by
-  `scripts/gen-keys.js`, and are never in the source or the repository.
+- No private keys or API keys in source. Release builds may carry public-app swap partner keys: they come from
+  `.swap-keys.json` or CI secrets at build time only, masked by `scripts/gen-keys.js`, and are never in the source
+  or the repository.
 - Tor never falls back to clearnet; CoinJoin requests only ever go out over Tor.
 - Don't copy GPL code. MIT code that is ported gets its notice in `THIRD-PARTY-NOTICES.md`.
 - The repository stays private; workflows run only by hand.

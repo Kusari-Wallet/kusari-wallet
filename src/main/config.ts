@@ -90,7 +90,6 @@ export const NETWORKS: Record<NetworkId, NetworkConfig> = {
       type: 'mainnet',
       nodes: [
         'http://node.sethforprivacy.com:18089',
-        'http://xmr-node.cakewallet.com:18081',
         'http://node.monerodevs.org:18089',
         'http://node2.monerodevs.org:18089',
       ],

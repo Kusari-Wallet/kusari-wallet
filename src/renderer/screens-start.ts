@@ -127,7 +127,7 @@ function createStep2(password: string, seeds: { tronMnemonic: string; moneroSeed
     h('h2', {}, 'Write both seed phrases on paper'),
     h('p', { class: 'lead' }, 'Anyone with these seeds can take all your coins. Don\'t save them in photos, cloud storage or messengers.'),
     seedCard('BTC·ETH·Tron·SOL·DOGE·DASH seed, 12 words', 'For BTC, ETH, TRX, USDT, SOL, DOGE, DASH, FIRO, ZEC, ZANO, ARRR. Restores in BIP39 wallets such as Sparrow, MetaMask, TronLink and Phantom.', seeds.tronMnemonic),
-    seedCard('Monero seed, 25 words', 'For XMR. Works with Monero GUI and Cake Wallet.', seeds.moneroSeed),
+    seedCard('Monero seed, 25 words', 'For XMR. Works with Monero GUI.', seeds.moneroSeed),
     seedQrCard(seeds),
     pass.el, box.el,
     h('label', { class: 'check' }, ok, h('span', {}, 'I wrote down both seeds.')),

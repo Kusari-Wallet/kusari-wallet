@@ -50,7 +50,7 @@ This is mainnet only. These are real coins, so start with amounts you can afford
 - BTC, ETH, Tron, SOL, DOGE, DASH, FIRO, ZEC, ZANO, ARRR: one BIP39 12-word seed.
   - BTC uses `m/86'/0'/0'` only (Taproot, BIP86). Addresses from `m/84'/0'/0'` (`bc1q`) in older versions don't appear in the app. If they hold coins, move them by entering the same seed in another wallet.
   - ETH uses `m/44'/60'/0'/0/0` (the same as MetaMask's first account). Tron uses `m/44'/195'/0'/0/0`.
-- Monero: the standard 25 words, which restore in Monero GUI and Cake Wallet.
+- Monero: the standard 25 words, which restore in Monero GUI.
 
 They are separate because a single combined seed couldn't restore XMR in other wallets.
 

@@ -1055,7 +1055,7 @@ const PASSWORD = 'correct horse battery';
   const mark = socks.log.length;
   assert.ok(mark > 0, 'wallet traffic goes through the proxy');
   assert.ok(socks.log.some((d) => d.host.endsWith('.onion')), 'XMR tries onion nodes');
-  assert.ok(!socks.log.some((d) => /sethforprivacy|cakewallet|monerodevs/.test(d.host)), 'no clearnet XMR nodes');
+  assert.ok(!socks.log.some((d) => /sethforprivacy|monerodevs/.test(d.host)), 'no clearnet XMR nodes');
   await new Promise((r) => setTimeout(r, 200));
   const afterTor = connectionsToNode.slice(-3);
   for (const p of afterTor) assert.ok(socks.outboundPorts.has(p), `direct connection to the Tron node from ${p}`);
