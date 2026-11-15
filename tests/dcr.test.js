@@ -158,3 +158,156 @@ test('a send through a stand-in dcrdata: coins found, fee for the size, the raw 
   assert.equal(max.change, 0n);
   assert.equal(max.amount + max.fee, 300_000_000n);
 });
+
+// ---- staking ----
+
+const stake = require('../dist/main/dcr-stake');
+const dcr = require('../dist/main/dcr');
+const { ed25519 } = require('@noble/curves/ed25519.js');
+
+function onSimnet(t) { dcr.useDcrNetwork('simnet'); t.after(() => dcr.useDcrNetwork('mainnet')); }
+
+test('a ticket as dcrwallet makes one: rebuilt byte for byte from a simnet ticket, same ID', (t) => {
+  onSimnet(t);
+  const tx = stake.ticketTx({
+    input: { txid: 'c69c369e0023775087b9b6d5ac722f8ecc154fbd53f0b812632db92ee98ebb67', vout: 3, value: 22_980n },
+    price: 20_000n, votingHash: Buffer.from('5669a63c3c223976000c821af00b52f3753cb509', 'hex'),
+    commitmentHash: Buffer.from('e01a96909a2949a3eb6b4e3953222871ff5e1986', 'hex'), expiry: 208,
+  });
+  const dcrwallet = '010000000167bb8ee92eb92d6312b8f053bd4f15cc8e2f72acd5b6b987507723009e369cc60300000000ffffffff03204e00000000000000001aba76a9145669a63c3c223976000c821af00b52f3753cb50988ac00000000000000000000206a1ee01a96909a2949a3eb6b4e3953222871ff5e1986c459000000000000004e000000000000000000001abd76a914000000000000000000000000000000000000000088ac00000000d000000001c459000000000000ffffff7fffffffff';
+  assert.equal(Buffer.from(serializeDcrTx(tx)).toString('hex'), `${dcrwallet}00`, 'everything up to the signature script');
+  assert.equal(dcrTxid(tx), '9dfdf2765fa03b4a9c5f63fe613300386e34b2e47f2091525dfa90d91f183ebc');
+  assert.equal(stake.TICKET_FEE, 22_980n - 20_000n, 'the same ticket fee');
+});
+
+test('signed messages as dcrwallet signs them; Decred WIF', (t) => {
+  onSimnet(t);
+  // signmessage from dcrwallet on simnet.
+  const addr = 'SsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc';
+  const sig = 'H7A6a/qVdRRpMrm9+/TOfRq4OS++0oPwh1aWKEYzGXoELzOg424RnmFv/xXTdixTMA4dxCHz1PrpjK3C687zV40=';
+  assert.ok(stake.verifyDcrMessage(addr, sig, 'Kusari test message'));
+  assert.ok(!stake.verifyDcrMessage(addr, sig, 'Kusari test messagE'));
+  const key = HDKey.fromMasterSeed(mnemonicToSeedSync(PHRASE)).derive("m/44'/42'/0'/1/0");
+  const mine = dcrAddressOf(key.publicKey);
+  const s = stake.signDcrMessage(key.privateKey, '{"a":1}');
+  assert.ok(stake.verifyDcrMessage(mine, s, '{"a":1}'));
+  assert.ok(!stake.verifyDcrMessage(addr, s, '{"a":1}'));
+  const wif = stake.dcrWif(key.privateKey);
+  assert.match(wif, /^Ps/);
+  const { base58 } = require('@scure/base');
+  const raw = base58.decode(wif);
+  assert.deepEqual([...raw.slice(0, 3)], [0x23, 0x07, 0]);
+  assert.deepEqual([...raw.slice(3, 35)], [...key.privateKey]);
+  assert.deepEqual([...raw.slice(35)], [...blake256(raw.slice(0, 35)).slice(0, 4)]);
+});
+
+test('ticket expiry and the VSP fee as dcrwallet and vspd work them out', () => {
+  const sim = dcr.DCR_SIMNET;
+  assert.equal(stake.ticketExpiry(202, sim), 208);
+  assert.equal(stake.ticketExpiry(206, sim), null, 'the window ends before a ticket could be mined');
+  assert.equal(stake.ticketExpiry(207, sim), 216, 'the next block starts a new window');
+  // Hand-worked from txrules.StakePoolTicketFee: simnet, height 202 (interval 1), DCP-0012, one adjustment.
+  const s = ((50_000_000_000n * 100n / 101n) * 89n / 500n) * 100n / 101n;
+  assert.equal(stake.vspFee(20_000n, 202, 3, sim), (300n * s * 30_000n) / ((s + 20_000n) * 10_000n));
+  const main = stake.vspFee(20_000_000_000n, 1_050_000, 1, dcr.DCR_MAINNET);
+  assert.ok(main > 500_000n && main < 5_000_000n, `about 1% of a vote's reward: ${main}`);
+});
+
+test('stake outputs: a ticket\'s reward is spent from the stake tree once mature; other stake rows left out', () => {
+  const pkh = Buffer.from(dcrScript(DCRD_PKH[0])).toString('hex');
+  assert.deepEqual(dcr.dcrCoinKind({ scriptPubKey: pkh }), { tree: 0, script: pkh, mature: true });
+  assert.deepEqual(dcr.dcrCoinKind({ scriptPubKey: `bb${pkh}`, confirmations: 256 }), { tree: 1, script: `bb${pkh}`, mature: false });
+  assert.equal(dcr.dcrCoinKind({ scriptPubKey: `bc${pkh}`, confirmations: 257 }).mature, true);
+  assert.equal(dcr.dcrCoinKind({ scriptPubKey: `bd${pkh}` }), null, 'stake change');
+  assert.equal(dcr.dcrCoinKind({ scriptPubKey: `ba${pkh}` }), null, 'a ticket');
+  assert.equal(dcr.dcrCoinKind({ scriptPubKey: '6a1e' + '00'.repeat(30) }), null, 'a commitment');
+
+  const c = new DcrClient(xpub, []);
+  const from = c.addressAt(1, 3);
+  const script = `bb${Buffer.from(dcrScript(from)).toString('hex')}`;
+  const draft = { to: DCRD_PKH[0], amount: 90_000n, fee: 2_160n, change: 0n, changeAddress: c.addressAt(1, 4), changeIndex: 4, inputs: [{ txid: 'ab'.repeat(32), vout: 2, value: 92_160n, address: from, chain: 1, index: 3, tree: 1, script }] };
+  const { hex } = signDcrDraft(draft, PHRASE);
+  const raw = Buffer.from(hex, 'hex');
+  assert.equal(raw[4 + 1 + 32 + 4], 1, 'the input is in the stake tree');
+  const key = HDKey.fromMasterSeed(mnemonicToSeedSync(PHRASE)).derive("m/44'/42'/0'/1/3");
+  const tx = { version: 1, lockTime: 0, expiry: 0, inputs: [{ txid: 'ab'.repeat(32), vout: 2, tree: 1, sequence: 0xffffffff, value: 92_160n, blockHeight: 0, blockIndex: 0xffffffff, sigScript: raw.subarray(raw.length - 107) }], outputs: [{ value: 90_000n, version: 0, script: dcrScript(DCRD_PKH[0]) }] };
+  assert.ok(verifyDcrInput(tx, 0, Buffer.from(script, 'hex'), key.publicKey), 'signed over the tagged script');
+  assert.throws(() => signDcrDraft({ ...draft, inputs: [{ ...draft.inputs[0], script: `bb${Buffer.from(dcrScript(DCRD_PKH[0])).toString('hex')}` }] }, PHRASE), /did not match/);
+});
+
+test('a purchase: the split pays each seat and fee fund to this wallet, each ticket commits back here and signs', (t) => {
+  const c = new DcrClient(xpub, []);
+  const addresses = Array.from({ length: 7 }, (_, i) => ({ address: c.addressAt(1, 5 + i), index: 5 + i }));
+  const coins = [{ txid: 'aa'.repeat(32), vout: 1, value: 50_000_000_000n, address: c.addressAt(0, 0), chain: 0, index: 0 }];
+  const price = 15_000_000_000n;
+  const fund = stake.feeFundFor(stake.vspFee(price, 1_050_000, 2, dcr.DCR_MAINNET));
+  const plan = stake.planTickets({ mnemonic: PHRASE, coins, price, count: 3, expiry: 1_050_048, feeFund: fund, addresses, votingFirst: 4 });
+  const split = Buffer.from(plan.split.hex, 'hex');
+  assert.equal(plan.tickets.length, 3);
+  const outs = 3 * 2 + (plan.change > 0n ? 1 : 0);
+  assert.equal(3n * (price + stake.TICKET_FEE + fund) + plan.fee + plan.change, coins[0].value);
+  assert.equal(plan.fee, (15n + 165n + 36n * BigInt(outs)) * 10n);
+  const seen = new Set();
+  for (const tk of plan.tickets) {
+    const raw = Buffer.from(tk.hex, 'hex');
+    assert.equal(Buffer.from(raw.subarray(5, 37)).reverse().toString('hex'), plan.split.id, 'spends the split');
+    assert.ok(tk.commitment.index >= 5 && tk.commitment.index < 8);
+    assert.ok(tk.fund.index >= 8 && tk.fund.index < 11);
+    // The commitment names the seat's own address and the whole seat.
+    const hash = Buffer.from(dcr.decodeDcrAddress(tk.commitment.address).hash).toString('hex');
+    assert.ok(tk.hex.includes(`6a1e${hash}`), 'commitment to this wallet');
+    assert.ok(!seen.has(tk.voting)); seen.add(tk.voting);
+    assert.ok(split.includes(Buffer.from(dcrScript(tk.fund.address))), 'the fee fund is in the split');
+  }
+  // The VSP's fee from one ticket's fund: the fee, and change back when it's worth an output.
+  const tk = plan.tickets[0];
+  const exact = stake.feeTx({ mnemonic: PHRASE, fund: tk.fund, feeAddress: DCRD_PKH[0], amount: fund - 1_000n - 2_520n - fund / 51n, change: addresses[6] });
+  assert.match(exact.id, /^[0-9a-f]{64}$/);
+  assert.throws(() => stake.feeTx({ mnemonic: PHRASE, fund: tk.fund, feeAddress: DCRD_PKH[0], amount: fund, change: addresses[6] }), /more than was set aside/);
+  const changed = stake.feeTx({ mnemonic: PHRASE, fund: tk.fund, feeAddress: DCRD_PKH[0], amount: fund / 2n, change: addresses[6] });
+  assert.ok(Buffer.from(changed.hex, 'hex').includes(Buffer.from(dcrScript(addresses[6].address))), 'change back');
+  assert.throws(() => stake.planTickets({ mnemonic: PHRASE, coins, price, count: 4, expiry: 1, feeFund: fund, addresses, votingFirst: 0 }), /addresses|Not enough/);
+  assert.throws(() => stake.planTickets({ mnemonic: PHRASE, coins: [{ ...coins[0], value: price }], price, count: 1, expiry: 1, feeFund: fund, addresses, votingFirst: 0 }), /Not enough/);
+});
+
+test('the VSP\'s answers must be signed with its key and echo the request', async (t) => {
+  const priv = ed25519.utils.randomSecretKey();
+  const pub = Buffer.from(ed25519.getPublicKey(priv)).toString('base64');
+  let mode = 'good';
+  let lastSig = '';
+  const server = http.createServer((q, r) => {
+    let b = ''; q.on('data', (x) => { b += x; });
+    q.on('end', () => {
+      lastSig = q.headers['vsp-client-signature'] ?? '';
+      const body = q.url === '/api/v3/vspinfo'
+        ? { apiversions: [3], timestamp: 1, pubkey: pub, feepercentage: 2, vspclosed: false, network: 'mainnet', voting: 5 }
+        : { timestamp: 1, feeaddress: DCRD_PKH[0], feeamount: 12345, expiration: 2, request: Buffer.from(mode === 'other' ? '{}' : b).toString('base64') };
+      const text = JSON.stringify(body);
+      const sig = mode === 'unsigned' ? '' : Buffer.from(ed25519.sign(Buffer.from(text), mode === 'wrongkey' ? ed25519.utils.randomSecretKey() : priv)).toString('base64');
+      if (sig) r.setHeader('VSP-Server-Signature', sig);
+      r.setHeader('content-type', 'application/json');
+      r.end(text);
+    });
+  });
+  await new Promise((res) => server.listen(0, '127.0.0.1', res));
+  t.after(() => { server.close(); server.closeAllConnections(); });
+  const url = stake.vspOrigin(`http://127.0.0.1:${server.address().port}/`);
+  const v = new stake.VspClient(url, null, () => ({}));
+  const info = await v.info();
+  assert.equal(info.pubkey, pub);
+  assert.equal(info.feePercentage, 2);
+  const key = HDKey.fromMasterSeed(mnemonicToSeedSync(PHRASE)).derive("m/44'/42'/0'/1/0");
+  const fee = await v.feeAddress({ hash: 'ab'.repeat(32), hex: '00', parentHex: '00' }, key.privateKey);
+  assert.deepEqual([fee.address, fee.amount], [DCRD_PKH[0], 12345n]);
+  assert.ok(lastSig.length > 80, 'the request was signed');
+  for (const m of ['unsigned', 'wrongkey']) {
+    mode = m;
+    await assert.rejects(v.feeAddress({ hash: 'ab'.repeat(32), hex: '00', parentHex: '00' }, key.privateKey), /not signed/);
+  }
+  mode = 'other';
+  await assert.rejects(v.feeAddress({ hash: 'ab'.repeat(32), hex: '00', parentHex: '00' }, key.privateKey), /different request/);
+  assert.throws(() => stake.vspOrigin('http://vsp.example.com'), /https/);
+  assert.equal(stake.vspOrigin('stakey.net'), 'https://stakey.net');
+  const list = stake.parseVspList({ 'a.example': { network: 'mainnet', apiversions: [3], feepercentage: 1 }, 'b.example': { network: 'testnet', apiversions: [3] }, 'c.example': { network: 'mainnet', closed: true } });
+  assert.deepEqual(list.map((x) => x.url), ['https://a.example']);
+});

@@ -10,11 +10,14 @@ export function route(url: string): string {
 
 export function socksAgent(): undefined { return undefined; }
 
+/** Requests carry their route by name here (see `route` below), so there is no agent to make. */
+export function isolatedAgent(_agent?: unknown): undefined { return undefined; }
+
 /** The forwarder keeps each host on its own Tor route; this moves them all to new ones. */
 export function newTorRoute(_agent?: unknown): void { (window as any).VaultNative.torNewRoute(); }
 
-export async function getJson(url: string, opts: { headers?: Record<string, string>; timeoutMs?: number } = {}): Promise<any> {
-  const res = await fetch(route(url), { headers: opts.headers, signal: AbortSignal.timeout(Math.max(opts.timeoutMs ?? 30_000, 45_000)) });
+export async function getJson(url: string, opts: { headers?: Record<string, string>; timeoutMs?: number; route?: string } = {}): Promise<any> {
+  const res = await fetch(route(url), { headers: { ...opts.headers, ...(opts.route ? { 'X-Kusari-Route': opts.route } : {}) }, signal: AbortSignal.timeout(Math.max(opts.timeoutMs ?? 30_000, 45_000)) });
   if (!res.ok) throw new Error(`Server error (${res.status})`);
   return res.json();
 }
@@ -58,4 +61,16 @@ export async function requestBytes(url: string, opts: { body: Uint8Array; conten
   const text = await res.text();
   if (!res.ok) throw new Error(text.slice(0, 300) || `Server error (${res.status})`);
   return text;
+}
+
+export async function requestRaw(url: string, opts: { method: 'GET' | 'POST'; body?: string; headers?: Record<string, string>; timeoutMs?: number; route?: string }): Promise<{ status: number; text: string; headers: Record<string, string> }> {
+  const res = await fetch(route(url), {
+    method: opts.method,
+    headers: { Accept: 'application/json', ...(opts.body === undefined ? {} : { 'Content-Type': 'application/json' }), ...opts.headers, ...(opts.route ? { 'X-Kusari-Route': opts.route } : {}) },
+    body: opts.body,
+    signal: AbortSignal.timeout(Math.max(opts.timeoutMs ?? 30_000, 45_000)),
+  });
+  const headers: Record<string, string> = {};
+  res.headers.forEach((v, k) => { headers[k.toLowerCase()] = v; });
+  return { status: res.status, text: await res.text(), headers };
 }

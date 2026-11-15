@@ -98,7 +98,15 @@ Java WebView (`android/java`) running the same code as an esbuild bundle (`src/a
   format (prefix and witness), BLAKE-256 everywhere, and dcrd's signature hash (`dcrSignatureHash`); addresses pinned
   to dcrd's vectors in `tests/dcr.test.js`. No raw-transaction coin check: consensus refuses a wrong input amount.
   Each address is looked up on its own request, in random order, through Tor each on its own route
-  (`DcrClient.lookup`, `isolatedAgent`); change takes a random output place.
+  (`DcrClient.lookup`, through the service's `isolated`: an agent on desktop, a route name for Android's forwarder);
+  change takes a random output place. Vote and revocation rewards are stake-tree coins (`dcrCoinKind`), spendable
+  after CoinbaseMaturity. `useDcrNetwork('simnet')` (`VAULT_DEV_DCR_NET=simnet`) is for development only.
+- `src/main/dcr-stake.ts`: Decred tickets through a VSP (vspd API v3), as dcrwallet buys them: a split (seats and
+  fee funds to fresh change addresses, no expiry), tickets committing back to the seat's address, voting keys at
+  the hardened `m/44'/42'/0'/2'/i'`. The VSP broadcasts split and ticket on `feeaddress`; its answers must carry its
+  ed25519 signature and echo the request. Records sealed in `dcr-tickets.json`; fee coins reserved until the fee
+  transaction confirms; status from the chain only. `tests/dcr-simnet.js` runs a purchase, vote and reward spend
+  against dcrd, dcrwallet and vspd on simnet (by hand, `DCR_SIM=<run dir>`).
 - `src/main/tor-bridges.ts`: Snowflake/obfs4 via lyrebird (`scripts/fetch-lyrebird-android.sh` for Android).
 - `src/main/blockbook.ts`, `config.ts`: servers and their backups.
 - `src/main/zano.ts`, `zano-process.ts`: Zano, and Kusari (KSR) on the same client with its own engine (`ksr-bridge`:

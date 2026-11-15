@@ -75,7 +75,8 @@ export function requestText(url: string, opts: { method: 'POST'; body: string; a
   });
 }
 
-export function getJson(url: string, opts: { headers?: Record<string, string>; agent?: Agent; timeoutMs?: number } = {}): Promise<any> {
+/** `route` is for Android's forwarder (a Tor route of its own); here the agent carries the route. */
+export function getJson(url: string, opts: { headers?: Record<string, string>; agent?: Agent; timeoutMs?: number; route?: string } = {}): Promise<any> {
   return new Promise((resolve, reject) => {
     const lib = url.startsWith('https:') ? https : http;
     const req = lib.get(url, { headers: opts.headers, agent: opts.agent }, (res) => {
@@ -121,3 +122,33 @@ export function requestForm(url: string, opts: { method: 'GET' | 'POST' | 'DELET
   });
 }
 
+
+/**
+ * The exact bytes both ways, with the response headers: for servers whose answers are signed over the body
+ * (a Decred VSP), and requests whose signature covers the body sent.
+ */
+export function requestRaw(url: string, opts: { method: 'GET' | 'POST'; body?: string; headers?: Record<string, string>; agent?: Agent; timeoutMs?: number; route?: string }): Promise<{ status: number; text: string; headers: Record<string, string> }> {
+  return new Promise((resolve, reject) => {
+    const lib = url.startsWith('https:') ? https : http;
+    const headers: Record<string, string> = { Accept: 'application/json', 'User-Agent': 'KusariWallet', ...opts.headers };
+    if (opts.body !== undefined) { headers['Content-Type'] = 'application/json'; headers['Content-Length'] = String(Buffer.byteLength(opts.body)); }
+    const req = lib.request(url, { method: opts.method, headers, agent: opts.agent }, (res) => {
+      const chunks: Buffer[] = [];
+      let size = 0;
+      res.on('data', (c: Buffer) => {
+        size += c.length;
+        if (size > 2 * 1024 * 1024) { req.destroy(new Error('The answer is too large.')); return; }
+        chunks.push(c);
+      });
+      res.on('end', () => {
+        const h: Record<string, string> = {};
+        for (const [k, v] of Object.entries(res.headers)) if (typeof v === 'string') h[k.toLowerCase()] = v;
+        resolve({ status: res.statusCode ?? 500, text: Buffer.concat(chunks).toString('utf8'), headers: h });
+      });
+      res.on('error', reject);
+    });
+    req.setTimeout(opts.timeoutMs ?? 30_000, () => req.destroy(new Error('Timed out')));
+    req.on('error', reject);
+    req.end(opts.body);
+  });
+}

@@ -113,6 +113,7 @@ final class LocalProxy {
                 else if ("x-api-signature".equals(name)) swap.put("X-Api-Signature", value);
                 else if ("ref-code".equals(name)) swap.put("Ref-Code", value);
                 else if ("x-changenow-api-key".equals(name)) swap.put("x-changenow-api-key", value);
+                else if ("vsp-client-signature".equals(name)) swap.put("VSP-Client-Signature", value);
                 else if ("x-kusari-route".equals(name) && value.matches("[A-Za-z0-9-]{1,64}")) swap.put(ROUTE, value);
                 else if ("content-length".equals(name)) length = Long.parseLong(value);
             }
@@ -235,7 +236,8 @@ final class LocalProxy {
             if (!routed) h.append("User-Agent: KusariWallet\r\nAccept: application/json\r\nAccept-Encoding: identity\r\nConnection: close\r\n");
             if (contentType != null) h.append("Content-Type: ").append(contentType).append("\r\n");
             if (apiKey != null && !routed) h.append("TRON-PRO-API-KEY: ").append(apiKey).append("\r\n");
-            for (Map.Entry<String, String> e : swap.entrySet()) if (!routed && !ROUTE.equals(e.getKey())) h.append(e.getKey()).append(": ").append(e.getValue()).append("\r\n");
+            // A Decred VSP's request signature goes on routed requests too: it is part of the request itself.
+            for (Map.Entry<String, String> e : swap.entrySet()) if ((!routed || "VSP-Client-Signature".equals(e.getKey())) && !ROUTE.equals(e.getKey())) h.append(e.getKey()).append(": ").append(e.getValue()).append("\r\n");
             if ("POST".equals(method)) h.append("Content-Length: ").append(body.length).append("\r\n");
             h.append("\r\n");
             o.write(h.toString().getBytes(StandardCharsets.ISO_8859_1));
@@ -248,6 +250,7 @@ final class LocalProxy {
             String[] statusLine = lines[0].split(" ");
             int status = Integer.parseInt(statusLine[1]);
             String type = null;
+            String vspSignature = null;
             boolean chunked = false;
             long length = -1;
             for (int n = 1; n < lines.length; n++) {
@@ -256,12 +259,14 @@ final class LocalProxy {
                 String key = lines[n].substring(0, colon).trim().toLowerCase();
                 String value = lines[n].substring(colon + 1).trim();
                 if ("content-type".equals(key)) type = value;
+                else if ("vsp-server-signature".equals(key) && value.matches("[A-Za-z0-9+/=]{1,200}")) vspSignature = value;
                 else if ("transfer-encoding".equals(key)) chunked = value.toLowerCase().contains("chunked");
                 else if ("content-length".equals(key)) length = Long.parseLong(value);
             }
             if (length > MAX_BODY * 2L) throw new IOException("response too large");
             byte[] data = chunked ? readChunked(i) : length >= 0 ? readBody(i, (int) length) : readAll(i);
-            respond(out, status, origin, data, type == null ? "" : "Content-Type: " + type + "\r\n");
+            respond(out, status, origin, data, (type == null ? "" : "Content-Type: " + type + "\r\n")
+                + (vspSignature == null ? "" : "VSP-Server-Signature: " + vspSignature + "\r\nAccess-Control-Expose-Headers: VSP-Server-Signature\r\n"));
         }
     }
 
@@ -326,7 +331,7 @@ final class LocalProxy {
         if (origin != null) {
             h.append("Access-Control-Allow-Origin: ").append(origin).append("\r\n");
             h.append("Access-Control-Allow-Methods: GET, POST, DELETE, OPTIONS\r\n");
-            h.append("Access-Control-Allow-Headers: Content-Type, Accept, Authorization, TRON-PRO-API-KEY, x-api-key, X-API-SECRET-KEY, X-API-KEY-VERSION, X-Api-Nonce, X-Api-Timestamp, X-Api-Signature, Ref-Code, Idempotency-Key, x-changenow-api-key\r\n");
+            h.append("Access-Control-Allow-Headers: Content-Type, Accept, Authorization, TRON-PRO-API-KEY, x-api-key, X-API-SECRET-KEY, X-API-KEY-VERSION, X-Api-Nonce, X-Api-Timestamp, X-Api-Signature, Ref-Code, Idempotency-Key, x-changenow-api-key, X-Kusari-Route, VSP-Client-Signature\r\n");
             h.append("Access-Control-Max-Age: 600\r\n");
         }
         h.append(extraHeaders);

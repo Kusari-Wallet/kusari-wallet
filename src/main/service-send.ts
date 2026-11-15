@@ -6,7 +6,7 @@ import QRCode from 'qrcode';
 import { formatAmount, parseAmount } from './amount';
 import { Asset, BTC_EXPLORER_TX, DECIMALS, FIRO_EXPLORER_TX, SOL_EXPLORER_TX, BUY_PAGE, BCH_EXPLORER_TX, LTC_EXPLORER_TX, SCRT_EXPLORER_TX, DOGE_EXPLORER_TX, DASH_EXPLORER_TX, ARRR_EXPLORER_TX, KSR_EXPLORER_TX, ZANO_EXPLORER_TX, ZEC_EXPLORER_TX, NETWORKS, OWN_SERVER_COINS, Settings } from './config';
 import { TronTransfer, deriveTronAccount, isTronAddress } from './tron';
-import { requestJson } from './request';
+import { requestJson, getJson } from './request';
 import { isScrtAddress } from './scrt';
 import { isSilentAddress } from './btc-silent';
 import { type BtcClient, type BtcDraft, LITECOIN, coinId, estimateVbytes, isBtcAddress, isLtcAddress } from './btc';
@@ -22,7 +22,8 @@ import { isZecAddress, zecHeightForDate } from './zec';
 import { zecEngineInfo } from './zec-process';
 import { isFiroAddress, typicalFiroFee } from './firo';
 import { isDogeAddress, typicalDogeFee } from './doge';
-import { DCR_EXPLORER_TX, isDcrAddress, typicalDcrFee } from './dcr';
+import { DCR_EXPLORER_TX, isDcrAddress, typicalDcrFee, dcrNet } from './dcr';
+import { MAX_TICKETS, TICKET_FEE, VSP_LIST_URL, VspClient, commitmentKey, feeFundFor, feeTx, parseVspList, planTickets, ticketExpiry, vspFee, vspOrigin, votingKey } from './dcr-stake';
 import { isBchAddress, normalBchAddress, typicalBchFee } from './bch';
 import { SOL_FEE, SPL_TOKENS, isSolAddress } from './sol';
 import { DASH_DUST, dashFee, isDashAddress, signDashOutputs, typicalDashFee } from './dash';
@@ -31,7 +32,7 @@ import { COINJOIN_COORDINATORS, MIX_TARGETS } from './btc-mix';
 import type { InsightUtxo } from './insight';
 import { ETH_EXTRA_FIRST, chainOf, deriveEthAccount, isEthAddress } from './eth';
 import { TOR_BRIDGES, TorBridge, parseCustomBridges } from './tor-bridges';
-import { checkOwnServer, COIN_ID, EVM_EXPLORER, isEvm, isSpl, Preview, PREVIEW_TTL_MS, withTimeoutValue } from './service-common';
+import { checkOwnServer, isLocalServer, COIN_ID, EVM_EXPLORER, isEvm, isSpl, Preview, PREVIEW_TTL_MS, withTimeoutValue } from './service-common';
 import { ServiceCore, btcBirthdayFor } from './service-core';
 import { lookalikeOf, rememberRecipient } from './lookalike';
 import type { Secrets } from './vault';
@@ -743,6 +744,190 @@ export class SendService extends ServiceCore {
     }
     await this.records.write(this.recipientsPath, rememberRecipient(await this.records.read(this.recipientsPath), preview.to)).catch(() => undefined);
     return result;
+  }
+
+  // ---- Decred tickets ----
+  // Bought through a VSP (dcr-stake.ts). Records are sealed in dcr-tickets.json: each ticket, its VSP and the VSP's
+  // key, where its stake returns, and the fee transaction. The seed isn't kept: paying a fee that didn't go through
+  // asks for the password again. Status comes from the chain alone (the ticket, the fee transaction), so checking
+  // it needs no key.
+
+  protected get dcrTicketsPath(): string { return path.join(this.dir, 'dcr-tickets.json'); }
+  protected dcrCheckedAt = 0;
+
+  protected async dcrStakeRead(): Promise<{ tickets: any[]; nextChange: number; nextVoting: number; vsp: string }> {
+    const j = await this.records.read(this.dcrTicketsPath).catch(() => undefined);
+    const tickets = Array.isArray(j?.tickets) ? j.tickets.filter((t: any) => /^[0-9a-f]{64}$/.test(t?.hash ?? '')) : [];
+    return { tickets, nextChange: Number.isInteger(j?.nextChange) ? j.nextChange : 0, nextVoting: Number.isInteger(j?.nextVoting) ? j.nextVoting : 0, vsp: typeof j?.vsp === 'string' ? j.vsp : '' };
+  }
+
+  protected async dcrStakeWrite(f: { tickets: any[]; nextChange: number; nextVoting: number; vsp: string }): Promise<void> {
+    await this.records.write(this.dcrTicketsPath, f);
+    this.dcrHold(f);
+  }
+
+  /** The fee coins of tickets whose fee isn't settled stay out of sends; the addresses used stay out of change. */
+  protected dcrHold(f: { tickets: any[]; nextChange: number }): void {
+    if (!this.dcr) return;
+    this.dcr.setChangeFloor(f.nextChange);
+    this.dcr.reserve(f.tickets.filter((t) => t.state === 'new' || (t.state === 'paid' && !t.feeConfirmed)).map((t) => `${t.fund.txid}:${t.fund.vout}`));
+  }
+
+  protected override dcrStakeLoad = async (): Promise<void> => { this.dcrHold(await this.dcrStakeRead()); };
+
+  private vspClient(url: string, pubkey: string | null): VspClient {
+    const agent = this.torRoute('dcr-vsp');
+    return new VspClient(url, pubkey, () => this.isolated('dcr-vsp', agent, isLocalServer(url)));
+  }
+
+  /** Open VSPs from Decred's public list, in random order (so not everyone picks the first). */
+  async dcrVspList(): Promise<{ url: string; feePercentage: number; voting: number }[]> {
+    this.session();
+    const j = await getJson(VSP_LIST_URL, { agent: this.torRoute('dcr-vsp'), timeoutMs: 45_000 });
+    const list = parseVspList(j, dcrNet.name);
+    for (let i = list.length - 1; i > 0; i--) { const k = Math.floor(Math.random() * (i + 1)); [list[i], list[k]] = [list[k], list[i]]; }
+    return list;
+  }
+
+  /** The ticket price now, whether a ticket can be bought this moment, and this wallet's tickets. */
+  async dcrStakeInfo() {
+    this.session();
+    if (!this.dcr) throw new Error('Decred is not available.');
+    const { height, price } = await this.dcr.stakeState();
+    const f = await this.dcrStakeRead();
+    return { price: formatAmount(price, 8), height, canBuy: ticketExpiry(height) !== null, vsp: f.vsp, max: MAX_TICKETS, tickets: await this.dcrTickets() };
+  }
+
+  private async dcrQuoteRaw(count: number, vspUrl: string) {
+    if (!this.dcr) throw new Error('Decred is not available.');
+    if (!Number.isInteger(count) || count < 1 || count > MAX_TICKETS) throw new Error(`Buy 1 to ${MAX_TICKETS} tickets at a time.`);
+    const url = vspOrigin(vspUrl);
+    const vsp = this.vspClient(url, null);
+    const [info, state] = await Promise.all([vsp.info(), this.dcr.stakeState()]);
+    if (info.network !== dcrNet.name) throw new Error(`This VSP is on ${info.network}, not Decred ${dcrNet.name}.`);
+    if (info.closed) throw new Error(`This VSP isn't taking new tickets${info.closedMessage ? `: ${info.closedMessage}` : '.'}`);
+    if (!(info.feePercentage >= 0 && info.feePercentage <= 20)) throw new Error('This VSP asks for an unusual fee, so it isn\'t used.');
+    const expiry = ticketExpiry(state.height);
+    if (expiry === null) throw new Error('The ticket price changes with the next block. Try again in a few minutes.');
+    const fee = vspFee(state.price, state.height, info.feePercentage);
+    return { url, info, price: state.price, height: state.height, expiry, fee, fund: feeFundFor(fee) };
+  }
+
+  /** What buying `count` tickets through this VSP costs, before the password. */
+  async dcrStakeQuote(count: number, vspUrl: string) {
+    this.session();
+    const q = await this.dcrQuoteRaw(count, vspUrl);
+    const coins = await this.dcr!.confirmedUtxos();
+    const have = coins.filter((u) => u.tree !== 1).reduce((s, u) => s + u.value, 0n);
+    const n = BigInt(count);
+    const locked = n * q.price;
+    const fees = n * (TICKET_FEE + q.fee);
+    return {
+      vsp: q.url, vspFeePercent: q.info.feePercentage, price: formatAmount(q.price, 8), count,
+      locked: formatAmount(locked, 8), vspFee: formatAmount(n * q.fee, 8), ticketFees: formatAmount(n * TICKET_FEE, 8),
+      total: formatAmount(locked + fees, 8), held: formatAmount(n * (q.price + TICKET_FEE + q.fund), 8),
+      enough: have >= n * (q.price + TICKET_FEE + q.fund) + 10_000n,
+    };
+  }
+
+  /** Signs the split and tickets, hands each ticket to the VSP (which broadcasts it) and pays its fee. */
+  async dcrStakeBuy(count: number, vspUrl: string, password: string) {
+    this.session();
+    const secrets = await this.vault.open(password);
+    const q = await this.dcrQuoteRaw(count, vspUrl);
+    const dcr = this.dcr!;
+    const coins = (await dcr.confirmedUtxos()).filter((u) => u.tree !== 1);
+    const f = await this.dcrStakeRead();
+    const first = Math.max(dcr.changeTarget().index, f.nextChange);
+    const addresses = Array.from({ length: 2 * count + 1 }, (_, i) => ({ address: dcr.addressAt(1, first + i), index: first + i }));
+    const plan = planTickets({ mnemonic: secrets.tronMnemonic, coins, price: q.price, count, expiry: q.expiry, feeFund: q.fund, addresses, votingFirst: f.nextVoting });
+    const now = Date.now();
+    const records = plan.tickets.map((t) => ({
+      hash: t.hash, hex: t.hex, parentHex: plan.split.hex, splitId: plan.split.id, price: q.price.toString(), expiry: q.expiry, boughtAt: now,
+      vsp: { url: q.url, pubkey: q.info.pubkey, feePercentage: q.info.feePercentage },
+      voting: t.voting, commitment: t.commitment, fund: { ...t.fund, value: t.fund.value.toString() },
+      state: 'new', status: 'unmined',
+    }));
+    f.tickets.push(...records);
+    f.nextChange = first + 2 * count + 1;
+    f.nextVoting += count;
+    f.vsp = q.url;
+    await this.dcrStakeWrite(f);
+    const problems: string[] = [];
+    for (const r of records) {
+      const e = await this.dcrPayFee(r.hash, secrets.tronMnemonic);
+      if (e) problems.push(e);
+    }
+    this.emit('balance-changed');
+    return { bought: records.length, paid: records.length - problems.length, problem: problems[0] ?? '' };
+  }
+
+  /** Pays the fees that didn't go through when the tickets were bought. */
+  async dcrStakeFinish(password: string) {
+    this.session();
+    const secrets = await this.vault.open(password);
+    const problems: string[] = [];
+    for (const t of (await this.dcrStakeRead()).tickets.filter((x) => x.state === 'new')) {
+      const e = await this.dcrPayFee(t.hash, secrets.tronMnemonic);
+      if (e) problems.push(e);
+    }
+    this.emit('balance-changed');
+    return { problem: problems[0] ?? '' };
+  }
+
+  /** One ticket: fee address from the VSP, the fee transaction, and the fee with the voting key. Returns a problem. */
+  protected async dcrPayFee(hash: string, mnemonic: string): Promise<string> {
+    const f = await this.dcrStakeRead();
+    const t = f.tickets.find((x) => x.hash === hash);
+    if (!t || t.state !== 'new') return '';
+    try {
+      const vsp = this.vspClient(t.vsp.url, t.vsp.pubkey);
+      const key = commitmentKey(mnemonic, t.commitment.index);
+      const fa = await vsp.feeAddress({ hash: t.hash, hex: t.hex, parentHex: t.parentHex }, key);
+      // The fee is a share of a vote's reward, which is less than the ticket's price: anything near the price is wrong.
+      const cap = ((BigInt(t.price) + 10_000n) * BigInt(Math.ceil(t.vsp.feePercentage * 100))) / 10_000n + 1n;
+      if (fa.amount > cap) throw new Error('The VSP asked for more than its stated fee, so it wasn\'t paid.');
+      const change = Math.max(f.nextChange, this.dcr!.changeTarget().index);
+      const tx = feeTx({ mnemonic, fund: { ...t.fund, value: BigInt(t.fund.value) }, feeAddress: fa.address, amount: fa.amount, change: { address: this.dcr!.addressAt(1, change), index: change } });
+      f.nextChange = change + 1;
+      await vsp.payFee({ hash: t.hash, feeHex: tx.hex, votingWif: votingKey(mnemonic, t.voting).wif }, key);
+      Object.assign(t, { state: 'paid', fee: { address: fa.address, amount: fa.amount.toString(), id: tx.id, hex: tx.hex }, error: undefined });
+      await this.dcrStakeWrite(f);
+      return '';
+    } catch (e) {
+      t.error = String((e as Error).message ?? e).slice(0, 300);
+      await this.dcrStakeWrite(f);
+      return t.error;
+    }
+  }
+
+  /** This wallet's tickets, their status read from the chain at most every two minutes. */
+  async dcrTickets(force = false) {
+    this.session();
+    const f = await this.dcrStakeRead();
+    if (this.dcr && (force || Date.now() - this.dcrCheckedAt > 2 * 60_000) && f.tickets.some((t) => t.state === 'new' || t.state === 'paid')) {
+      this.dcrCheckedAt = Date.now();
+      try {
+        const { height } = await this.dcr.stakeState();
+        for (const t of f.tickets.filter((x) => x.state === 'new' || x.state === 'paid')) {
+          const conf = await this.dcr.txConfirmations(t.hash);
+          if (conf === null || conf < 1) {
+            t.status = 'unmined';
+            // Not in a block by its expiry: the split's outputs are plain coins of this wallet again.
+            if (height >= t.expiry && conf === null) { t.state = 'failed'; t.error = t.error ?? 'The ticket was not mined before its price window ended.'; }
+            continue;
+          }
+          t.status = await this.dcr.ticketStatus(t.hash).catch(() => t.status);
+          if (t.fee) t.feeConfirmed = ((await this.dcr.txConfirmations(t.fee.id)) ?? 0) > 0;
+          if (t.status === 'voted' || t.status === 'revoked') t.state = 'done';
+        }
+        await this.dcrStakeWrite(f);
+      } catch { /* shown as last read */ }
+    }
+    return f.tickets.map((t) => ({
+      hash: t.hash, state: t.state, status: t.status ?? '', price: formatAmount(BigInt(t.price), 8), boughtAt: t.boughtAt,
+      vsp: new URL(t.vsp.url).host, fee: t.fee ? formatAmount(BigInt(t.fee.amount), 8) : '', feeConfirmed: !!t.feeConfirmed, error: t.error ?? '',
+    })).sort((a, b) => b.boughtAt - a.boughtAt);
   }
 
   // ---- delayed sends (Bitcoin) ----

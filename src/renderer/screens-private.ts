@@ -354,3 +354,132 @@ function picker(onPick: () => void): HTMLElement {
   wrap.append(btn, menu);
   return wrap;
 }
+
+// ---- Decred tickets (staking through a VSP) ----
+
+function dcrStakePanel(): HTMLElement {
+  return h('div', { class: 'panel', id: 'dcr-stake-panel' },
+    h('p', { class: 'small' }, 'Staking: lock DCR in tickets that vote on Decred\'s blocks and earn a reward. A Voting Service Provider (VSP) votes for you; your DCR never leaves your control.'), h('br'),
+    h('button', { class: 'secondary', id: 'dcr-stake-open', onclick: () => void renderDcrStake() }, 'Tickets'));
+}
+
+function dcrTicketText(t: any): string {
+  if (t.state === 'failed') return 'Not mined: its DCR is back in your balance';
+  if (t.state === 'new') return 'The VSP fee isn\'t paid yet';
+  if (t.status === 'voted') return 'Voted: the reward can be spent after 256 blocks';
+  if (t.status === 'revoked') return 'Revoked: its DCR came back';
+  if (t.status === 'missed' || t.status === 'expired') return 'Didn\'t vote: its DCR is coming back';
+  if (t.status === 'live') return 'Live: waiting to be chosen to vote';
+  if (t.status === 'immature') return 'Maturing (256 blocks)';
+  return 'Waiting to be mined';
+}
+
+async function renderDcrStake(): Promise<void> {
+  const body = h('div', {}, h('p', { class: 'empty' }, 'Loading…'));
+  show('send', subBar('Decred tickets', () => void renderAsset()), h('div', { class: 'scroll' }, body));
+  let info: any;
+  try { info = await wallet.dcrStakeInfo(); } catch (e) { setKids(body, h('div', { class: 'warn' }, errMsg(e))); return; }
+  if (!body.isConnected) return;
+  const unpaid = info.tickets.filter((t: any) => t.state === 'new').length;
+  const pw = h('input', { type: 'password', id: 'dcr-finish-pw', autocomplete: 'current-password' }) as HTMLInputElement;
+  const box = errorBox();
+  const finish = h('button', { class: 'primary', id: 'dcr-finish', type: 'submit' }, 'Pay the VSP fee') as HTMLButtonElement;
+  setKids(body,
+    h('table', { class: 'review-table' }, h('tbody', {},
+      h('tr', {}, h('th', {}, 'Ticket price'), h('td', { id: 'dcr-price' }, `${info.price} DCR`)),
+      h('tr', {}, h('th', {}, 'Your tickets'), h('td', { id: 'dcr-count' }, String(info.tickets.filter((t: any) => t.state !== 'failed').length))))),
+    h('p', { class: 'small muted' }, 'A ticket votes on average about 28 days after it is bought (at most about 142 days). Until then its DCR is locked; afterwards it comes back to this wallet with the reward. If the VSP fails to vote, the ticket is revoked and the DCR still comes back.'),
+    unpaid > 0 && h('form', { class: 'panel', id: 'dcr-finish-form', onsubmit: (e: Event) => {
+      e.preventDefault();
+      busy(finish, 'Paying…', box, async () => {
+        const r = await wallet.dcrStakeFinish(pw.value);
+        pw.value = '';
+        if (r.problem) throw new Error(r.problem);
+        toast('VSP fee paid.');
+        void renderDcrStake();
+      });
+    } },
+    h('p', { class: 'small' }, unpaid === 1 ? 'One ticket is waiting for its VSP fee. It can\'t vote until the fee is paid.' : `${unpaid} tickets are waiting for their VSP fee. They can't vote until it is paid.`),
+    box.el,
+    h('label', { class: 'field' }, h('span', {}, 'Password'), pw),
+    finish),
+    info.canBuy
+      ? h('button', { class: 'primary', id: 'dcr-buy-open', onclick: () => void renderDcrBuy(info) }, 'Buy tickets')
+      : h('div', { class: 'warn', id: 'dcr-wait' }, 'The ticket price changes with the next block. Come back in a few minutes.'),
+    h('br'),
+    h('div', { class: 'list', id: 'dcr-tickets' },
+      info.tickets.length
+        ? info.tickets.map((t: any) => h('button', { class: 'hist-row', title: 'Open in explorer', onclick: () => void openExplorer('DCR', t.hash) },
+          coin('DCR'),
+          h('div', {}, h('div', {}, dcrTicketText(t)),
+            t.state === 'paid' && !t.feeConfirmed && h('div', { class: 'small muted' }, 'The VSP sends its fee after 6 confirmations.'),
+            t.error && t.state !== 'paid' && t.state !== 'done' && h('div', { class: 'small muted' }, t.error),
+            h('div', { class: 'small muted' }, `${when(t.boughtAt)} · ${t.vsp}`)),
+          h('div', { class: 'amt' }, `${t.price} DCR`)))
+        : h('p', { class: 'empty' }, 'No tickets yet.')));
+}
+
+async function renderDcrBuy(info: any): Promise<void> {
+  const box = errorBox();
+  const vsp = h('select', { id: 'dcr-vsp' }, h('option', { value: '' }, 'Loading the list of VSPs…')) as HTMLSelectElement;
+  const custom = h('input', { id: 'dcr-vsp-url', autocomplete: 'off', placeholder: 'https://', value: info.vsp ?? '' }) as HTMLInputElement;
+  const count = numbersOnly(h('input', { id: 'dcr-count-input', class: 'amount-input', inputmode: 'numeric', autocomplete: 'off', value: '1' }) as HTMLInputElement);
+  const next = h('button', { class: 'primary', id: 'dcr-quote', type: 'submit' }, 'Review') as HTMLButtonElement;
+  const chosen = () => (vsp.value === 'custom' || !vsp.value ? custom.value.trim() : vsp.value);
+  const customRow = h('label', { class: 'field', id: 'dcr-vsp-custom' }, h('span', {}, 'VSP address'), custom);
+  const syncCustom = () => { customRow.style.display = vsp.value === 'custom' ? '' : 'none'; };
+  vsp.onchange = syncCustom;
+  const form = h('form', { onsubmit: (e: Event) => {
+    e.preventDefault();
+    busy(next, 'Asking the VSP…', box, async () => renderDcrReview(await wallet.dcrStakeQuote(Number(count.value), chosen()), info));
+  } },
+  box.el,
+  h('p', { class: 'small muted' }, 'The VSP gets a key that can only vote with these tickets; it can\'t move any DCR. It learns which tickets are yours, so a VSP you trust (or one on your own server) is best. Every request to it goes over its own Tor route.'),
+  h('label', { class: 'field' }, h('span', {}, 'VSP'), vsp),
+  customRow,
+  h('div', { class: 'panel' }, h('label', { class: 'label', for: 'dcr-count-input' }, `Tickets (1 to ${info.max})`),
+    h('div', { class: 'input-wrap' }, count, h('span', { class: 'unit' }, `× ${info.price} DCR`))),
+  h('br'),
+  next);
+  show('send', subBar('Buy tickets', () => void renderDcrStake()), h('div', { class: 'scroll' }, form));
+  try {
+    const list: any[] = await wallet.dcrVspList();
+    setKids(vsp, ...list.map((v) => h('option', { value: v.url }, `${new URL(v.url).host} · ${v.feePercentage}% fee`)), h('option', { value: 'custom' }, 'Enter an address…'));
+    if (info.vsp) vsp.value = list.some((v) => v.url === info.vsp) ? info.vsp : 'custom';
+  } catch {
+    setKids(vsp, h('option', { value: 'custom' }, 'Enter an address…'));
+    vsp.value = 'custom';
+  }
+  syncCustom();
+}
+
+function renderDcrReview(q: any, info: any): void {
+  const pw = h('input', { type: 'password', id: 'confirm-pw', autocomplete: 'current-password' }) as HTMLInputElement;
+  const box = errorBox();
+  const go = h('button', { class: 'primary', id: 'dcr-buy', type: 'submit' }, q.count === 1 ? 'Buy 1 ticket' : `Buy ${q.count} tickets`) as HTMLButtonElement;
+  go.disabled = !q.enough;
+  const form = h('form', { onsubmit: (e: Event) => {
+    e.preventDefault();
+    busy(go, 'Buying…', box, async () => {
+      const r = await wallet.dcrStakeBuy(q.count, q.vsp, pw.value);
+      pw.value = '';
+      await refresh();
+      if (r.problem) toast(`Bought, but a VSP fee didn't go through: ${r.problem}`);
+      else toast(r.bought === 1 ? 'Ticket bought.' : `${r.bought} tickets bought.`);
+      void renderDcrStake();
+    });
+  } },
+  box.el,
+  h('table', { class: 'review-table' }, h('tbody', {},
+    h('tr', {}, h('th', {}, 'VSP'), h('td', { id: 'dcr-review-vsp' }, `${new URL(q.vsp).host} (${q.vspFeePercent}%)`)),
+    h('tr', {}, h('th', {}, 'Tickets'), h('td', { id: 'dcr-review-count' }, `${q.count} × ${q.price} DCR`)),
+    h('tr', {}, h('th', {}, 'Locked until they vote'), h('td', { id: 'dcr-review-locked' }, `${q.locked} DCR`)),
+    h('tr', {}, h('th', {}, 'VSP fee'), h('td', { id: 'dcr-review-vspfee' }, `${q.vspFee} DCR`)),
+    h('tr', {}, h('th', {}, 'Network fees'), h('td', { id: 'dcr-review-fees' }, `${q.ticketFees} DCR`)),
+    h('tr', {}, h('th', {}, 'Total'), h('td', { id: 'dcr-review-total' }, `${q.total} DCR`)))),
+  !q.enough && h('div', { class: 'warn', id: 'dcr-not-enough' }, `Not enough spendable DCR: ${q.held} DCR is needed while buying (the VSP fee is set aside until it is paid).`),
+  h('p', { class: 'small muted' }, 'Nothing reaches the chain until the VSP accepts the tickets; it then broadcasts them. If a ticket isn\'t mined before the price changes, its DCR returns to your balance.'),
+  h('label', { class: 'field' }, h('span', {}, 'Password'), pw),
+  go);
+  show('send', subBar('Review', () => void renderDcrBuy(info)), h('div', { class: 'scroll' }, form));
+}

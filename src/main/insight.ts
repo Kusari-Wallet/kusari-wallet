@@ -12,7 +12,8 @@ const STALE_OK_MS = 60 * 60_000;
 /** After a failed refresh, how long to show the last scan before asking again, to stay under rate limits. */
 const RETRY_AFTER_FAILURE_MS = 2 * 60_000;
 
-export interface InsightUtxo { txid: string; vout: number; value: bigint; address: string; chain: number; index: number }
+/** `tree` and `script` for coins whose spending depends on them (Decred's stake outputs). */
+export interface InsightUtxo { txid: string; vout: number; value: bigint; address: string; chain: number; index: number; tree?: number; script?: string }
 export interface InsightDraft { to: string; amount: bigint; fee: bigint; change: bigint; changeAddress: string; changeIndex: number; inputs: InsightUtxo[] }
 export interface InsightHistoryItem<S extends string> { asset: S; hash: string; direction: 'in' | 'out' | 'self'; amount: string; counterparty: string; timestamp: number; status: 'confirmed' | 'pending'; dust: boolean }
 export interface InsightCoin<S extends string> {
@@ -22,6 +23,8 @@ export interface InsightCoin<S extends string> {
   sign: (draft: InsightDraft, mnemonic: string) => { hex: string; id: string };
   /** The output script an address of this wallet pays to. */
   script?: (address: string) => Uint8Array;
+  /** What a coin row is: null for rows that aren't spendable coins of this kind (left out entirely), else its tree, its script, and whether it can be spent yet. */
+  coin?: (row: any) => { tree: number; script?: string; mature: boolean } | null;
 }
 
 export abstract class InsightWallet<S extends string> {
@@ -30,6 +33,12 @@ export abstract class InsightWallet<S extends string> {
   private failedAt = 0;
   /** Coins whose value was checked against the transaction that made them. */
   private readonly checked = new Map<string, bigint>();
+  /** Coins held back for a transaction signed but not yet sent ("txid:vout"). */
+  private reserved = new Set<string>();
+  /** Change addresses below this are spoken for (outputs signed but maybe not seen by the server yet). */
+  private changeFloor = 0;
+  setChangeFloor(n: number): void { this.changeFloor = Math.max(this.changeFloor, n); }
+  private nextChangeIndex(): number { return Math.max(this.state?.nextChange ?? 0, this.changeFloor); }
 
   constructor(private readonly cfg: InsightCoin<S>, protected readonly apis: string[], protected readonly agent?: Agent, protected readonly timeoutMs = 30_000) {}
 
@@ -37,10 +46,10 @@ export abstract class InsightWallet<S extends string> {
   private size(inputs: number, outputs: number): bigint { return this.cfg.base + this.cfg.input * BigInt(inputs) + this.cfg.output * BigInt(outputs); }
   get receiveAddress(): string { return this.addressAt(0, this.state?.nextReceive ?? 0); }
 
-  protected async get(path: string, agent: Agent | undefined = this.agent): Promise<any> {
+  protected async get(path: string, agent: Agent | undefined = this.agent, route?: string): Promise<any> {
     let last: unknown;
     for (const base of this.apis) {
-      try { return await getJson(base + path, { agent, timeoutMs: this.timeoutMs }); } catch (e) { last = e; }
+      try { return await getJson(base + path, { agent, timeoutMs: this.timeoutMs, route }); } catch (e) { last = e; }
     }
     throw last instanceof Error ? last : new Error(`Could not reach the ${this.cfg.symbol} server.`);
   }
@@ -97,7 +106,7 @@ export abstract class InsightWallet<S extends string> {
     let nextChange = 0;
     let utxoRows: any[] = [];
     let txs: any[] = [];
-    for (let round = 0; round < 10; round++) {
+    for (let round = 0; round < 50; round++) {
       mine.clear();
       for (let i = 0; i < nextReceive + (this.cfg.gapReceive ?? GAP_RECEIVE); i++) mine.set(this.addressAt(0, i), [0, i]);
       for (let i = 0; i < nextChange + (this.cfg.gapChange ?? GAP_CHANGE); i++) mine.set(this.addressAt(1, i), [1, i]);
@@ -125,12 +134,14 @@ export abstract class InsightWallet<S extends string> {
     for (const row of utxoRows) {
       const p = mine.get(row.address);
       if (!p || !/^[0-9a-f]{64}$/.test(row.txid) || !Number.isInteger(row.vout)) throw new Error(`The ${this.cfg.symbol} server gave an unexpected answer.`);
+      const kind = this.cfg.coin ? this.cfg.coin(row) : { tree: 0, mature: true };
+      if (!kind) continue;
       const value = BigInt(row.satoshis ?? row.atoms ?? 0);
       if (value <= 0n) throw new Error(`The ${this.cfg.symbol} server gave an unexpected answer.`);
       total += value;
-      if ((row.confirmations ?? 0) < 1) continue;
+      if ((row.confirmations ?? 0) < 1 || !kind.mature || this.reserved.has(`${row.txid}:${row.vout}`)) continue;
       spendable += value;
-      utxos.push({ txid: row.txid, vout: row.vout, value, address: row.address, chain: p[0], index: p[1] });
+      utxos.push({ txid: row.txid, vout: row.vout, value, address: row.address, chain: p[0], index: p[1], ...(this.cfg.coin ? { tree: kind.tree, script: kind.script } : {}) });
     }
     this.state = { at: Date.now(), utxos, total, spendable, txs, nextReceive, nextChange, mine };
   }
@@ -139,6 +150,14 @@ export abstract class InsightWallet<S extends string> {
     if (!force && this.state && Date.now() - this.state.at < (this.cfg.cacheMs ?? CACHE_MS)) return Promise.resolve();
     if (!this.inFlight) this.inFlight = this.scan().finally(() => { this.inFlight = null; });
     return this.inFlight;
+  }
+
+  /** Holds these coins ("txid:vout") back from sends and the spendable balance, replacing the last set. */
+  reserve(keys: Iterable<string>): void {
+    const next = new Set(keys);
+    if (next.size === this.reserved.size && [...next].every((k) => this.reserved.has(k))) return;
+    this.reserved = next;
+    this.state = null; // the spendable balance is worked out again on the next read
   }
 
   /** The next read asks the server again, for after a send. */
@@ -172,7 +191,8 @@ export abstract class InsightWallet<S extends string> {
     const state = this.state!;
     const coins = [...state.utxos].sort((a, b) => (b.value > a.value ? 1 : -1));
     if (!coins.length) throw new Error(`No ${this.cfg.symbol} available to send. Deposits can be used after 1 confirmation.`);
-    const base = { to, changeAddress: this.addressAt(1, state.nextChange), changeIndex: state.nextChange };
+    const next = this.nextChangeIndex();
+    const base = { to, changeAddress: this.addressAt(1, next), changeIndex: next };
     if (amount === 'max') {
       const sum = coins.reduce((s, u) => s + u.value, 0n);
       const fee = this.size(coins.length, 1) * this.cfg.feePerByte;
@@ -202,7 +222,7 @@ export abstract class InsightWallet<S extends string> {
 
   /** Where change goes next: the first unused change address. Read after a refresh. */
   changeTarget(): { address: string; index: number } {
-    const i = this.state?.nextChange ?? 0;
+    const i = this.nextChangeIndex();
     return { address: this.addressAt(1, i), index: i };
   }
 

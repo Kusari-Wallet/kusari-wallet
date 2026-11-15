@@ -436,6 +436,7 @@ const PASSWORD = 'correct horse battery';
   const mainEth = await page.locator('#my-address').innerText();
   await page.click('#eth-new');
   await page.locator('#eth-addresses').waitFor({ timeout: 15000 });
+  await page.waitForFunction(() => /^0x/.test(document.querySelector('#my-address')?.textContent ?? ''), null, { timeout: 15000 });
   const newEth = await page.locator('#my-address').innerText();
   assert.match(newEth, /^0x[0-9a-fA-F]{40}$/);
   assert.notEqual(newEth, mainEth);

@@ -11,7 +11,7 @@ import { formatAmount, parseAmount } from './amount';
 import { Asset, BTC_APIS, BTC_ONION_APIS, DECIMALS, FIRO_APIS, SOL_RPCS, BCH_APIS, LTC_APIS, SCRT_LCDS, DOGE_APIS, DOGE_PUSH_URLS, DOGE_BACKUP, DOGE_RAW_URLS, POL_RPCS, POL_SCOUT, ARB_RPCS, ARB_SCOUT, BSC_RPCS, BSC_SCOUT, DASH_APIS, DEFAULT_SETTINGS, ARRR_SERVERS, ZANO_NODE, KSR_NODE, ZEC_SERVERS, ETH_RPCS, ETH_SCOUT, ETH_USDT, NETWORKS, NetworkId, Settings, estimateMainnetHeight } from './config';
 import { MIN_PASSWORD, Secrets, Vault } from './vault';
 import { TronClient, deriveTronAccount, generateTronMnemonic } from './tron';
-import { socksAgent, getJson, newTorRoute } from './request';
+import { socksAgent, getJson, newTorRoute, isolatedAgent } from './request';
 import type { Agent } from 'node:http';
 import { AAVE_MARKETS, aaveCall, readAave } from './aave';
 import { ScrtClient, scrtPrivacyKeys, scrtPublicKey } from './scrt';
@@ -399,7 +399,10 @@ export class ServiceCore extends EventEmitter {
     this.scrt = new ScrtClient(scrtPublicKey(secrets.tronMnemonic), this.dev.scrtLcd ? this.dev.scrtLcd.split(',') : this.ownList('SCRT', SCRT_LCDS), this.ownAgent('SCRT', 'scrt'), slow ? 60_000 : 20_000, scrtPrivacyKeys(secrets.tronMnemonic));
     this.firo = new FiroClient(firoAccountXpub(secrets.tronMnemonic), this.dev.firoApi ? [this.dev.firoApi] : this.ownList('FIRO', FIRO_APIS), this.ownAgent('FIRO', 'firo'), slow ? 60_000 : 20_000);
     this.doge = new DogeClient(dogeAccountXpub(secrets.tronMnemonic), this.dev.dogeApi ? [this.dev.dogeApi] : DOGE_APIS, this.torRoute('doge'), slow ? 60_000 : 20_000, this.dev.dogeApi ? (this.dev.dogeBackup ? { backup: this.dev.dogeBackup } : {}) : { pushUrls: DOGE_PUSH_URLS, backup: DOGE_BACKUP, rawUrls: DOGE_RAW_URLS });
-    this.dcr = new DcrClient(dcrAccountXpub(secrets.tronMnemonic), this.dev.dcrApi ? [this.dev.dcrApi] : this.ownList('DCR', [DCR_API]), this.ownAgent('DCR', 'dcr'), slow ? 60_000 : 20_000);
+    const dcrAgent = this.ownAgent('DCR', 'dcr');
+    const dcrDirect = !!this.dev.dcrApi || isLocalServer(this.own('DCR'));
+    this.dcr = new DcrClient(dcrAccountXpub(secrets.tronMnemonic), this.dev.dcrApi ? [this.dev.dcrApi] : this.ownList('DCR', [DCR_API]), dcrAgent, slow ? 60_000 : 20_000, () => this.isolated('dcr', dcrDirect ? undefined : dcrAgent, dcrDirect));
+    void this.dcrStakeLoad?.().catch(() => undefined);
     this.bch = new BchClient(bchAccountXpub(secrets.tronMnemonic), this.dev.bchApi ? [this.dev.bchApi] : this.ownList('BCH', BCH_APIS), this.ownAgent('BCH', 'bch'), slow ? 60_000 : 20_000);
     this.sol = new SolClient(solAddress(secrets.tronMnemonic), this.dev.solRpc ? [this.dev.solRpc] : this.ownList('SOL', SOL_RPCS), this.ownAgent('SOL', 'sol'), slow ? 60_000 : 20_000);
     this.dash = new DashClient(dashAccountXpub(secrets.tronMnemonic), this.dev.dashApi ? [this.dev.dashApi] : this.ownList('DASH', DASH_APIS), this.ownAgent('DASH', 'dash'), slow ? 60_000 : 20_000);
@@ -921,6 +924,18 @@ export class ServiceCore extends EventEmitter {
     if (!this.torActive) return [];
     return Array.from({ length: count }, (_, i) => this.torRoute(`${name}-${i}`)).filter((a): a is NonNullable<typeof a> => Boolean(a)).map((agent) => ({ agent, renew: () => newTorRoute(agent) }));
   }
+  /**
+   * A connection of its own on a new Tor route, for one lookup that mustn't be seen with others: a fresh agent on
+   * desktop, a route name for Android's forwarder. Direct (no Tor, or the person's own local server) as it was.
+   */
+  protected isolated(name: string, agent: ReturnType<typeof socksAgent> | undefined, direct = false): { agent?: any; route?: string } {
+    if (direct || !this.torActive) return { agent };
+    return { agent: isolatedAgent(agent) ?? agent, route: `${name}-${randomUUID().slice(0, 8)}` };
+  }
+
+  /** Decred ticket records loaded and their coins held back once the client exists (service-send). */
+  protected dcrStakeLoad?: () => Promise<void>;
+
   protected torRoute(name: string): ReturnType<typeof socksAgent> | undefined {
     if (!this.torProxy) return undefined;
     const agent = socksAgent(this.torProxy);

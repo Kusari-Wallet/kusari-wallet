@@ -1,3 +1,4 @@
+import { useDcrNetwork } from './dcr';
 import type { Asset } from './config';
 import { app, BrowserWindow, clipboard, ipcMain, Menu, session, shell } from 'electron';
 import { appendFileSync, existsSync } from 'node:fs';
@@ -84,6 +85,8 @@ app.whenReady().then(async () => {
   configureMoneroWorker();
 
   // Unpacked development runs only: a packaged app can't be redirected to another Tron host.
+  // A local Decred simnet (tests/dcr-simnet.js) in place of mainnet, for development builds only.
+  if (!app.isPackaged && process.env.VAULT_DEV_DCR_NET === 'simnet') useDcrNetwork('simnet');
   const dev = app.isPackaged ? {} : { tronHost: process.env.VAULT_DEV_TRON_HOST, priceUrl: process.env.VAULT_DEV_PRICE_URL, firoApi: process.env.VAULT_DEV_FIRO_API, solRpc: process.env.VAULT_DEV_SOL_RPC, dogeApi: process.env.VAULT_DEV_DOGE_API, dcrApi: process.env.VAULT_DEV_DCR_API, dashApi: process.env.VAULT_DEV_DASH_API, dashConnect: process.env.VAULT_DEV_DASH_CONNECT, dashSeeds: process.env.VAULT_DEV_DASH_SEEDS ? process.env.VAULT_DEV_DASH_SEEDS.split(',') : undefined, zecBin: process.env.VAULT_DEV_ZEC_BIN, arrrBin: process.env.VAULT_DEV_ARRR_BIN, arrrServers: process.env.VAULT_DEV_ARRR_SERVER ? [process.env.VAULT_DEV_ARRR_SERVER] : undefined, zanoBin: process.env.VAULT_DEV_ZANO_BIN, zanoNode: process.env.VAULT_DEV_ZANO_NODE, ksrBin: process.env.VAULT_DEV_KSR_BIN, ksrNode: process.env.VAULT_DEV_KSR_NODE, zecServers: process.env.VAULT_DEV_ZEC_SERVER ? [process.env.VAULT_DEV_ZEC_SERVER] : undefined, ethRpc: process.env.VAULT_DEV_ETH_RPC, tornadoPools: process.env.VAULT_DEV_TORNADO ? JSON.parse(process.env.VAULT_DEV_TORNADO) : undefined, ethScout: process.env.VAULT_DEV_ETH_SCOUT, bchApi: process.env.VAULT_DEV_BCH_API, ltcApi: process.env.VAULT_DEV_LTC_API, scrtLcd: process.env.VAULT_DEV_SCRT_LCD, mwebBin: process.env.VAULT_DEV_MWEB_BIN, mwebConnect: process.env.VAULT_DEV_MWEB_CONNECT, sparkBin: process.env.VAULT_DEV_SPARK_BIN, sparkServer: process.env.VAULT_DEV_SPARK_SERVER, sparkConnect: process.env.VAULT_DEV_SPARK_CONNECT, polRpc: process.env.VAULT_DEV_POL_RPC, polScout: process.env.VAULT_DEV_POL_SCOUT, arbRpc: process.env.VAULT_DEV_ARB_RPC, arbScout: process.env.VAULT_DEV_ARB_SCOUT, bscRpc: process.env.VAULT_DEV_BSC_RPC, uniswapBase: process.env.VAULT_DEV_UNISWAP_BASE, uniswapKey: process.env.VAULT_DEV_UNISWAP_KEY, bscScout: process.env.VAULT_DEV_BSC_SCOUT, swapBase: process.env.VAULT_DEV_SWAP_BASE, simpleSwapBase: process.env.VAULT_DEV_SIMPLESWAP_BASE, ghostSwapBase: process.env.VAULT_DEV_GHOSTSWAP_BASE, btcApi: process.env.VAULT_DEV_BTC_API, coinjoinCoordinator: process.env.VAULT_DEV_COINJOIN, coinjoinTest: process.env.VAULT_DEV_COINJOIN_TEST ? JSON.parse(process.env.VAULT_DEV_COINJOIN_TEST) : undefined, torBin: process.env.VAULT_DEV_TOR_BIN, socks: process.env.VAULT_DEV_SOCKS };
   service = new WalletService(app.getPath('userData'), undefined, dev);
   void service.removeLeftovers().catch(() => undefined);
@@ -182,6 +185,12 @@ app.whenReady().then(async () => {
   handle('wallet:tornadoSplitPrepare', (a: string, sp: boolean) => service.tornadoSplitPrepare(String(a), Boolean(sp)));
   handle('wallet:tornadoSplitConfirm', (i: string, w: string) => service.tornadoSplitConfirm(i, w));
   handle('wallet:tornadoRecover', (w: string) => service.tornadoRecover(w));
+  handle('wallet:dcrStakeInfo', () => service.dcrStakeInfo());
+  handle('wallet:dcrVspList', () => service.dcrVspList());
+  handle('wallet:dcrStakeQuote', (n: number, v: string) => service.dcrStakeQuote(n, v));
+  handle('wallet:dcrStakeBuy', (n: number, v: string, p: string) => service.dcrStakeBuy(n, v, p));
+  handle('wallet:dcrStakeFinish', (p: string) => service.dcrStakeFinish(p));
+  handle('wallet:dcrTickets', (force?: boolean) => service.dcrTickets(!!force));
   handle('wallet:swapConfirm', (id: string, pw: string) => service.swapConfirm(id, pw));
   handle('wallet:swapRefresh', (id: string) => service.swapRefresh(id));
   handle('wallet:swapList', () => service.swapHistory());
