@@ -181,12 +181,36 @@ Used by tests/btc-silent.test.js (tests/fixtures/bip352-vectors.json). BIP 352 i
 
 src/main/dcr.ts and src/main/dcr-stake.ts follow dcrd's transaction format, signature hash, signed messages and WIF,
 and port dcrwallet's ticket layout (createtx.go) and VSP fee (txrules/poolfees.go StakePoolTicketFee).
+src/main/dcr-mix.ts, dcr-mix-crypto.ts, dcr-wire.ts and dcr-mixer.ts port dcrd's mixing module (mixing, mixpool,
+mixclient, chacha20prng, utxoproof; v0.7.5) and dcrwallet's coin split for mixing (wallet/mixing.go MixOutput).
 
 ```
 ISC License
 
 Copyright (c) 2013-2017 The btcsuite developers
 Copyright (c) 2015-2024 The Decred developers
+
+Permission to use, copy, modify, and distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+```
+
+## sntrup4591761 (https://github.com/companyzero/sntrup4591761)
+
+src/main/sntrup.ts is a port of the Go implementation used by Decred's mixing.
+
+```
+ISC License
+
+Copyright (c) 2017 Company 0 LLC.
 
 Permission to use, copy, modify, and distribute this software for any
 purpose with or without fee is hereby granted, provided that the above

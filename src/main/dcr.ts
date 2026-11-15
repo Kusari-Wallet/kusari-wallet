@@ -16,6 +16,8 @@ const { secp256k1 } = require('@noble/curves/secp256k1.js');
 const { base58 } = require('@scure/base');
 
 export const DCR_PATH = "m/44'/42'/0'";
+/** Mixed coins (StakeShuffle) live in their own account, never spent together with unmixed ones. */
+export const DCR_MIXED_PATH = "m/44'/42'/1'";
 export const DCR_API = 'https://dcrdata.decred.org/insight/api';
 export const DCR_EXPLORER_TX = 'https://dcrdata.decred.org/tx/';
 
@@ -64,8 +66,8 @@ export type DcrDraft = InsightDraft;
 export const hash160 = (b: Uint8Array): Uint8Array => ripemd160(blake256(b));
 const checksum = (b: Uint8Array): Uint8Array => blake256(blake256(b)).slice(0, 4);
 
-export function dcrAccountXpub(mnemonic: string): string {
-  return HDKey.fromMasterSeed(bip39Seed(mnemonic)).derive(DCR_PATH).publicExtendedKey;
+export function dcrAccountXpub(mnemonic: string, path = DCR_PATH): string {
+  return HDKey.fromMasterSeed(bip39Seed(mnemonic)).derive(path).publicExtendedKey;
 }
 
 export function dcrAddressOf(publicKey: Uint8Array): string { return dcrPkhAddress(hash160(publicKey)); }
@@ -124,9 +126,9 @@ export class DcrClient extends InsightWallet<'DCR'> {
   private readonly account: any;
   // No coin check against raw transactions (`script` left out): Decred's consensus rejects an input whose stated
   // amount differs from the coin's, so a server that misreports a coin only makes the send fail.
-  constructor(xpub: string, apis: string[], agent?: Agent, timeoutMs = 30_000, private readonly isolate: DcrIsolate = () => ({ agent })) {
+  constructor(xpub: string, apis: string[], agent?: Agent, timeoutMs = 30_000, private readonly isolate: DcrIsolate = () => ({ agent }), readonly path = DCR_PATH) {
     // A smaller gap and a longer reuse than other coins: each address is asked about on its own (see lookup).
-    super({ symbol: 'DCR', dust: DUST, feePerByte: FEE_ATOMS_PER_BYTE, base: SIZE_BASE, input: SIZE_INPUT, output: SIZE_OUTPUT, sign: signDcrDraft, gapReceive: 10, gapChange: 4, cacheMs: 3 * 60_000, coin: dcrCoinKind }, apis, agent, timeoutMs);
+    super({ symbol: 'DCR', dust: DUST, feePerByte: FEE_ATOMS_PER_BYTE, base: SIZE_BASE, input: SIZE_INPUT, output: SIZE_OUTPUT, sign: (d, m) => signDcrDraft(d, m, path), gapReceive: 10, gapChange: 4, cacheMs: 3 * 60_000, coin: dcrCoinKind }, apis, agent, timeoutMs);
     this.account = HDKey.fromExtendedKey(xpub);
   }
 
@@ -268,11 +270,11 @@ export function verifyDcrInput(tx: DcrTx, index: number, subScript: Uint8Array, 
 }
 
 /** A payment with change from this wallet's coins, every input and the change checked against its keys. */
-export function signDcrDraft(draft: InsightDraft, mnemonic: string): { hex: string; id: string } {
+export function signDcrDraft(draft: InsightDraft, mnemonic: string, path = DCR_PATH): { hex: string; id: string } {
   if (!isDcrAddress(draft.to)) throw new Error('The receiving address is not a Decred address.');
   const totalIn = draft.inputs.reduce((s, u) => s + u.value, 0n);
   if (totalIn - draft.amount - draft.change !== draft.fee || draft.fee < 0n) throw new Error('The amounts do not add up, so signing was stopped.');
-  const account = HDKey.fromMasterSeed(bip39Seed(mnemonic)).derive(DCR_PATH);
+  const account = HDKey.fromMasterSeed(bip39Seed(mnemonic)).derive(path);
   const keys: { priv: Uint8Array; pub: Uint8Array; script: Uint8Array }[] = [];
   const tagged = (script: string | undefined, address: string) => !!script && (script === `${OP_SSGEN.toString(16)}${Buffer.from(dcrScript(address)).toString('hex')}` || script === `${OP_SSRTX.toString(16)}${Buffer.from(dcrScript(address)).toString('hex')}`);
   const tx: DcrTx = { version: TX_VERSION, inputs: [], outputs: [], lockTime: 0, expiry: 0 };
@@ -288,7 +290,8 @@ export function signDcrDraft(draft: InsightDraft, mnemonic: string): { hex: stri
   }
   tx.outputs.push({ value: draft.amount, version: 0, script: dcrScript(draft.to) });
   if (draft.change > 0n) {
-    const change = account.deriveChild(1).deriveChild(draft.changeIndex);
+    const changeAccount = draft.changePath ? HDKey.fromMasterSeed(bip39Seed(mnemonic)).derive(draft.changePath) : account;
+    const change = changeAccount.deriveChild(1).deriveChild(draft.changeIndex);
     if (dcrAddressOf(change.publicKey) !== draft.changeAddress) throw new Error('The change address does not match this wallet\'s keys, so signing was stopped.');
     // At a random place, as dcrwallet puts it, so the change isn't always the last output.
     tx.outputs.splice(randomInt(2), 0, { value: draft.change, version: 0, script: dcrScript(draft.changeAddress) });

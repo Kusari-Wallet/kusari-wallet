@@ -173,7 +173,7 @@ export interface TicketPlan {
  * The split and the tickets, signed. `coins` are spent largest first; `addresses` are unused change addresses of
  * this wallet (2 per ticket and one for change); voting keys take indexes from `votingFirst`.
  */
-export function planTickets(o: { mnemonic: string; coins: InsightUtxo[]; price: bigint; count: number; expiry: number; feeFund: bigint; addresses: StakeAddress[]; votingFirst: number }): TicketPlan {
+export function planTickets(o: { mnemonic: string; coins: InsightUtxo[]; price: bigint; count: number; expiry: number; feeFund: bigint; addresses: StakeAddress[]; votingFirst: number; path?: string }): TicketPlan {
   const { count, price } = o;
   if (!Number.isInteger(count) || count < 1 || count > MAX_TICKETS) throw new Error(`Buy 1 to ${MAX_TICKETS} tickets at a time.`);
   if (o.addresses.length < 2 * count + 1) throw new Error('Not enough addresses for this purchase.');
@@ -192,7 +192,7 @@ export function planTickets(o: { mnemonic: string; coins: InsightUtxo[]; price: 
   }
   if (!enough) throw new Error('Not enough spendable DCR for these tickets and their fees.');
 
-  const account = HDKey.fromMasterSeed(bip39Seed(o.mnemonic)).derive(DCR_PATH);
+  const account = HDKey.fromMasterSeed(bip39Seed(o.mnemonic)).derive(o.path ?? DCR_PATH);
   const voting = HDKey.fromMasterSeed(bip39Seed(o.mnemonic)).derive(DCR_VOTING_PATH);
   const keyAt = (chain: number, index: number): Key => { const c = account.deriveChild(chain).deriveChild(index); return { priv: c.privateKey, pub: c.publicKey }; };
   const splitKeys: Key[] = [];
@@ -238,9 +238,9 @@ export function planTickets(o: { mnemonic: string; coins: InsightUtxo[]; price: 
  * The VSP's fee from a ticket's fund output: the fee to its fee address, and what's left back to this wallet
  * when it's worth an output (else it goes to the VSP with the fee, rather than to miners).
  */
-export function feeTx(o: { mnemonic: string; fund: { txid: string; vout: number; value: bigint } & StakeAddress; feeAddress: string; amount: bigint; change: StakeAddress }): { hex: string; id: string } {
+export function feeTx(o: { mnemonic: string; fund: { txid: string; vout: number; value: bigint } & StakeAddress; feeAddress: string; amount: bigint; change: StakeAddress; path?: string }): { hex: string; id: string } {
   if (!isDcrAddress(o.feeAddress)) throw new Error('The VSP gave a fee address that is not a Decred address.');
-  const account = HDKey.fromMasterSeed(bip39Seed(o.mnemonic)).derive(DCR_PATH);
+  const account = HDKey.fromMasterSeed(bip39Seed(o.mnemonic)).derive(o.path ?? DCR_PATH);
   const k = account.deriveChild(1).deriveChild(o.fund.index);
   if (dcrAddressOf(k.publicKey) !== o.fund.address) throw new Error('The fee coin does not match this wallet\'s keys, so signing was stopped.');
   const left = o.fund.value - o.amount - FEE_TX_FEE_CHANGE;
@@ -268,8 +268,8 @@ export function votingKey(mnemonic: string, index: number): { wif: string; addre
   return { wif: dcrWif(k.privateKey), address: dcrAddressOf(k.publicKey) };
 }
 
-export function commitmentKey(mnemonic: string, index: number): Uint8Array {
-  return HDKey.fromMasterSeed(bip39Seed(mnemonic)).derive(DCR_PATH).deriveChild(1).deriveChild(index).privateKey;
+export function commitmentKey(mnemonic: string, index: number, path = DCR_PATH): Uint8Array {
+  return HDKey.fromMasterSeed(bip39Seed(mnemonic)).derive(path).deriveChild(1).deriveChild(index).privateKey;
 }
 
 // ---- the VSP ----

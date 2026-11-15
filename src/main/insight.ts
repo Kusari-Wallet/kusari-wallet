@@ -14,7 +14,8 @@ const RETRY_AFTER_FAILURE_MS = 2 * 60_000;
 
 /** `tree` and `script` for coins whose spending depends on them (Decred's stake outputs). */
 export interface InsightUtxo { txid: string; vout: number; value: bigint; address: string; chain: number; index: number; tree?: number; script?: string }
-export interface InsightDraft { to: string; amount: bigint; fee: bigint; change: bigint; changeAddress: string; changeIndex: number; inputs: InsightUtxo[] }
+/** `changePath`: the change goes to another account of this wallet than the coins (Decred's mixed sends). */
+export interface InsightDraft { to: string; amount: bigint; fee: bigint; change: bigint; changeAddress: string; changeIndex: number; inputs: InsightUtxo[]; changePath?: string }
 export interface InsightHistoryItem<S extends string> { asset: S; hash: string; direction: 'in' | 'out' | 'self'; amount: string; counterparty: string; timestamp: number; status: 'confirmed' | 'pending'; dust: boolean }
 export interface InsightCoin<S extends string> {
   symbol: S; dust: bigint; feePerByte: bigint; base: bigint; input: bigint; output: bigint;
@@ -45,6 +46,8 @@ export abstract class InsightWallet<S extends string> {
   abstract addressAt(chain: number, index: number): string;
   private size(inputs: number, outputs: number): bigint { return this.cfg.base + this.cfg.input * BigInt(inputs) + this.cfg.output * BigInt(outputs); }
   get receiveAddress(): string { return this.addressAt(0, this.state?.nextReceive ?? 0); }
+  /** The first receive index not seen used, as of the last scan. */
+  get receiveIndex(): number { return this.state?.nextReceive ?? 0; }
 
   protected async get(path: string, agent: Agent | undefined = this.agent, route?: string): Promise<any> {
     let last: unknown;

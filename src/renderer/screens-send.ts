@@ -27,6 +27,8 @@ function renderSend(keep?: { to: string; amount: string }): void {
   const btcMixed = asset === 'BTC' && Number(overview?.btcMix?.mixedSpendable ?? 0) > 0;
   const fromMixedBtc = btcMixed ? h('input', { type: 'checkbox', id: 'btc-from-mixed' }) as HTMLInputElement : null;
   fromMixedBtc?.addEventListener('change', () => { if (coins) coins.el.hidden = fromMixedBtc.checked; });
+  const dcrMixed = asset === 'DCR' && Number(overview?.dcrMix?.mixedSpendable ?? 0) > 0;
+  const fromMixedDcr = dcrMixed ? h('input', { type: 'checkbox', id: 'dcr-from-mixed' }) as HTMLInputElement : null;
   const update = () => {
     next.disabled = !to.value.trim() || !amount.value.trim();
     const p = prices?.[asset]?.usd;
@@ -41,7 +43,7 @@ function renderSend(keep?: { to: string; amount: string }): void {
     busy(next, asset === 'XMR' ? 'Creating the transaction…' : 'Calculating the fee…', box, async () => {
       const preview = asset === 'DASH' && fromMixed?.checked
         ? await wallet.prepareDashPrivate(to.value, amount.value)
-        : await wallet.prepareSend(asset, to.value, amount.value, fromMixedBtc?.checked ? { fromMixed: true } : coins?.chosen.size ? { coins: [...coins.chosen] } : fromEth?.value ? { fromAddress: Number(fromEth.value) } : undefined);
+        : await wallet.prepareSend(asset, to.value, amount.value, fromMixedBtc?.checked || fromMixedDcr?.checked ? { fromMixed: true } : coins?.chosen.size ? { coins: [...coins.chosen] } : fromEth?.value ? { fromAddress: Number(fromEth.value) } : undefined);
       renderReview(preview, { to: to.value, amount: amount.value });
     });
   } },
@@ -60,6 +62,7 @@ function renderSend(keep?: { to: string; amount: string }): void {
   usd,
   fromEth && fromEthRow,
   fromMixedBtc && h('label', { class: 'check', id: 'btc-from-mixed-row' }, fromMixedBtc, h('span', {}, `Send from mixed coins (CoinJoin, ${shortAmount(overview.btcMix.mixedSpendable)} BTC)`)),
+  fromMixedDcr && h('label', { class: 'check', id: 'dcr-from-mixed-row' }, fromMixedDcr, h('span', {}, `Send from mixed coins (StakeShuffle, ${shortAmount(overview.dcrMix.mixedSpendable)} DCR)`)),
   coins?.el,
   fromMixed && h('label', { class: 'check', id: 'cj-from-mixed-row' }, fromMixed, h('span', {}, `Send from mixed coins (CoinJoin, ${shortAmount(overview.coinjoin.mixed)} DASH)`)),
   feeLine(asset, 'send-fee', (f) => `Estimated fee: ${feeText(f)}. It depends on the amount and address, and the next screen shows the exact value.`),

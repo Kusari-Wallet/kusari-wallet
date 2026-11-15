@@ -31,7 +31,9 @@ import { ZecClient, zecHeightForDate } from './zec';
 import { startZecEngine, zecEngineAvailable } from './zec-process';
 import { FiroClient, firoAccountXpub } from './firo';
 import { DogeClient, dogeAccountXpub } from './doge';
-import { DCR_API, DcrClient, dcrAccountXpub } from './dcr';
+import { DCR_API, DCR_MIXED_PATH, DCR_PATH, DcrClient, dcrAccountXpub, dcrNet } from './dcr';
+import { DcrMixer } from './dcr-mixer';
+import { tcpDial as dcrDial } from './dash-net';
 import { BchClient, bchAccountXpub } from './bch';
 import { SolClient, solAddress } from './sol';
 import { DashClient, dashAccountXpub } from './dash';
@@ -74,6 +76,13 @@ export class ServiceCore extends EventEmitter {
   protected firo: FiroClient | null = null;
   protected doge: DogeClient | null = null;
   protected dcr: DcrClient | null = null;
+  /** The mixed account (StakeShuffle), and its mixer. */
+  protected dcrMixed: DcrClient | null = null;
+  protected dcrMixedBalance: { total: bigint; spendable: bigint } | null = null;
+  protected dcrMixer: DcrMixer | null = null;
+  /** Address indexes handed out but maybe not on the chain yet: regular change, mixed receive (sealed dcr-addresses.json). */
+  protected dcrAddrs = { change: 0, mixed: 0, freeMixed: [] as number[] };
+  protected dcrMixHeld: string[] = [];
   protected bch: BchClient | null = null;
   protected sol: SolClient | null = null;
   protected zec: ZecClient | null = null;
@@ -402,6 +411,9 @@ export class ServiceCore extends EventEmitter {
     const dcrAgent = this.ownAgent('DCR', 'dcr');
     const dcrDirect = !!this.dev.dcrApi || isLocalServer(this.own('DCR'));
     this.dcr = new DcrClient(dcrAccountXpub(secrets.tronMnemonic), this.dev.dcrApi ? [this.dev.dcrApi] : this.ownList('DCR', [DCR_API]), dcrAgent, slow ? 60_000 : 20_000, () => this.isolated('dcr', dcrDirect ? undefined : dcrAgent, dcrDirect));
+    this.dcrMixed = new DcrClient(dcrAccountXpub(secrets.tronMnemonic, DCR_MIXED_PATH), this.dev.dcrApi ? [this.dev.dcrApi] : this.ownList('DCR', [DCR_API]), dcrAgent, slow ? 60_000 : 20_000, () => this.isolated('dcr-mixed', dcrDirect ? undefined : dcrAgent, dcrDirect), DCR_MIXED_PATH);
+    await this.dcrAddrsLoad().catch(() => undefined);
+    this.startDcrMixer();
     void this.dcrStakeLoad?.().catch(() => undefined);
     this.bch = new BchClient(bchAccountXpub(secrets.tronMnemonic), this.dev.bchApi ? [this.dev.bchApi] : this.ownList('BCH', BCH_APIS), this.ownAgent('BCH', 'bch'), slow ? 60_000 : 20_000);
     this.sol = new SolClient(solAddress(secrets.tronMnemonic), this.dev.solRpc ? [this.dev.solRpc] : this.ownList('SOL', SOL_RPCS), this.ownAgent('SOL', 'sol'), slow ? 60_000 : 20_000);
@@ -513,6 +525,70 @@ export class ServiceCore extends EventEmitter {
     const mixedAccount = HDKey.fromExtendedKey(mixedPrivate.publicExtendedKey);
     await this.btcMixer.start({ coinKeys, idKey: identificationKey(root.privateKey), mixedAccount, mixedPrivate: info.target > 1 ? mixedPrivate : undefined, target: info.target });
     return { ok: true };
+  }
+
+  // ---- Decred mixing (StakeShuffle) ----
+
+  protected get dcrAddrsPath(): string { return path.join(this.dir, 'dcr-addresses.json'); }
+  protected async dcrAddrsLoad(): Promise<void> {
+    const j = await this.records.read(this.dcrAddrsPath).catch(() => undefined);
+    this.dcrAddrs = { change: Number.isInteger(j?.change) ? j.change : 0, mixed: Number.isInteger(j?.mixed) ? j.mixed : 0, freeMixed: Array.isArray(j?.freeMixed) ? j.freeMixed.filter(Number.isInteger) : [] };
+    this.dcr?.setChangeFloor(this.dcrAddrs.change);
+  }
+  protected dcrAddrsSave(): void { void this.records.write(this.dcrAddrsPath, this.dcrAddrs).catch(() => undefined); }
+  /** Coins held back from sends: those being mixed, with any held for tickets (service-send adds those). */
+  protected dcrHoldAll(): void { this.dcr?.reserve([...this.dcrMixHeld, ...this.dcrStakeHeld()]); }
+  protected dcrStakeHeld(): string[] { return []; }
+
+  protected startDcrMixer(): void {
+    const regular = this.dcr!, mixed = this.dcrMixed!;
+    const devPeer = process.env.VAULT_DEV_DCR_PEER?.match(/^(.+):(\d+)$/);
+    this.dcrMixer = new DcrMixer({
+      regular, mixed,
+      changeIndex: () => Math.max(regular.changeTarget().index, this.dcrAddrs.change),
+      useChange: (i) => { this.dcrAddrs.change = Math.max(this.dcrAddrs.change, i + 1); regular.setChangeFloor(this.dcrAddrs.change); this.dcrAddrsSave(); },
+      mixedIndex: () => this.dcrAddrs.freeMixed.length ? Math.min(...this.dcrAddrs.freeMixed) : Math.max(mixed.receiveIndex, this.dcrAddrs.mixed),
+      useMixed: (i) => { this.dcrAddrs.freeMixed = this.dcrAddrs.freeMixed.filter((x) => x !== i); this.dcrAddrs.mixed = Math.max(this.dcrAddrs.mixed, i + 1); this.dcrAddrsSave(); },
+      unuseMixed: (list) => { this.dcrAddrs.freeMixed = [...new Set([...this.dcrAddrs.freeMixed, ...list])].sort((a, b) => a - b); this.dcrAddrsSave(); },
+      hold: (keys) => { this.dcrMixHeld = keys; this.dcrHoldAll(); },
+      net: {
+        net: dcrNet.name, dial: dcrDial(this.torProxy),
+        ...(this.dev.dcrApi && devPeer ? { nodes: [{ host: devPeer[1], port: Number(devPeer[2]) }] } : {}),
+        seedAgent: this.torRoute('dcr-seed'),
+        publishBackup: async (hex, id) => regular.broadcastSigned(hex, id),
+      },
+      // PRs expire within the hour (mixing.MaxExpiry): 12 blocks on mainnet, 3600 one-second blocks on simnet.
+      maxExpiryBlocks: dcrNet.name === 'simnet' ? 3600 : 12,
+      onMixed: () => { void regular.refresh(true).catch(() => undefined); void mixed.refresh(true).catch(() => undefined); this.emit('balance-changed'); },
+      onChange: () => this.emit('balance-changed'),
+    });
+  }
+
+  /** What "Mix DCR" would mix now: confirmed regular coins large enough to split. */
+  async dcrMixInfo() {
+    this.session();
+    if (!this.dcr || !this.dcrMixer) throw new Error('Decred is not available.');
+    const coins = await this.dcrMixer.eligible();
+    return { count: coins.length, amount: formatAmount(coins.reduce((s, u) => s + u.value, 0n), 8), tor: this.torActive || !!process.env.VAULT_DEV_DCR_PEER && !!this.dev.dcrApi };
+  }
+
+  /** Starts mixing. The password unlocks the regular account's key, held only while mixing runs. */
+  async dcrMixStart(password: string): Promise<{ ok: true }> {
+    this.session();
+    if (!this.dcrMixer) throw new Error('Decred is not available.');
+    const dev = !!this.dev.dcrApi && !!process.env.VAULT_DEV_DCR_PEER;
+    if (!this.torActive && !dev) throw new Error('Mixing needs Tor. Turn it on in Settings first.');
+    if (this.dcrMixer.status.running) throw new Error('Mixing is already running.');
+    const secrets = await this.vault.open(password);
+    const { HDKey } = require('@scure/bip32');
+    const account = HDKey.fromMasterSeed(bip39Seed(secrets.tronMnemonic)).derive(DCR_PATH);
+    await this.dcrMixer.start(account.privateExtendedKey);
+    return { ok: true };
+  }
+
+  async dcrMixStop(): Promise<void> {
+    this.session();
+    this.dcrMixer?.stop();
   }
 
   async btcMixStop(): Promise<void> {
@@ -756,6 +832,11 @@ export class ServiceCore extends EventEmitter {
     this.mixer = null;
     this.firo = null;
     this.doge = null;
+    this.dcrMixer?.stop();
+    this.dcrMixer = null;
+    this.dcrMixed = null;
+    this.dcrMixedBalance = null;
+    this.dcrMixHeld = [];
     this.dcr = null;
     this.bch = null;
     this.sol = null;
@@ -1145,7 +1226,12 @@ export class ServiceCore extends EventEmitter {
         return { ...view, total: formatAmount(units(view.total) + m.total, 8), spendable: formatAmount(units(view.spendable) + m.spendable, 8) };
       }),
       settle('DOGE', async () => { const b = await this.doge!.getBalance(); return [b.total, b.spendable]; }, 8),
-      settle('DCR', async () => { const b = await this.dcr!.getBalance(); return [b.total, b.spendable]; }, 8),
+      // DCR is the regular coins plus the mixed account's.
+      settle('DCR', async () => {
+        const [b, m] = await Promise.all([this.dcr!.getBalance(), this.dcrMixed ? this.dcrMixed.getBalance().catch(() => null) : null]);
+        this.dcrMixedBalance = m ?? this.dcrMixedBalance;
+        return [b.total + (this.dcrMixedBalance?.total ?? 0n), b.spendable + (this.dcrMixedBalance?.spendable ?? 0n)];
+      }, 8),
       settle('DASH', async () => {
         const b = await dash.getBalance();
         // CoinJoin coins count toward the balance; they're spent through a private send, not a regular one.
@@ -1168,6 +1254,7 @@ export class ServiceCore extends EventEmitter {
       balances: balances as Record<string, BalanceView>,
       sscrt: { needsKey: this.sscrtNeedsKey },
       coinjoin: this.mixer ? { ...this.mixer.status, rounds: MIX_ROUNDS } : null,
+      dcrMix: this.dcrMixer ? { ...this.dcrMixer.status, mixed: formatAmount(this.dcrMixedBalance?.total ?? 0n, 8), mixedSpendable: formatAmount(this.dcrMixedBalance?.spendable ?? 0n, 8) } : null,
       btcMix: this.btcMixer ? { ...this.btcMixer.status, mixed: formatAmount(this.btcMixedBalance?.total ?? 0n, 8), mixedSpendable: formatAmount(this.btcMixedBalance?.spendable ?? 0n, 8) } : null,
       spark: this.spark ? { ...this.spark.info(), balance: this.spark.balance() ? { total: formatAmount(this.spark.balance()!.total, 8), spendable: formatAmount(this.spark.balance()!.spendable, 8) } : null } : null,
       mweb: this.mweb ? { ...this.mweb.info(), balance: this.mweb.balance() ? { total: formatAmount(this.mweb.balance()!.total, 8), spendable: formatAmount(this.mweb.balance()!.spendable, 8) } : null } : null,

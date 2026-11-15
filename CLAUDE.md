@@ -107,6 +107,15 @@ Java WebView (`android/java`) running the same code as an esbuild bundle (`src/a
   ed25519 signature and echo the request. Records sealed in `dcr-tickets.json`; fee coins reserved until the fee
   transaction confirms; status from the chain only. `tests/dcr-simnet.js` runs a purchase, vote and reward spend
   against dcrd, dcrwallet and vspd on simnet (by hand, `DCR_SIM=<run dir>`).
+- Decred mixing (StakeShuffle): `dcr-mix.ts` (mixpool + mixclient ported from dcrd's mixing v0.7.5: pairing
+  version 3, 10-minute epochs, stages KE CT SR DC DCRS CM, blame from revealed secrets), `dcr-mix-crypto.ts`
+  (ChaCha20 PRNG, EC-Schnorr-DCRv0, key exchange, DC-nets, root solving), `sntrup.ts`, `dcr-wire.ts` (P2P framing
+  and the eight mix messages, pinned to Go vectors in `tests/fixtures/dcr-mix-vectors.json`), `dcr-mixnet.ts`
+  (nodes from Decred's HTTPS seeders, connected over Tor; version height 0 and an empty `headers` reply so dcrd
+  doesn't take it for a sync peer). `dcr-mixer.ts` mixes each confirmed regular coin into up to four outputs of
+  dcrwallet's denominations in the mixed account `m/44'/42'/1'` (`DCR_MIXED_PATH`), change back to the regular
+  account; Tor required. Mixed sends put their change in the regular account (`changePath`); tickets can be bought
+  from mixed coins. `tests/dcr-mix-simnet.js` mixes with dcrwallet (2.1.6+, mixing v0.7.x) on simnet by hand.
 - `src/main/tor-bridges.ts`: Snowflake/obfs4 via lyrebird (`scripts/fetch-lyrebird-android.sh` for Android).
 - `src/main/blockbook.ts`, `config.ts`: servers and their backups.
 - `src/main/zano.ts`, `zano-process.ts`: Zano, and Kusari (KSR) on the same client with its own engine (`ksr-bridge`:

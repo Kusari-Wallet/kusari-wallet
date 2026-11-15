@@ -114,6 +114,8 @@ export interface Preview {
   firo?: FiroDraft;
   doge?: DogeDraft;
   dcr?: DcrDraft;
+  /** A DCR send from the mixed account. */
+  dcrMixed?: DcrDraft;
   bch?: DogeDraft;
   sol?: SolDraft;
   solUsdt?: SolUsdtDraft;

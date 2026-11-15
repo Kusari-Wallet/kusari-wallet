@@ -319,6 +319,7 @@ async function renderAsset(): Promise<void> {
         overview.mweb.ready && h('button', { class: 'secondary', id: 'mweb-pegin', onclick: () => void ltcPrivateStep() }, 'Make public LTC private')),
       a === 'DASH' && overview?.coinjoin && coinjoinPanel(overview.coinjoin),
       a === 'BTC' && overview?.btcMix && btcMixPanel(overview.btcMix),
+      a === 'DCR' && overview?.dcrMix && dcrMixPanel(overview.dcrMix),
       a === 'DCR' && b?.ok && dcrStakePanel(),
       a === 'FIRO' && overview?.spark && h('div', { class: 'panel', id: 'spark-panel' },
         overview.spark.ready && overview.spark.balance

@@ -355,6 +355,56 @@ function picker(onPick: () => void): HTMLElement {
   return wrap;
 }
 
+// ---- Decred mixing (StakeShuffle) ----
+
+function dcrMixPanel(m: any): HTMLElement {
+  const mixed = Number(m.mixed) > 0;
+  const stop = async () => { try { await wallet.dcrMixStop(); await refresh(); void renderAsset(); } catch (e) { toast(errMsg(e)); } };
+  return h('div', { class: 'panel', id: 'dcr-mix-panel' },
+    mixed
+      ? h('p', { class: 'small', id: 'dcr-mix-balance' }, `Mixed (StakeShuffle): ${shortAmount(m.mixed)} DCR.`)
+      : h('p', { class: 'small', id: 'dcr-mix-intro' }, 'StakeShuffle mixes your DCR with other Decred users\' in one transaction, into coins of the same sizes, so which coins are yours can\'t be told apart on the chain. It runs over Tor while the wallet is open; a mix happens every 10 minutes when others are mixing too.'),
+    m.running && m.step && h('p', { class: 'small muted', id: 'dcr-mix-step' }, m.mixing ? `${m.step} (${m.mixing})` : m.step),
+    m.mixes > 0 && h('p', { class: 'small muted', id: 'dcr-mix-count' }, m.mixes === 1 ? 'One mix done since starting.' : `${m.mixes} mixes done since starting.`),
+    m.error && h('p', { class: 'small warn', id: 'dcr-mix-error' }, m.error),
+    h('br'),
+    m.running
+      ? h('button', { class: 'ghost', id: 'dcr-mix-stop', onclick: () => void stop() }, 'Stop mixing')
+      : h('button', { class: 'secondary', id: 'dcr-mix-open', onclick: () => void renderDcrMix() }, 'Mix DCR'));
+}
+
+async function renderDcrMix(): Promise<void> {
+  const pw = h('input', { type: 'password', id: 'confirm-pw', autocomplete: 'current-password' }) as HTMLInputElement;
+  const box = errorBox();
+  const summary = h('div', { class: 'panel', id: 'dcr-mix-summary' }, h('div', { class: 'small muted' }, 'Loading…'));
+  const go = h('button', { class: 'primary', id: 'dcr-mix-start', type: 'submit' }, 'Start mixing') as HTMLButtonElement;
+  const form = h('form', { onsubmit: (e: Event) => {
+    e.preventDefault();
+    busy(go, 'Starting…', box, async () => {
+      await wallet.dcrMixStart(pw.value);
+      pw.value = '';
+      toast('Mixing started. Keep the wallet open; it goes on until every coin is mixed.');
+      await refresh();
+      void renderAsset();
+    });
+  } },
+  box.el,
+  h('p', { class: 'small muted' }, 'Each coin is split into up to four coins of one standard size (the sizes Decred\'s own wallet uses), mixed with other people\'s coins of that size, and comes back in your mixed balance. Change returns to your regular balance and is mixed again later. Nobody, other mixers included, learns which new coins are yours. The only cost is a small network fee.'),
+  summary,
+  h('label', { class: 'field' }, h('span', {}, 'Password'), pw),
+  go);
+  show('send', subBar('Mix DCR', () => void renderAsset()), h('div', { class: 'scroll' }, form));
+  try {
+    const info = await wallet.dcrMixInfo();
+    setKids(summary, h('table', { class: 'review-table' }, h('tbody', {},
+      h('tr', {}, h('th', {}, 'To mix'), h('td', { id: 'dcr-mix-amount' }, `${info.amount} DCR`)),
+      h('tr', {}, h('th', {}, 'Coins'), h('td', { id: 'dcr-mix-coins' }, String(info.count))))),
+      !info.tor && h('div', { class: 'warn', id: 'dcr-mix-no-tor' }, 'Mixing needs Tor. Turn it on in Settings first.'),
+      !info.count && h('p', { class: 'small muted', id: 'dcr-mix-none' }, 'No coins to mix yet: they need a confirmation and at least 0.003 DCR.'));
+    go.disabled = !info.tor || !info.count;
+  } catch (e) { box.show(e); }
+}
+
 // ---- Decred tickets (staking through a VSP) ----
 
 function dcrStakePanel(): HTMLElement {
@@ -425,13 +475,14 @@ async function renderDcrBuy(info: any): Promise<void> {
   const custom = h('input', { id: 'dcr-vsp-url', autocomplete: 'off', placeholder: 'https://', value: info.vsp ?? '' }) as HTMLInputElement;
   const count = numbersOnly(h('input', { id: 'dcr-count-input', class: 'amount-input', inputmode: 'numeric', autocomplete: 'off', value: '1' }) as HTMLInputElement);
   const next = h('button', { class: 'primary', id: 'dcr-quote', type: 'submit' }, 'Review') as HTMLButtonElement;
+  const useMixed = Number(overview?.dcrMix?.mixedSpendable ?? 0) > 0 ? h('input', { type: 'checkbox', id: 'dcr-buy-mixed', checked: true }) as HTMLInputElement : null;
   const chosen = () => (vsp.value === 'custom' || !vsp.value ? custom.value.trim() : vsp.value);
   const customRow = h('label', { class: 'field', id: 'dcr-vsp-custom' }, h('span', {}, 'VSP address'), custom);
   const syncCustom = () => { customRow.style.display = vsp.value === 'custom' ? '' : 'none'; };
   vsp.onchange = syncCustom;
   const form = h('form', { onsubmit: (e: Event) => {
     e.preventDefault();
-    busy(next, 'Asking the VSP…', box, async () => renderDcrReview(await wallet.dcrStakeQuote(Number(count.value), chosen()), info));
+    busy(next, 'Asking the VSP…', box, async () => renderDcrReview(await wallet.dcrStakeQuote(Number(count.value), chosen(), !!useMixed?.checked), info));
   } },
   box.el,
   h('p', { class: 'small muted' }, 'The VSP gets a key that can only vote with these tickets; it can\'t move any DCR. It learns which tickets are yours, so a VSP you trust (or one on your own server) is best. Every request to it goes over its own Tor route.'),
@@ -439,6 +490,7 @@ async function renderDcrBuy(info: any): Promise<void> {
   customRow,
   h('div', { class: 'panel' }, h('label', { class: 'label', for: 'dcr-count-input' }, `Tickets (1 to ${info.max})`),
     h('div', { class: 'input-wrap' }, count, h('span', { class: 'unit' }, `× ${info.price} DCR`))),
+  useMixed && h('label', { class: 'check', id: 'dcr-buy-mixed-row' }, useMixed, h('span', {}, `Buy with mixed DCR (${shortAmount(overview.dcrMix.mixedSpendable)} DCR): the tickets aren't linked to your other coins, and their DCR comes back to the mixed balance.`)),
   h('br'),
   next);
   show('send', subBar('Buy tickets', () => void renderDcrStake()), h('div', { class: 'scroll' }, form));
@@ -461,7 +513,7 @@ function renderDcrReview(q: any, info: any): void {
   const form = h('form', { onsubmit: (e: Event) => {
     e.preventDefault();
     busy(go, 'Buying…', box, async () => {
-      const r = await wallet.dcrStakeBuy(q.count, q.vsp, pw.value);
+      const r = await wallet.dcrStakeBuy(q.count, q.vsp, pw.value, !!q.fromMixed);
       pw.value = '';
       await refresh();
       if (r.problem) toast(`Bought, but a VSP fee didn't go through: ${r.problem}`);

@@ -22,7 +22,7 @@ import { isZecAddress, zecHeightForDate } from './zec';
 import { zecEngineInfo } from './zec-process';
 import { isFiroAddress, typicalFiroFee } from './firo';
 import { isDogeAddress, typicalDogeFee } from './doge';
-import { DCR_EXPLORER_TX, isDcrAddress, typicalDcrFee, dcrNet } from './dcr';
+import { DCR_EXPLORER_TX, DCR_MIXED_PATH, DCR_PATH, DcrClient, isDcrAddress, typicalDcrFee, dcrNet } from './dcr';
 import { MAX_TICKETS, TICKET_FEE, VSP_LIST_URL, VspClient, commitmentKey, feeFundFor, feeTx, parseVspList, planTickets, ticketExpiry, vspFee, vspOrigin, votingKey } from './dcr-stake';
 import { isBchAddress, normalBchAddress, typicalBchFee } from './bch';
 import { SOL_FEE, SPL_TOKENS, isSolAddress } from './sol';
@@ -542,9 +542,18 @@ export class SendService extends ServiceCore {
       preview = this.storePreview({ asset, to, amount: draft.amount, fee: draft.fee, bch: draft });
     } else if (asset === 'DCR') {
       if (!isDcrAddress(address)) throw new Error('Not a Decred address. Use a mainnet address starting with Ds.');
-      if (address === this.dcr!.receiveAddress) throw new Error('You cannot send to your own address.');
-      const draft = await this.dcr!.draft(address, isMax ? 'max' : parseAmount(amountInput, decimals));
-      preview = this.storePreview({ asset, to: address, amount: draft.amount, fee: draft.fee, dcr: draft });
+      if (address === this.dcr!.receiveAddress || address === this.dcrMixed?.receiveAddress) throw new Error('You cannot send to your own address.');
+      // From the mixed account alone, never together with unmixed coins.
+      const client = opts.fromMixed === true ? this.dcrMixed : this.dcr;
+      if (!client) throw new Error('Mixed DCR is not available.');
+      const draft = await client.draft(address, isMax ? 'max' : parseAmount(amountInput, decimals));
+      // Change from mixed coins goes back to the regular account, to be mixed again (as dcrwallet's --changeaccount
+      // does), so it never ties this payment to the next mixed one.
+      if (opts.fromMixed === true && draft.change > 0n) {
+        const i = Math.max(this.dcr!.changeTarget().index, this.dcrAddrs.change);
+        Object.assign(draft, { changeAddress: this.dcr!.addressAt(1, i), changeIndex: i, changePath: DCR_PATH });
+      }
+      preview = this.storePreview({ asset, to: address, amount: draft.amount, fee: draft.fee, ...(opts.fromMixed === true ? { dcrMixed: draft } : { dcr: draft }) });
     } else if (asset === 'DOGE') {
       if (!isDogeAddress(address)) throw new Error('Not a Dogecoin address.');
       if (address === this.doge!.receiveAddress) throw new Error('You cannot send to your own address.');
@@ -671,7 +680,7 @@ export class SendService extends ServiceCore {
       }
     }
     // Coins spent together are tied together on the chain; say so, unless the person picked the coins themselves.
-    const utxoDraft: { inputs?: unknown[] } | undefined = preview.btc ?? preview.ltc ?? preview.doge ?? preview.dcr ?? preview.bch ?? preview.dash ?? preview.firo;
+    const utxoDraft: { inputs?: unknown[] } | undefined = preview.btc ?? preview.ltc ?? preview.doge ?? preview.dcr ?? preview.dcrMixed ?? preview.bch ?? preview.dash ?? preview.firo;
     const picked = Array.isArray(opts.coins) && opts.coins.length > 0;
     if (!picked && (utxoDraft?.inputs?.length ?? 0) > 1) warnings.push(`This spends ${utxoDraft!.inputs!.length} of your coins together, which shows on the chain that they belong to one person. Sending a smaller amount that one coin covers, or choosing coins yourself, keeps them apart.`);
     // A look-alike of an address used before is the mark of address poisoning.
@@ -755,23 +764,39 @@ export class SendService extends ServiceCore {
   protected get dcrTicketsPath(): string { return path.join(this.dir, 'dcr-tickets.json'); }
   protected dcrCheckedAt = 0;
 
-  protected async dcrStakeRead(): Promise<{ tickets: any[]; nextChange: number; nextVoting: number; vsp: string }> {
+  protected async dcrStakeRead(): Promise<{ tickets: any[]; nextChange: number; nextMixedChange: number; nextVoting: number; vsp: string }> {
     const j = await this.records.read(this.dcrTicketsPath).catch(() => undefined);
     const tickets = Array.isArray(j?.tickets) ? j.tickets.filter((t: any) => /^[0-9a-f]{64}$/.test(t?.hash ?? '')) : [];
-    return { tickets, nextChange: Number.isInteger(j?.nextChange) ? j.nextChange : 0, nextVoting: Number.isInteger(j?.nextVoting) ? j.nextVoting : 0, vsp: typeof j?.vsp === 'string' ? j.vsp : '' };
+    const int = (v: unknown) => (Number.isInteger(v) ? v as number : 0);
+    return { tickets, nextChange: int(j?.nextChange), nextMixedChange: int(j?.nextMixedChange), nextVoting: int(j?.nextVoting), vsp: typeof j?.vsp === 'string' ? j.vsp : '' };
   }
 
-  protected async dcrStakeWrite(f: { tickets: any[]; nextChange: number; nextVoting: number; vsp: string }): Promise<void> {
+  /** The account a purchase is paid from: the regular one, or the mixed one (its stake and reward return there). */
+  private dcrAccount(mixed: boolean): { client: DcrClient; path: string; next: 'nextChange' | 'nextMixedChange' } {
+    if (mixed) { if (!this.dcrMixed) throw new Error('Mixed DCR is not available.'); return { client: this.dcrMixed, path: DCR_MIXED_PATH, next: 'nextMixedChange' }; }
+    return { client: this.dcr!, path: DCR_PATH, next: 'nextChange' };
+  }
+
+  protected async dcrStakeWrite(f: { tickets: any[]; nextChange: number; nextMixedChange: number; nextVoting: number; vsp: string }): Promise<void> {
     await this.records.write(this.dcrTicketsPath, f);
     this.dcrHold(f);
   }
 
   /** The fee coins of tickets whose fee isn't settled stay out of sends; the addresses used stay out of change. */
-  protected dcrHold(f: { tickets: any[]; nextChange: number }): void {
+  private dcrStakeHolding: { regular: string[]; mixed: string[] } = { regular: [], mixed: [] };
+  protected dcrHold(f: { tickets: any[]; nextChange: number; nextMixedChange?: number }): void {
     if (!this.dcr) return;
     this.dcr.setChangeFloor(f.nextChange);
-    this.dcr.reserve(f.tickets.filter((t) => t.state === 'new' || (t.state === 'paid' && !t.feeConfirmed)).map((t) => `${t.fund.txid}:${t.fund.vout}`));
+    this.dcrMixed?.setChangeFloor(f.nextMixedChange ?? 0);
+    const open = f.tickets.filter((t) => t.state === 'new' || (t.state === 'paid' && !t.feeConfirmed));
+    this.dcrStakeHolding = {
+      regular: open.filter((t) => !t.mixed).map((t) => `${t.fund.txid}:${t.fund.vout}`),
+      mixed: open.filter((t) => t.mixed).map((t) => `${t.fund.txid}:${t.fund.vout}`),
+    };
+    this.dcrMixed?.reserve(this.dcrStakeHolding.mixed);
+    this.dcrHoldAll();
   }
+  protected override dcrStakeHeld(): string[] { return this.dcrStakeHolding.regular; }
 
   protected override dcrStakeLoad = async (): Promise<void> => { this.dcrHold(await this.dcrStakeRead()); };
 
@@ -814,10 +839,10 @@ export class SendService extends ServiceCore {
   }
 
   /** What buying `count` tickets through this VSP costs, before the password. */
-  async dcrStakeQuote(count: number, vspUrl: string) {
+  async dcrStakeQuote(count: number, vspUrl: string, fromMixed = false) {
     this.session();
     const q = await this.dcrQuoteRaw(count, vspUrl);
-    const coins = await this.dcr!.confirmedUtxos();
+    const coins = await this.dcrAccount(fromMixed).client.confirmedUtxos();
     const have = coins.filter((u) => u.tree !== 1).reduce((s, u) => s + u.value, 0n);
     const n = BigInt(count);
     const locked = n * q.price;
@@ -826,30 +851,31 @@ export class SendService extends ServiceCore {
       vsp: q.url, vspFeePercent: q.info.feePercentage, price: formatAmount(q.price, 8), count,
       locked: formatAmount(locked, 8), vspFee: formatAmount(n * q.fee, 8), ticketFees: formatAmount(n * TICKET_FEE, 8),
       total: formatAmount(locked + fees, 8), held: formatAmount(n * (q.price + TICKET_FEE + q.fund), 8),
-      enough: have >= n * (q.price + TICKET_FEE + q.fund) + 10_000n,
+      enough: have >= n * (q.price + TICKET_FEE + q.fund) + 10_000n, fromMixed,
     };
   }
 
   /** Signs the split and tickets, hands each ticket to the VSP (which broadcasts it) and pays its fee. */
-  async dcrStakeBuy(count: number, vspUrl: string, password: string) {
+  async dcrStakeBuy(count: number, vspUrl: string, password: string, fromMixed = false) {
     this.session();
     const secrets = await this.vault.open(password);
     const q = await this.dcrQuoteRaw(count, vspUrl);
-    const dcr = this.dcr!;
+    const acct = this.dcrAccount(fromMixed);
+    const dcr = acct.client;
     const coins = (await dcr.confirmedUtxos()).filter((u) => u.tree !== 1);
     const f = await this.dcrStakeRead();
-    const first = Math.max(dcr.changeTarget().index, f.nextChange);
+    const first = Math.max(dcr.changeTarget().index, f[acct.next]);
     const addresses = Array.from({ length: 2 * count + 1 }, (_, i) => ({ address: dcr.addressAt(1, first + i), index: first + i }));
-    const plan = planTickets({ mnemonic: secrets.tronMnemonic, coins, price: q.price, count, expiry: q.expiry, feeFund: q.fund, addresses, votingFirst: f.nextVoting });
+    const plan = planTickets({ mnemonic: secrets.tronMnemonic, coins, price: q.price, count, expiry: q.expiry, feeFund: q.fund, addresses, votingFirst: f.nextVoting, path: acct.path });
     const now = Date.now();
     const records = plan.tickets.map((t) => ({
       hash: t.hash, hex: t.hex, parentHex: plan.split.hex, splitId: plan.split.id, price: q.price.toString(), expiry: q.expiry, boughtAt: now,
       vsp: { url: q.url, pubkey: q.info.pubkey, feePercentage: q.info.feePercentage },
       voting: t.voting, commitment: t.commitment, fund: { ...t.fund, value: t.fund.value.toString() },
-      state: 'new', status: 'unmined',
+      state: 'new', status: 'unmined', ...(fromMixed ? { mixed: true } : {}),
     }));
     f.tickets.push(...records);
-    f.nextChange = first + 2 * count + 1;
+    f[acct.next] = first + 2 * count + 1;
     f.nextVoting += count;
     f.vsp = q.url;
     await this.dcrStakeWrite(f);
@@ -882,14 +908,15 @@ export class SendService extends ServiceCore {
     if (!t || t.state !== 'new') return '';
     try {
       const vsp = this.vspClient(t.vsp.url, t.vsp.pubkey);
-      const key = commitmentKey(mnemonic, t.commitment.index);
+      const acct = this.dcrAccount(!!t.mixed);
+      const key = commitmentKey(mnemonic, t.commitment.index, acct.path);
       const fa = await vsp.feeAddress({ hash: t.hash, hex: t.hex, parentHex: t.parentHex }, key);
       // The fee is a share of a vote's reward, which is less than the ticket's price: anything near the price is wrong.
       const cap = ((BigInt(t.price) + 10_000n) * BigInt(Math.ceil(t.vsp.feePercentage * 100))) / 10_000n + 1n;
       if (fa.amount > cap) throw new Error('The VSP asked for more than its stated fee, so it wasn\'t paid.');
-      const change = Math.max(f.nextChange, this.dcr!.changeTarget().index);
-      const tx = feeTx({ mnemonic, fund: { ...t.fund, value: BigInt(t.fund.value) }, feeAddress: fa.address, amount: fa.amount, change: { address: this.dcr!.addressAt(1, change), index: change } });
-      f.nextChange = change + 1;
+      const change = Math.max(f[acct.next], acct.client.changeTarget().index);
+      const tx = feeTx({ mnemonic, fund: { ...t.fund, value: BigInt(t.fund.value) }, feeAddress: fa.address, amount: fa.amount, change: { address: acct.client.addressAt(1, change), index: change }, path: acct.path });
+      f[acct.next] = change + 1;
       await vsp.payFee({ hash: t.hash, feeHex: tx.hex, votingWif: votingKey(mnemonic, t.voting).wif }, key);
       Object.assign(t, { state: 'paid', fee: { address: fa.address, amount: fa.amount.toString(), id: tx.id, hex: tx.hex }, error: undefined });
       await this.dcrStakeWrite(f);
@@ -1030,6 +1057,14 @@ export class SendService extends ServiceCore {
     if (preview.solUsdt) return { hashes: [await this.sol!.sendUsdt(preview.solUsdt, secrets.tronMnemonic)] };
     if (preview.doge) return { hashes: [await this.doge!.send(preview.doge, secrets.tronMnemonic)] };
     if (preview.dcr) return { hashes: [await this.dcr!.send(preview.dcr, secrets.tronMnemonic)] };
+    if (preview.dcrMixed) {
+      const d = preview.dcrMixed;
+      if (d.changePath) { this.dcrAddrs.change = Math.max(this.dcrAddrs.change, d.changeIndex + 1); this.dcr!.setChangeFloor(this.dcrAddrs.change); this.dcrAddrsSave(); }
+      const h = await this.dcrMixed!.send(d, secrets.tronMnemonic);
+      this.dcrMixedBalance = null;
+      void this.dcr!.refresh(true).catch(() => undefined);
+      return { hashes: [h] };
+    }
     if (preview.bch) return { hashes: [await this.bch!.send(preview.bch, secrets.tronMnemonic)] };
     if (preview.firo) return { hashes: [await this.firo!.send(preview.firo, secrets.tronMnemonic)] };
     if (preview.dash) return { hashes: [await dash.send(preview.dash, secrets.tronMnemonic)] };

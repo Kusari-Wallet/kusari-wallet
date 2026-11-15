@@ -311,3 +311,16 @@ test('the VSP\'s answers must be signed with its key and echo the request', asyn
   const list = stake.parseVspList({ 'a.example': { network: 'mainnet', apiversions: [3], feepercentage: 1 }, 'b.example': { network: 'testnet', apiversions: [3] }, 'c.example': { network: 'mainnet', closed: true } });
   assert.deepEqual(list.map((x) => x.url), ['https://a.example']);
 });
+
+test('a send from the mixed account puts its change in the regular account, checked against that account\'s keys', () => {
+  const mixedXpub = dcr.dcrAccountXpub(PHRASE, dcr.DCR_MIXED_PATH);
+  const mixed = new DcrClient(mixedXpub, [], undefined, 30_000, undefined, dcr.DCR_MIXED_PATH);
+  const regular = new DcrClient(xpub, []);
+  const from = mixed.addressAt(0, 2);
+  assert.notEqual(from, regular.addressAt(0, 2), 'its own account');
+  const draft = { to: DCRD_PKH[0], amount: 100_000n, fee: 2_520n, change: 397_480n, changeAddress: regular.addressAt(1, 7), changeIndex: 7, changePath: dcr.DCR_PATH, inputs: [{ txid: 'cd'.repeat(32), vout: 0, value: 500_000n, address: from, chain: 0, index: 2 }] };
+  const { hex } = signDcrDraft(draft, PHRASE, dcr.DCR_MIXED_PATH);
+  assert.ok(Buffer.from(hex, 'hex').includes(Buffer.from(dcrScript(regular.addressAt(1, 7)))), 'change to the regular account');
+  assert.throws(() => signDcrDraft({ ...draft, changePath: undefined }, PHRASE, dcr.DCR_MIXED_PATH), /change address does not match/);
+  assert.throws(() => signDcrDraft({ ...draft, changeAddress: mixed.addressAt(1, 7) }, PHRASE, dcr.DCR_MIXED_PATH), /change address does not match/);
+});
