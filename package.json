@@ -1,6 +1,6 @@
 {
   "name": "kusari-wallet",
-  "version": "0.65.0",
+  "version": "0.66.0",
   "description": "XMR, BTC, ETH, TRX, USDT wallet",
   "main": "dist/main/app.js",
   "scripts": {
