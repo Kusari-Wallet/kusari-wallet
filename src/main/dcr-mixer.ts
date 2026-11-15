@@ -144,8 +144,9 @@ export class DcrMixer {
       this.status.mixes++;
       this.d.onMixed();
     }, (e) => {
-      // Addresses never seen by anyone can be handed out again, so failed tries don't widen the address gap.
-      if (!cj.revealed) this.d.unuseMixed(issued);
+      // Addresses no peer could have listed (no DC-net or secrets sent with them) can be handed out again, so failed
+      // tries don't widen the address gap; once listed they never are, or a later mix could be matched with this one.
+      if (!cj.revealed && !cj.exposed) this.d.unuseMixed(issued);
       if (!this.stopping && !/expired|cancelled/.test((e as Error).message)) this.set({ error: (e as Error).message });
     }).finally(() => {
       this.active.delete(key);

@@ -335,7 +335,13 @@ export function parseVspList(j: any, network = 'mainnet'): { url: string; feePer
   const out: { url: string; feePercentage: number; voting: number }[] = [];
   for (const [host, v] of Object.entries<any>(j)) {
     if (!v || v.network !== network || v.closed || v.vspclosed || (Array.isArray(v.apiversions) && !v.apiversions.includes(3))) continue;
-    try { out.push({ url: vspOrigin(typeof v.url === 'string' ? v.url : host), feePercentage: Number(v.feepercentage ?? 0), voting: Number(v.voting ?? 0) }); } catch { /* not https */ }
+    // From a list: https to a public name only. Plain http (an onion, this machine) is for an address typed by hand,
+    // else a doctored list could point the wallet at services on this machine, outside Tor.
+    let url: string;
+    try { url = vspOrigin(typeof v.url === 'string' ? v.url : host); } catch { continue; }
+    const name = new URL(url).hostname;
+    if (!url.startsWith('https://') || /^(localhost|\[.*\]|[0-9.]+)$/.test(name) || !name.includes('.')) continue;
+    out.push({ url, feePercentage: Number(v.feepercentage ?? 0), voting: Number(v.voting ?? 0) });
   }
   return out;
 }

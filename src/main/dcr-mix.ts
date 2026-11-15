@@ -32,6 +32,12 @@ const MAX_RELAY_FEE_MULTIPLIER = 10_000;
 const EARLY_KE_MS = 5_000;
 const LATE_KE_MS = 20 * 60_000;
 const MAX_MESSAGES_PER_IDENTITY = 1_000;
+/**
+ * dcrd keeps a pool honest by checking each PR's coins against its UTXO set; this client has no chain, so a node
+ * could mint PRs (identities and UTXO proofs cost nothing) to fill memory. The pool stops taking others' beyond these.
+ */
+export const MAX_POOL_PRS = 4_096;
+export const MAX_POOL_MESSAGES = 50_000;
 const MSG_JITTER_MS = 300;
 const OP_SSGEN = 0xbb; const OP_SSRTX = 0xbc; const OP_TGEN = 0xc3;
 
@@ -100,7 +106,8 @@ export class MixPool {
   private readonly byIdentity = new Map<string, string[]>();
   private readonly latestKE = new Map<string, KE>();
   private orphans = new Map<string, MixMsg>();
-  readonly hashes = new Map<MixMsg, string>();
+  // Weak: a message (refused ones too) leaves no entry behind once nothing else holds it.
+  readonly hashes = new WeakMap<MixMsg, string>();
 
   constructor(readonly epochMs: number, private readonly height: () => number, private readonly maxExpiryBlocks: number) {}
 
@@ -109,10 +116,11 @@ export class MixPool {
   message(hash: string): MixMsg | undefined { return this.prs.get(hash) ?? this.pool.get(hash)?.msg; }
 
   /** Accepts a message; returns what was accepted (orphans it freed included). Throws on a bad message. */
-  accept(m: MixMsg): MixMsg[] {
+  accept(m: MixMsg, local = false): MixMsg[] {
     if (mixRun(m) !== 0) throw new MixError('nonzero reruns are unsupported');
     const hash = this.hashOf(m);
     if (this.has(hash)) return [];
+    if (!local && (m.cmd === 'mixpairreq' ? this.prs.size >= MAX_POOL_PRS : this.pool.size >= MAX_POOL_MESSAGES)) throw new MixError('mixing pool full');
     if (!verifyMix(m)) throw new MixError('invalid signature');
     const id = hx(m.identity);
     if (m.cmd === 'mixpairreq') {
@@ -333,6 +341,8 @@ export class CoinJoin {
   mixedIndices: number[] = [];
   /** Set once this peer's secrets (its output hashes among them) were published for blame. */
   revealed = false;
+  /** Set once a DC-net carrying its outputs went out: every peer of that run can then list them. */
+  exposed = false;
 
   constructor(readonly inputs: MixInput[], readonly change: TxOutW | null, readonly mixValue: bigint, readonly prExpiry: number, readonly mcount: number, private readonly genFn: (n: number) => Uint8Array[]) {
     this.inputValue = inputs.reduce((s, i) => s + i.value, 0n);
@@ -556,7 +566,7 @@ export class MixClient {
   }
 
   private submit(m: MixMsg): void {
-    try { this.pool.accept(m); } catch (e) { if (!(e instanceof MissingPRError)) throw e; }
+    try { this.pool.accept(m, true); } catch (e) { if (!(e instanceof MissingPRError)) throw e; }
     this.net.broadcast(m);
   }
 
@@ -858,6 +868,7 @@ export class MixClient {
       if (slots.some((s) => s < 0)) { p.triggeredBlame = true; throw fail(new MixError(TRIGGERED_BLAME)); }
       const dcnet = slots.map((slot, i) => dcMix(dcMixPads(p.dcKP![i], p.myStart + i), p.dcMsg![i], slot));
       p.dc = { cmd: 'mixdcnet', sig: new Uint8Array(64), identity: p.id, sid: ses.sid, run: 0, dcnet, seenSRs };
+      p.coinjoin!.exposed = true;
     }
     await this.sendLocal(ses, new Set(['FP', 'DC'])).catch((e) => this.log(`DC: ${e.message}`));
 

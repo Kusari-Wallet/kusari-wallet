@@ -310,6 +310,8 @@ test('the VSP\'s answers must be signed with its key and echo the request', asyn
   assert.equal(stake.vspOrigin('stakey.net'), 'https://stakey.net');
   const list = stake.parseVspList({ 'a.example': { network: 'mainnet', apiversions: [3], feepercentage: 1 }, 'b.example': { network: 'testnet', apiversions: [3] }, 'c.example': { network: 'mainnet', closed: true } });
   assert.deepEqual(list.map((x) => x.url), ['https://a.example']);
+  const doctored = stake.parseVspList({ 'x.example': { network: 'mainnet', apiversions: [3], url: 'http://127.0.0.1:9050' }, 'y.example': { network: 'mainnet', apiversions: [3], url: 'https://10.0.0.1' }, 'z.example': { network: 'mainnet', apiversions: [3], url: 'http://abcdefghijklmnop.onion' }, 'w.example': { network: 'mainnet', apiversions: [3], url: 'https://localhost:8800' } });
+  assert.deepEqual(doctored, [], 'no list entry reaches this machine, a bare IP or plain http');
 });
 
 test('a send from the mixed account puts its change in the regular account, checked against that account\'s keys', () => {

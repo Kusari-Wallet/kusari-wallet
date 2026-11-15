@@ -114,7 +114,7 @@ test('coins split as dcrwallet splits them: powers of two below the ticket price
 // ---- whole sessions in memory ----
 
 function harness(n, solvers, tamper) {
-  const pools = []; const published = [];
+  const pools = []; const published = []; const cjs = [];
   const net = (me) => ({
     broadcast: (m) => { const out = tamper ? tamper(m) : m; for (const p of pools) if (p !== me) { try { p.accept(out); } catch { /* refused */ } } },
     publish: async (tx) => { published.push(tx); },
@@ -127,9 +127,10 @@ function harness(n, solvers, tamper) {
     const value = 2n * (1n << 20n) + 500_000n + mix.feeForSize(mix.estimateSize(1, 2, true));
     const change = { value: 500_000n, version: 0, script: Uint8Array.from([0x76, 0xa9, 0x14, ...crypto.randomBytes(20), 0x88, 0xac]) };
     const cj = new mix.CoinJoin([{ txid: crypto.randomBytes(32).toString('hex'), vout: i, tree: 0, value, script, priv }], change, 1n << 20n, 110, 2, (k) => Array.from({ length: k }, () => crypto.randomBytes(20)));
+    cjs.push(cj);
     return cl.dicemix(cj).then((txid) => ({ txid }), (e) => ({ err: e.message }));
   });
-  return { clients, published, jobs };
+  return { clients, published, jobs, cjs };
 }
 
 test('four wallets mix in one session: every input signed, every output in, only one solver needed', { timeout: 240_000 }, async () => {
@@ -155,7 +156,7 @@ test('a peer that sends a wrong DC-net is found from the revealed secrets, and t
     return bad;
   };
   // The tampered message carries a broken signature, so others refuse it and the cheater times out at DC.
-  const { clients, published, jobs } = harness(5, [0, 1, 2, 3, 4], tamper);
+  const { clients, published, jobs, cjs } = harness(5, [0, 1, 2, 3, 4], tamper);
   // The honest four finish; the cheater is left alone (too few peers) until its pair request expires.
   const ok = await new Promise((resolve) => {
     const done = [];
@@ -165,6 +166,9 @@ test('a peer that sends a wrong DC-net is found from the revealed secrets, and t
   clients.forEach((cl) => cl.stop());
   assert.equal(ok.length, 4, JSON.stringify(ok));
   assert.ok(ok.every((r) => r.txid === ok[0].txid));
+  // Everyone sent a DC-net in the first run, so every coinjoin's outputs count as seen: the cheater's (whose mix
+  // never finished) included. The mixer never hands those addresses out again.
+  assert.ok(cjs.every((cj) => cj.exposed));
   assert.equal(published[0].inputs.length, 4, 'mixed without the cheater');
 });
 
@@ -175,4 +179,17 @@ test('the version message asks nodes to relay and claims no blocks (else dcrd se
   assert.equal(v.services, 0n);
   assert.equal(v.height, 0);
   assert.equal(p[p.length - 1], 1, 'relay transactions (wire: true means relay)');
+});
+
+test('a node can\'t fill memory with made-up pair requests: the pool stops taking others\' at its cap, never our own', () => {
+  const pool = new mix.MixPool(600_000, () => 100, 3600);
+  const pr = w.decodeMix('mixpairreq', Buffer.from(V.msgs.pr.hex, 'hex'));
+  for (let i = 0; i < mix.MAX_POOL_PRS; i++) pool.prs.set(`filler${i}`, pr);
+  assert.throws(() => pool.accept(pr), /pool full/);
+  assert.throws(() => pool.accept(pr, true), (e) => !/pool full/.test(e.message), 'our own PR is judged on its merits');
+  const before = process.memoryUsage().heapUsed;
+  for (let i = 0; i < 20_000; i++) { try { pool.accept(w.decodeMix('mixpairreq', Buffer.from(V.msgs.pr.hex, 'hex'))); } catch { /* full */ } }
+  global.gc?.();
+  assert.ok(!(pool.hashes instanceof Map), 'hashes are held weakly');
+  assert.ok(process.memoryUsage().heapUsed - before < 200 * 1024 * 1024);
 });

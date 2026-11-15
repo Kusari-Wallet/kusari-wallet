@@ -10,7 +10,7 @@ const PW1 = 'first password', PW2 = 'second password';
 
 async function make(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mw-'));
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })); // a write may still be landing
   const s = new WalletService(dir, { N: 2 ** 10, r: 8, p: 1 });
   s.startSession = async (secrets) => { s.tron = {}; s.btc = {}; s.eth = {}; s.dash = {}; s.firo = {}; s.monero = { close: async () => {} }; s.seen = secrets.tronMnemonic; };
   await s.init();
@@ -306,7 +306,7 @@ test('extra Ethereum addresses: made on demand, read on their own, found again a
   await new Promise((res) => server.listen(0, '127.0.0.1', res));
   t.after(() => { server.close(); server.closeAllConnections(); });
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ea-'));
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })); // a write may still be landing
   const s = new WalletService(dir, { N: 2 ** 10, r: 8, p: 1 }, { ethRpc: `http://127.0.0.1:${server.address().port}` });
   s.startSession = async () => { s.tron = {}; s.btc = {}; s.eth = { address: deriveEthAccount(PHRASE).address }; s.dash = {}; s.firo = {}; s.monero = { close: async () => {} }; s.ethNode = node; };
   await s.init();
