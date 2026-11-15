@@ -1,12 +1,12 @@
 {
   "name": "kusari-wallet",
-  "version": "0.64.0",
+  "version": "0.65.0",
   "description": "XMR, BTC, ETH, TRX, USDT wallet",
   "main": "dist/main/app.js",
   "scripts": {
     "build": "node scripts/gen-keys.js && tsc -p tsconfig.json && tsc -p tsconfig.renderer.json && node scripts/copy-assets.js && node scripts/bundle-main.js",
     "start": "npm run build && electron .",
-    "test": "npm run build && node --test tests/unit.test.js tests/tron.test.js tests/monero-busy.test.js tests/tor.test.js tests/swap.test.js tests/btc.test.js tests/btc-filters.test.js tests/btc-silent.test.js tests/seed.test.js tests/lookalike.test.js tests/socks-gate.test.js tests/eth.test.js tests/privacy.test.js tests/tornado.test.js tests/wallets.test.js tests/prices.test.js tests/buy.test.js tests/bch.test.js tests/ltc.test.js tests/scrt.test.js tests/tokens.test.js tests/dex.test.js tests/mweb.test.js tests/balances.test.js tests/balance-cache.test.js tests/bundle.test.js tests/dash.test.js tests/firo.test.js tests/locales.test.js tests/doge.test.js tests/sol.test.js tests/zec.test.js tests/zano.test.js tests/ksr.test.js tests/kusari-zano.test.js tests/arrr.test.js tests/spark.test.js tests/ada.test.js tests/coinjoin.test.js tests/tcp-bridge.test.js tests/tor-bridges.test.js tests/wabisabi.test.js tests/btc-mix.test.js",
+    "test": "npm run build && node --test tests/unit.test.js tests/tron.test.js tests/monero-busy.test.js tests/tor.test.js tests/swap.test.js tests/btc.test.js tests/btc-filters.test.js tests/btc-silent.test.js tests/seed.test.js tests/lookalike.test.js tests/socks-gate.test.js tests/eth.test.js tests/privacy.test.js tests/tornado.test.js tests/wallets.test.js tests/prices.test.js tests/buy.test.js tests/bch.test.js tests/ltc.test.js tests/scrt.test.js tests/tokens.test.js tests/dex.test.js tests/mweb.test.js tests/balances.test.js tests/balance-cache.test.js tests/bundle.test.js tests/dash.test.js tests/firo.test.js tests/locales.test.js tests/doge.test.js tests/sol.test.js tests/zec.test.js tests/zano.test.js tests/ksr.test.js tests/kusari-zano.test.js tests/arrr.test.js tests/spark.test.js tests/dcr.test.js tests/coinjoin.test.js tests/tcp-bridge.test.js tests/tor-bridges.test.js tests/wabisabi.test.js tests/btc-mix.test.js",
     "test:monero": "npm run build && node tests/monero-regtest.js",
     "dist:win": "npm run build && electron-builder --win",
     "dist:linux": "npm run build && electron-builder --linux",
@@ -23,7 +23,6 @@
     "web-worker": "^1.3.0"
   },
   "devDependencies": {
-    "@emurgo/cardano-serialization-lib-nodejs": "^15.0.1",
     "@noble/ciphers": "^2.4.0",
     "@noble/curves": "^2.4.0",
     "@noble/hashes": "^2.4.0",

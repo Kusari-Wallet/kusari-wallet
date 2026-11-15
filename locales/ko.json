@@ -1477,5 +1477,12 @@
 "Within an hour": "1시간 안에",
 "{0} deposits since yours": "당신 뒤로 입금 {0}건",
 "{0} goes out around {1}": "{0}이(가) {1} 무렵에 나갑니다",
-"{0} hours ago": "{0}시간 전"
+"{0} hours ago": "{0}시간 전",
+"A Decred address (Ds…) from this seed's BIP44 account (m/44'/42'/0'), as multi-coin wallets derive it. Decrediton uses its own 33-word seed, so it shows other addresses. Receives DCR on Decred mainnet only.": "이 시드의 BIP44 계정(m/44'/42'/0')에서 나온 Decred 주소(Ds…)입니다. 여러 코인을 다루는 지갑들과 같은 방식입니다. Decrediton은 자체 33단어 시드를 쓰므로 다른 주소가 보입니다. Decred 메인넷 DCR만 받습니다.",
+"Decred": "Decred",
+"Decred mainnet only (addresses starting with Ds). The fee is paid in DCR. Staking and tickets are not handled here.": "Decred 메인넷 전용입니다(Ds로 시작하는 주소). 수수료는 DCR로 냅니다. 스테이킹과 티켓은 여기서 다루지 않습니다.",
+"Insight API (dcrdata)": "Insight API (dcrdata)",
+"Not a Decred address.": "Decred 주소가 아닙니다.",
+"Not a Decred address. Use a mainnet address starting with Ds.": "Decred 주소가 아닙니다. Ds로 시작하는 메인넷 주소를 쓰세요.",
+"The receiving address is not a Decred address.": "받는 주소가 Decred 주소가 아닙니다."
 }

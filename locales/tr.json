@@ -1477,5 +1477,12 @@
 "Within an hour": "Bir saat içinde",
 "{0} deposits since yours": "Sizinkinden sonra {0} yatırma",
 "{0} goes out around {1}": "{0} {1} civarında gider",
-"{0} hours ago": "{0} saat önce"
+"{0} hours ago": "{0} saat önce",
+"A Decred address (Ds…) from this seed's BIP44 account (m/44'/42'/0'), as multi-coin wallets derive it. Decrediton uses its own 33-word seed, so it shows other addresses. Receives DCR on Decred mainnet only.": "Bu seed'in BIP44 hesabından (m/44'/42'/0') bir Decred adresi (Ds…); çok coinli cüzdanların türettiği şekilde. Decrediton kendi 33 kelimelik seed'ini kullanır, bu yüzden başka adresler gösterir. Yalnızca Decred ana ağında DCR alır.",
+"Decred": "Decred",
+"Decred mainnet only (addresses starting with Ds). The fee is paid in DCR. Staking and tickets are not handled here.": "Yalnızca Decred ana ağı (Ds ile başlayan adresler). Ücret DCR ile ödenir. Staking ve biletler burada desteklenmez.",
+"Insight API (dcrdata)": "Insight API (dcrdata)",
+"Not a Decred address.": "Bu bir Decred adresi değil.",
+"Not a Decred address. Use a mainnet address starting with Ds.": "Bu bir Decred adresi değil. Ds ile başlayan bir ana ağ adresi kullanın.",
+"The receiving address is not a Decred address.": "Alıcı adresi bir Decred adresi değil."
 }

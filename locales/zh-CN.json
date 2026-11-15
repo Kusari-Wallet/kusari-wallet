@@ -1477,5 +1477,12 @@
 "Within an hour": "1 小时内",
 "{0} deposits since yours": "你之后有 {0} 笔存款",
 "{0} goes out around {1}": "{0}将在 {1} 左右发出",
-"{0} hours ago": "{0} 小时前"
+"{0} hours ago": "{0} 小时前",
+"A Decred address (Ds…) from this seed's BIP44 account (m/44'/42'/0'), as multi-coin wallets derive it. Decrediton uses its own 33-word seed, so it shows other addresses. Receives DCR on Decred mainnet only.": "来自本种子 BIP44 账户（m/44'/42'/0'）的 Decred 地址（Ds…），与多币种钱包的推导方式相同。Decrediton 使用自己的 33 词种子，所以显示的是别的地址。只接收 Decred 主网上的 DCR。",
+"Decred": "Decred",
+"Decred mainnet only (addresses starting with Ds). The fee is paid in DCR. Staking and tickets are not handled here.": "仅限 Decred 主网（以 Ds 开头的地址）。手续费用 DCR 支付。这里不处理质押和票。",
+"Insight API (dcrdata)": "Insight API（dcrdata）",
+"Not a Decred address.": "这不是 Decred 地址。",
+"Not a Decred address. Use a mainnet address starting with Ds.": "这不是 Decred 地址。请使用以 Ds 开头的主网地址。",
+"The receiving address is not a Decred address.": "收款地址不是 Decred 地址。"
 }

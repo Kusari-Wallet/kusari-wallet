@@ -16,7 +16,7 @@ import { isZanoAddress, isKsrAddress } from './zano';
 import { isZecAddress } from './zec';
 import { isFiroAddress } from './firo';
 import { isDogeAddress } from './doge';
-import { isAdaAddress } from './ada';
+import { isDcrAddress } from './dcr';
 import { isBchAddress, normalBchAddress } from './bch';
 import { isSolAddress } from './sol';
 import { isDashAddress } from './dash';
@@ -223,7 +223,7 @@ export class WalletService extends SendService {
       : asset === 'FIRO' ? isFiroAddress(address) || isSparkAddress(address)
       : asset === 'SOL' || isSpl(asset) ? isSolAddress(address)
       : asset === 'DOGE' ? isDogeAddress(address)
-      : asset === 'ADA' ? isAdaAddress(address)
+      : asset === 'DCR' ? isDcrAddress(address)
       : asset === 'BCH' ? isBchAddress(address)
       : asset === 'ZEC' ? isZecAddress(address)
       : asset === 'ZANO' ? isZanoAddress(address)
@@ -258,7 +258,7 @@ export class WalletService extends SendService {
     }
     await (asset === 'LTC' ? this.ltc!.refresh().catch(() => undefined) : asset === 'BCH' ? this.bch!.refresh().catch(() => undefined) : asset === 'DOGE' ? this.doge!.refresh().catch(() => undefined) : asset === 'FIRO' ? this.firo!.refresh().catch(() => undefined) : asset === 'DASH' ? dash.refresh().catch(() => undefined) : asset === 'BTC' ? btc.refresh().catch(() => undefined) : undefined);
     if (isEvm(asset)) return this.evm(asset).address; // each chain's own address
-    return asset === 'SOL' || isSpl(asset) ? this.sol!.receiveAddress : asset === 'BCH' ? this.bch!.receiveAddress : asset === 'LTC' ? this.ltc!.receiveAddress : asset === 'SCRT' || asset === 'SSCRT' ? this.scrt!.address : asset === 'DOGE' ? this.doge!.receiveAddress : asset === 'ADA' ? this.ada!.receiveAddress : asset === 'FIRO' ? this.firo!.receiveAddress : asset === 'DASH' ? dash.receiveAddress : asset === 'BTC' ? btc.receiveAddress : asset === 'XMR' ? this.swapSubaddress(monero) : tron.address;
+    return asset === 'SOL' || isSpl(asset) ? this.sol!.receiveAddress : asset === 'BCH' ? this.bch!.receiveAddress : asset === 'LTC' ? this.ltc!.receiveAddress : asset === 'SCRT' || asset === 'SSCRT' ? this.scrt!.address : asset === 'DOGE' ? this.doge!.receiveAddress : asset === 'DCR' ? this.dcr!.receiveAddress : asset === 'FIRO' ? this.firo!.receiveAddress : asset === 'DASH' ? dash.receiveAddress : asset === 'BTC' ? btc.receiveAddress : asset === 'XMR' ? this.swapSubaddress(monero) : tron.address;
   }
 
   /**

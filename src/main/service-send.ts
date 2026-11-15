@@ -22,7 +22,7 @@ import { isZecAddress, zecHeightForDate } from './zec';
 import { zecEngineInfo } from './zec-process';
 import { isFiroAddress, typicalFiroFee } from './firo';
 import { isDogeAddress, typicalDogeFee } from './doge';
-import { ADA_EXPLORER_TX, isAdaAddress } from './ada';
+import { DCR_EXPLORER_TX, isDcrAddress, typicalDcrFee } from './dcr';
 import { isBchAddress, normalBchAddress, typicalBchFee } from './bch';
 import { SOL_FEE, SPL_TOKENS, isSolAddress } from './sol';
 import { DASH_DUST, dashFee, isDashAddress, signDashOutputs, typicalDashFee } from './dash';
@@ -64,7 +64,7 @@ export class SendService extends ServiceCore {
       if (asset === 'FIRO') return [typicalFiroFee(), 8, 'FIRO'];
       if (asset === 'SOL' || isSpl(asset)) return [SOL_FEE, 9, 'SOL'];
       if (asset === 'DOGE') return [typicalDogeFee(), 8, 'DOGE'];
-      if (asset === 'ADA') return [180_000n, 6, 'ADA'];
+      if (asset === 'DCR') return [typicalDcrFee(), 8, 'DCR'];
       if (asset === 'BCH') return [typicalBchFee(), 8, 'BCH'];
       if (asset === 'SCRT') return [25_000n, 6, 'SCRT']; // about 100k gas at 0.25 uscrt
       if (asset === 'SSCRT') return [50_000n, 6, 'SCRT']; // a contract call, about 200k gas
@@ -539,10 +539,11 @@ export class SendService extends ServiceCore {
       if (to === this.bch!.receiveAddress) throw new Error('You cannot send to your own address.');
       const draft = await this.bch!.draft(to, isMax ? 'max' : parseAmount(amountInput, decimals));
       preview = this.storePreview({ asset, to, amount: draft.amount, fee: draft.fee, bch: draft });
-    } else if (asset === 'ADA') {
-      if (!isAdaAddress(address)) throw new Error('Not a Cardano address. Use a Shelley address starting with addr1.');
-      const draft = await this.ada!.draft(address, isMax ? 'max' : parseAmount(amountInput, decimals));
-      preview = this.storePreview({ asset, to: address, amount: draft.amount, fee: draft.fee, ada: draft });
+    } else if (asset === 'DCR') {
+      if (!isDcrAddress(address)) throw new Error('Not a Decred address. Use a mainnet address starting with Ds.');
+      if (address === this.dcr!.receiveAddress) throw new Error('You cannot send to your own address.');
+      const draft = await this.dcr!.draft(address, isMax ? 'max' : parseAmount(amountInput, decimals));
+      preview = this.storePreview({ asset, to: address, amount: draft.amount, fee: draft.fee, dcr: draft });
     } else if (asset === 'DOGE') {
       if (!isDogeAddress(address)) throw new Error('Not a Dogecoin address.');
       if (address === this.doge!.receiveAddress) throw new Error('You cannot send to your own address.');
@@ -669,7 +670,7 @@ export class SendService extends ServiceCore {
       }
     }
     // Coins spent together are tied together on the chain; say so, unless the person picked the coins themselves.
-    const utxoDraft: { inputs?: unknown[] } | undefined = preview.btc ?? preview.ltc ?? preview.doge ?? preview.bch ?? preview.dash ?? preview.firo;
+    const utxoDraft: { inputs?: unknown[] } | undefined = preview.btc ?? preview.ltc ?? preview.doge ?? preview.dcr ?? preview.bch ?? preview.dash ?? preview.firo;
     const picked = Array.isArray(opts.coins) && opts.coins.length > 0;
     if (!picked && (utxoDraft?.inputs?.length ?? 0) > 1) warnings.push(`This spends ${utxoDraft!.inputs!.length} of your coins together, which shows on the chain that they belong to one person. Sending a smaller amount that one coin covers, or choosing coins yourself, keeps them apart.`);
     // A look-alike of an address used before is the mark of address poisoning.
@@ -679,9 +680,9 @@ export class SendService extends ServiceCore {
     return {
       id: preview.id, asset, to: address, lookalike,
       amount: formatAmount(preview.amount, decimals),
-      fee: formatAmount(preview.fee, preview.eth ? 18 : asset === 'XMR' ? 12 : asset === 'ZANO' || asset === 'KSR' ? 12 : asset === 'SCRT' || asset === 'SSCRT' || asset === 'ADA' ? 6 : asset === 'SOL' || isSpl(asset) ? 9 : asset === 'DOGE' || asset === 'BCH' || asset === 'LTC' || asset === 'BTC' || asset === 'DASH' || asset === 'FIRO' || asset === 'ZEC' || asset === 'ARRR' ? 8 : 6),
-      feeAsset: preview.eth ? chainOf(preview.eth.asset).native : isSpl(asset) ? 'SOL' : asset === 'SSCRT' ? 'SCRT' : asset === 'SOL' || asset === 'ADA' || asset === 'DOGE' || asset === 'BCH' || asset === 'LTC' || asset === 'SCRT' || asset === 'XMR' || asset === 'BTC' || asset === 'DASH' || asset === 'FIRO' || asset === 'ZEC' || asset === 'ZANO' || asset === 'KSR' || asset === 'ARRR' ? asset : 'TRX',
-      feeIsEstimate: asset !== 'SOL' && !isSpl(asset) && asset !== 'ADA' && asset !== 'DOGE' && asset !== 'BCH' && asset !== 'LTC' && asset !== 'SCRT' && asset !== 'SSCRT' && asset !== 'XMR' && asset !== 'BTC' && asset !== 'DASH' && asset !== 'FIRO' && asset !== 'ZEC' && asset !== 'ZANO' && asset !== 'KSR' && asset !== 'ARRR',
+      fee: formatAmount(preview.fee, preview.eth ? 18 : asset === 'XMR' ? 12 : asset === 'ZANO' || asset === 'KSR' ? 12 : asset === 'SCRT' || asset === 'SSCRT' ? 6 : asset === 'SOL' || isSpl(asset) ? 9 : asset === 'DOGE' || asset === 'DCR' || asset === 'BCH' || asset === 'LTC' || asset === 'BTC' || asset === 'DASH' || asset === 'FIRO' || asset === 'ZEC' || asset === 'ARRR' ? 8 : 6),
+      feeAsset: preview.eth ? chainOf(preview.eth.asset).native : isSpl(asset) ? 'SOL' : asset === 'SSCRT' ? 'SCRT' : asset === 'SOL' || asset === 'DCR' || asset === 'DOGE' || asset === 'BCH' || asset === 'LTC' || asset === 'SCRT' || asset === 'XMR' || asset === 'BTC' || asset === 'DASH' || asset === 'FIRO' || asset === 'ZEC' || asset === 'ZANO' || asset === 'KSR' || asset === 'ARRR' ? asset : 'TRX',
+      feeIsEstimate: asset !== 'SOL' && !isSpl(asset) && asset !== 'DCR' && asset !== 'DOGE' && asset !== 'BCH' && asset !== 'LTC' && asset !== 'SCRT' && asset !== 'SSCRT' && asset !== 'XMR' && asset !== 'BTC' && asset !== 'DASH' && asset !== 'FIRO' && asset !== 'ZEC' && asset !== 'ZANO' && asset !== 'KSR' && asset !== 'ARRR',
       warnings,
     };
   }
@@ -843,7 +844,7 @@ export class SendService extends ServiceCore {
     if (preview.sol) return { hashes: [await this.sol!.send(preview.sol, secrets.tronMnemonic)] };
     if (preview.solUsdt) return { hashes: [await this.sol!.sendUsdt(preview.solUsdt, secrets.tronMnemonic)] };
     if (preview.doge) return { hashes: [await this.doge!.send(preview.doge, secrets.tronMnemonic)] };
-    if (preview.ada) return { hashes: [await this.ada!.send(preview.ada, secrets.tronMnemonic)] };
+    if (preview.dcr) return { hashes: [await this.dcr!.send(preview.dcr, secrets.tronMnemonic)] };
     if (preview.bch) return { hashes: [await this.bch!.send(preview.bch, secrets.tronMnemonic)] };
     if (preview.firo) return { hashes: [await this.firo!.send(preview.firo, secrets.tronMnemonic)] };
     if (preview.dash) return { hashes: [await dash.send(preview.dash, secrets.tronMnemonic)] };
@@ -1276,7 +1277,7 @@ export class SendService extends ServiceCore {
     if (asset === 'FIRO') return FIRO_EXPLORER_TX + hash;
     if (asset === 'SOL' || isSpl(asset)) return SOL_EXPLORER_TX + hash;
     if (asset === 'DOGE') return DOGE_EXPLORER_TX + hash;
-    if (asset === 'ADA') return ADA_EXPLORER_TX + hash;
+    if (asset === 'DCR') return DCR_EXPLORER_TX + hash;
     if (asset === 'BCH') return BCH_EXPLORER_TX + hash;
     if (asset === 'ZEC') return ZEC_EXPLORER_TX + hash;
     if (asset === 'ZANO') return ZANO_EXPLORER_TX + hash;

@@ -11,7 +11,7 @@ import { ZanoDraft } from './zano';
 import { ZecDraft } from './zec';
 import { FiroDraft } from './firo';
 import { DogeDraft } from './doge';
-import { AdaDraft } from './ada';
+import { DcrDraft } from './dcr';
 import { SolDraft, SolUsdtDraft, SplAsset } from './sol';
 import { DashDraft } from './dash';
 import { DashMixer, SplitPlan } from './dash-mix';
@@ -77,7 +77,7 @@ export const EVM_EXPLORER: Record<string, string> = { '1': ETH_EXPLORER_TX, '137
 
 export const ASSET_LABEL: Partial<Record<Asset, string>> = { USDTE: 'USDT (Eth)', USDT: 'USDT (Tron)', USDTS: 'USDT (Sol)', USDTP: 'USDT (Pol)', USDTA: 'USDT (Arb)', ETHA: 'ETH (Arb)', ETHP: 'ETH (Pol)', USDTB: 'USDT (BNB)', USDCE: 'USDC (Eth)', USDCB: 'USDC (BNB)', USDCS: 'USDC (Sol)', USDCP: 'USDC (Pol)', USDCA: 'USDC (Arb)' };
 
-export const LOOKUP_ROUTE: Record<string, string> = { ADA: 'ada', SHIB: 'eth', ORCA: 'sol', PUMP: 'sol', BTC: 'btc', ETH: 'eth', USDTE: 'eth', LINK: 'eth', WLD: 'eth', TRX: 'tron', USDT: 'tron', DASH: 'dash', FIRO: 'firo', SOL: 'sol', USDTS: 'sol', POL: 'pol', USDTP: 'pol', ARB: 'arb', ETHA: 'arb', USDTA: 'arb', BCH: 'bch', LTC: 'ltc', DOGE: 'doge', SCRT: 'scrt', ETHP: 'pol', UNI: 'eth', PEPE: 'eth', AAVE: 'eth', BNB: 'bsc', USDTB: 'bsc', USDCE: 'eth', USDCB: 'bsc', USDCS: 'sol', USDCP: 'pol', USDCA: 'arb', HYPE: 'hype' };
+export const LOOKUP_ROUTE: Record<string, string> = { DCR: 'dcr', SHIB: 'eth', ORCA: 'sol', PUMP: 'sol', BTC: 'btc', ETH: 'eth', USDTE: 'eth', LINK: 'eth', WLD: 'eth', TRX: 'tron', USDT: 'tron', DASH: 'dash', FIRO: 'firo', SOL: 'sol', USDTS: 'sol', POL: 'pol', USDTP: 'pol', ARB: 'arb', ETHA: 'arb', USDTA: 'arb', BCH: 'bch', LTC: 'ltc', DOGE: 'doge', SCRT: 'scrt', ETHP: 'pol', UNI: 'eth', PEPE: 'eth', AAVE: 'eth', BNB: 'bsc', USDTB: 'bsc', USDCE: 'eth', USDCB: 'bsc', USDCS: 'sol', USDCP: 'pol', USDCA: 'arb', HYPE: 'hype' };
 
 /** Waits longer each time, up to five minutes, so a server that's down isn't asked over and over. */
 export function lookupRetryDelay(fails: number): number {
@@ -113,7 +113,7 @@ export interface Preview {
   dashPrivate?: Awaited<ReturnType<DashMixer['draftPrivate']>>;
   firo?: FiroDraft;
   doge?: DogeDraft;
-  ada?: AdaDraft;
+  dcr?: DcrDraft;
   bch?: DogeDraft;
   sol?: SolDraft;
   solUsdt?: SolUsdtDraft;

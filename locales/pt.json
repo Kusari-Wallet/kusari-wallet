@@ -1477,5 +1477,12 @@
 "Within an hour": "Em até uma hora",
 "{0} deposits since yours": "{0} depósitos depois do seu",
 "{0} goes out around {1}": "{0} sai por volta de {1}",
-"{0} hours ago": "Há {0} horas"
+"{0} hours ago": "Há {0} horas",
+"A Decred address (Ds…) from this seed's BIP44 account (m/44'/42'/0'), as multi-coin wallets derive it. Decrediton uses its own 33-word seed, so it shows other addresses. Receives DCR on Decred mainnet only.": "Um endereço Decred (Ds…) da conta BIP44 desta seed (m/44'/42'/0'), como as carteiras multimoeda o derivam. O Decrediton usa uma seed própria de 33 palavras, então mostra outros endereços. Recebe DCR apenas na rede principal do Decred.",
+"Decred": "Decred",
+"Decred mainnet only (addresses starting with Ds). The fee is paid in DCR. Staking and tickets are not handled here.": "Somente a rede principal do Decred (endereços que começam com Ds). A taxa é paga em DCR. Staking e tickets não são tratados aqui.",
+"Insight API (dcrdata)": "Insight API (dcrdata)",
+"Not a Decred address.": "Não é um endereço Decred.",
+"Not a Decred address. Use a mainnet address starting with Ds.": "Não é um endereço Decred. Use um endereço da rede principal que comece com Ds.",
+"The receiving address is not a Decred address.": "O endereço de recebimento não é um endereço Decred."
 }

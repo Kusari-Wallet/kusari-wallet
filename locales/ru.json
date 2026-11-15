@@ -1477,5 +1477,12 @@
 "Within an hour": "В течение часа",
 "{0} deposits since yours": "Депозитов после вашего: {0}",
 "{0} goes out around {1}": "{0}: уйдёт около {1}",
-"{0} hours ago": "{0} ч назад"
+"{0} hours ago": "{0} ч назад",
+"A Decred address (Ds…) from this seed's BIP44 account (m/44'/42'/0'), as multi-coin wallets derive it. Decrediton uses its own 33-word seed, so it shows other addresses. Receives DCR on Decred mainnet only.": "Адрес Decred (Ds…) из BIP44-счёта этой сид-фразы (m/44'/42'/0'), как его выводят мультивалютные кошельки. Decrediton использует свою сид-фразу из 33 слов, поэтому показывает другие адреса. Принимает только DCR в основной сети Decred.",
+"Decred": "Decred",
+"Decred mainnet only (addresses starting with Ds). The fee is paid in DCR. Staking and tickets are not handled here.": "Только основная сеть Decred (адреса начинаются с Ds). Комиссия платится в DCR. Стейкинг и билеты здесь не поддерживаются.",
+"Insight API (dcrdata)": "Insight API (dcrdata)",
+"Not a Decred address.": "Это не адрес Decred.",
+"Not a Decred address. Use a mainnet address starting with Ds.": "Это не адрес Decred. Используйте адрес основной сети, начинающийся с Ds.",
+"The receiving address is not a Decred address.": "Адрес получателя — не адрес Decred."
 }

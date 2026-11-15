@@ -3,9 +3,9 @@ export type NetworkId = 'mainnet' | 'testnet';
  * USDT is the Tron token, USDTE the Ethereum one, USDTS Solana's, USDTP Polygon's and USDTA Arbitrum's.
  * ETHA is ETH on Arbitrum, which pays Arbitrum's fees; ARB is the token.
  */
-export type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'LINK' | 'WLD' | 'SOL' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA' | 'BCH' | 'LTC' | 'DOGE' | 'DASH' | 'FIRO' | 'ZEC' | 'ZANO' | 'KSR' | 'ARRR' | 'SCRT' | 'SSCRT' | 'ETHP' | 'UNI' | 'PEPE' | 'AAVE' | 'BNB' | 'USDTB' | 'USDCE' | 'USDCB' | 'USDCS' | 'USDCP' | 'USDCA' | 'SHIB' | 'ORCA' | 'PUMP' | 'ADA';
+export type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'LINK' | 'WLD' | 'SOL' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA' | 'BCH' | 'LTC' | 'DOGE' | 'DASH' | 'FIRO' | 'ZEC' | 'ZANO' | 'KSR' | 'ARRR' | 'SCRT' | 'SSCRT' | 'ETHP' | 'UNI' | 'PEPE' | 'AAVE' | 'BNB' | 'USDTB' | 'USDCE' | 'USDCB' | 'USDCS' | 'USDCP' | 'USDCA' | 'SHIB' | 'ORCA' | 'PUMP' | 'DCR';
 
-export const DECIMALS: Record<Asset, number> = { ADA: 6, SHIB: 18, ORCA: 6, PUMP: 6, USDCE: 6, USDCB: 18, USDCS: 6, USDCP: 6, USDCA: 6, BTC: 8, XMR: 12, ETH: 18, TRX: 6, USDT: 6, USDTE: 6, LINK: 18, WLD: 18, SOL: 9, USDTS: 6, POL: 18, USDTP: 6, ARB: 18, ETHA: 18, USDTA: 6, BCH: 8, LTC: 8, DOGE: 8, DASH: 8, FIRO: 8, ZEC: 8, ZANO: 12, KSR: 12, ARRR: 8, SCRT: 6, SSCRT: 6, ETHP: 18, UNI: 18, PEPE: 18, AAVE: 18, BNB: 18, USDTB: 18 };
+export const DECIMALS: Record<Asset, number> = { DCR: 8, SHIB: 18, ORCA: 6, PUMP: 6, USDCE: 6, USDCB: 18, USDCS: 6, USDCP: 6, USDCA: 6, BTC: 8, XMR: 12, ETH: 18, TRX: 6, USDT: 6, USDTE: 6, LINK: 18, WLD: 18, SOL: 9, USDTS: 6, POL: 18, USDTP: 6, ARB: 18, ETHA: 18, USDTA: 6, BCH: 8, LTC: 8, DOGE: 8, DASH: 8, FIRO: 8, ZEC: 8, ZANO: 12, KSR: 12, ARRR: 8, SCRT: 6, SSCRT: 6, ETHP: 18, UNI: 18, PEPE: 18, AAVE: 18, BNB: 18, USDTB: 18 };
 
 export const BTC_APIS = ['https://mempool.space/api', 'https://blockstream.info/api'];
 /**
@@ -196,7 +196,7 @@ export function estimateMainnetHeight(date: Date): number {
 /**
  * Coins that can use a server of one's own, and what kind of server each one speaks. EVM chains and Solana take any
  * JSON-RPC node, Tron a java-tron HTTP API, Litecoin an Esplora API (or Blockbook, written blockbook+https://...),
- * Bitcoin Cash Bitcore (or Blockbook), Dash and Firo an Insight API, Cardano Koios, Secret a REST (LCD) server,
+ * Bitcoin Cash Bitcore (or Blockbook), Dash, Firo and Decred an Insight API (Decred: dcrdata's /insight/api), Secret a REST (LCD) server,
  * Zcash and Pirate Chain a lightwalletd.
  */
 export const OWN_SERVER_COINS: { coin: string; kind: string; example: string; blockbook?: boolean }[] = [
@@ -210,7 +210,7 @@ export const OWN_SERVER_COINS: { coin: string; kind: string; example: string; bl
   { coin: 'BCH', kind: 'Bitcore or Blockbook', example: 'blockbook+https://bch.example', blockbook: true },
   { coin: 'DASH', kind: 'Insight API', example: 'http://192.168.1.20:3001/insight-api' },
   { coin: 'FIRO', kind: 'Insight API', example: 'http://192.168.1.20:3001/insight-api-zcoin' },
-  { coin: 'ADA', kind: 'Koios', example: 'https://koios.example/api/v1' },
+  { coin: 'DCR', kind: 'Insight API (dcrdata)', example: 'http://192.168.1.20:7777/insight/api' },
   { coin: 'SCRT', kind: 'REST (LCD)', example: 'https://secret.example' },
   { coin: 'ZEC', kind: 'lightwalletd', example: 'https://192.168.1.20:9067' },
   { coin: 'ARRR', kind: 'lightwalletd', example: 'https://192.168.1.20:9067' },

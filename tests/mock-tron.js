@@ -18,6 +18,19 @@ ENCLAVE.pub = x25519.getPublicKey(ENCLAVE.priv);
 const SCRT_SALT = Uint8Array.from(Buffer.from('000000000000000000024bead8df69990852c202db0e0097c1a12ea637d7e96d', 'hex'));
 const enclaveKey = (nonce, theirs) => hkdf(sha256Bytes, Buffer.concat([x25519.getSharedSecret(ENCLAVE.priv, theirs), nonce]), SCRT_SALT, new Uint8Array(), 32);
 
+/** A Decred transaction read back from its wire bytes (full serialization). */
+function readDcrTx(raw) {
+  let at = 4;
+  const vi = () => raw[at++];
+  const inputs = []; const outputs = [];
+  for (let n = vi(); n > 0; n--) { inputs.push({ txid: Buffer.from(raw.subarray(at, at + 32)).reverse().toString('hex'), vout: raw.readUInt32LE(at + 32), tree: raw[at + 36], sequence: raw.readUInt32LE(at + 37) }); at += 41; }
+  for (let n = vi(); n > 0; n--) { const value = raw.readBigInt64LE(at); const version = raw.readUInt16LE(at + 8); const len = raw[at + 10]; outputs.push({ value, version, script: raw.subarray(at + 11, at + 11 + len) }); at += 11 + len; }
+  const lockTime = raw.readUInt32LE(at); const expiry = raw.readUInt32LE(at + 4); at += 8;
+  vi();
+  for (const i of inputs) { i.value = raw.readBigInt64LE(at); i.blockHeight = raw.readUInt32LE(at + 8); i.blockIndex = raw.readUInt32LE(at + 12); const len = raw[at + 16]; i.sigScript = raw.subarray(at + 17, at + 17 + len); at += 17 + len; }
+  return { version: raw.readUInt16LE(0), inputs, outputs, lockTime, expiry };
+}
+
 function mockNode() {
   const state = { broadcast: [], balance: 50_000_000, usdt: 10_000_000n, energyUsed: 64285, recipientExists: true, tamper: null };
   const server = http.createServer((req, res) => {
@@ -25,23 +38,22 @@ function mockNode() {
     const rawChunks = [];
     req.on('data', (c) => { body += c; rawChunks.push(Buffer.from(c)); });
     req.on('end', () => {
-      if (req.url.startsWith('/ada/')) {
-        // Koios, enough for a balance and one payment; the payment is checked with Cardano's own library.
-        const p = req.url.replace(/^\/ada/, '').split('?')[0];
+      if (req.url.startsWith('/dcr/')) {
+        // dcrdata's Insight API: one coin at the first receiving address; a payment is checked by its signature.
+        const p = req.url.replace(/^\/dcr/, '').split('?')[0];
         const out = (o) => { res.setHeader('content-type', 'application/json'); res.end(JSON.stringify(o)); };
-        if (p === '/address_utxos') return out([{ tx_hash: 'ab'.repeat(32), tx_index: 0, value: '12500000', asset_list: [] }, { tx_hash: 'cd'.repeat(32), tx_index: 1, value: '1500000', asset_list: [{ policy_id: '00', quantity: '1' }] }]);
-        if (p === '/tip') return out([{ abs_slot: 150000000 }]);
-        if (p === '/epoch_params') return out([{ min_fee_a: 44, min_fee_b: 155381, coins_per_utxo_size: '4310', max_tx_size: 16384 }]);
-        if (p === '/address_txs') return out([]);
-        if (p === '/submittx') {
-          const C = require('@emurgo/cardano-serialization-lib-nodejs');
-          const raw = Buffer.concat(rawChunks);
-          const tx = C.FixedTransaction.from_bytes(raw);
-          const hash = tx.transaction_hash();
-          const w = C.Transaction.from_bytes(raw).witness_set().vkeys().get(0);
-          if (!w.vkey().public_key().verify(hash.to_bytes(), w.signature())) { res.statusCode = 400; return res.end('bad signature'); }
-          (state.ada = state.ada ?? []).push(C.Transaction.from_bytes(raw).to_json());
-          return out(hash.to_hex());
+        const first = state.dcrFirst;
+        if (p.endsWith('/utxo')) return out(first && p.includes(first) && !state.dcr ? [{ address: first, txid: 'ab'.repeat(32), vout: 0, atoms: 12_500_000_000, amount: 125, confirmations: 30 }] : []);
+        if (p.endsWith('/txs')) return out({ totalItems: 0, items: [] });
+        if (p === '/tx/send' && req.method === 'POST') {
+          const { verifyDcrInput, dcrScript, dcrTxid } = require('../dist/main/dcr');
+          const raw = Buffer.from(JSON.parse(body).rawtx, 'hex');
+          const tx = readDcrTx(raw);
+          const sig = tx.inputs[0].sigScript;
+          const pub = sig.subarray(sig[0] + 2);
+          if (!verifyDcrInput(tx, 0, dcrScript(first), pub)) { res.statusCode = 400; return res.end('bad signature'); }
+          (state.dcr = state.dcr ?? []).push(tx);
+          return out({ txid: dcrTxid(tx) });
         }
         res.statusCode = 404; return res.end('{}');
       }

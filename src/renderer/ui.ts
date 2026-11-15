@@ -2,11 +2,11 @@
 declare const wallet: any;
 declare const jsQR: any;
 
-type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'LINK' | 'WLD' | 'SOL' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA' | 'BCH' | 'LTC' | 'DOGE' | 'DASH' | 'FIRO' | 'ZEC' | 'ZANO' | 'KSR' | 'ARRR' | 'SCRT' | 'ETHP' | 'UNI' | 'PEPE' | 'AAVE' | 'BNB' | 'USDTB' | 'USDCE' | 'USDCB' | 'USDCS' | 'USDCP' | 'USDCA' | 'SSCRT' | 'SHIB' | 'ORCA' | 'PUMP' | 'ADA';
+type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'LINK' | 'WLD' | 'SOL' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA' | 'BCH' | 'LTC' | 'DOGE' | 'DASH' | 'FIRO' | 'ZEC' | 'ZANO' | 'KSR' | 'ARRR' | 'SCRT' | 'ETHP' | 'UNI' | 'PEPE' | 'AAVE' | 'BNB' | 'USDTB' | 'USDCE' | 'USDCB' | 'USDCS' | 'USDCP' | 'USDCA' | 'SSCRT' | 'SHIB' | 'ORCA' | 'PUMP' | 'DCR';
 type Attrs = Record<string, any>;
 type Child = Node | string | null | undefined | false;
 
-const ALL_ASSETS: Asset[] = ['XMR', 'BTC', 'ETH', 'USDTE', 'USDCE', 'LINK', 'WLD', 'UNI', 'PEPE', 'AAVE', 'SHIB', 'ZEC', 'SOL', 'USDTS', 'USDCS', 'ORCA', 'PUMP', 'TRX', 'USDT', 'BNB', 'USDTB', 'USDCB', 'POL', 'ETHP', 'USDTP', 'USDCP', 'ARB', 'ETHA', 'USDTA', 'USDCA', 'BCH', 'LTC', 'ADA', 'SCRT', 'SSCRT', 'DOGE', 'DASH', 'FIRO', 'ZANO', 'KSR', 'ARRR'];
+const ALL_ASSETS: Asset[] = ['XMR', 'BTC', 'ETH', 'USDTE', 'USDCE', 'LINK', 'WLD', 'UNI', 'PEPE', 'AAVE', 'SHIB', 'ZEC', 'SOL', 'USDTS', 'USDCS', 'ORCA', 'PUMP', 'TRX', 'USDT', 'BNB', 'USDTB', 'USDCB', 'POL', 'ETHP', 'USDTP', 'USDCP', 'ARB', 'ETHA', 'USDTA', 'USDCA', 'BCH', 'LTC', 'DCR', 'SCRT', 'SSCRT', 'DOGE', 'DASH', 'FIRO', 'ZANO', 'KSR', 'ARRR'];
 /** Tokens shown under the coin of their chain on the home screen, folded until opened. */
 const GROUPS: Partial<Record<Asset, Asset[]>> = { ETH: ['USDTE', 'USDCE', 'LINK', 'WLD', 'UNI', 'PEPE', 'AAVE', 'SHIB'], SOL: ['USDTS', 'USDCS', 'ORCA', 'PUMP'], TRX: ['USDT'], BNB: ['USDTB', 'USDCB'], POL: ['ETHP', 'USDTP', 'USDCP'], ARB: ['ETHA', 'USDTA', 'USDCA'], SCRT: ['SSCRT'] };
 const IN_GROUP = new Set(Object.values(GROUPS).flat());
@@ -30,7 +30,7 @@ const COIN: Record<Asset, { label: string; file: string; note: string }> = {
   SSCRT: { label: 'sSCRT', file: 'coins/scrt.png', note: 'Private SCRT on Secret Network. Its balance and transfers are encrypted, so only you and the other side can see them. The fee is paid in plain SCRT.' },
   SCRT: { label: 'SCRT', file: 'coins/scrt.png', note: 'Plain SCRT on Secret Network. These transfers are public on the chain. Sends carry no memo, so don\'t send to an exchange that asks for one.' },
   DOGE: { label: 'DOGE', file: 'coins/doge.png', note: 'Dogecoin mainnet only. The fee is paid in DOGE.' },
-  ADA: { label: 'ADA', file: 'coins/ada.png', note: 'Cardano mainnet only. The fee is paid in ADA, and every payment must carry about 1 ADA or more. Coins holding other Cardano tokens are not spent from here.' },
+  DCR: { label: 'DCR', file: 'coins/dcr.png', note: 'Decred mainnet only (addresses starting with Ds). The fee is paid in DCR. Staking and tickets are not handled here.' },
   FIRO: { label: 'FIRO', file: 'coins/firo.png', note: 'Public FIRO plus a private (Spark) balance, whose amounts and addresses are hidden on the chain.' },
   DASH: { label: 'DASH', file: 'coins/dash.png', note: 'Dash mainnet only. The fee is paid in DASH.' },
   ARRR: { label: 'ARRR', file: 'coins/arrr.png', note: 'Every Pirate Chain transaction is shielded. The fee is paid in ARRR.' },
@@ -268,7 +268,6 @@ function notYetAvailable(a: Asset): string {
   if (a === 'XMR' || a === 'ZANO' || a === 'ARRR' || a === 'KSR') return `${amount} ${name} is still locked. New coins unlock after 10 confirmations.`;
   if (a === 'ZEC') return `${amount} ${name} is transparent or not yet confirmed. Transparent ZEC is shielded first, then it can be sent.`;
   if (a === 'DASH') return `${amount} ${name} is mixed (CoinJoin) or not yet confirmed. Mixed coins are sent with the private send option.`;
-  if (a === 'ADA') return `${amount} ${name} sits with tokens or is not yet confirmed, so it can't be sent on its own.`;
   return `${amount} ${name} is waiting for a confirmation. It can be sent once confirmed, usually within minutes.`;
 }
 

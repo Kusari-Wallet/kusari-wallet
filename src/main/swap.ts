@@ -9,7 +9,7 @@ export const SWAP_BASE = 'https://exolix.com/api/v2';
 export const SWAP_PROVIDER = 'Exolix';
 
 const COIN: Record<Asset, { coin: string; network: RegExp; fallback: string }> = {
-  ADA: { coin: 'ADA', network: /^(ada|cardano)$/i, fallback: 'ADA' },
+  DCR: { coin: 'DCR', network: /^(dcr|decred)$/i, fallback: 'DCR' },
   SHIB: { coin: 'SHIB', network: /^(eth|ethereum|erc-?20)$/i, fallback: 'ETH' },
   ORCA: { coin: 'ORCA', network: /^(sol|solana|spl)$/i, fallback: 'SOL' },
   PUMP: { coin: 'PUMP', network: /^(sol|solana|spl)$/i, fallback: 'SOL' },
@@ -189,7 +189,7 @@ export { BUILTIN_SWAP_KEYS } from './swap-keys.generated';
 
 export const SIMPLESWAP_BASE = 'https://api.simpleswap.io';
 const SIMPLE_COIN: Record<Asset, { ticker: string; network: string }> = {
-  ADA: { ticker: 'ada', network: 'ada' },
+  DCR: { ticker: 'dcr', network: 'dcr' },
   // Each checked against SimpleSwap's list by contract. Not listed there: UNI and AAVE on Polygon.
   SHIB: { ticker: 'shib', network: 'eth' },
   ORCA: { ticker: 'orca', network: 'sol' },
@@ -299,7 +299,7 @@ export const GHOSTSWAP_BASE = 'https://partners-api.ghostswap.io';
 // explorer, so a token of the same name on another chain is never picked. Empty: GhostSwap doesn't offer it.
 const GHOST_NATIVE: Partial<Record<Asset, string>> = {
   BTC: 'btc', XMR: 'xmr', ETH: 'eth', TRX: 'trx', DASH: 'dash', SOL: 'sol', BCH: 'bch', LTC: 'ltc', DOGE: 'doge', ZEC: 'zec',
-  POL: 'pol', BNB: 'bnbbsc', ETHA: 'etharb', ADA: 'ada',
+  POL: 'pol', BNB: 'bnbbsc', ETHA: 'etharb', DCR: 'dcr',
 };
 const GHOST_FIXED: Partial<Record<Asset, string>> = { USDT: 'usdtrx' };
 const EXPLORER_HOST: Record<string, RegExp> = { '1': /(^|\.)etherscan\.io$/, '137': /(^|\.)polygonscan\.com$/, '42161': /(^|\.)arbiscan\.io$/, '56': /(^|\.)bscscan\.com$/, sol: /(^|\.)solscan\.io$/ };
@@ -526,7 +526,7 @@ export class EtzSwapClient implements SwapProvider {
 export const CHANGENOW_BASE = 'https://api.changenow.io';
 // Their v2 names a coin by ticker plus network, e.g. USDT on Tron is usdt on trx.
 const CN_COIN: Partial<Record<Asset, { ticker: string; network: string }>> = {
-  ADA: { ticker: 'ada', network: 'ada' },
+  DCR: { ticker: 'dcr', network: 'dcr' },
   // Checked against ChangeNOW's list by contract. Not listed there: AAVE on BNB Chain and Polygon, UNI on Polygon.
   SHIB: { ticker: 'shib', network: 'eth' },
   ORCA: { ticker: 'orca', network: 'sol' },

@@ -176,3 +176,7 @@ Linked into the Linux Zano engine (zano-bridge).
 ## BIP 352 test vectors (https://github.com/bitcoin/bips/blob/master/bip-0352/send_and_receive_test_vectors.json)
 
 Used by tests/btc-silent.test.js (tests/fixtures/bip352-vectors.json). BIP 352 is licensed BSD-2-Clause.
+
+## Decred icon (cryptocurrency-icons, https://github.com/spothq/cryptocurrency-icons)
+
+src/renderer/coins/dcr.png is rendered from svg/color/dcr.svg of cryptocurrency-icons, released under CC0-1.0.

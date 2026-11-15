@@ -1477,5 +1477,12 @@
 "Within an hour": "1 時間以内",
 "{0} deposits since yours": "あなたの後の入金 {0} 件",
 "{0} goes out around {1}": "{0}は {1} ごろに送信されます",
-"{0} hours ago": "{0} 時間前"
+"{0} hours ago": "{0} 時間前",
+"A Decred address (Ds…) from this seed's BIP44 account (m/44'/42'/0'), as multi-coin wallets derive it. Decrediton uses its own 33-word seed, so it shows other addresses. Receives DCR on Decred mainnet only.": "このシードの BIP44 アカウント（m/44'/42'/0'）の Decred アドレス（Ds…）です。マルチコインウォレットと同じ導出です。Decrediton は独自の 33 語シードを使うため、別のアドレスになります。Decred メインネットの DCR のみ受け取れます。",
+"Decred": "Decred",
+"Decred mainnet only (addresses starting with Ds). The fee is paid in DCR. Staking and tickets are not handled here.": "Decred メインネット専用です（Ds で始まるアドレス）。手数料は DCR で支払います。ステーキングとチケットはここでは扱いません。",
+"Insight API (dcrdata)": "Insight API（dcrdata）",
+"Not a Decred address.": "Decred のアドレスではありません。",
+"Not a Decred address. Use a mainnet address starting with Ds.": "Decred のアドレスではありません。Ds で始まるメインネットのアドレスを使ってください。",
+"The receiving address is not a Decred address.": "受取アドレスが Decred のアドレスではありません。"
 }
