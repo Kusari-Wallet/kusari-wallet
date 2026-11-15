@@ -10,7 +10,9 @@ Java WebView (`android/java`) running the same code as an esbuild bundle (`src/a
 - Never commit secrets. These stay local and are gitignored: `.swap-keys.json`, `src/main/swap-keys.generated.ts`,
   `android/release.keystore`, `android/keystore.properties`, `native-bin/`, `android/jniLibs/*/liblyrebird.so`.
   Before every commit, scan the staged diff for the values in `.swap-keys.json` (and pieces of them).
-- No private keys or API keys in source. Builds that include swap keys are not for distribution.
+- No private keys or API keys in source. Release builds may carry public-app swap partner keys (as Cake Wallet and
+  Stack Wallet ship theirs): they come from `.swap-keys.json` or CI secrets at build time only, masked by
+  `scripts/gen-keys.js`, and are never in the source or the repository.
 - Tor never falls back to clearnet; CoinJoin requests only ever go out over Tor.
 - Don't copy GPL code. MIT code that is ported gets its notice in `THIRD-PARTY-NOTICES.md`.
 - The repository stays private; workflows run only by hand.
@@ -39,7 +41,8 @@ Java WebView (`android/java`) running the same code as an esbuild bundle (`src/a
   `CSC_KEY_PASSWORD` are set for the build; without them builds are unsigned. The Linux tar.gz ships
   `start-kusari-wallet.sh`, which sets up Chromium's sandbox helper once where the system requires it.
 - Swap keys are masked in `src/main/swap-keys.generated.ts` with random bytes made fresh by `scripts/gen-keys.js`
-  on every build.
+  on every build (split, shuffled, joined only at run time). Masking only makes keys harder to find; partner keys
+  meant for public apps, the services' own limits and rotating a misused key are the real protection.
 
 ## Map
 
