@@ -97,6 +97,8 @@ Java WebView (`android/java`) running the same code as an esbuild bundle (`src/a
 - `src/main/dcr.ts`: Decred (DCR) on dcrdata's Insight API, BIP44 `m/44'/42'/0'` from the 12 words. Its own transaction
   format (prefix and witness), BLAKE-256 everywhere, and dcrd's signature hash (`dcrSignatureHash`); addresses pinned
   to dcrd's vectors in `tests/dcr.test.js`. No raw-transaction coin check: consensus refuses a wrong input amount.
+  Each address is looked up on its own request, in random order, through Tor each on its own route
+  (`DcrClient.lookup`, `isolatedAgent`); change takes a random output place.
 - `src/main/tor-bridges.ts`: Snowflake/obfs4 via lyrebird (`scripts/fetch-lyrebird-android.sh` for Android).
 - `src/main/blockbook.ts`, `config.ts`: servers and their backups.
 - `src/main/zano.ts`, `zano-process.ts`: Zano, and Kusari (KSR) on the same client with its own engine (`ksr-bridge`:

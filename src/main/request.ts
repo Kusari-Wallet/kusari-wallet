@@ -21,6 +21,15 @@ export function newTorRoute(agent?: SocksProxyAgent): void {
   (agent as { proxy: unknown }).proxy = { host, port, type, userId: randomUUID(), password: 'kusari' };
 }
 
+/** A connection of its own through the same Tor, on a new route: for lookups that must not be seen together. */
+export function isolatedAgent(agent?: SocksProxyAgent): SocksProxyAgent | undefined {
+  if (!agent) return undefined;
+  const { host, port } = agent.proxy;
+  const fresh = new SocksProxyAgent(`socks5h://${host}:${port}`, { keepAlive: false, timeout: 60_000 });
+  newTorRoute(fresh);
+  return fresh;
+}
+
 /** For APIs that report problems in the response body: returns the status instead of throwing on it. */
 export function requestJson(url: string, opts: { method?: 'GET' | 'POST'; body?: unknown; agent?: Agent; timeoutMs?: number; headers?: Record<string, string>; plain?: boolean; route?: string } = {}): Promise<{ status: number; body: any }> {
   return new Promise((resolve, reject) => {

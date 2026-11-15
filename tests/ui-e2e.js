@@ -271,7 +271,7 @@ const PASSWORD = 'correct horse battery';
   await page.click('#confirm-send');
   await page.locator('#sent').waitFor({ timeout: 30000 });
   const dcrTx = state.dcr[0];
-  assert.equal(dcrTx.outputs[0].value, 200_000_000n);
+  assert.ok(dcrTx.outputs.some((o) => o.value === 200_000_000n), 'the payment, at whichever place');
   assert.equal(dcrTx.inputs[0].value, 12_500_000_000n, 'the coin\'s amount in the witness');
   await page.click('#back');
   await page.locator('#asset-TRX').waitFor();

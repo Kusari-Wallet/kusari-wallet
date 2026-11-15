@@ -37,10 +37,10 @@ export abstract class InsightWallet<S extends string> {
   private size(inputs: number, outputs: number): bigint { return this.cfg.base + this.cfg.input * BigInt(inputs) + this.cfg.output * BigInt(outputs); }
   get receiveAddress(): string { return this.addressAt(0, this.state?.nextReceive ?? 0); }
 
-  protected async get(path: string): Promise<any> {
+  protected async get(path: string, agent: Agent | undefined = this.agent): Promise<any> {
     let last: unknown;
     for (const base of this.apis) {
-      try { return await getJson(base + path, { agent: this.agent, timeoutMs: this.timeoutMs }); } catch (e) { last = e; }
+      try { return await getJson(base + path, { agent, timeoutMs: this.timeoutMs }); } catch (e) { last = e; }
     }
     throw last instanceof Error ? last : new Error(`Could not reach the ${this.cfg.symbol} server.`);
   }

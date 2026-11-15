@@ -6,6 +6,8 @@
 import { bip39Seed } from './seed';
 import type { Agent } from 'node:http';
 import { InsightDraft, InsightWallet } from './insight';
+import { isolatedAgent } from './request';
+import { randomInt } from 'node:crypto';
 
 const { HDKey } = require('@scure/bip32');
 const { blake256 } = require('@noble/hashes/blake1.js');
@@ -74,8 +76,35 @@ export class DcrClient extends InsightWallet<'DCR'> {
   // No coin check against raw transactions (`script` left out): Decred's consensus rejects an input whose stated
   // amount differs from the coin's, so a server that misreports a coin only makes the send fail.
   constructor(xpub: string, apis: string[], agent?: Agent, timeoutMs = 30_000) {
-    super({ symbol: 'DCR', dust: DUST, feePerByte: FEE_ATOMS_PER_BYTE, base: SIZE_BASE, input: SIZE_INPUT, output: SIZE_OUTPUT, sign: signDcrDraft }, apis, agent, timeoutMs);
+    // A smaller gap and a longer reuse than other coins: each address is asked about on its own (see lookup).
+    super({ symbol: 'DCR', dust: DUST, feePerByte: FEE_ATOMS_PER_BYTE, base: SIZE_BASE, input: SIZE_INPUT, output: SIZE_OUTPUT, sign: signDcrDraft, gapReceive: 10, gapChange: 4, cacheMs: 3 * 60_000 }, apis, agent, timeoutMs);
     this.account = HDKey.fromExtendedKey(xpub);
+  }
+
+  /** Addresses already asked about in this scan, so a later round only asks about the new ones. */
+  private asked = new Map<string, { utxoRows: any[]; txs: any[] }>();
+
+  /**
+   * Each address on its own request, in random order, and through Tor each on its own route: a server sent the
+   * whole list at once (as Insight allows) would learn which addresses belong to one wallet.
+   */
+  protected override async lookup(addresses: string[], round: number): Promise<{ utxoRows: any[]; txs: any[] }> {
+    if (round === 0) this.asked.clear();
+    const todo = addresses.filter((a) => !this.asked.has(a));
+    for (let i = todo.length - 1; i > 0; i--) { const j = randomInt(i + 1); [todo[i], todo[j]] = [todo[j], todo[i]]; }
+    const one = async (a: string) => {
+      const agent = isolatedAgent(this.agent as any) ?? this.agent;
+      const [u, t] = await Promise.all([this.get(`/addr/${a}/utxo`, agent), this.get(`/addrs/${a}/txs?from=0&to=50&noAsm=1`, agent)]);
+      this.asked.set(a, { utxoRows: Array.isArray(u) ? u : [], txs: Array.isArray(t?.items) ? t.items : [] });
+    };
+    for (let i = 0; i < todo.length; i += 3) await Promise.all(todo.slice(i, i + 3).map(one));
+    const utxoRows: any[] = []; const txs = new Map<string, any>();
+    for (const a of addresses) {
+      const r = this.asked.get(a)!;
+      utxoRows.push(...r.utxoRows);
+      for (const tx of r.txs) if (typeof tx?.txid === 'string') txs.set(tx.txid, tx);
+    }
+    return { utxoRows, txs: [...txs.values()] };
   }
   addressAt(chain: number, index: number): string {
     return dcrAddressOf(this.account.deriveChild(chain).deriveChild(index).publicKey);
@@ -173,7 +202,8 @@ export function signDcrDraft(draft: InsightDraft, mnemonic: string): { hex: stri
   if (draft.change > 0n) {
     const change = account.deriveChild(1).deriveChild(draft.changeIndex);
     if (dcrAddressOf(change.publicKey) !== draft.changeAddress) throw new Error('The change address does not match this wallet\'s keys, so signing was stopped.');
-    tx.outputs.push({ value: draft.change, version: 0, script: dcrScript(draft.changeAddress) });
+    // At a random place, as dcrwallet puts it, so the change isn't always the last output.
+    tx.outputs.splice(randomInt(2), 0, { value: draft.change, version: 0, script: dcrScript(draft.changeAddress) });
   }
   keys.forEach((k, i) => { tx.inputs[i].sigScript = p2pkhSigScript(dcrSignatureHash(tx, i, k.script), k.priv, k.pub); });
   keys.forEach((k, i) => { if (!verifyDcrInput(tx, i, k.script, k.pub)) throw new Error('A signature did not check out, so this was stopped.'); });

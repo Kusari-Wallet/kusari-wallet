@@ -72,7 +72,10 @@ test('signing: dcrd\'s signature hash, low-S signatures that verify, the wire fo
   assert.equal(raw[at++], 2);
   const outs = [];
   for (let i = 0; i < 2; i++) { const value = raw.readBigInt64LE(at); const version = raw.readUInt16LE(at + 8); const len = raw[at + 10]; outs.push({ value, version, script: raw.subarray(at + 11, at + 11 + len).toString('hex') }); at += 11 + len; }
-  assert.deepEqual(outs, [{ value: 100_000_000n, version: 0, script: `76a914${DCRD_PKH[1]}88ac` }, { value: d.change, version: 0, script: Buffer.from(dcrScript(d.changeAddress)).toString('hex') }]);
+  // The change takes a random place; the outputs are otherwise as approved.
+  const want = [{ value: 100_000_000n, version: 0, script: `76a914${DCRD_PKH[1]}88ac` }, { value: d.change, version: 0, script: Buffer.from(dcrScript(d.changeAddress)).toString('hex') }];
+  const key = (o) => `${o.value}:${o.script}`;
+  assert.deepEqual(outs.map(key).sort(), want.map(key).sort());
   assert.equal(raw.readUInt32LE(at), 0); assert.equal(raw.readUInt32LE(at + 4), 0); at += 8; // lock time, expiry
   const prefixEnd = at;
   assert.equal(raw[at++], 2);
@@ -104,7 +107,7 @@ test('signing: dcrd\'s signature hash, low-S signatures that verify, the wire fo
     assert.equal(verifyDcrInput(tx, i, dcrScript(inputs[1 - i].address), key.publicKey), false);
   }
   // A changed output breaks every signature.
-  const tampered = { ...tx, outputs: [{ ...tx.outputs[0], value: 100_000_001n }, tx.outputs[1]] };
+  const tampered = { ...tx, outputs: [{ ...tx.outputs[0], value: tx.outputs[0].value + 1n }, tx.outputs[1]] };
   assert.equal(verifyDcrInput(tampered, 0, dcrScript(inputs[0].address), root.deriveChild(0).deriveChild(0).publicKey), false);
 
   assert.throws(() => signDcrDraft({ ...d, fee: d.fee + 1n }, PHRASE), /do not add up/);
@@ -117,9 +120,11 @@ test('a send through a stand-in dcrdata: coins found, fee for the size, the raw 
   const c0 = new DcrClient(xpub, []);
   const mine = c0.addressAt(0, 2);
   const posted = [];
+  const asked = [];
   const server = http.createServer((q, r) => {
     let b = ''; q.on('data', (x) => { b += x; });
     q.on('end', () => {
+      asked.push(q.url);
       r.setHeader('content-type', 'application/json');
       if (q.method === 'POST' && q.url === '/tx/send') { const hex = JSON.parse(b).rawtx; posted.push(hex); return r.end(JSON.stringify({ txid: idOf(Buffer.from(hex, 'hex')) })); }
       if (q.url.includes('/utxo')) return r.end(JSON.stringify(q.url.includes(mine) ? [{ address: mine, txid: 'cd'.repeat(32), vout: 0, atoms: 300_000_000, amount: 3, confirmations: 12 }] : []));
@@ -131,6 +136,15 @@ test('a send through a stand-in dcrdata: coins found, fee for the size, the raw 
   t.after(() => { server.close(); server.closeAllConnections(); });
   const c = new DcrClient(xpub, [`http://127.0.0.1:${server.address().port}`]);
   assert.deepEqual(await c.getBalance(), { total: 300_000_000n, spendable: 300_000_000n });
+  // Every address asked about on its own: no request names two, so the server can't group them.
+  const lookups = asked.filter((u) => /utxo|txs/.test(u));
+  assert.ok(lookups.length >= 2 * (10 + 4), `${lookups.length} lookups`);
+  for (const u of lookups) assert.equal((u.match(/D[sc][1-9A-HJ-NP-Za-km-z]{33}/g) ?? []).length, 1, u);
+  assert.ok(!lookups.some((u) => u.includes(',')));
+  // Found at index 2, so the scan looked further; each address only once per scan.
+  const perAddress = new Map(); for (const u of lookups.filter((x) => x.includes('/utxo'))) { const a = u.match(/D[sc]\w+/)[0]; perAddress.set(a, (perAddress.get(a) ?? 0) + 1); }
+  assert.ok([...perAddress.values()].every((n) => n === 1), 'no address asked twice in one scan');
+  assert.ok(perAddress.has(c0.addressAt(0, 12)), 'the gap counted from the used address');
   const d = await c.draft(DCRD_PKH[0], 100_000_000n);
   assert.equal(d.inputs[0].address, mine);
   const size = 15n + 165n + 36n * 2n;
