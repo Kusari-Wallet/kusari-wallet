@@ -127,5 +127,3 @@ jobs:
         run: |
           cat "$RUNNER_TEMP/out.txt"
           grep -q "selftest ok" "$RUNNER_TEMP/out.txt"
-
-          //nonono
