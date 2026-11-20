@@ -109,14 +109,6 @@ function mockNode() {
       if (url.startsWith('/dash/rawtx/')) return state.dashRaws?.[url.slice(12, 76)] ? send({ rawtx: state.dashRaws[url.slice(12, 76)] }) : send({ error: 'unknown' }, 404);
       if (url.startsWith('/dash/addrs/') && url.endsWith('/txs')) return send({ totalItems: 0, items: [] });
       if (url === '/dash/tx/send') { (state.dashRaw = state.dashRaw ?? []).push(json.rawtx); return send({}); }
-      // NEAR: 1.6 NEAR held, 0.1 of it kept for 10 kB of storage.
-      if (url === '/near/rpc') {
-        const ok = (result) => send({ jsonrpc: '2.0', id: json.id, result });
-        if (json.method === 'query' && json.params?.request_type === 'view_account') return ok({ amount: '1600000000000000000000000', locked: '0', storage_usage: 10000, block_hash: '11111111111111111111111111111111', block_height: 1 });
-        if (json.method === 'gas_price') return ok({ gas_price: '100000000' });
-        return send({ jsonrpc: '2.0', id: json.id, error: { name: 'HANDLER_ERROR', cause: { name: 'UNKNOWN_ACCOUNT' } } });
-      }
-      if (url.startsWith('/near/history/')) return send({ txns: [] });
       // Polygon and Arbitrum: their own chain ids, and nothing held there.
       if (url === '/pol/rpc' || url === '/arb/rpc' || url === '/bsc/rpc' || url === '/hype/rpc') {
         const ok = (result) => send({ jsonrpc: '2.0', id: json.id, result });

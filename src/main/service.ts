@@ -1,8 +1,5 @@
 // The wallet service, last layer (WalletService): swaps through services and on chain, and privacy swaps.
 import { isTonAddress } from './ton';
-import { isSuiAddress } from './sui';
-import { isNearAccount } from './near';
-import { isXrpAddress } from './xrp';
 import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
@@ -226,9 +223,6 @@ export class WalletService extends SendService {
       : asset === 'SOL' || isSpl(asset) ? isSolAddress(address)
       : asset === 'DOGE' ? isDogeAddress(address)
       : asset === 'GRAM' || asset === 'USDTT' ? isTonAddress(address)
-      : asset === 'SUI' ? isSuiAddress(address)
-      : asset === 'NEAR' ? isNearAccount(address)
-      : asset === 'XRP' ? isXrpAddress(address)
       : asset === 'DCR' ? isDcrAddress(address)
       : asset === 'BCH' ? isBchAddress(address)
       : asset === 'ZEC' ? isZecAddress(address)

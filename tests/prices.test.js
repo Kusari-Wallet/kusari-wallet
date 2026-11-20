@@ -14,7 +14,7 @@ const u = (p, c) => ({ USD: { PRICE: p, CHANGEPCT24HOUR: c } });
 const CC = { RAW: { BTC: u(70000, 1), ETH: u(3000, 1), TRX: u(0.3, 1), USDT: u(1, 0), XMR: u(150, 1) } };
 
 // Coins added after the recorded answers below were taken; their market ids are checked in the parse code only.
-const ADDED_AFTER_RECORDING = new Set(['GRAM', 'SUI', 'NEAR', 'XRP']);
+const ADDED_AFTER_RECORDING = new Set(['GRAM']);
 
 test('each source gives the same shape, both USDT included', () => {
   for (const [source, json] of [[coingecko('x'), CG], [kraken('x'), KR], [cryptocompare('x'), CC]]) {

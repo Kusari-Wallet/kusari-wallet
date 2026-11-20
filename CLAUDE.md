@@ -95,10 +95,8 @@ Java WebView (`android/java`) running the same code as an esbuild bundle (`src/a
 - Android launcher: two activity-aliases (`.Launcher`, `.PlainLauncher` "Tools"); `setPlainLauncher` swaps them.
 - Own servers per coin: `customServers` setting, `OWN_SERVER_COINS` in `config.ts`.
 - Account coins with their own client, wired through `ACCOUNT_COINS` / `AccountCoin` (`service-common.ts`): GRAM and
-  USDT on TON (`ton.ts`, v4r2 wallet at m/44'/607'/0', toncenter), SUI (`sui.ts`, m/44'/784'/0'/0'/0', Sui GraphQL;
-  JSON-RPC is gone), NEAR (`near.ts`), XRP (`xrp.ts`, m/44'/144'/0'/0/0, binary format pinned to
-  ripple-binary-codec). Sends can carry a memo (XRP destination tag, TON comment). No auto-lock: the wallet stays
-  open until locked.
+  USDT on TON (`ton.ts`, v4r2 wallet at m/44'/607'/0', toncenter). Sends can carry a TON comment. No auto-lock: the
+  wallet stays open until locked.
 - Swaps into XMR use a new subaddress per order (`swapSubaddress`); XMR sends reconnect with a new Tor login
   (`MoneroClient.renewRoute`, desktop). Coin selection takes the smallest single coin that covers a payment.
 - Delayed Bitcoin sends: signed at confirm, kept sealed in `btc-delayed.json`, coins reserved, sent at a random

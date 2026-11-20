@@ -11,9 +11,6 @@ export const SWAP_PROVIDER = 'Exolix';
 const COIN: Record<Asset, { coin: string; network: RegExp; fallback: string }> = {
   GRAM: { coin: 'TON', network: /^(ton|the open network)$/i, fallback: 'TON' },
   USDTT: { coin: 'USDT', network: /^(ton|jetton)$/i, fallback: 'TON' },
-  SUI: { coin: 'SUI', network: /^sui$/i, fallback: 'SUI' },
-  NEAR: { coin: 'NEAR', network: /^near$/i, fallback: 'NEAR' },
-  XRP: { coin: 'XRP', network: /^(xrp|ripple)$/i, fallback: 'XRP' },
   DCR: { coin: 'DCR', network: /^(dcr|decred)$/i, fallback: 'DCR' },
   SHIB: { coin: 'SHIB', network: /^(eth|ethereum|erc-?20)$/i, fallback: 'ETH' },
   ORCA: { coin: 'ORCA', network: /^(sol|solana|spl)$/i, fallback: 'SOL' },
@@ -191,9 +188,6 @@ export const SIMPLESWAP_BASE = 'https://api.simpleswap.io';
 const SIMPLE_COIN: Record<Asset, { ticker: string; network: string }> = {
   GRAM: { ticker: 'ton', network: 'ton' },
   USDTT: { ticker: 'usdt', network: 'ton' },
-  SUI: { ticker: 'sui', network: 'sui' },
-  NEAR: { ticker: 'near', network: 'near' },
-  XRP: { ticker: 'xrp', network: 'xrp' },
   DCR: { ticker: 'dcr', network: 'dcr' },
   // Each checked against SimpleSwap's list by contract.
   SHIB: { ticker: 'shib', network: 'eth' },
@@ -528,9 +522,6 @@ export const CHANGENOW_BASE = 'https://api.changenow.io';
 const CN_COIN: Partial<Record<Asset, { ticker: string; network: string }>> = {
   GRAM: { ticker: 'ton', network: 'ton' },
   USDTT: { ticker: 'usdt', network: 'ton' },
-  SUI: { ticker: 'sui', network: 'sui' },
-  NEAR: { ticker: 'near', network: 'near' },
-  XRP: { ticker: 'xrp', network: 'xrp' },
   DCR: { ticker: 'dcr', network: 'dcr' },
   // Checked against ChangeNOW's list by contract.
   SHIB: { ticker: 'shib', network: 'eth' },

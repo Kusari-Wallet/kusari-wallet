@@ -152,7 +152,7 @@ export class SendService extends ServiceCore {
     const eth = this.tornadoClient(chain);
     const preview = this.previews.get(id);
     if (!preview?.eth || preview.expires < Date.now() || preview.to !== this.poolAddress(pool, chain)) throw new Error('The review expired. Try again.');
-    const sendTo = opts.sendTo?.trim() ? this.tornadoRecipient(opts.sendTo, eth) : undefined;
+    const sendTo = opts.sendTo?.trim() ? await this.foreign(this.tornadoRecipient(opts.sendTo, eth)) : undefined;
     const secrets = await this.vault.open(password);
     this.previews.delete(id);
     const store = await this.tornadoStore.read();
@@ -187,6 +187,14 @@ export class SendService extends ServiceCore {
     }
     this.emit('balance-changed');
     return note;
+  }
+
+  /** A mixer's typed receiving address must not be one of this wallet's own: that links both ends again. */
+  protected async foreign(address: string): Promise<string> {
+    const own = new Set(Object.values(await this.addresses().catch(() => ({}))).filter((v): v is string => typeof v === 'string').map((v) => v.toLowerCase()));
+    for (const c of this.ethExtra.values()) own.add(c.address.toLowerCase());
+    if (own.has(address.toLowerCase())) throw new Error('This address belongs to this wallet, which gives no privacy benefit. Enter an address from another wallet.');
+    return address;
   }
 
   protected tornadoRecipient(input: string, eth: EthClient): string {
@@ -236,7 +244,7 @@ export class SendService extends ServiceCore {
    * Fee and amounts for the review screen. Nothing heavy, nothing sent. recipientInput "new": a never used address of
    * this wallet (made when the withdrawal goes ahead; Ethereum only). relayerInput "auto": one picked as the site does.
    */
-  async tornadoWithdrawQuote(noteId: string, recipientInput: string, relayerInput: string) {
+  async tornadoWithdrawQuote(noteId: string, recipientInput: string, relayerInput: string, opts: { madeHere?: boolean } = {}) {
     const store = await this.tornadoStore.read();
     const note = store.notes.find((n) => n.id === noteId);
     if (!note) throw new Error('No such deposit.');
@@ -251,7 +259,8 @@ export class SendService extends ServiceCore {
       if (!this.ethNode) throw new Error('The wallet is locked.');
       recipient = this.ethNode.addressAt(list.length ? Math.max(...list) + 1 : 0);
     }
-    recipient = this.tornadoRecipient(recipient, eth);
+    // A new address this wallet made for this withdrawal is meant to be its own; a typed one must not be.
+    recipient = fresh || opts.madeHere ? this.tornadoRecipient(recipient, eth) : await this.foreign(this.tornadoRecipient(recipient, eth));
     const total = denomination(note.pool);
     // How hidden the deposit is by now: deposits after it, and time.
     const after = await this.tornadoStore.depositsAfter(note.pool, note.commitment, chain);
@@ -305,8 +314,9 @@ export class SendService extends ServiceCore {
     if (later && !relayerInput.trim()) throw new Error('A withdrawal can only wait for later through a relayer.');
     const secrets = await this.vault.open(password);
     // A new address of this wallet: made now, so it is kept even if the withdrawal stops midway.
-    if (recipientInput.trim() === 'new') recipientInput = (await this.ethAddressNew()).address;
-    const quote = await this.tornadoWithdrawQuote(noteId, recipientInput, relayerInput);
+    const madeHere = recipientInput.trim() === 'new';
+    if (madeHere) recipientInput = (await this.ethAddressNew()).address;
+    const quote = await this.tornadoWithdrawQuote(noteId, recipientInput, relayerInput, { madeHere });
     if (quote.mode === 'relayer') relayerInput = quote.relayerUrl;
     const address = this.poolAddress(note.pool, chain);
     const keys = noteSecrets(secrets.tronMnemonic, note.index);
@@ -323,7 +333,7 @@ export class SendService extends ServiceCore {
       const at = randomLater();
       note.status = 'scheduled'; note.scheduledKind = 'withdraw'; note.at = at; note.recipient = quote.recipient; delete note.problem;
       await tor.write(store);
-      const entry = { id: note.id, kind: 'send-on' as const, at, keys, to: quote.recipient, url: relayerInput };
+      const entry = { id: note.id, kind: 'send-on' as const, at, keys, to: quote.recipient, url: relayerInput, ...(madeHere ? { madeHere: true } : {}) };
       await this.records.write(this.tornadoLaterPath, [...(await this.tornadoLater()).filter((e) => e.id !== note.id), entry]);
       this.armTornado(entry);
       return note;
@@ -413,9 +423,12 @@ export class SendService extends ServiceCore {
         const [{ nullifierHash }] = await runTornado('commit', { notes: [e.keys] });
         const spent = tornadoAbi.decodeFunctionResult('isSpent', await eth.call(address, tornadoAbi.encodeFunctionData('isSpent', [nullifierHash])));
         if (spent[0]) { await this.tornadoDone(id, (n) => { n.status = 'withdrawn'; delete n.at; delete n.scheduledKind; }); return; }
-        const quote = await this.tornadoWithdrawQuote(id, e.to, e.url || 'auto');
+        const quote = await this.tornadoWithdrawQuote(id, e.to, e.url || 'auto', { madeHere: e.madeHere === true });
         if (quote.mode !== 'relayer') throw new Error('No relayer.');
-        const { proof, args } = await this.tornadoProve(note, e.keys, quote.recipient, quote.relayer as string, parseAmount(quote.fee, 18), say);
+        // Nobody reviews this fee: past 2% of the amount (a busy network or a greedy relayer), wait and try again.
+        const fee = parseAmount(quote.fee, 18);
+        if (fee * 100n > denomination(note.pool) * UNATTENDED_FEE_PERCENT) throw new Error(`The relayer's fee is over ${UNATTENDED_FEE_PERCENT}% right now.`);
+        const { proof, args } = await this.tornadoProve(note, e.keys, quote.recipient, quote.relayer as string, fee, say);
         this.renewTorRoute('ETH');
         const hash = await relayerSubmit(await relayerStatus(quote.relayerUrl, this.priceAgent, this.dev.tornadoLocalRelayer ? 1 : TORNADO_CHAINS[chain].netId), address, proof, args, this.priceAgent, this.dev.tornadoLocalRelayer ? 200 : 5000);
         await this.tornadoDone(id, (n) => { n.status = 'withdrawn'; n.withdrawTx = hash; n.recipient = quote.recipient; delete n.at; delete n.scheduledKind; delete n.problem; });
@@ -765,8 +778,8 @@ export class SendService extends ServiceCore {
       amount: formatAmount(preview.amount, decimals),
       fee: formatAmount(preview.fee, preview.account ? DECIMALS[ACCOUNT_COINS[asset]!.feeAsset] : preview.eth ? 18 : asset === 'XMR' ? 12 : asset === 'ZANO' || asset === 'KSR' ? 12 : asset === 'SOL' || isSpl(asset) ? 9 : asset === 'DOGE' || asset === 'DCR' || asset === 'BCH' || asset === 'LTC' || asset === 'BTC' || asset === 'DASH' || asset === 'FIRO' || asset === 'ZEC' || asset === 'ARRR' ? 8 : 6),
       feeAsset: preview.account ? ACCOUNT_COINS[asset]!.feeAsset : preview.eth ? chainOf(preview.eth.asset).native : isSpl(asset) ? 'SOL' : asset === 'SOL' || asset === 'DCR' || asset === 'DOGE' || asset === 'BCH' || asset === 'LTC' || asset === 'XMR' || asset === 'BTC' || asset === 'DASH' || asset === 'FIRO' || asset === 'ZEC' || asset === 'ZANO' || asset === 'KSR' || asset === 'ARRR' ? asset : 'TRX',
-      feeIsEstimate: asset !== 'SUI' && asset !== 'NEAR' && asset !== 'XRP' && asset !== 'SOL' && !isSpl(asset) && asset !== 'DCR' && asset !== 'DOGE' && asset !== 'BCH' && asset !== 'LTC' && asset !== 'XMR' && asset !== 'BTC' && asset !== 'DASH' && asset !== 'FIRO' && asset !== 'ZEC' && asset !== 'ZANO' && asset !== 'KSR' && asset !== 'ARRR',
-      ...(preview.account?.draft?.tag !== undefined ? { memo: String(preview.account.draft.tag), memoKind: 'tag' } : preview.account?.draft?.comment ? { memo: String(preview.account.draft.comment), memoKind: 'comment' } : {}),
+      feeIsEstimate: asset !== 'SOL' && !isSpl(asset) && asset !== 'DCR' && asset !== 'DOGE' && asset !== 'BCH' && asset !== 'LTC' && asset !== 'XMR' && asset !== 'BTC' && asset !== 'DASH' && asset !== 'FIRO' && asset !== 'ZEC' && asset !== 'ZANO' && asset !== 'KSR' && asset !== 'ARRR',
+      ...(preview.account?.draft?.comment ? { memo: String(preview.account.draft.comment), memoKind: 'comment' } : {}),
       warnings,
     };
   }
@@ -1142,7 +1155,7 @@ export class SendService extends ServiceCore {
   async solPoolDeposit(asset: string, amountText: string, password: string, opts: { sendTo?: string } = {}) {
     const a = this.poolAsset(asset);
     await this.solPoolDepositQuote(a, amountText);
-    const sendTo = opts.sendTo?.trim() ? this.poolRecipient(opts.sendTo) : undefined;
+    const sendTo = opts.sendTo?.trim() ? await this.foreign(this.poolRecipient(opts.sendTo)) : undefined;
     const { pool, sol } = this.poolOpen();
     const secrets = await this.vault.open(password);
     const amount = parseAmount(amountText, POOL_TOKENS[a].decimals);
@@ -1172,7 +1185,7 @@ export class SendService extends ServiceCore {
     const a = this.poolAsset(asset);
     const { pool } = this.poolOpen();
     const t = POOL_TOKENS[a];
-    const recipient = this.poolRecipient(to);
+    const recipient = await this.foreign(this.poolRecipient(to));
     const q = await pool.withdrawQuote(a, amountText === 'max' ? 'max' : parseAmount(amountText, t.decimals));
     // The relayer and anyone watching the chain see this amount and time: close to a deposit's, they can be paired.
     const deposits = (await this.poolHistory()).filter((e) => e.kind === 'in' && e.asset === a);
@@ -1232,6 +1245,10 @@ export class SendService extends ServiceCore {
         await this.solPool.scan(e.asset);
         amount = (await this.solPool.quoteWithin(e.asset, BigInt(e.amount.slice(8)))).amount;
       } else amount = BigInt(e.amount);
+      // Nobody reviews this fee: more than 2% of the amount plus the relayer's usual fixed part, and it waits.
+      const q = await this.solPool.withdrawQuote(e.asset, amount);
+      const fixed = e.asset === 'SOL' ? 2_000_000n : 10n ** BigInt(POOL_TOKENS[e.asset].decimals);
+      if (q.fee * 100n > amount * UNATTENDED_FEE_PERCENT + fixed * 100n) throw new Error(`The pool relayer's fee is over ${UNATTENDED_FEE_PERCENT}% right now.`);
       await this.poolSend(e.asset, amount, e.to);
       await drop();
     } catch (err) {
@@ -1741,7 +1758,12 @@ export class SendService extends ServiceCore {
       if (!/^0x[0-9a-fA-F]{64}$/.test(hash)) throw new Error('Invalid transaction hash.');
       return EVM_EXPLORER[String(chainOf(asset).id)] + hash;
     }
-    if (!/^[0-9a-fA-F]{64}$/.test(hash)) throw new Error('Invalid transaction hash.');
+    // Each chain's own ID format, so nothing but an ID can be put after the explorer's address.
+    const b58 = /^[1-9A-HJ-NP-Za-km-z]+$/;
+    const ok = asset === 'SOL' || isSpl(asset) ? b58.test(hash) && hash.length >= 64 && hash.length <= 90
+      : asset === 'GRAM' || asset === 'USDTT' ? /^[0-9a-fA-F]{64}$/.test(hash) || /^[A-Za-z0-9_-]{43}=?$/.test(hash)
+      : /^[0-9a-fA-F]{64}$/.test(hash);
+    if (!ok) throw new Error('Invalid transaction hash.');
     const net = NETWORKS[this.settings.network];
     if (asset === 'DASH') return DASH_EXPLORER_TX + hash;
     if (asset === 'FIRO') return FIRO_EXPLORER_TX + hash;
@@ -1762,6 +1784,9 @@ export class SendService extends ServiceCore {
     return (asset === 'XMR' ? net.monero.explorerTx : net.tron.explorerTx) + hash;
   }
 }
+
+/** The most a send nobody reviews (a mixer's send-on at a random time) may pay its relayer, in percent. */
+export const UNATTENDED_FEE_PERCENT = 2n;
 
 /** How long a delayed Bitcoin send may wait: it goes out at a random moment within it. */
 export const DELAY_CHOICES = [10, 60, 240];

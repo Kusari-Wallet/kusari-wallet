@@ -1,6 +1,6 @@
 # Kusari Wallet
 
-A self-custody wallet for Windows and Android that sends and receives XMR, BTC, ETH, TRX, USDT (ERC-20, TRC-20, SPL, Polygon, Arbitrum), SOL, POL, ARB, ETH on Arbitrum, LINK, BCH, LTC, DOGE, GRAM (TON) and USDT on TON, SUI, NEAR, XRP, DASH, FIRO, ZEC, ZANO and ARRR. There is no account server: seeds are encrypted and stored on your device.
+A self-custody wallet for Windows and Android that sends and receives XMR, BTC, ETH, TRX, USDT (ERC-20, TRC-20, SPL, Polygon, Arbitrum), SOL, POL, ARB, ETH on Arbitrum, LINK, BCH, LTC, DOGE, GRAM (TON) and USDT on TON, DASH, FIRO, ZEC, ZANO and ARRR. There is no account server: seeds are encrypted and stored on your device.
 
 You can add several wallets and rename them. Each wallet has its own seeds, password and records. Settings and Tor are shared.
 

@@ -76,7 +76,7 @@ export const EVM_EXPLORER: Record<string, string> = { '1': ETH_EXPLORER_TX, '137
 
 export const ASSET_LABEL: Partial<Record<Asset, string>> = { USDTE: 'USDT (Eth)', USDT: 'USDT (Tron)', USDTS: 'USDT (Sol)', USDTP: 'USDT (Pol)', USDTA: 'USDT (Arb)', ETHA: 'ETH (Arb)', ETHP: 'ETH (Pol)', USDTB: 'USDT (BNB)', USDCE: 'USDC (Eth)', USDCB: 'USDC (BNB)', USDCS: 'USDC (Sol)', USDCP: 'USDC (Pol)', USDCA: 'USDC (Arb)' };
 
-export const LOOKUP_ROUTE: Record<string, string> = { DCR: 'dcr', SHIB: 'eth', ORCA: 'sol', PUMP: 'sol', BTC: 'btc', ETH: 'eth', USDTE: 'eth', LINK: 'eth', TRX: 'tron', USDT: 'tron', DASH: 'dash', FIRO: 'firo', SOL: 'sol', USDTS: 'sol', POL: 'pol', USDTP: 'pol', ARB: 'arb', ETHA: 'arb', USDTA: 'arb', BCH: 'bch', LTC: 'ltc', DOGE: 'doge', ETHP: 'pol', PEPE: 'eth', BNB: 'bsc', USDTB: 'bsc', USDCE: 'eth', USDCB: 'bsc', USDCS: 'sol', USDCP: 'pol', USDCA: 'arb', HYPE: 'hype', GRAM: 'ton', USDTT: 'ton', SUI: 'sui', NEAR: 'near', XRP: 'xrp' };
+export const LOOKUP_ROUTE: Record<string, string> = { DCR: 'dcr', SHIB: 'eth', ORCA: 'sol', PUMP: 'sol', BTC: 'btc', ETH: 'eth', USDTE: 'eth', LINK: 'eth', TRX: 'tron', USDT: 'tron', DASH: 'dash', FIRO: 'firo', SOL: 'sol', USDTS: 'sol', POL: 'pol', USDTP: 'pol', ARB: 'arb', ETHA: 'arb', USDTA: 'arb', BCH: 'bch', LTC: 'ltc', DOGE: 'doge', ETHP: 'pol', PEPE: 'eth', BNB: 'bsc', USDTB: 'bsc', USDCE: 'eth', USDCB: 'bsc', USDCS: 'sol', USDCP: 'pol', USDCA: 'arb', HYPE: 'hype', GRAM: 'ton', USDTT: 'ton' };
 
 /** Waits longer each time, up to five minutes, so a server that's down isn't asked over and over. */
 export function lookupRetryDelay(fails: number): number {
@@ -86,8 +86,8 @@ export const BALANCE_STALE_MS = 6 * 3600_000;
 export const PREVIEW_TTL_MS = 10 * 60_000;
 
 /**
- * Coins on account-based chains with their own client (TON, Sui, NEAR, XRP Ledger): one balance, one address,
- * a draft to review and a send. `memo`: what their sends can carry for an exchange's deposit (XRP's destination tag,
+ * Coins on account-based chains with their own client (TON): one balance, one address,
+ * a draft to review and a send. `memo`: what their sends can carry for an exchange's deposit (
  * TON's comment).
  */
 export interface AccountCoin {
@@ -97,12 +97,9 @@ export interface AccountCoin {
   send(draft: any, mnemonic: string): Promise<string>;
   getHistory(): Promise<any[]>;
 }
-export const ACCOUNT_COINS: Partial<Record<Asset, { feeAsset: Asset; explorerTx: string; typicalFee: bigint; memo?: 'tag' | 'comment'; label: string }>> = {
+export const ACCOUNT_COINS: Partial<Record<Asset, { feeAsset: Asset; explorerTx: string; typicalFee: bigint; memo?: 'comment'; label: string }>> = {
   GRAM: { feeAsset: 'GRAM', explorerTx: 'https://tonviewer.com/transaction/', typicalFee: 10_000_000n, memo: 'comment', label: 'TON' },
   USDTT: { feeAsset: 'GRAM', explorerTx: 'https://tonviewer.com/transaction/', typicalFee: 60_000_000n, memo: 'comment', label: 'TON' },
-  SUI: { feeAsset: 'SUI', explorerTx: 'https://suiscan.xyz/mainnet/tx/', typicalFee: 2_000_000n, label: 'Sui' },
-  NEAR: { feeAsset: 'NEAR', explorerTx: 'https://nearblocks.io/txns/', typicalFee: 90_000_000_000_000_000_000n, label: 'NEAR' },
-  XRP: { feeAsset: 'XRP', explorerTx: 'https://livenet.xrpl.org/transactions/', typicalFee: 12n, memo: 'tag', label: 'XRP Ledger' },
 };
 export const isAccountCoin = (a: string): boolean => Object.prototype.hasOwnProperty.call(ACCOUNT_COINS, a);
 

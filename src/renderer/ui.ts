@@ -2,11 +2,11 @@
 declare const wallet: any;
 declare const jsQR: any;
 
-type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'LINK' | 'SOL' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA' | 'BCH' | 'LTC' | 'DOGE' | 'DASH' | 'FIRO' | 'ZEC' | 'ZANO' | 'KSR' | 'ARRR' | 'ETHP' | 'PEPE' | 'BNB' | 'USDTB' | 'USDCE' | 'USDCB' | 'USDCS' | 'USDCP' | 'USDCA' | 'SHIB' | 'ORCA' | 'PUMP' | 'DCR' | 'GRAM' | 'USDTT' | 'SUI' | 'NEAR' | 'XRP';
+type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'LINK' | 'SOL' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA' | 'BCH' | 'LTC' | 'DOGE' | 'DASH' | 'FIRO' | 'ZEC' | 'ZANO' | 'KSR' | 'ARRR' | 'ETHP' | 'PEPE' | 'BNB' | 'USDTB' | 'USDCE' | 'USDCB' | 'USDCS' | 'USDCP' | 'USDCA' | 'SHIB' | 'ORCA' | 'PUMP' | 'DCR' | 'GRAM' | 'USDTT';
 type Attrs = Record<string, any>;
 type Child = Node | string | null | undefined | false;
 
-const ALL_ASSETS: Asset[] = ['XMR', 'BTC', 'ETH', 'USDTE', 'USDCE', 'LINK', 'PEPE', 'SHIB', 'ZEC', 'SOL', 'USDTS', 'USDCS', 'ORCA', 'PUMP', 'TRX', 'USDT', 'GRAM', 'USDTT', 'SUI', 'NEAR', 'XRP', 'BNB', 'USDTB', 'USDCB', 'POL', 'ETHP', 'USDTP', 'USDCP', 'ARB', 'ETHA', 'USDTA', 'USDCA', 'BCH', 'LTC', 'DCR', 'DOGE', 'DASH', 'FIRO', 'ZANO', 'KSR', 'ARRR'];
+const ALL_ASSETS: Asset[] = ['XMR', 'BTC', 'ETH', 'USDTE', 'USDCE', 'LINK', 'PEPE', 'SHIB', 'ZEC', 'SOL', 'USDTS', 'USDCS', 'ORCA', 'PUMP', 'TRX', 'USDT', 'GRAM', 'USDTT', 'BNB', 'USDTB', 'USDCB', 'POL', 'ETHP', 'USDTP', 'USDCP', 'ARB', 'ETHA', 'USDTA', 'USDCA', 'BCH', 'LTC', 'DCR', 'DOGE', 'DASH', 'FIRO', 'ZANO', 'KSR', 'ARRR'];
 /** Tokens shown under the coin of their chain on the home screen, folded until opened. */
 const GROUPS: Partial<Record<Asset, Asset[]>> = { ETH: ['USDTE', 'USDCE', 'LINK', 'PEPE', 'SHIB'], SOL: ['USDTS', 'USDCS', 'ORCA', 'PUMP'], TRX: ['USDT'], GRAM: ['USDTT'], BNB: ['USDTB', 'USDCB'], POL: ['ETHP', 'USDTP', 'USDCP'], ARB: ['ETHA', 'USDTA', 'USDCA'] };
 const IN_GROUP = new Set(Object.values(GROUPS).flat());
@@ -27,9 +27,6 @@ const COIN: Record<Asset, { label: string; file: string; note: string }> = {
   USDTS: { label: 'USDT (Sol)', file: 'coins/usdt.png', note: 'Solana network (SPL) only. SOL is needed for the fee. Don\'t send to addresses on other chains.' },
   GRAM: { label: 'GRAM', file: 'coins/gram.png', note: 'Gram, formerly Toncoin, on TON. Exchanges often ask for a comment (memo) with deposits: enter it below when sending.' },
   USDTT: { label: 'USDT (TON)', file: 'coins/usdt.png', note: 'USDT on TON only. Sending needs a little GRAM at this address for the fee, most of which comes back.' },
-  SUI: { label: 'SUI', file: 'coins/sui.png', note: 'SUI on the Sui network.' },
-  NEAR: { label: 'NEAR', file: 'coins/near.png', note: 'NEAR on its own chain. The account is the 64-character one, created when NEAR first arrives.' },
-  XRP: { label: 'XRP', file: 'coins/xrp.png', note: 'XRP on the XRP Ledger. An account keeps 1 XRP in reserve. Exchanges often ask for a destination tag: enter it below when sending.' },
   BCH: { label: 'BCH', file: 'coins/bch.png', note: 'Bitcoin Cash only, to CashAddr addresses (q…). The fee is paid in BCH.' },
   LTC: { label: 'LTC', file: 'coins/ltc.png', note: 'Litecoin only. The fee depends on the network and is shown on the review screen.' },
   DOGE: { label: 'DOGE', file: 'coins/doge.png', note: 'Dogecoin mainnet only. The fee is paid in DOGE.' },
@@ -128,6 +125,8 @@ const ICONS = {
 };
 
 function coin(asset: Asset): HTMLElement {
+  // A coin no longer in the app can still be named by an old record (a swap, a saved setting).
+  if (!COIN[asset]) return h('span', { class: 'coin' });
   const img = h('img', { class: 'coin', src: COIN[asset].file, alt: '' });
   // Same token on several chains: the badge is what tells them apart at a glance.
   const badge: Partial<Record<Asset, string>> = { USDT: 'trx', USDTE: 'eth', USDTS: 'sol', USDTP: 'pol', USDTA: 'arb', ETHA: 'arb', USDTB: 'bnb', ETHP: 'pol', USDCE: 'eth', USDCB: 'bnb', USDCS: 'sol', USDCP: 'pol', USDCA: 'arb', USDTT: 'gram' };

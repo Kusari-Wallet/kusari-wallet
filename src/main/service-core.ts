@@ -8,7 +8,7 @@ import { balanceCacheKey, readBalanceCache, writeBalanceCache, SavedBalance, SAV
 import path from 'node:path';
 const { wordlist: BIP39_WORDS } = require('@scure/bip39/wordlists/english');
 import { formatAmount, parseAmount } from './amount';
-import { Asset, BTC_APIS, BTC_ONION_APIS, DECIMALS, FIRO_APIS, SOL_RPCS, TON_APIS, SUI_GRAPHQL, NEAR_RPCS, NEAR_HISTORY, XRP_SERVERS, BCH_APIS, LTC_APIS, DOGE_APIS, DOGE_PUSH_URLS, DOGE_BACKUP, DOGE_RAW_URLS, POL_RPCS, POL_SCOUT, ARB_RPCS, ARB_SCOUT, BSC_RPCS, BSC_SCOUT, DASH_APIS, DEFAULT_SETTINGS, ARRR_SERVERS, ZANO_NODE, KSR_NODE, ZEC_SERVERS, ETH_RPCS, ETH_SCOUT, ETH_USDT, NETWORKS, NetworkId, Settings, estimateMainnetHeight } from './config';
+import { Asset, BTC_APIS, BTC_ONION_APIS, DECIMALS, FIRO_APIS, SOL_RPCS, TON_APIS, BCH_APIS, LTC_APIS, DOGE_APIS, DOGE_PUSH_URLS, DOGE_BACKUP, DOGE_RAW_URLS, POL_RPCS, POL_SCOUT, ARB_RPCS, ARB_SCOUT, BSC_RPCS, BSC_SCOUT, DASH_APIS, DEFAULT_SETTINGS, ARRR_SERVERS, ZANO_NODE, KSR_NODE, ZEC_SERVERS, ETH_RPCS, ETH_SCOUT, ETH_USDT, NETWORKS, NetworkId, Settings, estimateMainnetHeight } from './config';
 import { MIN_PASSWORD, Secrets, Vault } from './vault';
 import { TronClient, deriveTronAccount, generateTronMnemonic } from './tron';
 import { socksAgent, getJson, newTorRoute, isolatedAgent } from './request';
@@ -39,9 +39,6 @@ import { tcpDial as dcrDial } from './dash-net';
 import { BchClient, bchAccountXpub } from './bch';
 import { SolClient, solAddress, solSecret } from './sol';
 import { TonClient, tonPublicKey } from './ton';
-import { SuiClient, suiAddress } from './sui';
-import { NearClient, nearPublicKey } from './near';
-import { XrpClient, xrpAddress } from './xrp';
 import { DashClient, dashAccountXpub } from './dash';
 import { DashMixer, MIX_ROUNDS } from './dash-mix';
 import { tcpDial } from './dash-net';
@@ -92,7 +89,7 @@ export class ServiceCore extends EventEmitter {
   protected dcrMixHeld: string[] = [];
   protected bch: BchClient | null = null;
   protected sol: SolClient | null = null;
-  /** GRAM and USDT on TON, SUI, NEAR, XRP: one client each, see ACCOUNT_COINS. */
+  /** GRAM and USDT on TON: one client, see ACCOUNT_COINS. */
   protected accounts = new Map<Asset, AccountCoin>();
   /** The Solana private pool (sol-pool.ts): its note keys are held while the wallet is open. */
   protected solPool: SolPool | null = null;
@@ -125,7 +122,7 @@ export class ServiceCore extends EventEmitter {
   settings: Settings = { ...DEFAULT_SETTINGS };
 
   constructor(protected readonly baseDir: string, protected readonly kdf?: { N: number; r: number; p: number }, protected readonly dev: {
-    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; bchApi?: string; ltcApi?: string; polRpc?: string; polScout?: string; polUsdt?: string; arbRpc?: string; arbScout?: string; arbUsdt?: string; bscRpc?: string; bscScout?: string; uniswapKey?: string; uniswapBase?: string; dashApi?: string; dashSeeds?: string[]; dashConnect?: string; firoApi?: string; solRpc?: string; solPoolRelayer?: string; tonApi?: string; suiGraphql?: string; nearRpc?: string; nearHistory?: string; xrpServer?: string; dogeApi?: string; dogeBackup?: string; dcrApi?: string; zecBin?: string; zecServers?: string[]; zanoBin?: string; zanoNode?: string; ksrBin?: string; ksrNode?: string; arrrBin?: string; arrrServers?: string[]; mwebBin?: string; mwebConnect?: string; sparkBin?: string; sparkServer?: string; sparkConnect?: string; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; tornadoRelayerNames?: { name: string; address: string; url?: string }[]; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; etzSwapBase?: string; cceCashBase?: string; changeNowBase?: string; quoteDeadlineMs?: number; btcApi?: string; coinjoinCoordinator?: string; coinjoinTest?: { pollMs?: number; registrationMarginMs?: number; minInputs?: number };
+    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; bchApi?: string; ltcApi?: string; polRpc?: string; polScout?: string; polUsdt?: string; arbRpc?: string; arbScout?: string; arbUsdt?: string; bscRpc?: string; bscScout?: string; uniswapKey?: string; uniswapBase?: string; dashApi?: string; dashSeeds?: string[]; dashConnect?: string; firoApi?: string; solRpc?: string; solPoolRelayer?: string; tonApi?: string;  dogeApi?: string; dogeBackup?: string; dcrApi?: string; zecBin?: string; zecServers?: string[]; zanoBin?: string; zanoNode?: string; ksrBin?: string; ksrNode?: string; arrrBin?: string; arrrServers?: string[]; mwebBin?: string; mwebConnect?: string; sparkBin?: string; sparkServer?: string; sparkConnect?: string; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; tornadoRelayerNames?: { name: string; address: string; url?: string }[]; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; etzSwapBase?: string; cceCashBase?: string; changeNowBase?: string; quoteDeadlineMs?: number; btcApi?: string; coinjoinCoordinator?: string; coinjoinTest?: { pollMs?: number; registrationMarginMs?: number; minInputs?: number };
     /** Android: every outside address goes through the app's local forwarder. */
     route?: (url: string) => string;
     moneroStore?: (net: NetworkId, walletId: string) => MoneroOptions['store'];
@@ -446,15 +443,9 @@ export class ServiceCore extends EventEmitter {
     }
     {
       const ton = new TonClient(tonPublicKey(secrets.tronMnemonic), this.dev.tonApi ? [this.dev.tonApi] : TON_APIS, this.torRoute('ton'), slow ? 60_000 : 20_000);
-      const sui = new SuiClient(suiAddress(secrets.tronMnemonic), this.dev.suiGraphql ? [this.dev.suiGraphql] : SUI_GRAPHQL, this.torRoute('sui'), slow ? 60_000 : 20_000);
-      const near = new NearClient(nearPublicKey(secrets.tronMnemonic), this.dev.nearRpc ? [this.dev.nearRpc] : NEAR_RPCS, this.dev.nearHistory ? [this.dev.nearHistory] : NEAR_HISTORY, this.torRoute('near'), slow ? 60_000 : 20_000);
-      const xrp = new XrpClient(xrpAddress(secrets.tronMnemonic), this.dev.xrpServer ? [this.dev.xrpServer] : XRP_SERVERS, this.torRoute('xrp'), slow ? 60_000 : 20_000);
       this.accounts = new Map<Asset, AccountCoin>([
         ['GRAM', { receiveAddress: ton.receiveAddress, getBalance: () => ton.getBalance('GRAM'), draft: (to, a, memo) => ton.draft('GRAM', to, a, memo), send: (d, m) => ton.send(d, m), getHistory: () => ton.getHistory('GRAM') }],
         ['USDTT', { receiveAddress: ton.receiveAddress, getBalance: () => ton.getBalance('USDTT'), draft: (to, a, memo) => ton.draft('USDTT', to, a, memo), send: (d, m) => ton.send(d, m), getHistory: () => ton.getHistory('USDTT') }],
-        ['SUI', { receiveAddress: sui.receiveAddress, getBalance: () => sui.getBalance(), draft: (to, a) => sui.draft(to, a), send: (d, m) => sui.send(d, m), getHistory: () => sui.getHistory() }],
-        ['NEAR', { receiveAddress: near.receiveAddress, getBalance: () => near.getBalance(), draft: (to, a) => near.draft(to, a), send: (d, m) => near.send(d, m), getHistory: () => near.getHistory() }],
-        ['XRP', { receiveAddress: xrp.receiveAddress, getBalance: () => xrp.getBalance(), draft: (to, a, memo) => xrp.draft(to, a, memo), send: (d, m) => xrp.send(d, m), getHistory: () => xrp.getHistory() }],
       ]);
     }
     this.dash = new DashClient(dashAccountXpub(secrets.tronMnemonic), this.dev.dashApi ? [this.dev.dashApi] : this.ownList('DASH', DASH_APIS), this.ownAgent('DASH', 'dash'), slow ? 60_000 : 20_000);

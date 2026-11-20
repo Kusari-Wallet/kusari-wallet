@@ -39,7 +39,7 @@ public class MainActivity extends Activity {
     private static final String HOST = "appassets.androidplatform.net";
     private static final String ORIGIN = "https://" + HOST;
     private static final List<String> EXPLORERS = Arrays.asList(
-            "https://mempool.space/", "https://litecoinspace.org/", "https://nearblocks.io/", "https://tonviewer.com/transaction/", "https://suiscan.xyz/mainnet/tx/", "https://livenet.xrpl.org/transactions/", "https://bscscan.com/", "https://blockchair.com/", "https://localcoinswap.com/", "https://dcrdata.decred.org/tx/", "https://hyperevmscan.io/tx/", "https://explorer.zano.org/transaction/", "https://explorer.pirate.black/tx/", "https://etherscan.io/", "https://polygonscan.com/", "https://arbiscan.io/", "https://insight.dash.org/", "https://solscan.io/", "https://dogechain.info/", "https://explorer.firo.org/", "https://tronscan.org/", "https://nile.tronscan.org/", "https://xmrchain.net/", "https://stagenet.xmrchain.net/");
+            "https://mempool.space/", "https://litecoinspace.org/", "https://tonviewer.com/transaction/", "https://bscscan.com/", "https://blockchair.com/", "https://localcoinswap.com/", "https://dcrdata.decred.org/tx/", "https://hyperevmscan.io/tx/", "https://explorer.zano.org/transaction/", "https://explorer.pirate.black/tx/", "https://etherscan.io/", "https://polygonscan.com/", "https://arbiscan.io/", "https://insight.dash.org/", "https://solscan.io/", "https://dogechain.info/", "https://explorer.firo.org/", "https://tronscan.org/", "https://nile.tronscan.org/", "https://xmrchain.net/", "https://stagenet.xmrchain.net/");
 
     private final LocalProxy proxy = new LocalProxy(ORIGIN);
     private volatile int torSocksPort = 0;

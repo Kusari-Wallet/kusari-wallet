@@ -202,7 +202,7 @@ export class TonClient {
         const hash = String(tx?.hash ?? '');
         const at = Number(tx?.now ?? 0) * 1000 || Date.now();
         const inMsg = tx?.in_msg;
-        if (inMsg?.source && BigInt(String(inMsg.value ?? '0')) > 0n) {
+        if (inMsg?.source && /^\d+$/.test(String(inMsg.value ?? '')) && BigInt(inMsg.value) > 0n) {
           items.push({ asset: 'GRAM' as const, hash, direction: 'in' as const, amount: formatAmount(BigInt(inMsg.value), 9), counterparty: String(inMsg.source), timestamp: at, status: 'confirmed' as const, dust: BigInt(inMsg.value) < 1_000_000n });
         }
         for (const m of Array.isArray(tx?.out_msgs) ? tx.out_msgs : []) {
@@ -215,6 +215,8 @@ export class TonClient {
       const me = Address.parse(this.address);
       for (const t of Array.isArray(r?.jetton_transfers) ? r.jetton_transfers : []) {
         if (!/^\d+$/.test(String(t?.amount ?? ''))) continue;
+        // Anyone can make a token called USDT: only the real master's transfers count.
+        if (t?.jetton_master) { try { if (!Address.parse(String(t.jetton_master)).equals(Address.parse(TON_USDT_MASTER))) continue; } catch { continue; } }
         let incoming = false;
         try { incoming = Address.parse(String(t.destination)).equals(me); } catch { continue; }
         items.push({ asset: 'USDTT' as const, hash: String(t.transaction_hash ?? ''), direction: incoming ? 'in' as const : 'out' as const, amount: formatAmount(BigInt(t.amount), 6), counterparty: String(incoming ? t.source : t.destination), timestamp: Number(t.transaction_now ?? 0) * 1000 || Date.now(), status: t.transaction_aborted ? 'failed' as const : 'confirmed' as const, dust: incoming && BigInt(t.amount) < 10_000n });

@@ -23,7 +23,7 @@ async function make(t) {
   s.dcr = { receiveAddress: 'Ds1', getBalance: async () => ({ total: 1n, spendable: 1n }) };
   s.doge = { receiveAddress: 'D', refresh: async () => {}, getBalance: async () => ({ total: 1n, spendable: 1n }) }; s.ltc = { receiveAddress: 'ltc1', coin: { symbol: 'LTC' }, refresh: async () => {}, getBalance: async () => ({ total: 1n, spendable: 1n }) }; s.bch = { receiveAddress: 'bitcoincash:q', refresh: async () => {}, getBalance: async () => ({ total: 1n, spendable: 1n }) }; s.sol = { receiveAddress: 'S', getBalance: async () => ({ total: 1n, spendable: 1n }), getUsdtBalance: async () => 1n };
   const acct = (address) => ({ receiveAddress: address, getBalance: async () => ({ total: 1n, spendable: 1n }) });
-  s.accounts = new Map([['GRAM', acct('UQ')], ['USDTT', acct('UQ')], ['SUI', acct('0xs')], ['NEAR', acct('n')], ['XRP', acct('r')]]);
+  s.accounts = new Map([['GRAM', acct('UQ')], ['USDTT', acct('UQ')]]);
   return { s, v };
 }
 

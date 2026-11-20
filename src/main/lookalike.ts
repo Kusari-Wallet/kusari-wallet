@@ -17,7 +17,7 @@ export function lookalikeOf(to: string, known: string[]): string | null {
 }
 
 /** The part every address of a kind starts with, which says nothing about which address it is. */
-const SCHEME = /^(0x|bc1[qp]|ltc1[qp]|ltcmweb1|tb1[qp]|sp1q|bitcoincash:[qp]|[qp](?=[02-9ac-hj-np-z]{41}$)|addr1|secret1|zs1|u1|t[13]|tex1|pirate1|sm1|[13LMTDAX79a48KZ])/;
+const SCHEME = /^(0x|bc1[qp]|ltc1[qp]|ltcmweb1|tb1[qp]|sp1q|bitcoincash:[qp]|[qp](?=[02-9ac-hj-np-z]{41}$)|addr1|zs1|u1|t[13]|tex1|pirate1|sm1|[UEk0]Q(?=[A-Za-z0-9_-]{46}$)|r(?=[1-9A-HJ-NP-Za-km-z]{24,34}$)|[13LMTDAX79a48KZ])/;
 
 /**
  * Two different addresses that someone checking the start and end would take for each other: what a scammer pays to

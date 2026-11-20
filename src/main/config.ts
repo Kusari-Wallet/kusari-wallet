@@ -3,9 +3,9 @@ export type NetworkId = 'mainnet' | 'testnet';
  * USDT is the Tron token, USDTE the Ethereum one, USDTS Solana's, USDTP Polygon's and USDTA Arbitrum's.
  * ETHA is ETH on Arbitrum, which pays Arbitrum's fees; ARB is the token.
  */
-export type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'LINK' | 'SOL' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA' | 'BCH' | 'LTC' | 'DOGE' | 'DASH' | 'FIRO' | 'ZEC' | 'ZANO' | 'KSR' | 'ARRR' | 'ETHP' | 'PEPE' | 'BNB' | 'USDTB' | 'USDCE' | 'USDCB' | 'USDCS' | 'USDCP' | 'USDCA' | 'SHIB' | 'ORCA' | 'PUMP' | 'DCR' | 'GRAM' | 'USDTT' | 'SUI' | 'NEAR' | 'XRP';
+export type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'LINK' | 'SOL' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA' | 'BCH' | 'LTC' | 'DOGE' | 'DASH' | 'FIRO' | 'ZEC' | 'ZANO' | 'KSR' | 'ARRR' | 'ETHP' | 'PEPE' | 'BNB' | 'USDTB' | 'USDCE' | 'USDCB' | 'USDCS' | 'USDCP' | 'USDCA' | 'SHIB' | 'ORCA' | 'PUMP' | 'DCR' | 'GRAM' | 'USDTT';
 
-export const DECIMALS: Record<Asset, number> = { GRAM: 9, USDTT: 6, SUI: 9, NEAR: 24, XRP: 6, DCR: 8, SHIB: 18, ORCA: 6, PUMP: 6, USDCE: 6, USDCB: 18, USDCS: 6, USDCP: 6, USDCA: 6, BTC: 8, XMR: 12, ETH: 18, TRX: 6, USDT: 6, USDTE: 6, LINK: 18, SOL: 9, USDTS: 6, POL: 18, USDTP: 6, ARB: 18, ETHA: 18, USDTA: 6, BCH: 8, LTC: 8, DOGE: 8, DASH: 8, FIRO: 8, ZEC: 8, ZANO: 12, KSR: 12, ARRR: 8, ETHP: 18, PEPE: 18, BNB: 18, USDTB: 18 };
+export const DECIMALS: Record<Asset, number> = { GRAM: 9, USDTT: 6, DCR: 8, SHIB: 18, ORCA: 6, PUMP: 6, USDCE: 6, USDCB: 18, USDCS: 6, USDCP: 6, USDCA: 6, BTC: 8, XMR: 12, ETH: 18, TRX: 6, USDT: 6, USDTE: 6, LINK: 18, SOL: 9, USDTS: 6, POL: 18, USDTP: 6, ARB: 18, ETHA: 18, USDTA: 6, BCH: 8, LTC: 8, DOGE: 8, DASH: 8, FIRO: 8, ZEC: 8, ZANO: 12, KSR: 12, ARRR: 8, ETHP: 18, PEPE: 18, BNB: 18, USDTB: 18 };
 
 export const BTC_APIS = ['https://mempool.space/api', 'https://blockstream.info/api'];
 /**
@@ -15,12 +15,8 @@ export const BTC_APIS = ['https://mempool.space/api', 'https://blockstream.info/
 export const BTC_ONION_APIS = ['http://mempoolhqx4isw62xs7abwphsq7ldayuidyx2v2oethdhhj6mlo2r6ad.onion/api', 'http://explorerzydxu5ecjrkwceayqybizmpjjznk5izmitf2modhcusuqlid.onion/api'];
 export const BTC_EXPLORER_TX = 'https://mempool.space/tx/';
 
-// TON's toncenter (v2 JSON-RPC and v3 index), Sui's GraphQL service, NEAR's RPC (NearBlocks for history), public rippled.
+// TON's toncenter (v2 JSON-RPC and v3 index).
 export const TON_APIS = ['https://toncenter.com'];
-export const SUI_GRAPHQL = ['https://graphql.mainnet.sui.io/graphql'];
-export const NEAR_RPCS = ['https://free.rpc.fastnear.com', 'https://rpc.mainnet.near.org', 'https://rpc.mainnet.fastnear.com'];
-export const NEAR_HISTORY = ['https://api.nearblocks.io/v1', 'https://api3.nearblocks.io/v1'];
-export const XRP_SERVERS = ['https://xrplcluster.com', 'https://s1.ripple.com:51234', 'https://s2.ripple.com:51234'];
 export const SOL_RPCS = ['https://api.mainnet-beta.solana.com', 'https://api.mainnet.solana.com', 'https://solana-rpc.publicnode.com'];
 export const SOL_EXPLORER_TX = 'https://solscan.io/tx/';
 // Buying opens LocalCoinSwap's P2P marketplace in the browser. The code only credits the referral account.
