@@ -83,19 +83,19 @@ test('adding: separate seed, password and records; giving up leaves nothing', as
 test('settings are shared, a Tornado list of leaves too, notes are not', async (t) => {
   const { s } = await make(t);
   await makeOldWallet(s, PW1, 'one');
-  await s.updateSettings({ autoLockMinutes: 7 });
+  await s.updateSettings({ showPrices: false });
   await s.tornadoStore.write({ next: 3, notes: [] });
   await s.walletBeginAdd('Second');
   s.draftSeeds = { tronMnemonic: 'two', moneroSeed: 'two' };
   await s.finishCreate(PW2);
-  assert.equal(s.settings.autoLockMinutes, 7);
+  assert.equal(s.settings.showPrices, false);
   assert.equal((await s.tornadoStore.read()).next, 0);
 });
 
 test('deleting: wrong password does nothing; only that wallet goes; last one returns to a clean start', async (t) => {
   const { s, dir } = await make(t);
   await makeOldWallet(s, PW1, 'one');
-  await s.updateSettings({ autoLockMinutes: 7 });
+  await s.updateSettings({ showPrices: false });
   await s.swapSave([{ id: 'x' }]);
   await s.walletBeginAdd('Second');
   s.draftSeeds = { tronMnemonic: 'two', moneroSeed: 'two' };
@@ -112,7 +112,7 @@ test('deleting: wrong password does nothing; only that wallet goes; last one ret
   assert.equal(await s.deleteWallet(PW1), 'main');
   assert.equal((await s.status()).hasWallet, false);
   assert.equal((await s.swapList()).length, 0);
-  assert.equal(s.settings.autoLockMinutes, 7, 'app settings stay');
+  assert.equal(s.settings.showPrices, false, 'app settings stay');
   assert.ok(fs.existsSync(path.join(dir, 'settings.json')));
   assert.deepEqual((await s.walletsList()).list, [{ id: 'main', name: 'My wallet' }]);
 });

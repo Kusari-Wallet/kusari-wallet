@@ -1,54 +1,5 @@
-// Private transfers: sSCRT, LTC MWEB, Dash and Bitcoin CoinJoin, Firo Spark, Zcash; and the coin picker.
-// ---- Secret Network: private sSCRT ----
-
-/** wrap: SCRT into private sSCRT. unwrap: sSCRT back to plain SCRT. Both show their amount on the chain. */
-function renderScrtPrivate(kind: 'wrap' | 'unwrap'): void {
-  const from: Asset = kind === 'wrap' ? 'SCRT' : 'SSCRT';
-  const amount = numbersOnly(h('input', { id: 'sscrt-amount', class: 'amount-input', inputmode: 'decimal', autocomplete: 'off', placeholder: '0.00' }) as HTMLInputElement);
-  const box = errorBox();
-  const have = overview?.balances?.[from];
-  const next = h('button', { class: 'primary', id: 'sscrt-next', type: 'submit' }, 'Next');
-  const form = h('form', { onsubmit: (e: Event) => { e.preventDefault(); busy(next, 'Preparing…', box, () => scrtPrivateStep(kind, amount.value)); } },
-    h('p', { class: 'small muted' }, kind === 'wrap'
-      ? 'Turns plain SCRT into sSCRT, its private form. Your sSCRT balance and transfers are then encrypted on the chain. The amount you turn private is public.'
-      : 'Turns sSCRT back into plain SCRT, whose balance and transfers are public. The amount is public.'),
-    h('br'), box.el,
-    h('label', { class: 'field' }, h('span', {}, kind === 'wrap' ? 'SCRT to make private' : 'sSCRT to make public'), amount,
-      h('div', { class: 'hint' }, have?.ok ? `Available: ${shortAmount(have.spendable || have.total)} ${unitOf(from)}` : ''),
-      h('button', { type: 'button', class: 'link', id: 'sscrt-max', onclick: () => { amount.value = 'max'; } }, 'Max')),
-    next);
-  show('send', subBar(kind === 'wrap' ? 'Make private' : 'Make public', () => void renderAsset()), h('div', { class: 'scroll' }, form));
-  amount.focus();
-}
-
-async function scrtPrivateStep(kind: 'wrap' | 'unwrap' | 'key', amount = ''): Promise<void> {
-  const p = await wallet.prepareScrtPrivate(kind, amount);
-  const pw = h('input', { type: 'password', id: 'confirm-pw', autocomplete: 'current-password' });
-  const box = errorBox();
-  const label = kind === 'wrap' ? `Make ${p.amount} SCRT private` : kind === 'unwrap' ? `Make ${p.amount} sSCRT public` : 'Turn on private balance';
-  const go = h('button', { class: 'primary', id: 'confirm-send', type: 'submit' }, label);
-  const back = () => { void wallet.cancelSend(p.id); void renderAsset(); };
-  const form = h('form', { onsubmit: (e: Event) => {
-    e.preventDefault();
-    busy(go, 'Sending…', box, async () => {
-      const res = await wallet.confirmSend(p.id, pw.value);
-      pw.value = '';
-      toast(kind === 'key' ? 'Sent. The private balance shows once it\'s in a block.' : 'Sent. Balances update once it\'s in a block.');
-      void refresh();
-      if (res?.hashes?.length) selected = kind === 'unwrap' ? 'SCRT' : 'SSCRT';
-      void renderAsset();
-    });
-  } },
-  box.el,
-  ...p.warnings.map((w: string) => h('div', { class: 'warn' }, w)),
-  h('div', { class: 'panel' }, h('table', { class: 'review-table' }, h('tbody', {},
-    kind !== 'key' && h('tr', {}, h('th', {}, 'Amount'), h('td', {}, h('div', { class: 'big-amount', id: 'review-amount' }, `${p.amount} ${kind === 'wrap' ? 'SCRT → sSCRT' : 'sSCRT → SCRT'}`))),
-    h('tr', {}, h('th', {}, 'Fee'), h('td', { id: 'review-fee' }, reviewFee(p.fee, p.feeAsset)))))),
-  h('label', { class: 'field' }, h('span', {}, 'Password'), pw),
-  go);
-  show('send', subBar('Review', back), h('div', { class: 'scroll' }, form));
-  pw.focus();
-}
+// Private transfers: LTC MWEB, Dash and Bitcoin CoinJoin, Firo Spark, Zcash; and the coin picker.
+// ---- Litecoin MWEB ----
 
 /** Peg-in: every confirmed public LTC coin into the private (MWEB) balance, after a review. */
 async function ltcPrivateStep(): Promise<void> {

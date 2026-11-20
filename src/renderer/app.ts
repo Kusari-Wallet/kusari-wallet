@@ -7,7 +7,7 @@ async function renderSettings(): Promise<void> {
   const node = h('input', { id: 'set-node', value: s.customMoneroNode, placeholder: 'http://127.0.0.1:18081', spellcheck: 'false' });
   const btcServer = h('input', { id: 'set-btc-server', value: s.customBtcServer ?? '', placeholder: 'http://umbrel.local:3006/api', spellcheck: 'false' });
   // A server of one's own for the other coins (the kinds as in OWN_SERVER_COINS on the main side).
-  const OWN: [string, string, string][] = [['ETH', 'JSON-RPC', 'http://192.168.1.20:8545'], ['BSC', 'JSON-RPC', 'https://bsc.example/rpc'], ['POL', 'JSON-RPC', 'https://polygon.example/rpc'], ['ARB', 'JSON-RPC', 'https://arbitrum.example/rpc'], ['SOL', 'JSON-RPC', 'http://192.168.1.20:8899'], ['TRX', 'java-tron HTTP API', 'http://192.168.1.20:8090'], ['LTC', 'Esplora or Blockbook', 'http://umbrel.local:3006/api'], ['BCH', 'Bitcore or Blockbook', 'blockbook+https://bch.example'], ['DASH', 'Insight API', 'http://192.168.1.20:3001/insight-api'], ['FIRO', 'Insight API', 'http://192.168.1.20:3001/insight-api-zcoin'], ['DCR', 'Insight API (dcrdata)', 'http://192.168.1.20:7777/insight/api'], ['SCRT', 'REST (LCD)', 'https://secret.example'], ['ZEC', 'lightwalletd', 'https://192.168.1.20:9067'], ['ARRR', 'lightwalletd', 'https://192.168.1.20:9067']];
+  const OWN: [string, string, string][] = [['ETH', 'JSON-RPC', 'http://192.168.1.20:8545'], ['BSC', 'JSON-RPC', 'https://bsc.example/rpc'], ['POL', 'JSON-RPC', 'https://polygon.example/rpc'], ['ARB', 'JSON-RPC', 'https://arbitrum.example/rpc'], ['SOL', 'JSON-RPC', 'http://192.168.1.20:8899'], ['TRX', 'java-tron HTTP API', 'http://192.168.1.20:8090'], ['LTC', 'Esplora or Blockbook', 'http://umbrel.local:3006/api'], ['BCH', 'Bitcore or Blockbook', 'blockbook+https://bch.example'], ['DASH', 'Insight API', 'http://192.168.1.20:3001/insight-api'], ['FIRO', 'Insight API', 'http://192.168.1.20:3001/insight-api-zcoin'], ['DCR', 'Insight API (dcrdata)', 'http://192.168.1.20:7777/insight/api'], ['ZEC', 'lightwalletd', 'https://192.168.1.20:9067'], ['ARRR', 'lightwalletd', 'https://192.168.1.20:9067']];
   const ownInputs = OWN.map(([coin, , example]) => [coin, h('input', { id: `set-own-${coin}`, value: s.customServers?.[coin] ?? '', placeholder: example, spellcheck: 'false' }) as HTMLInputElement] as const);
   const ownSection = h('details', { class: 'own-servers', id: 'own-servers', ...(Object.values(s.customServers ?? {}).some(Boolean) ? { open: true } : {}) },
     h('summary', {}, 'Your own servers for other coins'),
@@ -25,7 +25,6 @@ async function renderSettings(): Promise<void> {
     h('option', { value: '10', selected: s.coinjoinTarget === 10 }, 'Until each coin hides among 10 others')) as HTMLSelectElement;
   coordinator.addEventListener('change', () => { coordinatorRow.hidden = coordinator.value !== 'custom'; });
   const key = h('input', { id: 'set-key', value: s.tronApiKey, spellcheck: 'false', autocomplete: 'off' });
-  const auto = h('input', { id: 'set-auto', type: 'number', min: '1', max: '240', value: String(s.autoLockMinutes) });
   const showPrices = h('input', { type: 'checkbox', id: 'set-prices', checked: s.showPrices });
   const evmSeparate = h('input', { type: 'checkbox', id: 'set-evm-separate', checked: Boolean(s.evmSeparate) });
   const btcFilters = h('input', { type: 'checkbox', id: 'set-btc-filters', checked: Boolean(s.btcFilters) }) as HTMLInputElement;
@@ -83,7 +82,7 @@ async function renderSettings(): Promise<void> {
       await wallet.installTor();
       tor.installed = true;
     }
-    const relocked = await wallet.updateSettings({ customMoneroNode: node.value, customBtcServer: btcServer.value, customServers: Object.fromEntries(ownInputs.map(([coin, input]) => [coin, input.value])), customZanoNode: zanoNode.value, customKsrNode: ksrNode.value, coinjoinCoordinator: coordinator.value === 'custom' ? coordinatorUrl.value : coordinator.value, coinjoinTarget: Number(mixTarget.value), tronApiKey: key.value, autoLockMinutes: Number(auto.value), showPrices: showPrices.checked, evmSeparate: evmSeparate.checked, btcFilters: btcFilters.checked, ...(btcFilters.checked ? { btcFiltersFrom: btcFrom.value } : {}), ...(tor.allowed === false ? {} : { torEnabled: useTor.checked, torBridge: bridge.value, torBridgeLines: bridgeLines.value }) });
+    const relocked = await wallet.updateSettings({ customMoneroNode: node.value, customBtcServer: btcServer.value, customServers: Object.fromEntries(ownInputs.map(([coin, input]) => [coin, input.value])), customZanoNode: zanoNode.value, customKsrNode: ksrNode.value, coinjoinCoordinator: coordinator.value === 'custom' ? coordinatorUrl.value : coordinator.value, coinjoinTarget: Number(mixTarget.value), tronApiKey: key.value, showPrices: showPrices.checked, evmSeparate: evmSeparate.checked, btcFilters: btcFilters.checked, ...(btcFilters.checked ? { btcFiltersFrom: btcFrom.value } : {}), ...(tor.allowed === false ? {} : { torEnabled: useTor.checked, torBridge: bridge.value, torBridgeLines: bridgeLines.value }) });
     if (!relocked) { saved.textContent = 'Saved.'; void refresh(); }
   }) }, 'Save');
 
@@ -195,7 +194,6 @@ async function renderSettings(): Promise<void> {
         h('label', { class: 'field' }, h('span', {}, 'How much to mix Bitcoin'), mixTarget, h('div', { class: 'hint' }, 'Mixed coins go round again until each one shares its amount with that many others. Each round costs a little mining fee.')),
         h('label', { class: 'field' }, h('span', {}, 'Custom Monero node'), node, h('div', { class: 'hint' }, 'Enter your own node if you have one. Empty chooses a public node automatically. Public nodes can see your IP.')),
         h('label', { class: 'field' }, h('span', {}, 'TronGrid API key'), key, h('div', { class: 'hint' }, 'Works without one. Add a free key if lookups are often limited.')),
-        h('label', { class: 'field' }, h('span', {}, 'Auto-lock (minutes)'), auto),
         h('label', { class: 'check' }, showPrices, h('span', {}, 'Show USD prices', h('div', { class: 'hint' }, 'Prices come from CoinGecko, then from other price services and exchanges if it\'s blocked or a coin is missing. Addresses and balances aren\'t sent, but your IP can be seen.'))),
         h('label', { class: 'check' }, btcFilters, h('span', {}, 'Private Bitcoin sync',
           h('div', { class: 'hint' }, 'Instead of asking servers about your addresses, the wallet downloads compact block filters from Bitcoin nodes over Tor and checks them on this device, so no server or node learns which addresses are yours. Two nodes must agree on every filter. It needs Tor, uses more data, and incoming payments show after their first confirmation. New wallets use it from the start. Switching reopens the wallet.'))),
@@ -248,7 +246,7 @@ async function renderSettings(): Promise<void> {
           note.hidden = !note.hidden;
           (e.currentTarget as HTMLElement).setAttribute('aria-expanded', String(!note.hidden));
         } }, 'Support'),
-        h('p', { class: 'small', id: 'support-note', hidden: true }, 'Need help? Email kusari_wallet@proton.me, or message @Kusari_Wallet on Telegram.')),
+        h('p', { class: 'small', id: 'support-note', hidden: true }, 'Need help? Email kusari_wallet@proton.me.')),
       h('div', { class: 'section' }, h('h3', {}, 'Delete wallet'), delBox.el,
         h('p', { class: 'muted small' }, 'Coins stay on the blockchain, but can never be reached without the seeds. Check your seeds before deleting.'), h('br'),
         h('label', { class: 'field' }, h('span', {}, 'Password'), delPw), del)),

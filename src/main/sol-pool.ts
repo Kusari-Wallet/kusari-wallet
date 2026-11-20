@@ -260,6 +260,16 @@ export class SolPool {
   }
   private feeFor(amount: bigint, r: { rate: bigint; rent: bigint }): bigint { return (amount * r.rate) / 1_000_000n + r.rent; }
 
+  /** The most that can go out while the notes spent and the fee stay within `budget` (a deposit's amount). */
+  async quoteWithin(asset: P.PoolAsset, budget: bigint): Promise<WithdrawQuote> {
+    const t = P.POOL_TOKENS[asset];
+    const rule = await this.feeRule(t);
+    const max = (await this.withdrawQuote(asset, 'max')).max;
+    let a = ((budget - rule.rent) * 1_000_000n) / (1_000_000n + rule.rate);
+    while (a > 0n && a + this.feeFor(a, rule) > budget) a -= 1n;
+    return this.withdrawQuote(asset, a < max ? a : max);
+  }
+
   /** The two largest unspent notes: one withdrawal spends at most two. */
   private async inputs(asset: P.PoolAsset): Promise<StoredNote[]> {
     const a = (await this.read()).assets[asset];

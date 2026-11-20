@@ -8,7 +8,7 @@ export const ETH_PATH = "m/44'/60'/0'/0/0";
 const GWEI = 1_000_000_000n;
 const BALANCE_CACHE_MS = 20_000;
 
-export type EthAsset = 'ETH' | 'USDTE' | 'LINK' | 'WLD' | 'ETHP' | 'UNI' | 'PEPE' | 'AAVE' | 'POL' | 'USDTP' | 'ETHA' | 'ARB' | 'USDTA' | 'BNB' | 'USDTB' | 'USDCE' | 'USDCB' | 'USDCP' | 'USDCA' | 'SHIB';
+export type EthAsset = 'ETH' | 'USDTE' | 'LINK' | 'ETHP' | 'PEPE' | 'POL' | 'USDTP' | 'ETHA' | 'ARB' | 'USDTA' | 'BNB' | 'USDTB' | 'USDCE' | 'USDCB' | 'USDCP' | 'USDCA' | 'SHIB';
 export interface EvmToken { contract: string; decimals: number; symbol: string; label: string; dust: bigint }
 /** One EVM chain. The same key and address serve all of them, so the chain id is what keeps them apart. */
 export interface EvmChain {
@@ -24,11 +24,8 @@ export const ETHEREUM: EvmChain = {
   tokens: {
     USDTE: { contract: '0xdAC17F958D2ee523a2206206994597C13D831ec7', decimals: 6, symbol: 'USDT', label: 'USDT (Eth)', dust: 100_000n },
     LINK: { contract: '0x514910771AF9Ca656af840dff83E8264EcF986CA', decimals: 18, symbol: 'LINK', label: 'LINK', dust: 10_000_000_000_000_000n },
-    WLD: { contract: '0x163f8C2467924be0ae7B5347228CABF260318753', decimals: 18, symbol: 'WLD', label: 'WLD', dust: 10_000_000_000_000_000n },
     // Contracts from Uniswap's default token list.
-    UNI: { contract: '0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984', decimals: 18, symbol: 'UNI', label: 'UNI', dust: 1_000_000_000_000_000n },
     PEPE: { contract: '0x6982508145454Ce325dDbE47a25d4ec3d2311933', decimals: 18, symbol: 'PEPE', label: 'PEPE', dust: 10_000_000_000_000_000_000_000n },
-    AAVE: { contract: '0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9', decimals: 18, symbol: 'AAVE', label: 'AAVE', dust: 100_000_000_000_000n },
     SHIB: { contract: '0x95aD61b0a150d79219dCF64E1E6Cc01f0B64C4cE', decimals: 18, symbol: 'SHIB', label: 'SHIB', dust: 1_000_000_000_000_000_000_000n },
     // Circle's native USDC on each chain (not bridged USDC.e), checked against the chains and ChangeNOW's list.
     USDCE: { contract: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', decimals: 6, symbol: 'USDC', label: 'USDC (Eth)', dust: 100_000n },
@@ -43,7 +40,6 @@ export const POLYGON: EvmChain = {
     USDCP: { contract: '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359', decimals: 6, symbol: 'USDC', label: 'USDC (Pol)', dust: 100_000n },
     // Bridged ETH (WETH) on Polygon, as Aave's address book lists it.
     ETHP: { contract: '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619', decimals: 18, symbol: 'ETH', label: 'ETH (Pol)', dust: 10_000_000_000_000n },
-    // Bridged LINK, UNI and AAVE on Polygon (PoS bridge), each read on chain: symbol and 18 decimals.
   },
   maxBaseFee: 20_000n * GWEI, minTip: 30n * GWEI, defaultTip: 30n * GWEI, maxTip: 500n * GWEI, gasToken: 200_000n, gasContract: 300_000n, dust: 10_000_000_000_000_000n,
 };

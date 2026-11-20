@@ -9,6 +9,11 @@ export const SWAP_BASE = 'https://exolix.com/api/v2';
 export const SWAP_PROVIDER = 'Exolix';
 
 const COIN: Record<Asset, { coin: string; network: RegExp; fallback: string }> = {
+  GRAM: { coin: 'TON', network: /^(ton|the open network)$/i, fallback: 'TON' },
+  USDTT: { coin: 'USDT', network: /^(ton|jetton)$/i, fallback: 'TON' },
+  SUI: { coin: 'SUI', network: /^sui$/i, fallback: 'SUI' },
+  NEAR: { coin: 'NEAR', network: /^near$/i, fallback: 'NEAR' },
+  XRP: { coin: 'XRP', network: /^(xrp|ripple)$/i, fallback: 'XRP' },
   DCR: { coin: 'DCR', network: /^(dcr|decred)$/i, fallback: 'DCR' },
   SHIB: { coin: 'SHIB', network: /^(eth|ethereum|erc-?20)$/i, fallback: 'ETH' },
   ORCA: { coin: 'ORCA', network: /^(sol|solana|spl)$/i, fallback: 'SOL' },
@@ -21,9 +26,7 @@ const COIN: Record<Asset, { coin: string; network: RegExp; fallback: string }> =
   USDTE: { coin: 'USDT', network: /^(eth|ethereum|erc-?20)$/i, fallback: 'ETH' },
   LINK: { coin: 'LINK', network: /^(eth|ethereum|erc-?20)$/i, fallback: 'ETH' },
   ETHP: { coin: 'ETH', network: /^(pol|polygon|matic)$/i, fallback: 'POLYGON' },
-  UNI: { coin: 'UNI', network: /^(eth|ethereum|erc-?20)$/i, fallback: 'ETH' },
   PEPE: { coin: 'PEPE', network: /^(eth|ethereum|erc-?20)$/i, fallback: 'ETH' },
-  AAVE: { coin: 'AAVE', network: /^(eth|ethereum|erc-?20)$/i, fallback: 'ETH' },
   BNB: { coin: 'BNB', network: /^(bsc|bnb|bep-?20|binance.?smart.?chain|bnbsmartchain)$/i, fallback: 'BSC' },
   USDTB: { coin: 'USDT', network: /^(bsc|bnb|bep-?20|binance.?smart.?chain|bnbsmartchain)$/i, fallback: 'BSC' },
   USDCE: { coin: 'USDC', network: /^(eth|ethereum|erc-?20)$/i, fallback: 'ETH' },
@@ -31,7 +34,6 @@ const COIN: Record<Asset, { coin: string; network: RegExp; fallback: string }> =
   USDCS: { coin: 'USDC', network: /^(sol|solana|spl)$/i, fallback: 'SOL' },
   USDCP: { coin: 'USDC', network: /^(pol|polygon|matic)$/i, fallback: 'POLYGON' },
   USDCA: { coin: 'USDC', network: /^(arb|arbitrum|arbitrum one)$/i, fallback: 'ARBITRUM' },
-  WLD: { coin: 'WLD', network: /^(eth|ethereum|erc-?20)$/i, fallback: 'ETH' },
   DASH: { coin: 'DASH', network: /^dash$/i, fallback: 'DASH' },
   FIRO: { coin: 'FIRO', network: /^firo$/i, fallback: 'FIRO' },
   SOL: { coin: 'SOL', network: /^(sol|solana)$/i, fallback: 'SOL' },
@@ -47,8 +49,6 @@ const COIN: Record<Asset, { coin: string; network: RegExp; fallback: string }> =
   ZEC: { coin: 'ZEC', network: /^(zec|zcash)$/i, fallback: 'ZEC' },
   ZANO: { coin: 'ZANO', network: /^zano$/i, fallback: 'ZANO' },
   ARRR: { coin: 'ARRR', network: /^(arrr|pirate)/i, fallback: 'ARRR' },
-  SCRT: { coin: 'SCRT', network: /^(scrt|secret)/i, fallback: 'SCRT' },
-  SSCRT: { coin: '', network: /^$/, fallback: '' }, // never offered: see NOT_SWAPPABLE
   KSR: { coin: '', network: /^$/, fallback: '' }, // not listed anywhere yet: see NOT_SWAPPABLE
 };
 
@@ -64,7 +64,7 @@ function sameAddress(a: unknown, b: string): boolean {
 export interface SwapQuote { from: Asset; to: Asset; amount: string; receive: string; rate: string; min: string | null; max: string | null; problem: string | null; provider: string; providerId: SwapProviderId; approximate: boolean }
 
 /** No provider takes the private form of a coin; it's made from or turned back into the plain one in the wallet. */
-export const NOT_SWAPPABLE: ReadonlySet<Asset> = new Set<Asset>(['SSCRT', 'KSR']);
+export const NOT_SWAPPABLE: ReadonlySet<Asset> = new Set<Asset>(['KSR']);
 
 export type SwapProviderId = 'exolix' | 'simpleswap' | 'ghostswap' | 'etzswap' | 'ccecash' | 'changenow';
 
@@ -189,8 +189,13 @@ export { BUILTIN_SWAP_KEYS } from './swap-keys.generated';
 
 export const SIMPLESWAP_BASE = 'https://api.simpleswap.io';
 const SIMPLE_COIN: Record<Asset, { ticker: string; network: string }> = {
+  GRAM: { ticker: 'ton', network: 'ton' },
+  USDTT: { ticker: 'usdt', network: 'ton' },
+  SUI: { ticker: 'sui', network: 'sui' },
+  NEAR: { ticker: 'near', network: 'near' },
+  XRP: { ticker: 'xrp', network: 'xrp' },
   DCR: { ticker: 'dcr', network: 'dcr' },
-  // Each checked against SimpleSwap's list by contract. Not listed there: UNI and AAVE on Polygon.
+  // Each checked against SimpleSwap's list by contract.
   SHIB: { ticker: 'shib', network: 'eth' },
   ORCA: { ticker: 'orca', network: 'sol' },
   PUMP: { ticker: 'pump', network: 'sol' },
@@ -202,9 +207,7 @@ const SIMPLE_COIN: Record<Asset, { ticker: string; network: string }> = {
   USDTE: { ticker: 'usdt', network: 'eth' },
   LINK: { ticker: 'link', network: 'eth' },
   ETHP: { ticker: '', network: '' }, // not listed
-  UNI: { ticker: 'uni', network: 'eth' },
   PEPE: { ticker: 'pepe', network: 'eth' },
-  AAVE: { ticker: 'aave', network: 'eth' },
   BNB: { ticker: 'bnb-bsc', network: 'bsc' },
   USDTB: { ticker: 'usdt', network: 'bsc' },
   USDCE: { ticker: 'usdc', network: 'eth' },
@@ -212,7 +215,6 @@ const SIMPLE_COIN: Record<Asset, { ticker: string; network: string }> = {
   USDCS: { ticker: 'usdc', network: 'sol' },
   USDCP: { ticker: 'usdc', network: 'matic' },
   USDCA: { ticker: 'usdc', network: 'arbitrum' },
-  WLD: { ticker: 'wld', network: 'eth' },
   DASH: { ticker: 'dash', network: 'dash' },
   FIRO: { ticker: 'firo', network: 'firo' },
   SOL: { ticker: 'sol', network: 'sol' },
@@ -228,8 +230,6 @@ const SIMPLE_COIN: Record<Asset, { ticker: string; network: string }> = {
   ZEC: { ticker: 'zec', network: 'zec' },
   ZANO: { ticker: 'zano', network: 'zano' },
   ARRR: { ticker: 'arrr', network: 'arrr' },
-  SCRT: { ticker: 'scrt', network: 'scrt' },
-  SSCRT: { ticker: '', network: '' },
   KSR: { ticker: '', network: '' },
 };
 
@@ -526,8 +526,13 @@ export class EtzSwapClient implements SwapProvider {
 export const CHANGENOW_BASE = 'https://api.changenow.io';
 // Their v2 names a coin by ticker plus network, e.g. USDT on Tron is usdt on trx.
 const CN_COIN: Partial<Record<Asset, { ticker: string; network: string }>> = {
+  GRAM: { ticker: 'ton', network: 'ton' },
+  USDTT: { ticker: 'usdt', network: 'ton' },
+  SUI: { ticker: 'sui', network: 'sui' },
+  NEAR: { ticker: 'near', network: 'near' },
+  XRP: { ticker: 'xrp', network: 'xrp' },
   DCR: { ticker: 'dcr', network: 'dcr' },
-  // Checked against ChangeNOW's list by contract. Not listed there: AAVE on BNB Chain and Polygon, UNI on Polygon.
+  // Checked against ChangeNOW's list by contract.
   SHIB: { ticker: 'shib', network: 'eth' },
   ORCA: { ticker: 'orca', network: 'sol' },
   PUMP: { ticker: 'pump', network: 'sol' },
@@ -538,11 +543,9 @@ const CN_COIN: Partial<Record<Asset, { ticker: string; network: string }>> = {
   USDT: { ticker: 'usdt', network: 'trx' },
   USDTE: { ticker: 'usdt', network: 'eth' },
   LINK: { ticker: 'link', network: 'eth' },
-  UNI: { ticker: 'uni', network: 'eth' },
   PEPE: { ticker: 'pepe', network: 'eth' },
   BNB: { ticker: 'bnb', network: 'bsc' },
   USDTB: { ticker: 'usdt', network: 'bsc' },
-  WLD: { ticker: 'wld', network: 'eth' },
   USDTS: { ticker: 'usdt', network: 'sol' },
   USDCE: { ticker: 'usdc', network: 'eth' },
   USDCB: { ticker: 'usdc', network: 'bsc' },
@@ -565,7 +568,6 @@ const CN_COIN: Partial<Record<Asset, { ticker: string; network: string }>> = {
   ZANO: { ticker: 'zano', network: 'zano' },
   ARRR: { ticker: 'arrr', network: 'arrr' },
   ETHP: { ticker: 'weth', network: 'matic' }, // WETH (Polygon) in their list, the same contract
-  // No SCRT: ChangeNOW doesn't list it.
 };
 
 export class ChangeNowClient implements SwapProvider {
@@ -656,9 +658,7 @@ const CCE_COIN: Partial<Record<Asset, { abbr: string; chain: string }>> = {
   DOGE: { abbr: 'DOGE', chain: 'Dogecoin' },
   ZEC: { abbr: 'ZEC', chain: 'Zcash' },
   // Each checked with a live quote from CCECash.
-  UNI: { abbr: 'UNI', chain: 'Ethereum' },
   PEPE: { abbr: 'PEPE', chain: 'Ethereum' },
-  AAVE: { abbr: 'AAVE', chain: 'Ethereum' },
   BNB: { abbr: 'BNB', chain: 'BNB Smart Chain' },
   USDTB: { abbr: 'USDT', chain: 'BNB Smart Chain' },
   USDCE: { abbr: 'USDC', chain: 'Ethereum' },
@@ -767,7 +767,7 @@ export interface PrivacySwap {
   received: string; unlocked: string; secondId?: string; secondProviderId?: SwapProviderId; note?: string; createdAt: number;
 }
 
-/** Every coin that can go through XMR and out again. XMR itself has nothing to gain, and sSCRT isn't swapped. */
+/** Every coin that can go through XMR and out again. XMR itself has nothing to gain. */
 export const PRIVACY_ASSETS: Asset[] = (Object.keys(DECIMALS) as Asset[]).filter((a) => a !== 'XMR' && !NOT_SWAPPABLE.has(a));
 export const SWAP_DEAD = ['failed', 'refunded', 'refund', 'overdue', 'expired'];
 export const SWAP_DONE = ['success', 'finished'];

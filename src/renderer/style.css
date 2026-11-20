@@ -297,10 +297,6 @@ label.field > span { display: block; margin-bottom: 6px; font-size: 14px; font-w
 
 button.link { background: none; border: 0; padding: 0; color: var(--orange); text-decoration: underline; cursor: pointer; font: inherit; }
 
-/* sSCRT: a lock on the SCRT icon marks the private form */
-.coin-badge.private-badge { display: grid; place-items: center; background: #111; color: #b5f23d; border-radius: 50%; }
-.coin-badge.private-badge .icon { width: 70%; height: 70%; }
-#sscrt-actions { margin: 4px 0 12px; }
 
 /* Coin menus: tokens folded under their network's coin */
 .menu .menu-row { display: flex; align-items: center; }

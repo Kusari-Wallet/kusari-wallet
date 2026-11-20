@@ -15,7 +15,28 @@ export const TORNADO_POOLS: Record<string, string> = {
   10: '0x910Cbd523D972eb0a6f4cAe4618aD62622b39DbF',
   100: '0xA160cdAB225685dA1d56aa342Ad8841c3b53f291',
 };
-const SEED_BASE = 'https://raw.githubusercontent.com/tornadocash/tornado-cli/378ddf8b8b92a4924037d7b64a94dbfd5a7dd6e8/cache/ethereum/deposits_eth_';
+const SEED_REPO = 'https://raw.githubusercontent.com/tornadocash/tornado-cli/378ddf8b8b92a4924037d7b64a94dbfd5a7dd6e8/cache';
+
+/**
+ * The chains with Tornado pools this wallet uses: the same immutable contracts the Tornado site and tornado-cli list
+ * (one address per amount, the same on BNB Chain and Arbitrum). Each pool holds the chain's own coin. Relayers
+ * publish where they answer on ENS under the chain's name (the site's ensSubdomainKey); withdrawal gas as the site
+ * prices it.
+ */
+export type TornadoChain = 'eth' | 'bsc' | 'pol' | 'arb';
+export interface TornadoChainInfo { asset: 'ETH' | 'BNB' | 'POL' | 'ETHA'; netId: number; ensKey: string; currency: string; cache: string; withdrawGas: bigint; label: string; symbol: string; pools: Record<string, string> }
+const SIDE_POOLS = { 0.1: '0x84443CFd09A48AF6eF360C6976C5392aC5023a1F', 1: '0xd47438C816c9E7f2E2888E060936a499Af9582b3', 10: '0x330bdFADE01eE9bF63C209Ee33102DD334618e0a', 100: '0x1E34A77868E19A6647b1f2F47B51ed72dEDE95DD' };
+export const TORNADO_CHAINS: Record<TornadoChain, TornadoChainInfo> = {
+  eth: { asset: 'ETH', netId: 1, ensKey: 'mainnet-tornado', currency: 'eth', cache: 'ethereum', withdrawGas: 500_000n, label: 'Ethereum', symbol: 'ETH', pools: TORNADO_POOLS },
+  bsc: { asset: 'BNB', netId: 56, ensKey: 'bsc-tornado', currency: 'bnb', cache: 'binancesmartchain', withdrawGas: 550_000n, label: 'BNB Chain', symbol: 'BNB', pools: SIDE_POOLS },
+  pol: {
+    asset: 'POL', netId: 137, ensKey: 'polygon-tornado', currency: 'matic', cache: 'polygon', withdrawGas: 550_000n, label: 'Polygon', symbol: 'POL',
+    pools: { 100: '0x1E34A77868E19A6647b1f2F47B51ed72dEDE95DD', 1000: '0xdf231d99Ff8b6c6CBF4E9B9a945CBAcEF9339178', 10000: '0xaf4c0B70B2Ea9FB7487C7CbB37aDa259579fe040', 100000: '0xa5C2254e4253490C54cef0a4347fddb8f75A4998' },
+  },
+  arb: { asset: 'ETHA', netId: 42161, ensKey: 'arbitrum-tornado', currency: 'eth', cache: 'arbitrum', withdrawGas: 1_900_000n, label: 'Arbitrum', symbol: 'ETH', pools: SIDE_POOLS },
+};
+export const isTornadoChain = (c: unknown): c is TornadoChain => typeof c === 'string' && Object.prototype.hasOwnProperty.call(TORNADO_CHAINS, c);
+export const chainOfNote = (n: { chain?: TornadoChain }): TornadoChain => n.chain ?? 'eth';
 const DEPOSIT_TOPIC = keccakId('Deposit(bytes32,uint32,uint256)');
 const DEPOSIT_GAS = 1_300_000n;
 const WITHDRAW_GAS = 500_000n;
@@ -34,6 +55,10 @@ export interface TornadoNote {
   status: 'sending' | 'deposited' | 'withdrawing' | 'withdrawn' | 'scheduled';
   txHash?: string; withdrawTx?: string; recipient?: string; createdAt: number;
   at?: number; scheduledKind?: 'deposit' | 'withdraw'; problem?: string;
+  /** The chain its pool is on; absent means Ethereum (notes made before other chains were added). */
+  chain?: TornadoChain;
+  /** Sent on, at a random time, to this address once the deposit is in (chosen at deposit). */
+  sendTo?: string;
 }
 interface Store { next: number; notes: TornadoNote[] }
 
@@ -48,8 +73,9 @@ export function noteSecrets(mnemonic: string, index: number): { nullifier: strin
 }
 
 /** The standard note text, usable in other Tornado tools. */
-export function noteText(pool: string, secrets: { nullifier: string; secret: string }): string {
-  return `tornado-eth-${pool}-1-0x${secrets.nullifier}${secrets.secret}`;
+export function noteText(pool: string, secrets: { nullifier: string; secret: string }, chain: TornadoChain = 'eth'): string {
+  const c = TORNADO_CHAINS[chain];
+  return `tornado-${c.currency}-${pool}-${c.netId}-0x${secrets.nullifier}${secrets.secret}`;
 }
 
 export async function tornadoEngineCheck(): Promise<void> {
@@ -68,9 +94,11 @@ export class TornadoStore {
     await this.records.write(this.file, store);
   }
   /** How many deposits came after this one, from the deposit list kept on this device; null when unknown. */
-  async depositsAfter(pool: string, commitment: string): Promise<number | null> {
+  private cacheFile(pool: string, chain: TornadoChain): string { return path.join(this.cacheDir, chain === 'eth' ? `tornado-cache-${pool}.json` : `tornado-cache-${chain}-${pool}.json`); }
+
+  async depositsAfter(pool: string, commitment: string, chain: TornadoChain = 'eth'): Promise<number | null> {
     try {
-      const cache: { leaves: string[] } = JSON.parse(await fs.readFile(path.join(this.cacheDir, `tornado-cache-${pool}.json`), 'utf8') as unknown as string);
+      const cache: { leaves: string[] } = JSON.parse(await fs.readFile(this.cacheFile(pool, chain), 'utf8') as unknown as string);
       const i = cache.leaves.findIndex((l) => l.toLowerCase() === commitment.toLowerCase());
       return i < 0 ? null : cache.leaves.length - i - 1;
     } catch { return null; }
@@ -106,13 +134,17 @@ export class TornadoStore {
   }
 
   /** Every commitment ever deposited: an old snapshot, then logs since. The final root check catches any bad data. */
-  async leaves(pool: string, address: string, eth: EthClient, opts: { seed: boolean; agent?: Agent; progress: (m: string) => void }): Promise<string[]> {
-    const file = path.join(this.cacheDir, `tornado-cache-${pool}.json`);
+  async leaves(pool: string, address: string, eth: EthClient, opts: { seed: boolean; agent?: Agent; progress: (m: string) => void; chain?: TornadoChain }): Promise<string[]> {
+    const chain = opts.chain ?? 'eth';
+    const info = TORNADO_CHAINS[chain];
+    const file = this.cacheFile(pool, chain);
+    // Quiet pools on fast chains: wider log ranges while the node allows them.
+    const maxSpan = chain === 'eth' ? 50_000 : chain === 'arb' ? 2_000_000 : 500_000;
     let cache: { block: number; leaves: string[] } = { block: -1, leaves: [] };
     try { cache = JSON.parse(await fs.readFile(file, 'utf8') as unknown as string); } catch { /* first time */ }
     if (cache.block < 0 && opts.seed) {
       opts.progress('Downloading the deposit list…');
-      const rows: any[] = await getJson(`${SEED_BASE}${pool}.json`, { agent: opts.agent, timeoutMs: 180_000 });
+      const rows: any[] = await getJson(`${SEED_REPO}/${info.cache}/deposits_${info.currency}_${pool}.json`, { agent: opts.agent, timeoutMs: 180_000 });
       rows.forEach((r, i) => { if (r.leafIndex !== i || !/^0x[0-9a-f]{64}$/i.test(r.commitment)) throw new Error('The deposit list file isn\'t valid.'); });
       cache = { block: rows[rows.length - 1].blockNumber, leaves: rows.map((r) => r.commitment) };
     }
@@ -137,7 +169,7 @@ export class TornadoStore {
       }
       cache.block = to;
       from = to + 1;
-      if (span < 50_000 && logs.length < 2000) span = Math.min(span * 2, 50_000);
+      if (span < maxSpan && logs.length < 2000) span = Math.min(span * 2, maxSpan);
       opts.progress(`Reading deposit records… ${Math.round((to / latest) * 100)}% (${cache.leaves.length})`);
       await fs.mkdir(this.cacheDir, { recursive: true });
       await fs.writeFile(file, JSON.stringify(cache), { mode: 0o600 });
@@ -175,8 +207,8 @@ export function parseRelayerLog(log: { data?: string }): { name: string; address
 }
 
 /** Where a registered relayer answers, from ENS: an https:// or onion address, or null. */
-export async function relayerHost(eth: EthClient, name: string): Promise<string | null> {
-  const node = namehash(`mainnet-tornado.${name}`);
+export async function relayerHost(eth: EthClient, name: string, ensKey = 'mainnet-tornado'): Promise<string | null> {
+  const node = namehash(`${ensKey}.${name}`);
   const [resolver] = ens.decodeFunctionResult('resolver', await eth.call(ENS_REGISTRY, ens.encodeFunctionData('resolver', [node])));
   if (!isAddress(resolver) || /^0x0{40}$/i.test(resolver)) return null;
   const [text] = ens.decodeFunctionResult('text', await eth.call(resolver, ens.encodeFunctionData('text', [node, 'url'])));
@@ -218,9 +250,9 @@ export function checkRelayerUrl(input: string, allowLocal: boolean): string {
   throw new Error('A relayer address must be https:// or .onion.');
 }
 
-export async function relayerStatus(url: string, agent?: Agent): Promise<RelayerInfo> {
+export async function relayerStatus(url: string, agent?: Agent, netId = 1): Promise<RelayerInfo> {
   const s = await getJson(`${url}/status`, { agent, timeoutMs: 60_000 });
-  if (s?.netId !== 1 && s?.netId !== '*') throw new Error('This is not an Ethereum mainnet relayer.');
+  if (Number(s?.netId) !== netId && s?.netId !== '*') throw new Error(netId === 1 ? 'This is not an Ethereum mainnet relayer.' : 'This relayer is for another network.');
   if (typeof s.rewardAccount !== 'string' || !isAddress(s.rewardAccount)) throw new Error('The relayer gave an unexpected answer.');
   const feePercent = Number(s.tornadoServiceFee);
   if (!Number.isFinite(feePercent) || feePercent < 0) throw new Error('The relayer gave an unexpected answer.');
@@ -228,9 +260,9 @@ export async function relayerStatus(url: string, agent?: Agent): Promise<Relayer
 }
 
 /** What the relayer keeps. The proof commits to this, the recipient and the relayer, so it can't take more. */
-export function relayerFee(pool: string, feePercent: number, gasPrice: bigint): bigint {
+export function relayerFee(pool: string, feePercent: number, gasPrice: bigint, gas = WITHDRAW_GAS): bigint {
   const total = denomination(pool);
-  const fee = gasPrice * WITHDRAW_GAS + (total * BigInt(Math.round(feePercent * 1000))) / 100_000n;
+  const fee = gasPrice * gas + (total * BigInt(Math.round(feePercent * 1000))) / 100_000n;
   if (fee * 100n > total * MAX_RELAYER_FEE_PERCENT) throw new Error(`The fee is over ${MAX_RELAYER_FEE_PERCENT}% of the amount, so this was stopped. Try again when gas is low.`);
   return fee;
 }

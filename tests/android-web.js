@@ -141,7 +141,7 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
   const socks = await mockSocks();
   const socksPort = Number(new URL(socks.uri).port);
   await context.addInitScript(({ map, tronUp, socksPort }) => {
-    window.__VAULT_TEST__ = { allowFakechain: true, tronHost: tronUp, priceUrl: tronUp + '/simple/price', swapBase: tronUp + '/swap', btcApi: tronUp + '/btc', dashApi: tronUp + '/dash', solRpc: tronUp + '/sol', dogeApi: tronUp + '/doge', ethRpc: tronUp + '/eth/rpc', ethScout: tronUp + '/eth/scout', bchApi: tronUp + '/bch', scrtLcd: tronUp + '/scrt', nearRpc: tronUp + '/near/rpc', nearHistory: tronUp + '/near/history', ltcApi: tronUp + '/btc', polRpc: tronUp + '/pol/rpc', polScout: tronUp + '/eth/scout', arbRpc: tronUp + '/arb/rpc', arbScout: tronUp + '/eth/scout', bscRpc: tronUp + '/bsc/rpc', hypeRpc: tronUp + '/hype/rpc', bscScout: tronUp + '/eth/scout' };
+    window.__VAULT_TEST__ = { allowFakechain: true, tronHost: tronUp, priceUrl: tronUp + '/simple/price', swapBase: tronUp + '/swap', btcApi: tronUp + '/btc', dashApi: tronUp + '/dash', solRpc: tronUp + '/sol', dogeApi: tronUp + '/doge', ethRpc: tronUp + '/eth/rpc', ethScout: tronUp + '/eth/scout', bchApi: tronUp + '/bch', nearRpc: tronUp + '/near/rpc', nearHistory: tronUp + '/near/history', dcrApi: tronUp + '/dcr', tonApi: tronUp + '/ton', suiGraphql: tronUp + '/sui', xrpServer: tronUp + '/xrp', ltcApi: tronUp + '/btc', polRpc: tronUp + '/pol/rpc', polScout: tronUp + '/eth/scout', arbRpc: tronUp + '/arb/rpc', arbScout: tronUp + '/eth/scout', bscRpc: tronUp + '/bsc/rpc', hypeRpc: tronUp + '/hype/rpc', bscScout: tronUp + '/eth/scout' };
     window.__opened = []; window.__clip = '';
     let saved = localStorage.getItem('bio');
     window.VaultNative = {

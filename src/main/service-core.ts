@@ -8,7 +8,7 @@ import { balanceCacheKey, readBalanceCache, writeBalanceCache, SavedBalance, SAV
 import path from 'node:path';
 const { wordlist: BIP39_WORDS } = require('@scure/bip39/wordlists/english');
 import { formatAmount, parseAmount } from './amount';
-import { Asset, BTC_APIS, BTC_ONION_APIS, DECIMALS, FIRO_APIS, SOL_RPCS, BCH_APIS, LTC_APIS, SCRT_LCDS, DOGE_APIS, DOGE_PUSH_URLS, DOGE_BACKUP, DOGE_RAW_URLS, POL_RPCS, POL_SCOUT, ARB_RPCS, ARB_SCOUT, BSC_RPCS, BSC_SCOUT, DASH_APIS, DEFAULT_SETTINGS, ARRR_SERVERS, ZANO_NODE, KSR_NODE, ZEC_SERVERS, ETH_RPCS, ETH_SCOUT, ETH_USDT, NETWORKS, NetworkId, Settings, estimateMainnetHeight } from './config';
+import { Asset, BTC_APIS, BTC_ONION_APIS, DECIMALS, FIRO_APIS, SOL_RPCS, TON_APIS, SUI_GRAPHQL, NEAR_RPCS, NEAR_HISTORY, XRP_SERVERS, BCH_APIS, LTC_APIS, DOGE_APIS, DOGE_PUSH_URLS, DOGE_BACKUP, DOGE_RAW_URLS, POL_RPCS, POL_SCOUT, ARB_RPCS, ARB_SCOUT, BSC_RPCS, BSC_SCOUT, DASH_APIS, DEFAULT_SETTINGS, ARRR_SERVERS, ZANO_NODE, KSR_NODE, ZEC_SERVERS, ETH_RPCS, ETH_SCOUT, ETH_USDT, NETWORKS, NetworkId, Settings, estimateMainnetHeight } from './config';
 import { MIN_PASSWORD, Secrets, Vault } from './vault';
 import { TronClient, deriveTronAccount, generateTronMnemonic } from './tron';
 import { socksAgent, getJson, newTorRoute, isolatedAgent } from './request';
@@ -17,7 +17,6 @@ import { poolKeys } from './sol-privacy';
 import { runSolPool } from './solpool-run';
 import type { Agent } from 'node:http';
 import { AAVE_MARKETS, aaveCall, readAave } from './aave';
-import { ScrtClient, scrtPrivacyKeys, scrtPublicKey } from './scrt';
 import { BITCOIN, BITCOIN_MIXED, BTC_MIXED_PATH, BTC_PATH, BTC_V0_PATH, V0_CHAIN, BtcClient, LITECOIN, btcAccountXpub, coinId, ltcAccountXpub } from './btc';
 import { FilterSync, TAPROOT_HEIGHT, estimateBtcHeight } from './btc-filter-sync';
 import { clearPassphrases, setPassphrase } from './seed';
@@ -39,6 +38,10 @@ import { DcrMixer } from './dcr-mixer';
 import { tcpDial as dcrDial } from './dash-net';
 import { BchClient, bchAccountXpub } from './bch';
 import { SolClient, solAddress, solSecret } from './sol';
+import { TonClient, tonPublicKey } from './ton';
+import { SuiClient, suiAddress } from './sui';
+import { NearClient, nearPublicKey } from './near';
+import { XrpClient, xrpAddress } from './xrp';
 import { DashClient, dashAccountXpub } from './dash';
 import { DashMixer, MIX_ROUNDS } from './dash-mix';
 import { tcpDial } from './dash-net';
@@ -49,7 +52,10 @@ import { TorManager } from './tor';
 import { parseCustomBridges } from './tor-bridges';
 import { SwapProviderId } from './swap';
 import { MoneroClient, MoneroOptions, generateMoneroSeed, validateMoneroSeed } from './monero';
-import { BALANCE_TTL_MS, OVERVIEW_WAIT_MS, STUCK_LOOKUP_MS, QUICK_REFUSAL_MS, bareBch, isLocalServer, COIN_ID, btcScript, btcScriptOfKey, within, EVM, isSpl, EXTRA_ASSETS, isEvm, LOOKUP_ROUTE, lookupRetryDelay, BALANCE_STALE_MS, Preview, BalanceView } from './service-common';
+import { BALANCE_TTL_MS, OVERVIEW_WAIT_MS, STUCK_LOOKUP_MS, QUICK_REFUSAL_MS, bareBch, isLocalServer, COIN_ID, btcScript, btcScriptOfKey, within, EVM, isSpl, EXTRA_ASSETS, isEvm, LOOKUP_ROUTE, lookupRetryDelay, BALANCE_STALE_MS, Preview, BalanceView, ACCOUNT_COINS, type AccountCoin } from './service-common';
+
+/** The account coins in the order their balances are asked for. */
+const ACCOUNT_LIST = Object.keys(ACCOUNT_COINS) as Asset[];
 import { DEVELOPER_BUILD } from './flavor';
 
 export class ServiceCore extends EventEmitter {
@@ -65,8 +71,6 @@ export class ServiceCore extends EventEmitter {
   protected btcMixer: BtcMixer | null = null;
   protected btcMixedBalance: { total: bigint; spendable: bigint } | null = null;
   protected ltc: BtcClient | null = null;
-  protected sscrtNeedsKey = false;
-  protected scrt: ScrtClient | null = null;
   protected eth: EthClient | null = null;
   protected pol: EthClient | null = null;
   protected arb: EthClient | null = null;
@@ -88,6 +92,8 @@ export class ServiceCore extends EventEmitter {
   protected dcrMixHeld: string[] = [];
   protected bch: BchClient | null = null;
   protected sol: SolClient | null = null;
+  /** GRAM and USDT on TON, SUI, NEAR, XRP: one client each, see ACCOUNT_COINS. */
+  protected accounts = new Map<Asset, AccountCoin>();
   /** The Solana private pool (sol-pool.ts): its note keys are held while the wallet is open. */
   protected solPool: SolPool | null = null;
   protected zec: ZecClient | null = null;
@@ -119,7 +125,7 @@ export class ServiceCore extends EventEmitter {
   settings: Settings = { ...DEFAULT_SETTINGS };
 
   constructor(protected readonly baseDir: string, protected readonly kdf?: { N: number; r: number; p: number }, protected readonly dev: {
-    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; bchApi?: string; ltcApi?: string; scrtLcd?: string; polRpc?: string; polScout?: string; polUsdt?: string; arbRpc?: string; arbScout?: string; arbUsdt?: string; bscRpc?: string; bscScout?: string; uniswapKey?: string; uniswapBase?: string; dashApi?: string; dashSeeds?: string[]; dashConnect?: string; firoApi?: string; solRpc?: string; solPoolRelayer?: string; dogeApi?: string; dogeBackup?: string; dcrApi?: string; zecBin?: string; zecServers?: string[]; zanoBin?: string; zanoNode?: string; ksrBin?: string; ksrNode?: string; arrrBin?: string; arrrServers?: string[]; mwebBin?: string; mwebConnect?: string; sparkBin?: string; sparkServer?: string; sparkConnect?: string; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; tornadoRelayerNames?: { name: string; address: string; url?: string }[]; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; etzSwapBase?: string; cceCashBase?: string; changeNowBase?: string; quoteDeadlineMs?: number; btcApi?: string; coinjoinCoordinator?: string; coinjoinTest?: { pollMs?: number; registrationMarginMs?: number; minInputs?: number };
+    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; bchApi?: string; ltcApi?: string; polRpc?: string; polScout?: string; polUsdt?: string; arbRpc?: string; arbScout?: string; arbUsdt?: string; bscRpc?: string; bscScout?: string; uniswapKey?: string; uniswapBase?: string; dashApi?: string; dashSeeds?: string[]; dashConnect?: string; firoApi?: string; solRpc?: string; solPoolRelayer?: string; tonApi?: string; suiGraphql?: string; nearRpc?: string; nearHistory?: string; xrpServer?: string; dogeApi?: string; dogeBackup?: string; dcrApi?: string; zecBin?: string; zecServers?: string[]; zanoBin?: string; zanoNode?: string; ksrBin?: string; ksrNode?: string; arrrBin?: string; arrrServers?: string[]; mwebBin?: string; mwebConnect?: string; sparkBin?: string; sparkServer?: string; sparkConnect?: string; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; tornadoRelayerNames?: { name: string; address: string; url?: string }[]; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; etzSwapBase?: string; cceCashBase?: string; changeNowBase?: string; quoteDeadlineMs?: number; btcApi?: string; coinjoinCoordinator?: string; coinjoinTest?: { pollMs?: number; registrationMarginMs?: number; minInputs?: number };
     /** Android: every outside address goes through the app's local forwarder. */
     route?: (url: string) => string;
     moneroStore?: (net: NetworkId, walletId: string) => MoneroOptions['store'];
@@ -410,7 +416,6 @@ export class ServiceCore extends EventEmitter {
     if (!ownBtc || !isLocalServer(ownBtc)) { this.btc.lookupRoutes = this.lookupRoutes('btc'); this.btcMixed.lookupRoutes = this.lookupRoutes('btc-mixed'); }
     this.ltc.lookupRoutes = this.lookupRoutes('ltc');
     if (this.dev.ltcApi) this.ltc.spacingMs = 0;
-    this.scrt = new ScrtClient(scrtPublicKey(secrets.tronMnemonic), this.dev.scrtLcd ? this.dev.scrtLcd.split(',') : this.ownList('SCRT', SCRT_LCDS), this.ownAgent('SCRT', 'scrt'), slow ? 60_000 : 20_000, scrtPrivacyKeys(secrets.tronMnemonic));
     this.firo = new FiroClient(firoAccountXpub(secrets.tronMnemonic), this.dev.firoApi ? [this.dev.firoApi] : this.ownList('FIRO', FIRO_APIS), this.ownAgent('FIRO', 'firo'), slow ? 60_000 : 20_000);
     this.doge = new DogeClient(dogeAccountXpub(secrets.tronMnemonic), this.dev.dogeApi ? [this.dev.dogeApi] : DOGE_APIS, this.torRoute('doge'), slow ? 60_000 : 20_000, this.dev.dogeApi ? (this.dev.dogeBackup ? { backup: this.dev.dogeBackup } : {}) : { pushUrls: DOGE_PUSH_URLS, backup: DOGE_BACKUP, rawUrls: DOGE_RAW_URLS });
     const dcrAgent = this.ownAgent('DCR', 'dcr');
@@ -438,6 +443,19 @@ export class ServiceCore extends EventEmitter {
         timeoutMs: slow ? 90_000 : 30_000,
         ...(this.dev.solPoolRelayer ? { pauseMs: () => 200 } : {}),
       });
+    }
+    {
+      const ton = new TonClient(tonPublicKey(secrets.tronMnemonic), this.dev.tonApi ? [this.dev.tonApi] : TON_APIS, this.torRoute('ton'), slow ? 60_000 : 20_000);
+      const sui = new SuiClient(suiAddress(secrets.tronMnemonic), this.dev.suiGraphql ? [this.dev.suiGraphql] : SUI_GRAPHQL, this.torRoute('sui'), slow ? 60_000 : 20_000);
+      const near = new NearClient(nearPublicKey(secrets.tronMnemonic), this.dev.nearRpc ? [this.dev.nearRpc] : NEAR_RPCS, this.dev.nearHistory ? [this.dev.nearHistory] : NEAR_HISTORY, this.torRoute('near'), slow ? 60_000 : 20_000);
+      const xrp = new XrpClient(xrpAddress(secrets.tronMnemonic), this.dev.xrpServer ? [this.dev.xrpServer] : XRP_SERVERS, this.torRoute('xrp'), slow ? 60_000 : 20_000);
+      this.accounts = new Map<Asset, AccountCoin>([
+        ['GRAM', { receiveAddress: ton.receiveAddress, getBalance: () => ton.getBalance('GRAM'), draft: (to, a, memo) => ton.draft('GRAM', to, a, memo), send: (d, m) => ton.send(d, m), getHistory: () => ton.getHistory('GRAM') }],
+        ['USDTT', { receiveAddress: ton.receiveAddress, getBalance: () => ton.getBalance('USDTT'), draft: (to, a, memo) => ton.draft('USDTT', to, a, memo), send: (d, m) => ton.send(d, m), getHistory: () => ton.getHistory('USDTT') }],
+        ['SUI', { receiveAddress: sui.receiveAddress, getBalance: () => sui.getBalance(), draft: (to, a) => sui.draft(to, a), send: (d, m) => sui.send(d, m), getHistory: () => sui.getHistory() }],
+        ['NEAR', { receiveAddress: near.receiveAddress, getBalance: () => near.getBalance(), draft: (to, a) => near.draft(to, a), send: (d, m) => near.send(d, m), getHistory: () => near.getHistory() }],
+        ['XRP', { receiveAddress: xrp.receiveAddress, getBalance: () => xrp.getBalance(), draft: (to, a, memo) => xrp.draft(to, a, memo), send: (d, m) => xrp.send(d, m), getHistory: () => xrp.getHistory() }],
+      ]);
     }
     this.dash = new DashClient(dashAccountXpub(secrets.tronMnemonic), this.dev.dashApi ? [this.dev.dashApi] : this.ownList('DASH', DASH_APIS), this.ownAgent('DASH', 'dash'), slow ? 60_000 : 20_000);
     this.startMixer(secrets, slow);
@@ -844,7 +862,6 @@ export class ServiceCore extends EventEmitter {
     this.btcMixer = null;
     this.btcMixed = null;
     this.ltc = null;
-    this.scrt = null;
     this.eth = null;
     this.pol = null;
     this.arb = null;
@@ -862,6 +879,7 @@ export class ServiceCore extends EventEmitter {
     this.dcr = null;
     this.bch = null;
     this.sol = null;
+    this.accounts = new Map();
     this.solPool = null;
     // Engines stop in the background; deleting a wallet waits for them, since they hold its files open.
     const starting = this.enginesStarting;
@@ -1223,7 +1241,7 @@ export class ServiceCore extends EventEmitter {
       if (zec?.lastError && !this.torNotReady) return { ok: false, total: '', spendable: '', error: this.friendlyError(new Error(zec.lastError)) };
       return { ok: false, pending: true, total: '', spendable: '' };
     };
-    const [BTC, XMR, ETH, TRX, USDTE, USDT, SOL, USDTS, LINK, WLD, POL, USDTP, ARB, ETHA, USDTA, BCH, LTC, DOGE, DCR, DASH, FIRO, SCRT, SSCRT, ...EXTRA] = await this.quickViews([
+    const [BTC, XMR, ETH, TRX, USDTE, USDT, SOL, USDTS, LINK, POL, USDTP, ARB, ETHA, USDTA, BCH, LTC, DOGE, DCR, DASH, FIRO, ...EXTRA] = await this.quickViews([
       // BTC is the regular coins plus the CoinJoin account's.
       Promise.all([btcSettle(), this.btcMixed ? this.btcMixed.getBalance().catch(() => null) : null]).then(([view, m]) => {
         this.btcMixedBalance = m ?? this.btcMixedBalance;
@@ -1238,7 +1256,7 @@ export class ServiceCore extends EventEmitter {
       settle('USDT', async () => { const b = await tron.getUsdtBalance(); return [b, b]; }, 6, BALANCE_TTL_MS),
       settle('SOL', async () => { const b = await this.sol!.getBalance(); return [b.total, b.spendable]; }, 9),
       settle('USDTS', async () => { const b = await this.sol!.getUsdtBalance(); return [b, b]; }, 6),
-      ...(['LINK', 'WLD'] as const).map((a) => settle(a, async () => { const b = await this.evm(a).balanceOf(a); return [b, b]; }, DECIMALS[a])),
+      ...(['LINK'] as const).map((a) => settle(a, async () => { const b = await this.evm(a).balanceOf(a); return [b, b]; }, DECIMALS[a])),
       ...(['POL', 'USDTP', 'ARB', 'ETHA', 'USDTA'] as const).map((a) => settle(a, async () => { const b = await this.evm(a).balanceOf(a); return [b, b]; }, DECIMALS[a])),
       settle('BCH', async () => { const b = await this.bch!.getBalance(); return [b.total, b.spendable]; }, 8),
       // LTC is the public coins plus the private (MWEB) ones, once MWEB has synced.
@@ -1263,19 +1281,16 @@ export class ServiceCore extends EventEmitter {
       }, 8),
       // FIRO is the public coins plus the private (Spark) ones, once Spark has synced.
       settle('FIRO', async () => { const b = await firo.getBalance(); const p = this.spark?.balance(); return [b.total + (p?.total ?? 0n), b.spendable + (p?.spendable ?? 0n)]; }, 8),
-      settle('SCRT', async () => { const b = await this.scrt!.getBalance(); return [b, b]; }, 6),
-      // Until the viewing key is set on the contract, the private balance can't be read; the sSCRT screen offers to set it.
-      settle('SSCRT', async () => { const b = await this.scrt!.getPrivateBalance(); this.sscrtNeedsKey = b === null; return [b ?? 0n, b ?? 0n]; }, 6),
       // Added later: every further token, on its chain's client. Keep in step with EXTRA_ASSETS.
       ...EXTRA_ASSETS.map((a) => settle(a, async () => { const b = isSpl(a) ? await this.sol!.getUsdtBalance(a) : await this.evm(a).balanceOf(a as EthAsset); return [b, b]; }, DECIMALS[a])),
+      ...ACCOUNT_LIST.map((a) => settle(a, async () => { const c = this.accounts.get(a); if (!c) throw new Error('The wallet is locked.'); const b = await c.getBalance(); return [b.total, b.spendable]; }, DECIMALS[a])),
     ], this.dev.tronHost ? 120_000 : OVERVIEW_WAIT_MS);
-    const balances: Record<string, BalanceView | undefined> = { XMR, BTC, ETH, TRX, USDTE, USDT, SOL, USDTS, LINK, WLD, POL, USDTP, ARB, ETHA, USDTA, BCH, LTC, DOGE, DCR, DASH, FIRO, SCRT, SSCRT, ...Object.fromEntries(EXTRA_ASSETS.map((a, i) => [a, EXTRA[i]])), ...(zec ? { ZEC: zecView() } : {}), ...(zano ? { ZANO: zanoView() } : {}), ...(ksr ? { KSR: ksrView() } : {}), ...(arrr ? { ARRR: arrrView() } : {}) };
+    const balances: Record<string, BalanceView | undefined> = { XMR, BTC, ETH, TRX, USDTE, USDT, SOL, USDTS, LINK, POL, USDTP, ARB, ETHA, USDTA, BCH, LTC, DOGE, DCR, DASH, FIRO, ...Object.fromEntries(EXTRA_ASSETS.map((a, i) => [a, EXTRA[i]])), ...Object.fromEntries(ACCOUNT_LIST.map((a, i) => [a, EXTRA[EXTRA_ASSETS.length + i]])), ...(zec ? { ZEC: zecView() } : {}), ...(zano ? { ZANO: zanoView() } : {}), ...(ksr ? { KSR: ksrView() } : {}), ...(arrr ? { ARRR: arrrView() } : {}) };
     this.withSavedBalances(balances);
     return {
       network: this.settings.network,
       tor: this.torActive ? this.tor.state : null,
       balances: balances as Record<string, BalanceView>,
-      sscrt: { needsKey: this.sscrtNeedsKey },
       coinjoin: this.mixer ? { ...this.mixer.status, rounds: MIX_ROUNDS } : null,
       dcrMix: this.dcrMixer ? { ...this.dcrMixer.status, mixed: formatAmount(this.dcrMixedBalance?.total ?? 0n, 8), mixedSpendable: formatAmount(this.dcrMixedBalance?.spendable ?? 0n, 8) } : null,
       btcMix: this.btcMixer ? { ...this.btcMixer.status, mixed: formatAmount(this.btcMixedBalance?.total ?? 0n, 8), mixedSpendable: formatAmount(this.btcMixedBalance?.spendable ?? 0n, 8) } : null,
@@ -1284,7 +1299,7 @@ export class ServiceCore extends EventEmitter {
       arrr: arrr ? { scanning: arrr.isScanning, percent: arrr.percent } : null,
       btcSync: this.btcFilters ? { ...this.btcFilters.progress, error: this.btcFilters.lastError } : null,
       zec: zec ? { ...zec.state(), address: zec.receive?.unified ?? '', transparentAddress: zec.transparentAddress } : null,
-      addresses: { ...Object.fromEntries(EVM.map((a) => [a, this.evm(a).address])), BTC: btc.receiveAddress, XMR: await monero.getPrimaryAddress(), ETH: eth.address, TRX: tron.address, USDTE: eth.address, USDT: tron.address, DASH: dash.receiveAddress, FIRO: firo.receiveAddress, SOL: this.sol!.receiveAddress, USDTS: this.sol!.receiveAddress, USDCS: this.sol!.receiveAddress, ORCA: this.sol!.receiveAddress, PUMP: this.sol!.receiveAddress, BCH: bareBch(this.bch!.receiveAddress), LTC: this.ltc!.receiveAddress, SCRT: this.scrt!.address, SSCRT: this.scrt!.address, DOGE: this.doge!.receiveAddress, ...(this.dcr ? { DCR: this.dcr.receiveAddress } : {}), ...(zec ? { ZEC: zec.receive?.unified ?? '' } : {}), ...(zano ? { ZANO: zano.receive } : {}), ...(ksr ? { KSR: ksr.receive } : {}), ...(arrr ? { ARRR: arrr.receive } : {}) },
+      addresses: { ...Object.fromEntries(EVM.map((a) => [a, this.evm(a).address])), BTC: btc.receiveAddress, XMR: await monero.getPrimaryAddress(), ETH: eth.address, TRX: tron.address, USDTE: eth.address, USDT: tron.address, DASH: dash.receiveAddress, FIRO: firo.receiveAddress, SOL: this.sol!.receiveAddress, USDTS: this.sol!.receiveAddress, USDCS: this.sol!.receiveAddress, ORCA: this.sol!.receiveAddress, PUMP: this.sol!.receiveAddress, BCH: bareBch(this.bch!.receiveAddress), LTC: this.ltc!.receiveAddress, DOGE: this.doge!.receiveAddress, ...Object.fromEntries([...this.accounts].map(([a, c]) => [a, c.receiveAddress])), ...(this.dcr ? { DCR: this.dcr.receiveAddress } : {}), ...(zec ? { ZEC: zec.receive?.unified ?? '' } : {}), ...(zano ? { ZANO: zano.receive } : {}), ...(ksr ? { KSR: ksr.receive } : {}), ...(arrr ? { ARRR: arrr.receive } : {}) },
       ksr: ksr ? { scanning: ksr.isScanning } : null,
       monero: monero.state,
     };
@@ -1294,7 +1309,7 @@ export class ServiceCore extends EventEmitter {
   async addresses() {
     const { tron, monero, btc, eth, dash } = this.session();
     // Every Ethereum, Polygon and Arbitrum coin and token lives on the one 0x address.
-    return { ...Object.fromEntries(EVM.map((a) => [a, this.evm(a).address])), DASH: dash.receiveAddress, FIRO: this.firo!.receiveAddress, SOL: this.sol!.receiveAddress, USDTS: this.sol!.receiveAddress, USDCS: this.sol!.receiveAddress, ORCA: this.sol!.receiveAddress, PUMP: this.sol!.receiveAddress, BCH: bareBch(this.bch!.receiveAddress), LTC: this.ltc!.receiveAddress, SCRT: this.scrt!.address, SSCRT: this.scrt!.address, DOGE: this.doge!.receiveAddress, ...(this.dcr ? { DCR: this.dcr.receiveAddress } : {}), BTC: btc.receiveAddress, XMR: await monero.getPrimaryAddress(), ETH: eth.address, TRX: tron.address, USDTE: eth.address, USDT: tron.address, ...(this.zec ? { ZEC: this.zec.receive?.unified ?? '', ZEC_T: this.zec.transparentAddress } : {}), ...(this.zano ? { ZANO: this.zano.receive } : {}), ...(this.ksr ? { KSR: this.ksr.receive } : {}), ...(this.arrr ? { ARRR: this.arrr.receive } : {}) };
+    return { ...Object.fromEntries(EVM.map((a) => [a, this.evm(a).address])), DASH: dash.receiveAddress, FIRO: this.firo!.receiveAddress, SOL: this.sol!.receiveAddress, USDTS: this.sol!.receiveAddress, USDCS: this.sol!.receiveAddress, ORCA: this.sol!.receiveAddress, PUMP: this.sol!.receiveAddress, BCH: bareBch(this.bch!.receiveAddress), LTC: this.ltc!.receiveAddress, DOGE: this.doge!.receiveAddress, ...Object.fromEntries([...this.accounts].map(([a, c]) => [a, c.receiveAddress])), ...(this.dcr ? { DCR: this.dcr.receiveAddress } : {}), BTC: btc.receiveAddress, XMR: await monero.getPrimaryAddress(), ETH: eth.address, TRX: tron.address, USDTE: eth.address, USDT: tron.address, ...(this.zec ? { ZEC: this.zec.receive?.unified ?? '', ZEC_T: this.zec.transparentAddress } : {}), ...(this.zano ? { ZANO: this.zano.receive } : {}), ...(this.ksr ? { KSR: this.ksr.receive } : {}), ...(this.arrr ? { ARRR: this.arrr.receive } : {}) };
   }
 
   async torInfo() {
@@ -1317,6 +1332,7 @@ export class ServiceCore extends EventEmitter {
     }
     if (asset === 'SOL') return this.sol!.getHistory();
     if (isSpl(asset)) return this.sol!.getUsdtHistory(asset);
+    if (this.accounts.has(asset)) return this.accounts.get(asset)!.getHistory();
     if (asset === 'DOGE') return this.doge!.getHistory();
     if (asset === 'DCR') return this.dcr!.getHistory();
     if (asset === 'BCH') return this.bch!.getHistory();
@@ -1326,10 +1342,8 @@ export class ServiceCore extends EventEmitter {
     if (asset === 'ARRR') return this.arrr ? this.arrr.getHistory() : [];
     if (asset === 'BTC') return btc.getHistory();
     if (asset === 'LTC') return this.ltc!.getHistory();
-    if (asset === 'SCRT') return this.scrt!.getHistory();
-    if (asset === 'SSCRT') return this.scrt!.getPrivateHistory();
     if (isEvm(asset)) return this.evm(asset).getHistory(asset);
-    return asset === 'XMR' ? monero.getHistory() : tron.getHistory(asset);
+    return asset === 'XMR' ? monero.getHistory() : tron.getHistory(asset as 'TRX' | 'USDT');
   }
 
 

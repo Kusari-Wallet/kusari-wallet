@@ -2,16 +2,16 @@
 declare const wallet: any;
 declare const jsQR: any;
 
-type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'LINK' | 'WLD' | 'SOL' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA' | 'BCH' | 'LTC' | 'DOGE' | 'DASH' | 'FIRO' | 'ZEC' | 'ZANO' | 'KSR' | 'ARRR' | 'SCRT' | 'ETHP' | 'UNI' | 'PEPE' | 'AAVE' | 'BNB' | 'USDTB' | 'USDCE' | 'USDCB' | 'USDCS' | 'USDCP' | 'USDCA' | 'SSCRT' | 'SHIB' | 'ORCA' | 'PUMP' | 'DCR';
+type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'LINK' | 'SOL' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA' | 'BCH' | 'LTC' | 'DOGE' | 'DASH' | 'FIRO' | 'ZEC' | 'ZANO' | 'KSR' | 'ARRR' | 'ETHP' | 'PEPE' | 'BNB' | 'USDTB' | 'USDCE' | 'USDCB' | 'USDCS' | 'USDCP' | 'USDCA' | 'SHIB' | 'ORCA' | 'PUMP' | 'DCR' | 'GRAM' | 'USDTT' | 'SUI' | 'NEAR' | 'XRP';
 type Attrs = Record<string, any>;
 type Child = Node | string | null | undefined | false;
 
-const ALL_ASSETS: Asset[] = ['XMR', 'BTC', 'ETH', 'USDTE', 'USDCE', 'LINK', 'WLD', 'UNI', 'PEPE', 'AAVE', 'SHIB', 'ZEC', 'SOL', 'USDTS', 'USDCS', 'ORCA', 'PUMP', 'TRX', 'USDT', 'BNB', 'USDTB', 'USDCB', 'POL', 'ETHP', 'USDTP', 'USDCP', 'ARB', 'ETHA', 'USDTA', 'USDCA', 'BCH', 'LTC', 'DCR', 'SCRT', 'SSCRT', 'DOGE', 'DASH', 'FIRO', 'ZANO', 'KSR', 'ARRR'];
+const ALL_ASSETS: Asset[] = ['XMR', 'BTC', 'ETH', 'USDTE', 'USDCE', 'LINK', 'PEPE', 'SHIB', 'ZEC', 'SOL', 'USDTS', 'USDCS', 'ORCA', 'PUMP', 'TRX', 'USDT', 'GRAM', 'USDTT', 'SUI', 'NEAR', 'XRP', 'BNB', 'USDTB', 'USDCB', 'POL', 'ETHP', 'USDTP', 'USDCP', 'ARB', 'ETHA', 'USDTA', 'USDCA', 'BCH', 'LTC', 'DCR', 'DOGE', 'DASH', 'FIRO', 'ZANO', 'KSR', 'ARRR'];
 /** Tokens shown under the coin of their chain on the home screen, folded until opened. */
-const GROUPS: Partial<Record<Asset, Asset[]>> = { ETH: ['USDTE', 'USDCE', 'LINK', 'WLD', 'UNI', 'PEPE', 'AAVE', 'SHIB'], SOL: ['USDTS', 'USDCS', 'ORCA', 'PUMP'], TRX: ['USDT'], BNB: ['USDTB', 'USDCB'], POL: ['ETHP', 'USDTP', 'USDCP'], ARB: ['ETHA', 'USDTA', 'USDCA'], SCRT: ['SSCRT'] };
+const GROUPS: Partial<Record<Asset, Asset[]>> = { ETH: ['USDTE', 'USDCE', 'LINK', 'PEPE', 'SHIB'], SOL: ['USDTS', 'USDCS', 'ORCA', 'PUMP'], TRX: ['USDT'], GRAM: ['USDTT'], BNB: ['USDTB', 'USDCB'], POL: ['ETHP', 'USDTP', 'USDCP'], ARB: ['ETHA', 'USDTA', 'USDCA'] };
 const IN_GROUP = new Set(Object.values(GROUPS).flat());
 const GROUP_OF: Partial<Record<Asset, Asset>> = Object.fromEntries(Object.entries(GROUPS).flatMap(([parent, kids]) => (kids ?? []).map((k) => [k, parent])));
-const EVM_ASSETS: Asset[] = ['ETH', 'USDTE', 'USDCE', 'LINK', 'WLD', 'ETHP', 'UNI', 'PEPE', 'AAVE', 'POL', 'USDTP', 'ARB', 'ETHA', 'USDTA', 'BNB', 'USDTB', 'USDCB', 'USDCP', 'USDCA', 'SHIB'];
+const EVM_ASSETS: Asset[] = ['ETH', 'USDTE', 'USDCE', 'LINK', 'ETHP', 'PEPE', 'POL', 'USDTP', 'ARB', 'ETHA', 'USDTA', 'BNB', 'USDTB', 'USDCB', 'USDCP', 'USDCA', 'SHIB'];
 const SPL_ASSETS: Asset[] = ['USDTS', 'USDCS', 'ORCA', 'PUMP'];
 const BSC_ASSETS: Asset[] = ['BNB', 'USDTB', 'USDCB'];
 // These need their engines, which aren't in every build or on every phone.
@@ -25,10 +25,13 @@ const COIN: Record<Asset, { label: string; file: string; note: string }> = {
   XMR: { label: 'XMR', file: 'coins/xmr.png', note: '' },
   SOL: { label: 'SOL', file: 'coins/sol.png', note: 'Solana mainnet only. The fee is paid in SOL.' },
   USDTS: { label: 'USDT (Sol)', file: 'coins/usdt.png', note: 'Solana network (SPL) only. SOL is needed for the fee. Don\'t send to addresses on other chains.' },
+  GRAM: { label: 'GRAM', file: 'coins/gram.png', note: 'Gram, formerly Toncoin, on TON. Exchanges often ask for a comment (memo) with deposits: enter it below when sending.' },
+  USDTT: { label: 'USDT (TON)', file: 'coins/usdt.png', note: 'USDT on TON only. Sending needs a little GRAM at this address for the fee, most of which comes back.' },
+  SUI: { label: 'SUI', file: 'coins/sui.png', note: 'SUI on the Sui network.' },
+  NEAR: { label: 'NEAR', file: 'coins/near.png', note: 'NEAR on its own chain. The account is the 64-character one, created when NEAR first arrives.' },
+  XRP: { label: 'XRP', file: 'coins/xrp.png', note: 'XRP on the XRP Ledger. An account keeps 1 XRP in reserve. Exchanges often ask for a destination tag: enter it below when sending.' },
   BCH: { label: 'BCH', file: 'coins/bch.png', note: 'Bitcoin Cash only, to CashAddr addresses (q…). The fee is paid in BCH.' },
   LTC: { label: 'LTC', file: 'coins/ltc.png', note: 'Litecoin only. The fee depends on the network and is shown on the review screen.' },
-  SSCRT: { label: 'sSCRT', file: 'coins/scrt.png', note: 'Private SCRT on Secret Network. Its balance and transfers are encrypted, so only you and the other side can see them. The fee is paid in plain SCRT.' },
-  SCRT: { label: 'SCRT', file: 'coins/scrt.png', note: 'Plain SCRT on Secret Network. These transfers are public on the chain. Sends carry no memo, so don\'t send to an exchange that asks for one.' },
   DOGE: { label: 'DOGE', file: 'coins/doge.png', note: 'Dogecoin mainnet only. The fee is paid in DOGE.' },
   DCR: { label: 'DCR', file: 'coins/dcr.png', note: 'Decred mainnet only (addresses starting with Ds). The fee is paid in DCR. Staking and tickets are not handled here.' },
   FIRO: { label: 'FIRO', file: 'coins/firo.png', note: 'Public FIRO plus a private (Spark) balance, whose amounts and addresses are hidden on the chain.' },
@@ -40,16 +43,13 @@ const COIN: Record<Asset, { label: string; file: string; note: string }> = {
   ETH: { label: 'ETH', file: 'coins/eth.png', note: 'The fee for sending USDT (Eth) is also paid in ETH.' },
   USDTE: { label: 'USDT (Eth)', file: 'coins/usdt.png', note: 'Ethereum network only. ETH is needed for the fee. Don\'t send to addresses on other chains.' },
   LINK: { label: 'LINK', file: 'coins/link.png', note: 'Chainlink on Ethereum (ERC-20) only. ETH is needed for the fee.' },
-  WLD: { label: 'WLD', file: 'coins/wld.png', note: 'Worldcoin on Ethereum (ERC-20) only. ETH is needed for the fee.' },
   POL: { label: 'POL', file: 'coins/pol.png', note: 'Polygon network only. The fee is paid in POL.' },
   USDTP: { label: 'USDT (Pol)', file: 'coins/usdt.png', note: 'Polygon network only. POL is needed for the fee. Don\'t send to addresses on other chains.' },
   ARB: { label: 'ARB', file: 'coins/arb.png', note: 'The ARB token on Arbitrum One. The fee is paid in ETH (Arb).' },
   ETHA: { label: 'ETH (Arb)', file: 'coins/eth.png', note: 'ETH on Arbitrum One. It pays the fees for ARB and USDT (Arb).' },
   USDTA: { label: 'USDT (Arb)', file: 'coins/usdt.png', note: 'Arbitrum One only. ETH (Arb) is needed for the fee. Don\'t send to addresses on other chains.' },
   ETHP: { label: 'ETH (Pol)', file: 'coins/eth.png', note: 'ETH on Polygon (bridged, a POL-network token). It isn\'t ETH on Ethereum. POL is needed for the fee.' },
-  UNI: { label: 'UNI', file: 'coins/uni.png', note: 'Uniswap on Ethereum (ERC-20) only. ETH is needed for the fee.' },
   PEPE: { label: 'PEPE', file: 'coins/pepe.png', note: 'PEPE on Ethereum (ERC-20) only. ETH is needed for the fee.' },
-  AAVE: { label: 'AAVE', file: 'coins/aave.png', note: 'Aave on Ethereum (ERC-20) only. ETH is needed for the fee.' },
   BNB: { label: 'BNB', file: 'coins/bnb.png', note: 'BNB Smart Chain (BEP-20) only. The fee is paid in BNB. No free service lists BNB Smart Chain history, so past transfers show on bscscan.com, not here.' },
   USDTB: { label: 'USDT (BNB)', file: 'coins/usdt.png', note: 'BNB Smart Chain (BEP-20) only. BNB is needed for the fee. Don\'t send to addresses on other chains. No free service lists BNB Smart Chain history, so past transfers show on bscscan.com, not here.' },
   USDCE: { label: 'USDC (Eth)', file: 'coins/usdc.png', note: 'Ethereum network only (ERC-20). ETH is needed for the fee. Don\'t send to addresses on other chains.' },
@@ -65,7 +65,7 @@ const coinName = (a: Asset): string => COIN[a]?.label ?? a;
 /** The unit after an amount. The three USDTs are all just USDT there; the screen around them names the chain. */
 /** The same token on another chain: its unit is still the token's own symbol. */
 const SAME_TOKEN: Partial<Record<Asset, string>> = {};
-const unitOf = (a: Asset): string => (SAME_TOKEN[a] ? SAME_TOKEN[a]! : a === 'SSCRT' ? 'sSCRT' : a.startsWith('USDC') ? 'USDC' : a === 'USDTE' || a === 'USDTS' || a === 'USDTP' || a === 'USDTA' || a === 'USDTB' ? 'USDT' : a === 'ETHA' || a === 'ETHP' ? 'ETH' : a);
+const unitOf = (a: Asset): string => (SAME_TOKEN[a] ? SAME_TOKEN[a]! : a.startsWith('USDC') ? 'USDC' : a === 'USDTE' || a === 'USDTS' || a === 'USDTP' || a === 'USDTA' || a === 'USDTB' || a === 'USDTT' ? 'USDT' : a === 'ETHA' || a === 'ETHP' ? 'ETH' : a);
 
 const root = document.getElementById('app') as HTMLElement;
 let selected: Asset = 'TRX';
@@ -131,7 +131,6 @@ function coin(asset: Asset): HTMLElement {
   const img = h('img', { class: 'coin', src: COIN[asset].file, alt: '' });
   // Same token on several chains: the badge is what tells them apart at a glance.
   const badge: Partial<Record<Asset, string>> = { USDT: 'trx', USDTE: 'eth', USDTS: 'sol', USDTP: 'pol', USDTA: 'arb', ETHA: 'arb', USDTB: 'bnb', ETHP: 'pol', USDCE: 'eth', USDCB: 'bnb', USDCS: 'sol', USDCP: 'pol', USDCA: 'arb' };
-  if (asset === 'SSCRT') return h('span', { class: 'coin-wrap' }, img, h('span', { class: 'coin-badge private-badge', 'aria-hidden': 'true' }, icon('lock')));
   if (!badge[asset]) return img;
   return h('span', { class: 'coin-wrap' }, img, h('img', { class: 'coin-badge', src: `coins/${badge[asset]}.png`, alt: '' }));
 }

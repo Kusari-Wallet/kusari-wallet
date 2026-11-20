@@ -8,19 +8,16 @@ const SWAP_STATUS: Record<string, string> = {
 };
 
 function coinSelect(id: string, current: Asset, onPick: (a: Asset) => void): HTMLElement {
-  const menu = h('div', { class: 'menu', hidden: true, id: `${id}-menu` }, ...coinMenu(id, ASSETS.filter((a) => a !== 'SSCRT' && a !== 'KSR'), current, onPick));
+  const menu = h('div', { class: 'menu', hidden: true, id: `${id}-menu` }, ...coinMenu(id, ASSETS.filter((a) => a !== 'KSR'), current, onPick));
   return h('div', { class: 'coin-select' },
     h('button', { type: 'button', id, class: 'coin-select-btn', 'aria-label': `Choose a coin, currently ${coinName(current)}`, onclick: () => { menu.hidden = !menu.hidden; } }, coin(current), h('span', {}, coinName(current)), icon('down')),
     menu);
 }
 
 // Every coin except XMR itself can go out through XMR and come back as another coin.
-const PRIVACY_ASSETS: Asset[] = ALL_ASSETS.filter((a) => a !== 'XMR' && a !== 'SSCRT' && a !== 'KSR');
+const PRIVACY_ASSETS: Asset[] = ALL_ASSETS.filter((a) => a !== 'XMR' && a !== 'KSR');
 
 async function renderSwap(from: Asset = selected, to: Asset = selected === 'XMR' ? 'BTC' : 'XMR', keep = '', privacy = false): Promise<void> {
-  // sSCRT doesn't trade anywhere; from its screen, swapping starts from plain SCRT.
-  if (from === 'SSCRT') from = 'SCRT';
-  if (to === 'SSCRT') to = 'XMR';
   if (privacy && !(PRIVACY_ASSETS.includes(from) && PRIVACY_ASSETS.includes(to))) privacy = false;
   if (!privacy && from === to) to = from === 'XMR' ? 'BTC' : 'XMR';
   const amount = numbersOnly(h('input', { id: 'swap-amount', class: 'swap-amount', inputmode: 'decimal', autocomplete: 'off', placeholder: '0', 'aria-label': 'Amount to send', value: keep }) as HTMLInputElement);
@@ -138,7 +135,7 @@ async function renderSwap(from: Asset = selected, to: Asset = selected === 'XMR'
     PRIVACY_ASSETS.includes(from) && PRIVACY_ASSETS.includes(to) && h('label', { class: 'swap-privacy' }, privacyToggle,
       h('span', {}, h('strong', {}, 'Privacy swap'), h('span', { class: 'small muted' }, 'Sends through XMR in two parts. XMR\'s lock makes it take at least 20 minutes, and step 2 needs approval in the app again.'))),
     info, h('br'), offers, next, h('br'),
-    h('button', { type: 'button', class: 'primary', id: 'go-tornado', onclick: () => void renderTornado() }, 'Send ETH with Tornado'),
+    h('button', { type: 'button', class: 'primary', id: 'go-tornado', onclick: () => void renderTornado('', 'eth') }, 'Send ETH with Tornado'),
     h('br'), list));
   onData = paintBalance;
   paintBalance();

@@ -6,7 +6,6 @@ const buyUrl = (...a) => WalletService.prototype.buyUrl.call({}, ...a);
 
 test('buying opens LocalCoinSwap with the referral code and nothing about the wallet', () => {
   for (const a of ['BTC', 'XMR', 'USDT', 'FIRO']) assert.equal(buyUrl(a), 'https://localcoinswap.com/?rc=FE969A35');
-  assert.throws(() => buyUrl('SSCRT'), /can't be bought/);
 });
 
 test('the Android app is allowed to open the buy page (it refuses links outside its list, silently)', () => {

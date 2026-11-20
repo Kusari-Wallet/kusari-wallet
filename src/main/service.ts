@@ -1,4 +1,8 @@
 // The wallet service, last layer (WalletService): swaps through services and on chain, and privacy swaps.
+import { isTonAddress } from './ton';
+import { isSuiAddress } from './sui';
+import { isNearAccount } from './near';
+import { isXrpAddress } from './xrp';
 import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
@@ -7,7 +11,6 @@ import { Asset, DECIMALS } from './config';
 import { isTronAddress } from './tron';
 import { socksAgent, newTorRoute } from './request';
 import { DexCall, DexId, DexQuote, NATIVE, UNISWAP_CHAINS, UniswapClient, approvalCalls, narrowPermit, pancakeQuote, pancakeSwapCall } from './dex';
-import { isScrtAddress } from './scrt';
 import { isBtcAddress, isLtcAddress } from './btc';
 import { isArrrAddress } from './arrr';
 import { isMwebAddress } from './mweb';
@@ -185,7 +188,7 @@ export class WalletService extends SendService {
     this.session();
     if (this.torNotReady) throw new Error('Tor is connecting. Try again once it connects.');
     if (from === to) throw new Error('Choose a different coin.');
-    if (NOT_SWAPPABLE.has(from) || NOT_SWAPPABLE.has(to)) throw new Error('sSCRT can\'t be swapped. Make it public as SCRT first.');
+    if (NOT_SWAPPABLE.has(from) || NOT_SWAPPABLE.has(to)) throw new Error('This coin can\'t be swapped.');
     const amount = formatAmount(parseAmount(amountInput, DECIMALS[from]), DECIMALS[from]);
     const clients = Object.entries(this.swapClients()) as [SwapProviderId, SwapProvider][];
     // The slowest provider mustn't hold up the others, so each gets a deadline and the screen shows whoever answered.
@@ -218,11 +221,14 @@ export class WalletService extends SendService {
     const address = input.trim();
     const valid = asset === 'BTC' ? isBtcAddress(address)
       : asset === 'LTC' ? isLtcAddress(address) || isMwebAddress(address)
-      : asset === 'SCRT' || asset === 'SSCRT' ? isScrtAddress(address)
       : asset === 'DASH' ? isDashAddress(address)
       : asset === 'FIRO' ? isFiroAddress(address) || isSparkAddress(address)
       : asset === 'SOL' || isSpl(asset) ? isSolAddress(address)
       : asset === 'DOGE' ? isDogeAddress(address)
+      : asset === 'GRAM' || asset === 'USDTT' ? isTonAddress(address)
+      : asset === 'SUI' ? isSuiAddress(address)
+      : asset === 'NEAR' ? isNearAccount(address)
+      : asset === 'XRP' ? isXrpAddress(address)
       : asset === 'DCR' ? isDcrAddress(address)
       : asset === 'BCH' ? isBchAddress(address)
       : asset === 'ZEC' ? isZecAddress(address)
@@ -258,7 +264,8 @@ export class WalletService extends SendService {
     }
     await (asset === 'LTC' ? this.ltc!.refresh().catch(() => undefined) : asset === 'BCH' ? this.bch!.refresh().catch(() => undefined) : asset === 'DOGE' ? this.doge!.refresh().catch(() => undefined) : asset === 'FIRO' ? this.firo!.refresh().catch(() => undefined) : asset === 'DASH' ? dash.refresh().catch(() => undefined) : asset === 'BTC' ? btc.refresh().catch(() => undefined) : undefined);
     if (isEvm(asset)) return this.evm(asset).address; // each chain's own address
-    return asset === 'SOL' || isSpl(asset) ? this.sol!.receiveAddress : asset === 'BCH' ? this.bch!.receiveAddress : asset === 'LTC' ? this.ltc!.receiveAddress : asset === 'SCRT' || asset === 'SSCRT' ? this.scrt!.address : asset === 'DOGE' ? this.doge!.receiveAddress : asset === 'DCR' ? this.dcr!.receiveAddress : asset === 'FIRO' ? this.firo!.receiveAddress : asset === 'DASH' ? dash.receiveAddress : asset === 'BTC' ? btc.receiveAddress : asset === 'XMR' ? this.swapSubaddress(monero) : tron.address;
+    if (this.accounts.has(asset)) return this.accounts.get(asset)!.receiveAddress;
+    return asset === 'SOL' || isSpl(asset) ? this.sol!.receiveAddress : asset === 'BCH' ? this.bch!.receiveAddress : asset === 'LTC' ? this.ltc!.receiveAddress : asset === 'DOGE' ? this.doge!.receiveAddress : asset === 'DCR' ? this.dcr!.receiveAddress : asset === 'FIRO' ? this.firo!.receiveAddress : asset === 'DASH' ? dash.receiveAddress : asset === 'BTC' ? btc.receiveAddress : asset === 'XMR' ? this.swapSubaddress(monero) : tron.address;
   }
 
   /**
@@ -288,7 +295,7 @@ export class WalletService extends SendService {
 
   /** Gets a fresh rate, opens the order, checks it, and prepares the deposit like any other send. Nothing is signed yet. */
   async swapPrepare(from: Asset, to: Asset, amountInput: string, providerId: SwapProviderId = 'exolix', destination = '') {
-    if (NOT_SWAPPABLE.has(from) || NOT_SWAPPABLE.has(to)) throw new Error('sSCRT can\'t be swapped. Make it public as SCRT first.');
+    if (NOT_SWAPPABLE.has(from) || NOT_SWAPPABLE.has(to)) throw new Error('This coin can\'t be swapped.');
     this.session();
     if (from === to) throw new Error('Choose a different coin.');
     const amount = formatAmount(parseAmount(amountInput, DECIMALS[from]), DECIMALS[from]);

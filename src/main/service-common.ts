@@ -2,7 +2,6 @@
 import { Asset, POL_EXPLORER_TX, ARB_EXPLORER_TX, BSC_EXPLORER_TX, ETH_EXPLORER_TX } from './config';
 import { TronTransfer } from './tron';
 import { DexCall, DexQuote } from './dex';
-import { ScrtDraft } from './scrt';
 import { BtcDraft } from './btc';
 import { ArrrDraft } from './arrr';
 import { MwebDraft, PeginDraft } from './mweb';
@@ -67,17 +66,17 @@ export function within<T, F>(ms: number, work: Promise<T>, late: F): Promise<T |
 }
 /** Which Tor route each balance lookup uses. */
 /** Coins and tokens on an EVM chain. They share one address. */
-export const EVM: Asset[] = ['ETH', 'USDTE', 'LINK', 'WLD', 'POL', 'USDTP', 'ARB', 'ETHA', 'USDTA', 'ETHP', 'UNI', 'PEPE', 'AAVE', 'BNB', 'USDTB', 'USDCE', 'USDCB', 'USDCP', 'USDCA', 'SHIB'];
+export const EVM: Asset[] = ['ETH', 'USDTE', 'LINK', 'POL', 'USDTP', 'ARB', 'ETHA', 'USDTA', 'ETHP', 'PEPE', 'BNB', 'USDTB', 'USDCE', 'USDCB', 'USDCP', 'USDCA', 'SHIB'];
 /** Solana tokens. */
 export const SPL: Asset[] = ['USDTS', 'USDCS', 'ORCA', 'PUMP'];
 export const isSpl = (a: Asset): a is SplAsset => SPL.includes(a);
-export const EXTRA_ASSETS: Asset[] = ['ETHP', 'UNI', 'PEPE', 'AAVE', 'BNB', 'USDTB', 'USDCE', 'USDCB', 'USDCS', 'USDCP', 'USDCA', 'SHIB', 'ORCA', 'PUMP'];
+export const EXTRA_ASSETS: Asset[] = ['ETHP', 'PEPE', 'BNB', 'USDTB', 'USDCE', 'USDCB', 'USDCS', 'USDCP', 'USDCA', 'SHIB', 'ORCA', 'PUMP'];
 export const isEvm = (a: Asset): a is Asset & EthAsset => EVM.includes(a);
 export const EVM_EXPLORER: Record<string, string> = { '1': ETH_EXPLORER_TX, '137': POL_EXPLORER_TX, '42161': ARB_EXPLORER_TX, '56': BSC_EXPLORER_TX };
 
 export const ASSET_LABEL: Partial<Record<Asset, string>> = { USDTE: 'USDT (Eth)', USDT: 'USDT (Tron)', USDTS: 'USDT (Sol)', USDTP: 'USDT (Pol)', USDTA: 'USDT (Arb)', ETHA: 'ETH (Arb)', ETHP: 'ETH (Pol)', USDTB: 'USDT (BNB)', USDCE: 'USDC (Eth)', USDCB: 'USDC (BNB)', USDCS: 'USDC (Sol)', USDCP: 'USDC (Pol)', USDCA: 'USDC (Arb)' };
 
-export const LOOKUP_ROUTE: Record<string, string> = { DCR: 'dcr', SHIB: 'eth', ORCA: 'sol', PUMP: 'sol', BTC: 'btc', ETH: 'eth', USDTE: 'eth', LINK: 'eth', WLD: 'eth', TRX: 'tron', USDT: 'tron', DASH: 'dash', FIRO: 'firo', SOL: 'sol', USDTS: 'sol', POL: 'pol', USDTP: 'pol', ARB: 'arb', ETHA: 'arb', USDTA: 'arb', BCH: 'bch', LTC: 'ltc', DOGE: 'doge', SCRT: 'scrt', ETHP: 'pol', UNI: 'eth', PEPE: 'eth', AAVE: 'eth', BNB: 'bsc', USDTB: 'bsc', USDCE: 'eth', USDCB: 'bsc', USDCS: 'sol', USDCP: 'pol', USDCA: 'arb', HYPE: 'hype' };
+export const LOOKUP_ROUTE: Record<string, string> = { DCR: 'dcr', SHIB: 'eth', ORCA: 'sol', PUMP: 'sol', BTC: 'btc', ETH: 'eth', USDTE: 'eth', LINK: 'eth', TRX: 'tron', USDT: 'tron', DASH: 'dash', FIRO: 'firo', SOL: 'sol', USDTS: 'sol', POL: 'pol', USDTP: 'pol', ARB: 'arb', ETHA: 'arb', USDTA: 'arb', BCH: 'bch', LTC: 'ltc', DOGE: 'doge', ETHP: 'pol', PEPE: 'eth', BNB: 'bsc', USDTB: 'bsc', USDCE: 'eth', USDCB: 'bsc', USDCS: 'sol', USDCP: 'pol', USDCA: 'arb', HYPE: 'hype', GRAM: 'ton', USDTT: 'ton', SUI: 'sui', NEAR: 'near', XRP: 'xrp' };
 
 /** Waits longer each time, up to five minutes, so a server that's down isn't asked over and over. */
 export function lookupRetryDelay(fails: number): number {
@@ -85,6 +84,27 @@ export function lookupRetryDelay(fails: number): number {
 }
 export const BALANCE_STALE_MS = 6 * 3600_000;
 export const PREVIEW_TTL_MS = 10 * 60_000;
+
+/**
+ * Coins on account-based chains with their own client (TON, Sui, NEAR, XRP Ledger): one balance, one address,
+ * a draft to review and a send. `memo`: what their sends can carry for an exchange's deposit (XRP's destination tag,
+ * TON's comment).
+ */
+export interface AccountCoin {
+  receiveAddress: string;
+  getBalance(): Promise<{ total: bigint; spendable: bigint }>;
+  draft(to: string, amount: bigint | 'max', memo?: string): Promise<{ to: string; amount: bigint; fee: bigint }>;
+  send(draft: any, mnemonic: string): Promise<string>;
+  getHistory(): Promise<any[]>;
+}
+export const ACCOUNT_COINS: Partial<Record<Asset, { feeAsset: Asset; explorerTx: string; typicalFee: bigint; memo?: 'tag' | 'comment'; label: string }>> = {
+  GRAM: { feeAsset: 'GRAM', explorerTx: 'https://tonviewer.com/transaction/', typicalFee: 10_000_000n, memo: 'comment', label: 'TON' },
+  USDTT: { feeAsset: 'GRAM', explorerTx: 'https://tonviewer.com/transaction/', typicalFee: 60_000_000n, memo: 'comment', label: 'TON' },
+  SUI: { feeAsset: 'SUI', explorerTx: 'https://suiscan.xyz/mainnet/tx/', typicalFee: 2_000_000n, label: 'Sui' },
+  NEAR: { feeAsset: 'NEAR', explorerTx: 'https://nearblocks.io/txns/', typicalFee: 90_000_000_000_000_000_000n, label: 'NEAR' },
+  XRP: { feeAsset: 'XRP', explorerTx: 'https://livenet.xrpl.org/transactions/', typicalFee: 12n, memo: 'tag', label: 'XRP Ledger' },
+};
+export const isAccountCoin = (a: string): boolean => Object.prototype.hasOwnProperty.call(ACCOUNT_COINS, a);
 
 export interface Preview {
   id: string;
@@ -102,7 +122,6 @@ export interface Preview {
   pegin?: PeginDraft;
   spark?: SparkDraft;
   mint?: MintDraft;
-  scrt?: ScrtDraft;
   eth?: EthDraft;
   /** An Ethereum send from one of the extra addresses (its number), not the main one. */
   ethFrom?: number;
@@ -123,6 +142,8 @@ export interface Preview {
   zano?: ZanoDraft;
   ksr?: ZanoDraft;
   arrr?: ArrrDraft;
+  /** A send on one of ACCOUNT_COINS. */
+  account?: { asset: Asset; draft: any };
   dex?: { quote: DexQuote; from: Asset; to: Asset; calls: DexCall[] };
 }
 

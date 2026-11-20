@@ -233,7 +233,7 @@ function assetRow(a: Asset, child = false, toggle?: HTMLElement): HTMLElement {
     ? (moneroBusy() ? syncLabel() : status)
     : p
       ? h('span', {}, usdFormat(p.usd), p.change !== null && h('span', { class: p.change >= 0 ? 'up' : 'down' }, `${p.change >= 0 ? '+' : ''}${p.change.toFixed(2)}%`))
-      : a === 'BTC' ? 'Bitcoin' : a === 'SOL' ? 'Solana' : a === 'DOGE' ? 'Dogecoin' : a === 'DCR' ? 'Decred' : a === 'BCH' ? 'Bitcoin Cash' : a === 'LTC' ? 'Litecoin' : a === 'SCRT' || a === 'SSCRT' ? 'Secret' : a === 'DASH' ? 'Dash' : a === 'FIRO' ? 'Firo' : a === 'ZEC' ? 'Zcash' : a === 'ZANO' ? 'Zano' : a === 'KSR' ? 'Kusari' : a === 'ARRR' ? 'Pirate Chain' : a === 'ETH' || a === 'ETHA' ? 'Ethereum' : a === 'POL' ? 'Polygon' : a === 'LINK' ? 'Chainlink' : a === 'WLD' ? 'Worldcoin' : a === 'ARB' ? 'Arbitrum' : a === 'UNI' ? 'Uniswap' : a === 'PEPE' ? 'Pepe' : a === 'AAVE' ? 'Aave' : a === 'ETHP' ? 'Ethereum' : a === 'BNB' ? 'BNB Smart Chain' : a === 'SHIB' ? 'Shiba Inu' : a === 'ORCA' ? 'Orca' : a === 'PUMP' ? 'pump.fun' : a === 'USDT' || a === 'USDTE' || a === 'USDTS' || a === 'USDTP' || a === 'USDTA' ? 'Tether' : a === 'TRX' ? 'Tron' : 'Monero';
+      : a === 'BTC' ? 'Bitcoin' : a === 'SOL' ? 'Solana' : a === 'GRAM' || a === 'USDTT' ? 'TON' : a === 'SUI' ? 'Sui' : a === 'NEAR' ? 'NEAR' : a === 'XRP' ? 'XRP Ledger' : a === 'DOGE' ? 'Dogecoin' : a === 'DCR' ? 'Decred' : a === 'BCH' ? 'Bitcoin Cash' : a === 'LTC' ? 'Litecoin' : a === 'DASH' ? 'Dash' : a === 'FIRO' ? 'Firo' : a === 'ZEC' ? 'Zcash' : a === 'ZANO' ? 'Zano' : a === 'KSR' ? 'Kusari' : a === 'ARRR' ? 'Pirate Chain' : a === 'ETH' || a === 'ETHA' ? 'Ethereum' : a === 'POL' ? 'Polygon' : a === 'LINK' ? 'Chainlink' : a === 'ARB' ? 'Arbitrum' : a === 'PEPE' ? 'Pepe' : a === 'ETHP' ? 'Ethereum' : a === 'BNB' ? 'BNB Smart Chain' : a === 'SHIB' ? 'Shiba Inu' : a === 'ORCA' ? 'Orca' : a === 'PUMP' ? 'pump.fun' : a === 'USDT' || a === 'USDTE' || a === 'USDTS' || a === 'USDTP' || a === 'USDTA' ? 'Tether' : a === 'TRX' ? 'Tron' : 'Monero';
   const usd = assetUsd(a);
   return h('button', { class: `asset${child ? ' child' : ''}`, id: `asset-${a}`, onclick: () => { selected = a; void renderAsset(); } },
     coin(a),
@@ -285,6 +285,9 @@ async function renderAllHistory(body: HTMLElement): Promise<void> {
 
 // ---- asset detail ----
 
+/** The Tornado chain whose pools hold this coin. */
+const TORNADO_OF: Record<string, string> = { ETH: 'eth', BNB: 'bsc', POL: 'pol', ETHA: 'arb' };
+
 async function renderAsset(): Promise<void> {
   const a = selected;
   const balance = h('div', { class: 'detail-balance', id: 'detail-balance' });
@@ -322,14 +325,14 @@ async function renderAsset(): Promise<void> {
       a === 'DCR' && overview?.dcrMix && dcrMixPanel(overview.dcrMix),
       a === 'DCR' && b?.ok && dcrStakePanel(),
       POOL_ASSETS.includes(a) && b?.ok && solPoolPanel(a),
+      TORNADO_OF[a] && b?.ok && h('div', { class: 'panel', id: 'tornado-panel' },
+        h('p', { class: 'small' }, `Mixer: deposit fixed amounts of ${unitOf(a)} into Tornado Cash pools and withdraw to another address, with nothing on the chain linking the two.`), h('br'),
+        h('button', { class: 'secondary', id: 'tornado-open', onclick: () => void renderTornado('', TORNADO_OF[a]) }, 'Tornado mixer')),
       a === 'FIRO' && overview?.spark && h('div', { class: 'panel', id: 'spark-panel' },
         overview.spark.ready && overview.spark.balance
           ? h('p', { class: 'small' }, `Private (Spark): ${shortAmount(overview.spark.balance.total)} FIRO. Its amounts and addresses are hidden on the chain.`)
           : h('p', { class: 'small', id: 'spark-sync' }, overview.spark.error ? `Private (Spark) balance: ${overview.spark.error}` : `Syncing the private (Spark) balance… ${overview.spark.percent}%`),
         overview.spark.ready && h('button', { class: 'secondary', id: 'spark-mint', onclick: () => void firoPrivateStep() }, 'Make public FIRO private')),
-      a === 'SSCRT' && overview?.sscrt?.needsKey && h('div', { class: 'panel', id: 'sscrt-key-panel' },
-        h('p', { class: 'small' }, 'The private balance is encrypted on the chain. Turn it on once so this wallet can read it: it sets a viewing key on the sSCRT contract, which costs a small SCRT fee.'), h('br'),
-        h('button', { class: 'primary', id: 'sscrt-key', onclick: () => void scrtPrivateStep('key') }, 'Turn on private balance')),
       a === 'XMR' && b?.ok && b.total !== b.spendable && h('div', { class: 'warn' }, `${b.spendable} XMR can be spent now. The rest unlocks after 10 confirmations.`),
       a === 'XMR' && overview && !overview.monero.connected && h('div', { class: 'warn', id: 'node-note' }, `Not connected to a node, so the balance may be out of date. Retrying automatically.${overview.monero.error ? ' ' + overview.monero.error : ''}`),
       a === 'XMR' && moneroBusy() && h('div', { class: 'sync-banner' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), moneroStatus()),
@@ -343,9 +346,6 @@ async function renderAsset(): Promise<void> {
       h('div', { class: 'actions' },
         h('button', { class: 'action', id: 'detail-send', onclick: () => renderSend() }, h('span', { class: 'box' }, icon('send')), 'Send'),
         h('button', { class: 'action', id: 'detail-receive', onclick: () => void renderReceive() }, h('span', { class: 'box' }, icon('receive')), 'Receive')),
-      (a === 'SCRT' || a === 'SSCRT') && h('div', { class: 'btn-row', id: 'sscrt-actions' },
-        h('button', { class: 'secondary', id: 'sscrt-wrap', onclick: () => renderScrtPrivate('wrap') }, 'Make private'),
-        h('button', { class: 'secondary', id: 'sscrt-unwrap', onclick: () => renderScrtPrivate('unwrap') }, 'Make public')),
       a === 'ZEC' && h('button', { class: 'ghost', id: 'zec-rescan', onclick: () => renderZecRescan() }, 'Rescan past history'),
       a === 'ARRR' && h('button', { class: 'ghost', id: 'arrr-rescan', onclick: () => renderZecRescan('ARRR') }, 'Rescan past history'),
       hist));

@@ -41,6 +41,12 @@ const service = new WalletService('/data', undefined, {
   solRpc: __TEST__ ? testConfig.solRpc : undefined,
   solPoolRelayer: __TEST__ ? testConfig.solPoolRelayer : undefined,
   dogeApi: __TEST__ ? testConfig.dogeApi : undefined,
+  dcrApi: __TEST__ ? testConfig.dcrApi : undefined,
+  tonApi: __TEST__ ? testConfig.tonApi : undefined,
+  suiGraphql: __TEST__ ? testConfig.suiGraphql : undefined,
+  nearRpc: __TEST__ ? testConfig.nearRpc : undefined,
+  nearHistory: __TEST__ ? testConfig.nearHistory : undefined,
+  xrpServer: __TEST__ ? testConfig.xrpServer : undefined,
   firoApi: __TEST__ ? testConfig.dashApi && `${testConfig.dashApi}-firo` : undefined,
   zecServers: __TEST__ ? testConfig.zecServers : undefined,
   ethRpc: __TEST__ ? testConfig.ethRpc : undefined,
@@ -49,7 +55,6 @@ const service = new WalletService('/data', undefined, {
   ethScout: __TEST__ ? testConfig.ethScout : undefined,
   bchApi: __TEST__ ? testConfig.bchApi : undefined,
   ltcApi: __TEST__ ? testConfig.ltcApi : undefined,
-  scrtLcd: __TEST__ ? testConfig.scrtLcd : undefined,
   polRpc: __TEST__ ? testConfig.polRpc : undefined,
   polScout: __TEST__ ? testConfig.polScout : undefined,
   arbRpc: __TEST__ ? testConfig.arbRpc : undefined,
@@ -76,12 +81,7 @@ service.on('tor-state', (s) => emit('tor-state', s));
 service.on('tornado-progress', (m) => emit('tornado-progress', m));
 service.on('sol-pool-progress', (m) => emit('sol-pool-progress', m));
 
-let lockTimer: ReturnType<typeof setTimeout> | undefined;
-const bump = () => {
-  if (lockTimer) clearTimeout(lockTimer);
-  lockTimer = setTimeout(() => { void service.lock(); }, service.settings.autoLockMinutes * 60_000);
-};
-const call = <A extends unknown[], R>(fn: (...a: A) => R) => async (...a: A) => { await ready; bump(); return fn(...a); };
+const call = <A extends unknown[], R>(fn: (...a: A) => R) => async (...a: A) => { await ready; return fn(...a); };
 
 let clipTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -122,7 +122,7 @@ const bioCall = (fn: (id: number) => void) => new Promise<string>((resolve, reje
   ethAddressNew: call(() => service.ethAddressNew()),
   ethAddressesFind: call(() => service.ethAddressesFind()),
   qr: call((t: string) => service.qr(t)),
-  prepareSend: call((a: any, to: string, amt: string, opts?: { coins?: string[]; fromMixed?: boolean; fromAddress?: number }) => service.prepareSend(a, to, amt, opts ?? {})),
+  prepareSend: call((a: any, to: string, amt: string, opts?: { coins?: string[]; fromMixed?: boolean; fromAddress?: number; memo?: string }) => service.prepareSend(a, to, amt, opts ?? {})),
   btcCoins: call(() => service.btcCoins()),
   btcMixInfo: call((coins?: string[]) => service.btcMixInfo(Array.isArray(coins) ? coins : undefined)),
   btcMixStart: call((password: string, coins?: string[]) => service.btcMixStart(String(password ?? ''), Array.isArray(coins) ? coins : undefined)),
@@ -174,7 +174,6 @@ const bioCall = (fn: (id: number) => void) => new Promise<string>((resolve, reje
   prepareDashMix: call((amount: string) => service.prepareDashMix(amount)),
   prepareDashPrivate: call((to: string, amount: string) => service.prepareDashPrivate(to, amount)),
   coinjoinPause: call((paused: boolean) => service.coinjoinPause(Boolean(paused))),
-  prepareScrtPrivate: call((kind: any, amt: string) => service.prepareScrtPrivate(kind, amt)),
   zecRescan: call((d: string, pw: string) => service.zecRescan(d, pw)),
   walletsList: call(() => service.walletsList()),
   walletRename: call((i: string, n: string) => service.walletRename(i, n)),
@@ -186,10 +185,10 @@ const bioCall = (fn: (id: number) => void) => new Promise<string>((resolve, reje
   walletBeginAdd: call((n: string) => service.walletBeginAdd(n)),
   walletCancelAdd: call(() => service.walletCancelAdd()),
   feeEstimate: call((a: any) => service.feeEstimate(a)),
-  tornadoInfo: call(() => service.tornadoInfo()),
+  tornadoInfo: call((c?: string) => service.tornadoInfo(typeof c === 'string' ? c : undefined)),
   tornadoCheck: call(() => service.tornadoCheck()),
-  tornadoDepositPrepare: call((p: string) => service.tornadoDepositPrepare(p)),
-  tornadoDepositConfirm: call((i: string, p: string, w: string) => service.tornadoDepositConfirm(i, p, w)),
+  tornadoDepositPrepare: call((p: string, c?: string) => service.tornadoDepositPrepare(String(p), typeof c === 'string' ? c : undefined)),
+  tornadoDepositConfirm: call((i: string, p: string, w: string, o?: { chain?: string; sendTo?: string }) => service.tornadoDepositConfirm(String(i), String(p), String(w), o && typeof o === 'object' ? { chain: typeof o.chain === 'string' ? o.chain : undefined, sendTo: typeof o.sendTo === 'string' ? o.sendTo : undefined } : {})),
   tornadoExport: call((i: string, w: string) => service.tornadoExport(i, w)),
   tornadoWithdrawQuote: call((i: string, r: string, l: string) => service.tornadoWithdrawQuote(i, r, l)),
   tornadoWithdraw: call((i: string, r: string, l: string, w: string, o?: { delayMinutes?: number }) => service.tornadoWithdraw(i, r, l, w, o && typeof o === 'object' ? { delayMinutes: Number(o.delayMinutes) || 0 } : {})),
@@ -206,7 +205,7 @@ const bioCall = (fn: (id: number) => void) => new Promise<string>((resolve, reje
   solPoolInfo: call((a: string) => service.solPoolInfo(String(a))),
   solPoolEnable: call((a: string, f: boolean) => service.solPoolEnable(String(a), f === true)),
   solPoolDepositQuote: call((a: string, m: string) => service.solPoolDepositQuote(String(a), String(m))),
-  solPoolDeposit: call((a: string, m: string, w: string) => service.solPoolDeposit(String(a), String(m), String(w))),
+  solPoolDeposit: call((a: string, m: string, w: string, o?: { sendTo?: string }) => service.solPoolDeposit(String(a), String(m), String(w), o && typeof o === 'object' && typeof o.sendTo === 'string' ? { sendTo: o.sendTo } : {})),
   solPoolWithdrawQuote: call((a: string, m: string, t: string) => service.solPoolWithdrawQuote(String(a), String(m), String(t))),
   solPoolWithdraw: call((a: string, m: string, t: string, w: string, o?: { delayMinutes?: number }) => service.solPoolWithdraw(String(a), String(m), String(t), String(w), o && typeof o === 'object' ? { delayMinutes: Number(o.delayMinutes) || 0 } : {})),
   solPoolCancelLater: call((i: string) => service.solPoolCancelLater(String(i))),

@@ -17,7 +17,7 @@ test('each new token sits on its own chain with the contract and decimals from t
   for (const a of ['ASTER', 'UNIB', 'CAKE']) assert.equal(BSC.tokens[a], undefined, `${a} was taken out`);
   assert.equal(POLYGON.tokens.ETHP.contract, '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619', 'ETH on Polygon');
   assert.equal(chainOf('ETHP'), POLYGON);
-  for (const a of ['UNI', 'PEPE', 'AAVE']) assert.equal(chainOf(a), ETHEREUM, a);
+  for (const a of ['PEPE']) assert.equal(chainOf(a), ETHEREUM, a);
   assert.equal(SPL_TOKENS.ORCA.decimals, 6);
   // Circle's native USDC on each chain, as the chains report it; BNB Smart Chain's has 18 decimals.
   assert.equal(chainOf('USDCE'), ETHEREUM); assert.equal(ETHEREUM.tokens.USDCE.contract, '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'); assert.equal(ETHEREUM.tokens.USDCE.decimals, 6);
@@ -75,9 +75,8 @@ test('Aave oracle: the call asks getAssetsPrices for the listed tokens, and answ
 });
 
 test('the same coin under another name gets the same price', () => {
-  const p = { POL: { usd: 0.2, change: 1 }, ETH: { usd: 3000, change: 2 }, SCRT: { usd: 0.3, change: 0 } };
+  const p = { POL: { usd: 0.2, change: 1 }, ETH: { usd: 3000, change: 2 } };
   mirror(p);
   assert.equal(p.ETHP.usd, 3000, 'ETH on Polygon is ETH');
   assert.equal(p.ETHA.usd, 3000);
-  assert.equal(p.SSCRT.usd, 0.3);
 });

@@ -8,6 +8,9 @@ function renderSend(keep?: { to: string; amount: string }): void {
   const usd = h('div', { class: 'usd', id: 'usd-preview' });
   const box = errorBox();
   const next = h('button', { class: 'primary', id: 'review', type: 'submit' }, 'Next');
+  // What an exchange's deposit address can need alongside it: XRP's destination tag, TON's comment.
+  const memoKind = asset === 'XRP' ? 'tag' : asset === 'GRAM' || asset === 'USDTT' ? 'comment' : null;
+  const memo = memoKind ? h('input', { id: 'memo', spellcheck: 'false', autocomplete: 'off', inputmode: memoKind === 'tag' ? 'numeric' : 'text', placeholder: 'Optional' }) as HTMLInputElement : null;
   const mixed = asset === 'DASH' ? Number(overview?.coinjoin?.mixed ?? 0) : 0;
   const fromMixed = mixed > 0 ? h('input', { type: 'checkbox', id: 'cj-from-mixed' }) as HTMLInputElement : null;
   const coins = asset === 'BTC' ? coinControl() : null;
@@ -43,7 +46,7 @@ function renderSend(keep?: { to: string; amount: string }): void {
     busy(next, asset === 'XMR' ? 'Creating the transaction…' : 'Calculating the fee…', box, async () => {
       const preview = asset === 'DASH' && fromMixed?.checked
         ? await wallet.prepareDashPrivate(to.value, amount.value)
-        : await wallet.prepareSend(asset, to.value, amount.value, fromMixedBtc?.checked || fromMixedDcr?.checked ? { fromMixed: true } : coins?.chosen.size ? { coins: [...coins.chosen] } : fromEth?.value ? { fromAddress: Number(fromEth.value) } : undefined);
+        : await wallet.prepareSend(asset, to.value, amount.value, fromMixedBtc?.checked || fromMixedDcr?.checked ? { fromMixed: true } : coins?.chosen.size ? { coins: [...coins.chosen] } : fromEth?.value ? { fromAddress: Number(fromEth.value) } : memo?.value.trim() ? { memo: memo.value.trim() } : undefined);
       renderReview(preview, { to: to.value, amount: amount.value });
     });
   } },
@@ -60,6 +63,8 @@ function renderSend(keep?: { to: string; amount: string }): void {
       h('button', { type: 'button', class: 'max', id: 'max', onclick: () => { amount.value = 'max'; update(); } }, 'Max')),
     availableLine(asset, 'send-available')),
   usd,
+  memo && h('div', { class: 'panel' }, h('label', { class: 'label', for: 'memo' }, memoKind === 'tag' ? 'Destination tag' : 'Comment (memo)'), memo,
+    h('div', { class: 'hint' }, memoKind === 'tag' ? 'Only if the receiver asks for one (exchanges usually do). A wrong or missing tag can lose an exchange deposit.' : 'Only if the receiver asks for one (exchanges usually do). It is public on the chain.')),
   fromEth && fromEthRow,
   fromMixedBtc && h('label', { class: 'check', id: 'btc-from-mixed-row' }, fromMixedBtc, h('span', {}, `Send from mixed coins (CoinJoin, ${shortAmount(overview.btcMix.mixedSpendable)} BTC)`)),
   fromMixedDcr && h('label', { class: 'check', id: 'dcr-from-mixed-row' }, fromMixedDcr, h('span', {}, `Send from mixed coins (StakeShuffle, ${shortAmount(overview.dcrMix.mixedSpendable)} DCR)`)),
@@ -131,20 +136,23 @@ function coinControl(purpose: 'send' | 'mix' = 'send'): { el: HTMLElement; chose
 /** Reads an address out of a QR code. Accepts a bare address or a wallet link such as monero:4...?tx_amount=1. */
 function parseScanned(asset: Asset, raw: string): { address: string; amount: string } | null {
   const text = raw.trim();
-  const m = text.match(/^(?:(bitcoincash|bitcoin|btc|litecoin|ltc|secret|scrt|solana|sol|dogecoin|doge|decred|dcr|dash|firo|zcash|zec|zano|kusari|ksr|pirate|arrr|ethereum|eth|tron|trx|usdt|monero|xmr)(?::\/\/|:))?([0-9A-Za-z]+)(?:@1)?(?:\?(.*))?$/i);
+  const m = text.match(/^(?:(bitcoincash|bitcoin|btc|litecoin|ltc|solana|sol|dogecoin|doge|decred|dcr|dash|firo|zcash|zec|zano|kusari|ksr|pirate|arrr|ethereum|eth|tron|trx|usdt|monero|xmr|ton|sui|near|xrp|ripple)(?::\/\/|:))?([0-9A-Za-z._:-]+?)(?:@1)?(?:\?(.*))?$/i);
   if (!m) return null;
   const scheme = (m[1] ?? '').toLowerCase();
-  const family = (a: Asset) => (a === 'BCH' ? ['bitcoincash'] : a === 'LTC' ? ['litecoin', 'ltc'] : a === 'SCRT' || a === 'SSCRT' ? ['secret', 'scrt'] : a === 'SOL' ? ['solana', 'sol'] : SPL_ASSETS.includes(a) ? ['solana', 'sol', 'usdt', 'spl'] : BSC_ASSETS.includes(a) ? ['ethereum', 'bnb', 'bsc', 'usdt'] : a === 'POL' || a === 'USDTP' || a === 'ETHP' ? ['ethereum', 'polygon', 'pol', 'matic', 'usdt'] : a === 'ARB' || a === 'ETHA' || a === 'USDTA' ? ['ethereum', 'arbitrum', 'arb', 'eth', 'usdt'] : a === 'DOGE' ? ['dogecoin', 'doge'] : a === 'DCR' ? ['decred', 'dcr'] : a === 'DASH' ? ['dash'] : a === 'FIRO' ? ['firo'] : a === 'ZEC' ? ['zcash', 'zec'] : a === 'ZANO' ? ['zano'] : a === 'KSR' ? ['kusari', 'ksr'] : a === 'ARRR' ? ['pirate', 'arrr'] : a === 'BTC' ? ['bitcoin', 'btc'] : a === 'XMR' ? ['monero', 'xmr'] : a === 'ETH' || a === 'USDTE' ? ['ethereum', 'eth', 'usdt'] : ['tron', 'trx', 'usdt']);
+  const family = (a: Asset) => (a === 'BCH' ? ['bitcoincash'] : a === 'LTC' ? ['litecoin', 'ltc'] : a === 'SOL' ? ['solana', 'sol'] : SPL_ASSETS.includes(a) ? ['solana', 'sol', 'usdt', 'spl'] : BSC_ASSETS.includes(a) ? ['ethereum', 'bnb', 'bsc', 'usdt'] : a === 'POL' || a === 'USDTP' || a === 'ETHP' ? ['ethereum', 'polygon', 'pol', 'matic', 'usdt'] : a === 'ARB' || a === 'ETHA' || a === 'USDTA' ? ['ethereum', 'arbitrum', 'arb', 'eth', 'usdt'] : a === 'GRAM' || a === 'USDTT' ? ['ton'] : a === 'SUI' ? ['sui'] : a === 'NEAR' ? ['near'] : a === 'XRP' ? ['xrp', 'ripple'] : a === 'DOGE' ? ['dogecoin', 'doge'] : a === 'DCR' ? ['decred', 'dcr'] : a === 'DASH' ? ['dash'] : a === 'FIRO' ? ['firo'] : a === 'ZEC' ? ['zcash', 'zec'] : a === 'ZANO' ? ['zano'] : a === 'KSR' ? ['kusari', 'ksr'] : a === 'ARRR' ? ['pirate', 'arrr'] : a === 'BTC' ? ['bitcoin', 'btc'] : a === 'XMR' ? ['monero', 'xmr'] : a === 'ETH' || a === 'USDTE' ? ['ethereum', 'eth', 'usdt'] : ['tron', 'trx', 'usdt']);
   if (scheme && !family(asset).includes(scheme)) return null;
   // Bech32 QR codes are often in upper case to make them smaller.
   const address = asset === 'BTC' && /^(BC1|SP1)/.test(m[2]) ? m[2].toLowerCase() : m[2];
   const valid = asset === 'BTC' ? /^(bc1[02-9ac-hj-np-z]{11,87}|sp1[02-9ac-hj-np-z]{100,200}|[13][1-9A-HJ-NP-Za-km-z]{25,34})$/.test(address)
     : asset === 'SOL' || SPL_ASSETS.includes(asset) ? /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address)
     : asset === 'DOGE' ? /^[DA9][1-9A-HJ-NP-Za-km-z]{33}$/.test(address)
+    : asset === 'GRAM' || asset === 'USDTT' ? /^([A-Za-z0-9_-]{48}|-?[01]:[0-9a-fA-F]{64})$/.test(address)
+    : asset === 'SUI' ? /^0x[0-9a-f]{64}$/.test(address)
+    : asset === 'NEAR' ? /^([0-9a-f]{64}|0x[0-9a-f]{40}|([a-z\d]+[-_.])*[a-z\d]+\.[a-z\d]+)$/.test(address)
+    : asset === 'XRP' ? /^r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(address)
     : asset === 'DCR' ? /^D[sc][1-9A-HJ-NP-Za-km-z]{33}$/.test(address)
     : asset === 'BCH' ? /^[qp][02-9ac-hj-np-z]{41}$/i.test(address)
     : asset === 'LTC' ? /^(ltc1[02-9ac-hj-np-z]{8,87}|ltcmweb1[02-9ac-hj-np-z]{100,140}|[LM][1-9A-HJ-NP-Za-km-z]{25,34})$/.test(address)
-    : asset === 'SCRT' || asset === 'SSCRT' ? /^secret1[02-9ac-hj-np-z]{38}$/.test(address)
     : asset === 'FIRO' ? /^([a3][1-9A-HJ-NP-Za-km-z]{33}|sm1[02-9ac-hj-np-z]{100,200})$/.test(address)
     : asset === 'DASH' ? /^[X7][1-9A-HJ-NP-Za-km-z]{33}$/.test(address)
     : asset === 'ARRR' ? /^(zs1[02-9ac-hj-np-z]{75}|pirate1[02-9ac-hj-np-z]{40,})$/.test(address)
@@ -229,7 +237,7 @@ async function openScanner(asset: Asset, onFound: (found: { address: string; amo
         }
         const found = parseScanned(asset, code.data);
         if (found) { close(); onFound(found); return; }
-        status.textContent = `This is not a ${asset === 'XMR' ? 'Monero' : asset === 'SOL' || SPL_ASSETS.includes(asset) ? 'Solana' : asset === 'DOGE' ? 'Dogecoin' : asset === 'BCH' ? 'Bitcoin Cash' : asset === 'LTC' ? 'Litecoin' : asset === 'SCRT' || asset === 'SSCRT' ? 'Secret Network' : asset === 'DASH' ? 'Dash' : asset === 'FIRO' ? 'Firo' : asset === 'ZEC' ? 'Zcash' : asset === 'ZANO' ? 'Zano' : asset === 'KSR' ? 'Kusari' : asset === 'ARRR' ? 'Pirate Chain' : asset === 'BTC' ? 'Bitcoin' : EVM_ASSETS.includes(asset) ? 'Ethereum' : 'Tron'} address QR. Try another one.`;
+        status.textContent = `This is not a ${asset === 'XMR' ? 'Monero' : asset === 'SOL' || SPL_ASSETS.includes(asset) ? 'Solana' : asset === 'GRAM' || asset === 'USDTT' ? 'TON' : asset === 'SUI' ? 'Sui' : asset === 'NEAR' ? 'NEAR' : asset === 'XRP' ? 'XRP' : asset === 'DOGE' ? 'Dogecoin' : asset === 'BCH' ? 'Bitcoin Cash' : asset === 'LTC' ? 'Litecoin' : asset === 'DASH' ? 'Dash' : asset === 'FIRO' ? 'Firo' : asset === 'ZEC' ? 'Zcash' : asset === 'ZANO' ? 'Zano' : asset === 'KSR' ? 'Kusari' : asset === 'ARRR' ? 'Pirate Chain' : asset === 'BTC' ? 'Bitcoin' : EVM_ASSETS.includes(asset) ? 'Ethereum' : 'Tron'} address QR. Try another one.`;
       }
     }
     timer = window.setTimeout(tick, 180);
@@ -274,6 +282,7 @@ function renderReview(p: any, keep: { to: string; amount: string }): void {
       h('div', { class: 'big-amount', id: 'review-amount' }, `${p.amount} ${coinName(p.asset)}`),
       typeof price === 'number' && h('div', { class: 'small muted' }, `≈ ${usdFormat(Number(p.amount) * price)}`))),
     h('tr', {}, h('th', {}, 'Receiving address'), h('td', {}, addressCheck(p.to))),
+    p.memo && h('tr', {}, h('th', {}, p.memoKind === 'tag' ? 'Destination tag' : 'Comment'), h('td', { id: 'review-memo' }, p.memo)),
     h('tr', {}, h('th', {}, p.feeIsEstimate ? 'Estimated fee' : 'Fee'), h('td', { id: 'review-fee' }, reviewFee(p.fee, p.feeAsset)))))),
   when && h('label', { class: 'field' }, h('span', {}, 'When to send'), when,
     h('div', { class: 'hint' }, 'Signed now and sent later, even if the wallet is locked in between: it goes out when the wallet is next open. Its coins can\'t be used for anything else until then.')),
@@ -405,9 +414,12 @@ async function renderReceive(current?: string): Promise<void> {
     : asset === 'USDTS' ? 'Receives USDT on the Solana network (SPL) only. Sending needs a little SOL at this address for the fee.'
     : asset === 'LTC' && address.startsWith('ltcmweb1') ? 'A private (MWEB) Litecoin address. The amount and both addresses stay hidden on the chain. Senders need a wallet with MWEB support, such as Litecoin Core.'
     : asset === 'LTC' ? 'A Litecoin address (ltc1q). Coins sent from Bitcoin or other chains won\'t arrive. Once a deposit is seen, a new address appears next time.'
-    : asset === 'SSCRT' ? 'The same secret1 address as plain SCRT. sSCRT sent to it arrives privately, and only after the private balance is turned on can this wallet show it.'
-    : asset === 'SCRT' ? 'Receives SCRT on Secret Network mainnet only. The amount and address are public on the chain. No memo is needed.'
     : asset === 'BCH' ? 'Receives BCH on Bitcoin Cash only. Coins sent from Bitcoin or other chains won\'t arrive. Once a deposit is seen, a new address appears next time.'
+    : asset === 'GRAM' ? 'Receives GRAM (formerly Toncoin) on TON only. No comment is needed to receive here.'
+    : asset === 'USDTT' ? 'Receives USDT on TON only. Sending it on needs a little GRAM at this address for the fee.'
+    : asset === 'SUI' ? 'Receives SUI on the Sui network only.'
+    : asset === 'NEAR' ? 'Receives NEAR on NEAR mainnet only. This 64-character account is created when NEAR first arrives.'
+    : asset === 'XRP' ? 'Receives XRP on the XRP Ledger only. No destination tag is needed to receive here. The account starts with the first 1 XRP received, which stays as its reserve.'
     : asset === 'DOGE' ? 'Receives DOGE on Dogecoin mainnet only. Once a deposit is seen, a new address appears next time.'
     : asset === 'FIRO' && address.startsWith('sm1') ? 'A private (Spark) Firo address. The amount and both addresses stay hidden on the chain. Senders need a wallet with Spark support, such as Firo\'s own wallet. Coins show here once they are in a block.'
     : asset === 'FIRO' ? 'Receives FIRO on Firo mainnet only. This is a transparent address, so the amount and address are public on the chain. Once a deposit is seen, a new address appears next time.'
@@ -416,13 +428,12 @@ async function renderReceive(current?: string): Promise<void> {
     : asset === 'ETH' ? 'The same address as USDT (Eth). Receives ETH on Ethereum mainnet only. Coins sent over L2s or other chains won\'t arrive.'
     : asset === 'USDTE' ? 'Receives USDT on the Ethereum network (ERC-20) only. Sending needs ETH at this address for the fee.'
     : asset === 'LINK' ? 'Receives LINK on Ethereum (ERC-20) only. Sending needs ETH at this address for the fee.'
-    : asset === 'UNI' || asset === 'PEPE' || asset === 'AAVE' || asset === 'SHIB' ? `Receives ${asset} on Ethereum (ERC-20) only. Sending needs ETH at this address for the fee.`
+    : asset === 'PEPE' || asset === 'SHIB' ? `Receives ${asset} on Ethereum (ERC-20) only. Sending needs ETH at this address for the fee.`
     : asset === 'ETHP' ? 'Receives ETH on Polygon only (bridged ETH). ETH sent on Ethereum or Arbitrum won\'t show here. Sending needs POL at this address for the fee.'
     : asset === 'DCR' ? 'A Decred address (Ds…) from this seed\'s BIP44 account (m/44\'/42\'/0\'), as multi-coin wallets derive it. Decrediton uses its own 33-word seed, so it shows other addresses. Receives DCR on Decred mainnet only.'
     : asset === 'BNB' ? 'The same 0x address as on Ethereum. Receives BNB on BNB Smart Chain (BEP-20) only. BNB on other chains won\'t show here.'
     : asset === 'USDTB' ? `Receives USDT on BNB Smart Chain (BEP-20) only. Sending needs BNB at this address for the fee.`
     : asset === 'ORCA' || asset === 'PUMP' ? `Receives ${asset} on Solana (SPL) only. Sending needs a little SOL at this address for the fee.`
-    : asset === 'WLD' ? 'Receives WLD on Ethereum (ERC-20) only. Sending needs ETH at this address for the fee.'
     : asset === 'POL' ? 'The same 0x address as on Ethereum and Arbitrum. Receives POL on Polygon only.'
     : asset === 'USDTP' ? 'Receives USDT on Polygon only. Sending needs POL at this address for the fee.'
     : asset === 'ARB' ? 'Receives the ARB token on Arbitrum One only. Sending needs ETH (Arb) at this address for the fee.'

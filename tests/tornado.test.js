@@ -207,18 +207,52 @@ test('relayer list and pick, split deposits over time, a withdrawal to a new add
   assert.equal(q.after, null, 'unknown until the deposit list has been read on this device');
   await assert.rejects(s.tornadoWithdraw(first.id, 'new', '', 'pw', { delayMinutes: 10 }), /through a relayer/);
 
-  // Later: the proof is made now, the relayer gets it at its time; the new address is kept in the wallet.
+  // Later: at a random time 1 to 24 hours away the proof is made and the relayer gets it; the new address is kept.
+  const before = Date.now();
   const waiting = await s.tornadoWithdraw(first.id, 'new', 'auto', 'pw', { delayMinutes: 10 });
   assert.equal(waiting.status, 'scheduled');
-  // The deposit list is on the device now: how many came after each one is known.
-  const q2 = await s.tornadoWithdrawQuote(second.id, OUT, relayUrl);
-  assert.equal(q2.after, 0);
-  assert.ok(q2.warnings.some((w) => /Only 0 deposits/.test(w)));
-  assert.equal((await s.tornadoWithdrawQuote(first.id, OUT, relayUrl)).after, 1);
+  assert.ok(waiting.at >= before + 3600_000 && waiting.at <= Date.now() + 24 * 3600_000, 'between 1 and 24 hours away');
   assert.deepEqual((await s.ethAddresses()).map((x) => x.address), [s.ethNode.addressAt(0)]);
   assert.equal(await chain.provider.getBalance(s.ethNode.addressAt(0)), 0n);
   await s.fireTornado(first.id);
   const done = (await s.tornadoInfo()).notes.find((n) => n.id === first.id);
   assert.equal(done.status, 'withdrawn');
+  // The deposit list is on the device now: how many came after each one is known.
+  const q2 = await s.tornadoWithdrawQuote(second.id, OUT, relayUrl);
+  assert.equal(q2.after, 0);
+  assert.ok(q2.warnings.some((w) => /Only 0 deposits/.test(w)));
+
+  // A deposit with an address to send it on to: a relayer sends it there at a random time 1 to 24 hours later.
+  const OUT2 = ethers.Wallet.createRandom().address;
+  const prep = await s.tornadoDepositPrepare('0.1');
+  await assert.rejects(s.tornadoDepositConfirm(prep.id, '0.1', 'pw', { sendTo: me.address }), /deposit address/);
+  const onward = await s.tornadoDepositConfirm(prep.id, '0.1', 'pw', { sendTo: OUT2 });
+  assert.equal(onward.sendTo, OUT2);
+  assert.ok(onward.at >= Date.now() + 3600_000 - 5_000 && onward.at <= Date.now() + 24 * 3600_000);
+  await s.fireTornado(onward.id);
+  assert.equal((await s.tornadoInfo()).notes.find((n) => n.id === onward.id).status, 'withdrawn');
+  assert.ok(await chain.provider.getBalance(OUT2) > 9n * 10n ** 16n, 'arrived, less the relayer fee');
   assert.equal(await chain.provider.getBalance(s.ethNode.addressAt(0)), 10n ** 17n - ethers.parseEther(q.fee));
+});
+
+test('other chains: the pools the Tornado site lists, standard notes, relayers checked for the network', async (t) => {
+  const { TORNADO_CHAINS, noteText, relayerStatus, relayerFee } = require('../dist/main/tornado');
+  const { randomLater } = require('../dist/main/service-send');
+  assert.deepEqual(Object.keys(TORNADO_CHAINS), ['eth', 'bsc', 'pol', 'arb']);
+  assert.equal(TORNADO_CHAINS.bsc.pools['0.1'], '0x84443CFd09A48AF6eF360C6976C5392aC5023a1F');
+  assert.equal(TORNADO_CHAINS.pol.pools['100000'], '0xa5C2254e4253490C54cef0a4347fddb8f75A4998');
+  assert.equal(TORNADO_CHAINS.arb.pools['100'], '0x1E34A77868E19A6647b1f2F47B51ed72dEDE95DD');
+  const keys = { nullifier: '11'.repeat(31), secret: '22'.repeat(31) };
+  assert.equal(noteText('1', keys, 'bsc'), `tornado-bnb-1-56-0x${'11'.repeat(31)}${'22'.repeat(31)}`);
+  assert.equal(noteText('100', keys, 'pol').slice(0, 21), 'tornado-matic-100-137');
+  assert.equal(noteText('0.1', keys, 'arb').slice(0, 23), 'tornado-eth-0.1-42161-0');
+  // Arbitrum's gas, as the site prices it, goes into the fee.
+  assert.equal(relayerFee('1', 0, 10n ** 8n, TORNADO_CHAINS.arb.withdrawGas), 1_900_000n * 10n ** 8n);
+  const relay = http.createServer((q, r) => { r.setHeader('content-type', 'application/json'); r.end(JSON.stringify({ netId: 56, rewardAccount: OUT, tornadoServiceFee: 0.2 })); });
+  await new Promise((res) => relay.listen(0, '127.0.0.1', res));
+  t.after(() => relay.close());
+  const url = `http://127.0.0.1:${relay.address().port}`;
+  assert.equal((await relayerStatus(url, undefined, 56)).feePercent, 0.2);
+  await assert.rejects(relayerStatus(url, undefined, 137), /another network/);
+  for (let i = 0; i < 200; i++) { const at = randomLater(0); assert.ok(at >= 3600_000 && at <= 24 * 3600_000, String(at)); }
 });

@@ -19,10 +19,11 @@ async function make(t) {
   s.eth = { address: '0x', getEthBalance: async () => 1n, getUsdtBalance: async () => 1n };
   s.pol = { address: '0x', balanceOf: async () => 1n }; s.arb = { address: '0x', balanceOf: async () => 1n }; s.bsc = { address: '0x', balanceOf: async () => 1n };
   s.dash = { receiveAddress: 'X', getBalance: async () => ({ total: 1n, spendable: 1n }) };
-  s.scrt = { address: 'secret1', getBalance: async () => 1n };
   s.firo = { receiveAddress: 'a', getBalance: async () => ({ total: 1n, spendable: 1n }) };
   s.dcr = { receiveAddress: 'Ds1', getBalance: async () => ({ total: 1n, spendable: 1n }) };
   s.doge = { receiveAddress: 'D', refresh: async () => {}, getBalance: async () => ({ total: 1n, spendable: 1n }) }; s.ltc = { receiveAddress: 'ltc1', coin: { symbol: 'LTC' }, refresh: async () => {}, getBalance: async () => ({ total: 1n, spendable: 1n }) }; s.bch = { receiveAddress: 'bitcoincash:q', refresh: async () => {}, getBalance: async () => ({ total: 1n, spendable: 1n }) }; s.sol = { receiveAddress: 'S', getBalance: async () => ({ total: 1n, spendable: 1n }), getUsdtBalance: async () => 1n };
+  const acct = (address) => ({ receiveAddress: address, getBalance: async () => ({ total: 1n, spendable: 1n }) });
+  s.accounts = new Map([['GRAM', acct('UQ')], ['USDTT', acct('UQ')], ['SUI', acct('0xs')], ['NEAR', acct('n')], ['XRP', acct('r')]]);
   return { s, v };
 }
 
@@ -198,6 +199,6 @@ test('every coin the screen lists has a receiving address, tokens on their chain
   const engines = new Set(['ZEC', 'ZANO', 'KSR', 'ARRR']); // only when their engine runs
   for (const list of [await s.addresses(), (await s.overview()).addresses]) {
     for (const a of Object.keys(DECIMALS).filter((a) => !engines.has(a))) assert.ok(list[a], `${a} has an address`);
-    for (const a of ['LINK', 'WLD', 'POL', 'USDTP', 'ARB', 'ETHA', 'USDTA']) assert.equal(list[a], '0x', a);
+    for (const a of ['LINK', 'POL', 'USDTP', 'ARB', 'ETHA', 'USDTA']) assert.equal(list[a], '0x', a);
   }
 });

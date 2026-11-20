@@ -34,7 +34,7 @@ function solPoolPanel(asset: string): HTMLElement {
       scan && h('p', { class: 'small muted', id: 'sol-pool-scan' }, scan),
       info.error && h('p', { class: 'small warn', id: 'sol-pool-error' }, info.error),
       !info.tor && h('p', { class: 'small warn' }, 'The private pool needs Tor. Turn it on in Settings.'),
-      ...info.later.map((l: any) => h('p', { class: 'small muted', id: `sol-pool-later-${l.id}` }, `${l.amount} ${sym} to ${l.to.slice(0, 6)}…${l.to.slice(-4)} goes out around ${atText(l.at)} (while the app is open). `,
+      ...info.later.map((l: any) => h('p', { class: 'small muted', id: `sol-pool-later-${l.id}` }, l.afterDeposit ? `Up to ${l.amount} ${sym} to ${l.to.slice(0, 6)}…${l.to.slice(-4)} goes out around ${atText(l.at)} (while the app is open). ` : `${l.amount} ${sym} to ${l.to.slice(0, 6)}…${l.to.slice(-4)} goes out around ${atText(l.at)} (while the app is open). `,
         h('button', { class: 'link', onclick: async () => { try { await wallet.solPoolCancelLater(l.id); solPoolCache[asset].at = 0; void renderAsset(); } catch (e) { toast(errMsg(e)); } } }, 'Cancel'))),
       h('br'),
       h('div', { class: 'row' },
@@ -103,6 +103,7 @@ function renderSolPoolDeposit(asset: string): void {
 
 function renderSolPoolDepositReview(asset: string, q: any): void {
   const pw = h('input', { type: 'password', id: 'confirm-pw', autocomplete: 'current-password' }) as HTMLInputElement;
+  const sendTo = h('input', { id: 'sol-pool-send-to', spellcheck: 'false', autocomplete: 'off', placeholder: 'Optional: a SOL address' }) as HTMLInputElement;
   const box = errorBox();
   const progress = h('p', { class: 'small muted', id: 'sol-pool-progress', role: 'status' });
   const go = h('button', { class: 'primary', id: 'confirm-deposit', type: 'submit' }, 'Deposit') as HTMLButtonElement;
@@ -113,10 +114,10 @@ function renderSolPoolDepositReview(asset: string, q: any): void {
       e.preventDefault();
       onSolPoolProgress = (m) => { if (POOL_STAGE[m]) progress.textContent = POOL_STAGE[m]; };
       busy(go, 'In progress…', box, async () => {
-        const r = await wallet.solPoolDeposit(asset, q.amount, pw.value);
+        const r = await wallet.solPoolDeposit(asset, q.amount, pw.value, { sendTo: sendTo.value.trim() });
         pw.value = '';
         delete solPoolCache[asset];
-        toast(`Deposited ${q.amount} ${q.symbol}. It shows in the private balance once the pool has it.`);
+        toast(sendTo.value.trim() ? `Deposited ${q.amount} ${q.symbol}. It is sent on at a random time in the next 1 to 24 hours, while the app is open.` : `Deposited ${q.amount} ${q.symbol}. It shows in the private balance once the pool has it.`);
         void refresh();
         void renderAsset();
         void r;
@@ -126,6 +127,7 @@ function renderSolPoolDepositReview(asset: string, q: any): void {
       h('tr', {}, h('th', {}, 'Into the pool'), h('td', { id: 'review-amount' }, `${q.amount} ${q.symbol}`)),
       h('tr', {}, h('th', {}, 'Network costs'), h('td', { id: 'review-fee' }, reviewFee(q.cost, 'SOL')))))),
     h('p', { class: 'small muted' }, 'The deposit is public: anyone can see this address put this amount in. What stays hidden is where it goes when you send it out of the pool. The network costs include two small account deposits the pool program requires.'),
+    h('label', { class: 'field' }, h('span', {}, 'Send on to'), sendTo, h('div', { class: 'hint' }, 'Optional. Sent on from the pool to this address at a random time 1 to 24 hours later, less the relayer\'s fee, while the app is open. The amount that comes out is close to this deposit\'s, which can tie the two together; only the timing is hidden.')),
     h('label', { class: 'field' }, h('span', {}, 'Password'), pw), progress, go)));
   pw.focus();
 }
@@ -153,8 +155,8 @@ function renderSolPoolSendReview(asset: string, q: any): void {
   const box = errorBox();
   const progress = h('p', { class: 'small muted', id: 'sol-pool-progress', role: 'status' });
   const whenSel = h('select', { id: 'sol-pool-when' },
-    h('option', { value: '0' }, 'Now'), h('option', { value: '60' }, 'Within an hour'), h('option', { value: '360' }, 'Within 6 hours'), h('option', { value: '1440' }, 'Within a day')) as HTMLSelectElement;
-  if (q.matchesDeposit || q.soonAfterDeposit) whenSel.value = '360';
+    h('option', { value: '0' }, 'Now'), h('option', { value: '1' }, 'At a random time in the next 1 to 24 hours')) as HTMLSelectElement;
+  if (q.matchesDeposit || q.soonAfterDeposit) whenSel.value = '1';
   const go = h('button', { class: 'primary', id: 'confirm-withdraw', type: 'submit' }, 'Send') as HTMLButtonElement;
   show('send', subBar('Review', () => renderSolPoolSend(asset)), h('div', { class: 'scroll' },
     q.matchesDeposit && h('div', { class: 'warn', id: 'sol-pool-match' }, 'This is about the amount you deposited. Anyone watching can pair the two. Send a different amount, or in parts.'),
@@ -177,7 +179,7 @@ function renderSolPoolSendReview(asset: string, q: any): void {
       h('tr', {}, h('th', {}, 'Relayer fee'), h('td', { id: 'review-fee' }, reviewFee(q.fee, q.symbol === 'SOL' ? 'SOL' : asset))),
       h('tr', {}, h('th', {}, 'From the pool'), h('td', { id: 'review-total' }, `${q.total} ${q.symbol}`)),
       h('tr', {}, h('th', {}, 'To'), h('td', {}, h('div', { class: 'addr-check', id: 'review-to' }, q.to)))))),
-    h('label', { class: 'field' }, h('span', {}, 'When'), whenSel, h('div', { class: 'hint' }, 'Later: it goes out at a random time in that window, while the app is open.')),
+    h('label', { class: 'field' }, h('span', {}, 'When'), whenSel, h('div', { class: 'hint' }, 'Later: it goes out at a random time 1 to 24 hours from now, while the app is open.')),
     h('p', { class: 'small muted' }, 'The pool\'s relayer sends it and pays the network fee, so the receiving address needs nothing and isn\'t linked to this wallet. Keep the app open until it finishes.'),
     h('label', { class: 'field' }, h('span', {}, 'Password'), pw), progress, go)));
   pw.focus();

@@ -93,6 +93,9 @@ test('deposit, find, withdraw: end to end against the stand-in program and relay
   let b = await pool.balance('SOL');
   assert.equal(b.ready, 80_000_000n); assert.equal(b.arriving, 0n); assert.equal(b.scannedTo, 10);
 
+  // Sent on after a deposit: the most that leaves while the deposit pays both it and the fee.
+  const within = await pool.quoteWithin('SOL', 30_000_000n);
+  assert.ok(within.amount + within.fee <= 30_000_000n && within.amount + within.fee > 30_000_000n - 2n, `${within.amount} + ${within.fee}`);
   // Too much for one withdrawal, and the quote.
   const q = await pool.withdrawQuote('SOL', 'max');
   assert.equal(q.amount + q.fee <= 80_000_000n, true);

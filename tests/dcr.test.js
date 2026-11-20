@@ -159,6 +159,32 @@ test('a send through a stand-in dcrdata: coins found, fee for the size, the raw 
   assert.equal(max.amount + max.fee, 300_000_000n);
 });
 
+test('lookups survive a flaky route: a failed request is retried, a later failure falls back to the last answer', { timeout: 120_000 }, async (t) => {
+  const c0 = new DcrClient(xpub, []);
+  const mine = c0.addressAt(0, 0);
+  let mode = 'flaky';
+  const tries = new Map();
+  const server = http.createServer((q, r) => {
+    r.setHeader('content-type', 'application/json');
+    const n = (tries.get(q.url) ?? 0) + 1; tries.set(q.url, n);
+    // Every first request fails (a dropped Tor route); then, in "down", the server fails for one address always.
+    if ((mode === 'flaky' && n === 1) || (mode === 'down' && q.url.includes(mine))) { r.statusCode = 503; return r.end('{}'); }
+    if (q.url.includes('/utxo')) return r.end(JSON.stringify(q.url.includes(mine) ? [{ address: mine, txid: 'ab'.repeat(32), vout: 0, atoms: 50_000_000, amount: 0.5, confirmations: 3 }] : []));
+    if (q.url.includes('/txs')) return r.end(JSON.stringify({ items: q.url.includes(mine) ? [{ txid: 'ab'.repeat(32), time: 1700000000, confirmations: 3, vin: [{ addr: 'DsSomeoneElse', value: 0.5 }], vout: [{ value: 0.5, scriptPubKey: { addresses: [mine] } }] }] : [], totalItems: 0 }));
+    r.statusCode = 404; r.end('{}');
+  });
+  await new Promise((res) => server.listen(0, '127.0.0.1', res));
+  t.after(() => { server.close(); server.closeAllConnections(); });
+  const c = new DcrClient(xpub, [`http://127.0.0.1:${server.address().port}`], undefined, 5_000);
+  assert.deepEqual(await c.getBalance(), { total: 50_000_000n, spendable: 50_000_000n });
+  mode = 'down';
+  await c.refresh(true);
+  assert.deepEqual(await c.getBalance(), { total: 50_000_000n, spendable: 50_000_000n }, 'the last answer for the address that keeps failing');
+  // A fresh client with nothing to fall back on reports the failure instead of a zero balance.
+  const empty = new DcrClient(xpub, [`http://127.0.0.1:${server.address().port}`], undefined, 5_000);
+  await assert.rejects(empty.getBalance());
+});
+
 // ---- staking ----
 
 const stake = require('../dist/main/dcr-stake');

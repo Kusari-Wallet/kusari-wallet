@@ -91,11 +91,11 @@ test('swap without an address still goes to my wallet', async (t) => {
   assert.equal(orders[0].withdrawalAddress, BTC_ME);
 });
 
-test('privacy: every coin but XMR and sSCRT, destination required, own address refused', async (t) => {
+test('privacy: every coin but XMR and KSR, destination required, own address refused', async (t) => {
   const { s, orders } = await setup(t);
   await assert.rejects(s.privacyQuote('XMR', 'BTC', '1'), /can't go through a privacy swap/);
   await assert.rejects(s.privacyPrepare('ETH', 'XMR', '1', 'exolix', XMR_ME), /can't go through a privacy swap/);
-  await assert.rejects(s.privacyQuote('SSCRT', 'BTC', '1'), /can't go through a privacy swap/);
+  await assert.rejects(s.privacyQuote('KSR', 'BTC', '1'), /can't go through a privacy swap/);
   await assert.rejects(s.privacyPrepare('ETH', 'BTC', '1', 'exolix', ' '), /requires/);
   await assert.rejects(s.privacyPrepare('ETH', 'ETH', '1', 'exolix', ETH_ME.toLowerCase()), /no privacy benefit/);
   assert.equal(orders.length, 0);

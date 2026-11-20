@@ -19,6 +19,8 @@ export const DCR_PATH = "m/44'/42'/0'";
 /** Mixed coins (StakeShuffle) live in their own account, never spent together with unmixed ones. */
 export const DCR_MIXED_PATH = "m/44'/42'/1'";
 export const DCR_API = 'https://dcrdata.decred.org/insight/api';
+/** How long an address that was never used isn't asked about again (except the first few of each chain). */
+const UNUSED_RECHECK_MS = 15 * 60_000;
 export const DCR_EXPLORER_TX = 'https://dcrdata.decred.org/tx/';
 
 /** The network parameters this wallet uses, from dcrd's chaincfg. Simnet is for tests against a local dcrd. */
@@ -169,21 +171,52 @@ export class DcrClient extends InsightWallet<'DCR'> {
 
   /** Addresses already asked about in this scan, so a later round only asks about the new ones. */
   private asked = new Map<string, { utxoRows: any[]; txs: any[] }>();
+  /** The last answer for each address, kept across scans: a failed request falls back to it, and addresses that
+   *  have never been used are asked again only every so often (beyond the first few of each chain). */
+  private known = new Map<string, { at: number; utxoRows: any[]; txs: any[] }>();
 
   /**
    * Each address on its own request, in random order, and through Tor each on its own route: a server sent the
-   * whole list at once (as Insight allows) would learn which addresses belong to one wallet.
+   * whole list at once (as Insight allows) would learn which addresses belong to one wallet. A request that fails
+   * is tried again on a new route; one that still fails uses that address's last answer, so one bad route among
+   * a hundred no longer fails the whole balance.
    */
   protected override async lookup(addresses: string[], round: number): Promise<{ utxoRows: any[]; txs: any[] }> {
     if (round === 0) this.asked.clear();
+    const now = Date.now();
+    const fresh = (a: string) => {
+      const k = this.known.get(a);
+      if (!k || k.utxoRows.length || k.txs.length) return false;
+      const p = this.positionOf(a);
+      return p !== null && p.index >= (p.chain === 0 ? 3 : 2) && now - k.at < UNUSED_RECHECK_MS;
+    };
+    for (const a of addresses) if (!this.asked.has(a) && fresh(a)) this.asked.set(a, this.known.get(a)!);
     const todo = addresses.filter((a) => !this.asked.has(a));
     for (let i = todo.length - 1; i > 0; i--) { const j = randomInt(i + 1); [todo[i], todo[j]] = [todo[j], todo[i]]; }
+    let failed: unknown = null;
     const one = async (a: string) => {
-      const { agent, route } = this.isolate();
-      const [u, t] = await Promise.all([this.get(`/addr/${a}/utxo`, agent ?? this.agent, route), this.get(`/addrs/${a}/txs?from=0&to=50&noAsm=1`, agent ?? this.agent, route)]);
-      this.asked.set(a, { utxoRows: Array.isArray(u) ? u : [], txs: Array.isArray(t?.items) ? t.items : [] });
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const { agent, route } = this.isolate();
+        try {
+          const [u, t] = await Promise.all([this.get(`/addr/${a}/utxo`, agent ?? this.agent, route), this.get(`/addrs/${a}/txs?from=0&to=50&noAsm=1`, agent ?? this.agent, route)]);
+          const r = { utxoRows: Array.isArray(u) ? u : [], txs: Array.isArray(t?.items) ? t.items : [] };
+          this.asked.set(a, r);
+          this.known.set(a, { at: Date.now(), ...r });
+          return;
+        } catch (e) {
+          failed = e;
+          await new Promise((res) => setTimeout(res, 500 + attempt * 1500 + randomInt(1000)));
+        }
+      }
+      const last = this.known.get(a);
+      if (last) this.asked.set(a, last);
+      else gaveUp = true;
     };
-    for (let i = 0; i < todo.length; i += 3) await Promise.all(todo.slice(i, i + 3).map(one));
+    // An address with no answer and none from before fails the lookup: stop there rather than keep asking.
+    let gaveUp = false;
+    for (let i = 0; i < todo.length && !gaveUp; i += 3) await Promise.all(todo.slice(i, i + 3).map(one));
+    const missing = addresses.filter((a) => !this.asked.has(a));
+    if (missing.length) throw failed instanceof Error ? failed : new Error('Could not reach the DCR server.');
     const utxoRows: any[] = []; const txs = new Map<string, any>();
     for (const a of addresses) {
       const r = this.asked.get(a)!;
@@ -191,6 +224,14 @@ export class DcrClient extends InsightWallet<'DCR'> {
       for (const tx of r.txs) if (typeof tx?.txid === 'string') txs.set(tx.txid, tx);
     }
     return { utxoRows, txs: [...txs.values()] };
+  }
+  private positions: Map<string, { chain: number; index: number }> | null = null;
+  private positionOf(a: string): { chain: number; index: number } | null {
+    if (!this.positions) {
+      this.positions = new Map();
+      for (const chain of [0, 1]) for (let i = 0; i < 60; i++) this.positions.set(this.addressAt(chain, i), { chain, index: i });
+    }
+    return this.positions.get(a) ?? null;
   }
   addressAt(chain: number, index: number): string {
     return dcrAddressOf(this.account.deriveChild(chain).deriveChild(index).publicKey);

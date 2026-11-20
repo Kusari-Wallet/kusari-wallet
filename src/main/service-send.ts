@@ -4,13 +4,12 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import QRCode from 'qrcode';
 import { formatAmount, parseAmount } from './amount';
-import { Asset, BTC_EXPLORER_TX, DECIMALS, FIRO_EXPLORER_TX, SOL_EXPLORER_TX, BUY_PAGE, BCH_EXPLORER_TX, LTC_EXPLORER_TX, SCRT_EXPLORER_TX, DOGE_EXPLORER_TX, DASH_EXPLORER_TX, ARRR_EXPLORER_TX, KSR_EXPLORER_TX, ZANO_EXPLORER_TX, ZEC_EXPLORER_TX, NETWORKS, OWN_SERVER_COINS, Settings } from './config';
+import { Asset, BTC_EXPLORER_TX, DECIMALS, FIRO_EXPLORER_TX, SOL_EXPLORER_TX, BUY_PAGE, BCH_EXPLORER_TX, LTC_EXPLORER_TX, DOGE_EXPLORER_TX, DASH_EXPLORER_TX, ARRR_EXPLORER_TX, KSR_EXPLORER_TX, ZANO_EXPLORER_TX, ZEC_EXPLORER_TX, NETWORKS, OWN_SERVER_COINS, Settings } from './config';
 import { TronTransfer, deriveTronAccount, isTronAddress } from './tron';
 import { requestJson, getJson } from './request';
-import { isScrtAddress } from './scrt';
 import { isSilentAddress } from './btc-silent';
 import { type BtcClient, type BtcDraft, LITECOIN, coinId, estimateVbytes, isBtcAddress, isLtcAddress } from './btc';
-import { DEPOSIT_GAS, TORNADO_POOLS, TornadoNote, TornadoStore, WITHDRAW_GAS, abi as tornadoAbi, checkRelayerUrl, denomination, noteSecrets, noteText, pickRelayer, relayerFee, relayerHost, relayerStatus, relayerSubmit, splitPlan, tornadoEngineCheck } from './tornado';
+import { DEPOSIT_GAS, TORNADO_CHAINS, TORNADO_POOLS, type TornadoChain, TornadoNote, chainOfNote, isTornadoChain, TornadoStore, WITHDRAW_GAS, abi as tornadoAbi, checkRelayerUrl, denomination, noteSecrets, noteText, pickRelayer, relayerFee, relayerHost, relayerStatus, relayerSubmit, splitPlan, tornadoEngineCheck } from './tornado';
 import { runTornado } from './tornado-run';
 import { isArrrAddress } from './arrr';
 import { arrrEngineInfo } from './arrr-process';
@@ -26,6 +25,7 @@ import { DCR_EXPLORER_TX, DCR_MIXED_PATH, DCR_PATH, DcrClient, isDcrAddress, typ
 import { MAX_TICKETS, TICKET_FEE, VSP_LIST_URL, VspClient, commitmentKey, feeFundFor, feeTx, parseVspList, planTickets, ticketExpiry, vspFee, vspOrigin, votingKey } from './dcr-stake';
 import { isBchAddress, normalBchAddress, typicalBchFee } from './bch';
 import { SOL_FEE, SPL_TOKENS, isSolAddress, solSecret } from './sol';
+import type { EthClient } from './eth';
 import { POOL_TOKENS, type PoolAsset } from './sol-privacy';
 import { DASH_DUST, dashFee, isDashAddress, signDashOutputs, typicalDashFee } from './dash';
 import { DashMixer, MIX_ROUNDS } from './dash-mix';
@@ -33,7 +33,7 @@ import { COINJOIN_COORDINATORS, MIX_TARGETS } from './btc-mix';
 import type { InsightUtxo } from './insight';
 import { ETH_EXTRA_FIRST, chainOf, deriveEthAccount, isEthAddress } from './eth';
 import { TOR_BRIDGES, TorBridge, parseCustomBridges } from './tor-bridges';
-import { checkOwnServer, isLocalServer, COIN_ID, EVM_EXPLORER, isEvm, isSpl, Preview, PREVIEW_TTL_MS, withTimeoutValue } from './service-common';
+import { ACCOUNT_COINS, checkOwnServer, isLocalServer, COIN_ID, EVM_EXPLORER, isEvm, isSpl, Preview, PREVIEW_TTL_MS, withTimeoutValue } from './service-common';
 import { ServiceCore, btcBirthdayFor } from './service-core';
 import { lookalikeOf, rememberRecipient } from './lookalike';
 import type { Secrets } from './vault';
@@ -65,11 +65,10 @@ export class SendService extends ServiceCore {
       if (asset === 'DASH') return [typicalDashFee(), 8, 'DASH'];
       if (asset === 'FIRO') return [typicalFiroFee(), 8, 'FIRO'];
       if (asset === 'SOL' || isSpl(asset)) return [SOL_FEE, 9, 'SOL'];
+      if (ACCOUNT_COINS[asset]) { const c = ACCOUNT_COINS[asset]!; return [c.typicalFee, DECIMALS[c.feeAsset], c.feeAsset]; }
       if (asset === 'DOGE') return [typicalDogeFee(), 8, 'DOGE'];
       if (asset === 'DCR') return [typicalDcrFee(), 8, 'DCR'];
       if (asset === 'BCH') return [typicalBchFee(), 8, 'BCH'];
-      if (asset === 'SCRT') return [25_000n, 6, 'SCRT']; // about 100k gas at 0.25 uscrt
-      if (asset === 'SSCRT') return [50_000n, 6, 'SCRT']; // a contract call, about 200k gas
       if (asset === 'ZEC') return [15_000n, 8, 'ZEC']; // ZIP-317, a typical transfer
       if (asset === 'ZANO') return [ZANO_FEE, 12, 'ZANO'];
       if (asset === 'KSR') return [KSR_FEE, 12, 'KSR'];
@@ -102,36 +101,58 @@ export class SendService extends ServiceCore {
     }
   }
 
-  // ---- Tornado Cash: fixed ETH pools on mainnet ----
+  // ---- Tornado Cash: fixed pools on Ethereum, BNB Chain, Polygon and Arbitrum ----
 
   protected get tornadoStore() { return new TornadoStore(this.dir, this.baseDir, this.records); }
-  protected get tornadoPoolMap(): Record<string, string> { return this.dev.tornadoPools ?? TORNADO_POOLS; }
-  protected poolAddress(pool: string): string {
-    const address = this.tornadoPoolMap[pool];
+  protected tornadoPoolMap(chain: TornadoChain = 'eth'): Record<string, string> { return chain === 'eth' ? this.dev.tornadoPools ?? TORNADO_POOLS : TORNADO_CHAINS[chain].pools; }
+  protected poolAddress(pool: string, chain: TornadoChain = 'eth'): string {
+    const address = this.tornadoPoolMap(chain)[pool];
     if (!address) throw new Error('No such pool.');
     return address;
   }
+  protected tornadoChain(input: unknown): TornadoChain {
+    if (input === undefined || input === null || input === '') return 'eth';
+    if (!isTornadoChain(input)) throw new Error('No Tornado pools on this network.');
+    return input;
+  }
+  /** The chain's client and the key that signs from this wallet there. */
+  protected tornadoClient(chain: TornadoChain): EthClient { return chain === 'eth' ? this.session().eth : this.evm(TORNADO_CHAINS[chain].asset); }
+  protected tornadoSigner(chain: TornadoChain, mnemonic: string) { return chain === 'eth' ? deriveEthAccount(mnemonic).wallet : this.evmAccount(TORNADO_CHAINS[chain].asset, mnemonic).wallet; }
 
-  async tornadoInfo() {
+  async tornadoInfo(chainInput?: string) {
+    const chain = this.tornadoChain(chainInput);
     const store = await this.tornadoStore.read();
-    return { pools: Object.keys(this.tornadoPoolMap).sort((a, b) => Number(a) - Number(b)), notes: store.notes, relayer: this.settings.tornadoRelayer };
+    const c = TORNADO_CHAINS[chain];
+    return {
+      chain, symbol: c.symbol, label: c.label, chains: Object.keys(TORNADO_CHAINS),
+      pools: Object.keys(this.tornadoPoolMap(chain)).sort((a, b) => Number(a) - Number(b)),
+      notes: store.notes.filter((n) => chainOfNote(n) === chain), relayer: chain === 'eth' ? this.settings.tornadoRelayer : '',
+    };
   }
 
   /** Fails early and visibly if the proof engine can't start on this device. */
   async tornadoCheck(): Promise<boolean> { await tornadoEngineCheck(); return true; }
 
-  async tornadoDepositPrepare(pool: string) {
-    const { eth } = this.session();
-    const to = this.poolAddress(pool);
+  async tornadoDepositPrepare(pool: string, chainInput?: string) {
+    const chain = this.tornadoChain(chainInput);
+    const eth = this.tornadoClient(chain);
+    const to = this.poolAddress(pool, chain);
     const draft = await eth.draftCall(to, denomination(pool), DEPOSIT_GAS);
-    const preview = this.storePreview({ asset: 'ETH', to, amount: draft.amount, fee: draft.expectedFee, eth: draft });
-    return { id: preview.id, pool, to, amount: formatAmount(draft.amount, 18), fee: formatAmount(draft.expectedFee, 18), feeAsset: 'ETH' };
+    const asset = TORNADO_CHAINS[chain].asset;
+    const preview = this.storePreview({ asset, to, amount: draft.amount, fee: draft.expectedFee, eth: draft });
+    return { id: preview.id, pool, chain, to, amount: formatAmount(draft.amount, 18), fee: formatAmount(draft.expectedFee, 18), feeAsset: asset };
   }
 
-  async tornadoDepositConfirm(id: string, pool: string, password: string): Promise<TornadoNote> {
-    const { eth } = this.session();
+  /**
+   * `sendTo`: an address to send it on to, through a relayer, at a random time 1 to 24 hours after the deposit
+   * (while the wallet is open). The note's keys wait sealed with the wallet's records until then.
+   */
+  async tornadoDepositConfirm(id: string, pool: string, password: string, opts: { chain?: string; sendTo?: string } = {}): Promise<TornadoNote> {
+    const chain = this.tornadoChain(opts.chain);
+    const eth = this.tornadoClient(chain);
     const preview = this.previews.get(id);
-    if (!preview?.eth || preview.expires < Date.now() || preview.to !== this.poolAddress(pool)) throw new Error('The review expired. Try again.');
+    if (!preview?.eth || preview.expires < Date.now() || preview.to !== this.poolAddress(pool, chain)) throw new Error('The review expired. Try again.');
+    const sendTo = opts.sendTo?.trim() ? this.tornadoRecipient(opts.sendTo, eth) : undefined;
     const secrets = await this.vault.open(password);
     this.previews.delete(id);
     const store = await this.tornadoStore.read();
@@ -144,12 +165,12 @@ export class SendService extends ServiceCore {
       if (!used[0]) break;
     }
     // Saved before anything is sent: a crash can never leave money without its record.
-    const note: TornadoNote = { id: randomUUID(), pool, index, commitment, status: 'sending', createdAt: Date.now() };
+    const note: TornadoNote = { id: randomUUID(), pool, index, commitment, status: 'sending', createdAt: Date.now(), ...(chain === 'eth' ? {} : { chain }), ...(sendTo ? { sendTo } : {}) };
     store.next = index + 1;
     store.notes.unshift(note);
     await this.tornadoStore.write(store);
     try {
-      note.txHash = await eth.send({ ...preview.eth, data: tornadoAbi.encodeFunctionData('deposit', [commitment]) }, deriveEthAccount(secrets.tronMnemonic).wallet);
+      note.txHash = await eth.send({ ...preview.eth, data: tornadoAbi.encodeFunctionData('deposit', [commitment]) }, this.tornadoSigner(chain, secrets.tronMnemonic));
       note.status = 'deposited';
     } catch (e) {
       store.notes = store.notes.filter((n) => n.id !== note.id);
@@ -157,8 +178,22 @@ export class SendService extends ServiceCore {
       throw e;
     }
     await this.tornadoStore.write(store);
+    if (sendTo) {
+      const entry = { id: note.id, kind: 'send-on' as const, at: randomLater(), keys: noteSecrets(secrets.tronMnemonic, index), to: sendTo };
+      note.at = entry.at;
+      await this.tornadoStore.write(store);
+      await this.records.write(this.tornadoLaterPath, [...(await this.tornadoLater()).filter((e) => e.id !== note.id), entry]);
+      this.armTornado(entry);
+    }
     this.emit('balance-changed');
     return note;
+  }
+
+  protected tornadoRecipient(input: string, eth: EthClient): string {
+    const r = input.trim();
+    if (!isEthAddress(r)) throw new Error('The receiving address is not an Ethereum address (0x…).');
+    if (r.toLowerCase() === eth.address.toLowerCase()) throw new Error('Receiving at the deposit address gives no privacy benefit. Enter a new address.');
+    return r;
   }
 
   async tornadoExport(noteId: string, password: string): Promise<string> {
@@ -166,120 +201,135 @@ export class SendService extends ServiceCore {
     const note = store.notes.find((n) => n.id === noteId);
     if (!note) throw new Error('No such deposit.');
     const secrets = await this.vault.open(password);
-    return noteText(note.pool, noteSecrets(secrets.tronMnemonic, note.index));
+    return noteText(note.pool, noteSecrets(secrets.tronMnemonic, note.index), chainOfNote(note));
   }
 
   /**
-   * Working relayers from the registry, each asked for its status over Tor; kept for an hour. Ones that don't answer,
-   * aren't on mainnet, or ask more than 1% are left out.
+   * Working relayers from the registry, each asked for its status over Tor; kept for an hour per chain. Ones that
+   * don't answer, are for another network, or ask more than 1% are left out. The registry and ENS are on Ethereum.
    */
-  protected relayerList: { at: number; list: { url: string; feePercent: number; rewardAccount: string }[] } | null = null;
-  async tornadoRelayers(): Promise<{ url: string; feePercent: number }[]> {
+  protected relayerLists = new Map<TornadoChain, { at: number; list: { url: string; feePercent: number; rewardAccount: string }[] }>();
+  async tornadoRelayers(chainInput?: string): Promise<{ url: string; feePercent: number }[]> {
+    const chain = this.tornadoChain(chainInput);
     const { eth } = this.session();
-    if (this.relayerList && Date.now() - this.relayerList.at < 3600_000) return this.relayerList.list;
+    const cached = this.relayerLists.get(chain);
+    if (cached && Date.now() - cached.at < 3600_000) return cached.list;
     const say = (m: string) => this.emit('tornado-progress', m);
     const names: { name: string; address: string; url?: string }[] = this.dev.tornadoRelayerNames ?? await this.tornadoStore.relayerNames(eth, say);
     say(`Checking ${names.length} registered relayers…`);
+    const c = TORNADO_CHAINS[chain];
     const hosts: string[] = [];
     for (const r of names) {
-      const host = this.dev.tornadoRelayerNames ? r.url ?? null : await relayerHost(eth, r.name).catch(() => null);
+      const host = this.dev.tornadoRelayerNames ? r.url ?? null : await relayerHost(eth, r.name, c.ensKey).catch(() => null);
       if (host && !hosts.includes(host)) hosts.push(host);
     }
     const list: { url: string; feePercent: number; rewardAccount: string }[] = [];
     for (let i = 0; i < hosts.length; i += 6) {
-      const batch = await Promise.all(hosts.slice(i, i + 6).map((url) => relayerStatus(url, this.priceAgent).catch(() => null)));
+      const batch = await Promise.all(hosts.slice(i, i + 6).map((url) => relayerStatus(url, this.priceAgent, this.dev.tornadoRelayerNames ? 1 : c.netId).catch(() => null)));
       for (const info of batch) if (info && info.feePercent <= 1) list.push(info);
     }
-    this.relayerList = { at: Date.now(), list };
+    this.relayerLists.set(chain, { at: Date.now(), list });
     return list;
   }
 
   /**
    * Fee and amounts for the review screen. Nothing heavy, nothing sent. recipientInput "new": a never used address of
-   * this wallet (made when the withdrawal goes ahead). relayerInput "auto": one picked as the Tornado site does.
+   * this wallet (made when the withdrawal goes ahead; Ethereum only). relayerInput "auto": one picked as the site does.
    */
   async tornadoWithdrawQuote(noteId: string, recipientInput: string, relayerInput: string) {
-    const { eth } = this.session();
     const store = await this.tornadoStore.read();
     const note = store.notes.find((n) => n.id === noteId);
     if (!note) throw new Error('No such deposit.');
+    const chain = chainOfNote(note);
+    const c = TORNADO_CHAINS[chain];
+    const eth = this.tornadoClient(chain);
     const fresh = recipientInput.trim() === 'new';
     let recipient = recipientInput.trim();
     if (fresh) {
+      if (chain !== 'eth') throw new Error('Enter the receiving address.');
       const list = await this.ethExtraList();
       if (!this.ethNode) throw new Error('The wallet is locked.');
       recipient = this.ethNode.addressAt(list.length ? Math.max(...list) + 1 : 0);
     }
-    if (!isEthAddress(recipient)) throw new Error('The receiving address is not an Ethereum address.');
-    if (recipient.toLowerCase() === eth.address.toLowerCase()) throw new Error('Receiving at the deposit address gives no privacy benefit. Enter a new address.');
+    recipient = this.tornadoRecipient(recipient, eth);
     const total = denomination(note.pool);
     // How hidden the deposit is by now: deposits after it, and time.
-    const after = await this.tornadoStore.depositsAfter(note.pool, note.commitment);
+    const after = await this.tornadoStore.depositsAfter(note.pool, note.commitment, chain);
     const hours = Math.floor((Date.now() - note.createdAt) / 3600_000);
     const warnings: string[] = [];
     if (hours < 24) warnings.push('This deposit is less than a day old. Withdrawing soon after depositing makes the two easy to match by time. Waiting days or longer helps.');
     if (after !== null && after < 20) warnings.push(`Only ${after} deposits have been made to this pool since yours, so it hides among few. Waiting for more helps.`);
-    const base = { pool: note.pool, recipient, fresh, after, hours, warnings };
+    const base = { pool: note.pool, chain, symbol: c.symbol, recipient, fresh, after, hours, warnings };
     if (!relayerInput.trim()) {
-      const gas = (await eth.gasPrice()) * WITHDRAW_GAS;
+      const gas = (await eth.gasPrice()) * c.withdrawGas;
       return { ...base, mode: 'self' as const, fee: formatAmount(gas, 18), feeFrom: 'wallet' as const, receive: formatAmount(total, 18), relayerUrl: '' };
     }
     let url: string;
     if (relayerInput.trim() === 'auto') {
-      const chosen = pickRelayer(await this.tornadoRelayers());
+      const chosen = pickRelayer(await this.tornadoRelayers(chain));
       if (!chosen) throw new Error('No working relayer was found right now. Enter one yourself, or try again later.');
       url = chosen.url;
     } else url = checkRelayerUrl(relayerInput, Boolean(this.dev.tornadoLocalRelayer));
-    const info = await relayerStatus(url, this.priceAgent);
-    const fee = relayerFee(note.pool, info.feePercent, await eth.gasPrice());
+    const info = await relayerStatus(url, this.priceAgent, this.dev.tornadoRelayerNames || this.dev.tornadoLocalRelayer ? 1 : c.netId);
+    const fee = relayerFee(note.pool, info.feePercent, await eth.gasPrice(), c.withdrawGas);
     return { ...base, mode: 'relayer' as const, relayer: info.rewardAccount, relayerUrl: url, fee: formatAmount(fee, 18), feeFrom: 'note' as const, receive: formatAmount(total - fee, 18) };
   }
 
+  /** Builds the proof for a note: the pool's deposit list, the Merkle path, the zero-knowledge proof. */
+  protected async tornadoProve(note: TornadoNote, keys: { nullifier: string; secret: string }, recipient: string, relayer: string, fee: bigint, say: (m: string) => void) {
+    const chain = chainOfNote(note);
+    const eth = this.tornadoClient(chain);
+    const address = this.poolAddress(note.pool, chain);
+    const leaves = await this.tornadoStore.leaves(note.pool, address, eth, { seed: chain !== 'eth' || !this.dev.tornadoPools, agent: this.priceAgent, progress: say, chain });
+    const leafIndex = leaves.findIndex((l) => l.toLowerCase() === note.commitment.toLowerCase());
+    if (leafIndex < 0) throw new Error('The deposit isn\'t confirmed on the chain yet. Try again after it confirms.');
+    const { proof, args } = await runTornado('prove', { leaves, leafIndex, ...keys, recipient, relayer, fee: fee.toString() }, (stage) => {
+      say(stage === 'tree' ? `Building the Merkle tree… ${leaves.length} deposits, so this can take a few minutes.` : 'Making the zero-knowledge proof… The screen may seem to freeze. Don\'t close the app.');
+    });
+    const known = tornadoAbi.decodeFunctionResult('isKnownRoot', await eth.call(address, tornadoAbi.encodeFunctionData('isKnownRoot', [args[0]])));
+    if (!known[0]) throw new Error('The deposit records don\'t match the chain, so this was stopped. Your coins are safe. Try again.');
+    return { proof, args, address };
+  }
+
+  /** delayMinutes: any value other than 0 means later, at a random time 1 to 24 hours from now. */
   async tornadoWithdraw(noteId: string, recipientInput: string, relayerInput: string, password: string, opts: { delayMinutes?: number } = {}) {
-    const { eth } = this.session();
     const say = (m: string) => this.emit('tornado-progress', m);
     const tor = this.tornadoStore;
     const store = await tor.read();
     const note = store.notes.find((n) => n.id === noteId);
     if (!note) throw new Error('No such deposit.');
     if (note.status === 'scheduled' || note.status === 'sending') throw new Error('This deposit is not ready to withdraw.');
-    const delay = Number(opts.delayMinutes) || 0;
-    if (delay && !DELAY_CHOICES.includes(delay)) throw new Error('Choose when to withdraw.');
-    if (delay && !relayerInput.trim()) throw new Error('A withdrawal can only wait for later through a relayer.');
+    const chain = chainOfNote(note);
+    const eth = this.tornadoClient(chain);
+    const later = (Number(opts.delayMinutes) || 0) > 0;
+    if (later && !relayerInput.trim()) throw new Error('A withdrawal can only wait for later through a relayer.');
     const secrets = await this.vault.open(password);
     // A new address of this wallet: made now, so it is kept even if the withdrawal stops midway.
     if (recipientInput.trim() === 'new') recipientInput = (await this.ethAddressNew()).address;
     const quote = await this.tornadoWithdrawQuote(noteId, recipientInput, relayerInput);
     if (quote.mode === 'relayer') relayerInput = quote.relayerUrl;
-    const address = this.poolAddress(note.pool);
+    const address = this.poolAddress(note.pool, chain);
     const keys = noteSecrets(secrets.tronMnemonic, note.index);
     const [{ commitment, nullifierHash }] = await runTornado('commit', { notes: [keys] });
     if (commitment !== note.commitment) throw new Error('This deposit is not from this seed.');
     const spent = tornadoAbi.decodeFunctionResult('isSpent', await eth.call(address, tornadoAbi.encodeFunctionData('isSpent', [nullifierHash])));
     if (spent[0]) { note.status = 'withdrawn'; await tor.write(store); throw new Error('This deposit was already withdrawn.'); }
-
-    const leaves = await tor.leaves(note.pool, address, eth, { seed: !this.dev.tornadoPools, agent: this.priceAgent, progress: say });
-    const leafIndex = leaves.findIndex((l) => l.toLowerCase() === commitment.toLowerCase());
-    if (leafIndex < 0) throw new Error('The deposit isn\'t confirmed on the chain yet. Try again after it confirms.');
     const relayer = quote.mode === 'relayer' ? quote.relayer as string : `0x${'0'.repeat(40)}`;
     const fee = quote.mode === 'relayer' ? parseAmount(quote.fee, 18) : 0n;
-    const { proof, args } = await runTornado('prove', { leaves, leafIndex, ...keys, recipient: quote.recipient, relayer, fee: fee.toString() }, (stage) => {
-      say(stage === 'tree' ? `Building the Merkle tree… ${leaves.length} deposits, so this can take a few minutes.` : 'Making the zero-knowledge proof… The screen may seem to freeze. Don\'t close the app.');
-    });
-    const known = tornadoAbi.decodeFunctionResult('isKnownRoot', await eth.call(address, tornadoAbi.encodeFunctionData('isKnownRoot', [args[0]])));
-    if (!known[0]) throw new Error('The deposit records don\'t match the chain, so this was stopped. Your coins are safe. Try again.');
 
-    if (delay) {
-      // The proof is made now and kept sealed with the wallet's records; the relayer gets it at a random later time.
-      const at = Date.now() + Math.round((0.1 + Math.random() * 0.9) * delay * 60_000);
+    if (later) {
+      // The proof is made then, not now: a proof's root expires after 30 more deposits, which a day can bring.
+      // The note's keys wait sealed with the wallet's records; the relayer gets it at a random later time.
+      const at = randomLater();
       note.status = 'scheduled'; note.scheduledKind = 'withdraw'; note.at = at; note.recipient = quote.recipient; delete note.problem;
       await tor.write(store);
-      const entry = { id: note.id, kind: 'withdraw' as const, at, url: relayerInput, contract: address, proof, args };
+      const entry = { id: note.id, kind: 'send-on' as const, at, keys, to: quote.recipient, url: relayerInput };
       await this.records.write(this.tornadoLaterPath, [...(await this.tornadoLater()).filter((e) => e.id !== note.id), entry]);
       this.armTornado(entry);
       return note;
     }
 
+    const { proof, args } = await this.tornadoProve(note, keys, quote.recipient, relayer, fee, say);
     note.status = 'withdrawing';
     note.recipient = quote.recipient;
     await tor.write(store);
@@ -287,11 +337,11 @@ export class SendService extends ServiceCore {
     try {
       let txHash: string;
       if (quote.mode === 'relayer') {
-        txHash = await relayerSubmit(await relayerStatus(checkRelayerUrl(relayerInput, Boolean(this.dev.tornadoLocalRelayer)), this.priceAgent), address, proof, args, this.priceAgent, this.dev.tornadoLocalRelayer ? 200 : 5000);
+        txHash = await relayerSubmit(await relayerStatus(checkRelayerUrl(relayerInput, Boolean(this.dev.tornadoLocalRelayer)), this.priceAgent, this.dev.tornadoLocalRelayer ? 1 : TORNADO_CHAINS[chain].netId), address, proof, args, this.priceAgent, this.dev.tornadoLocalRelayer ? 200 : 5000);
       } else {
-        const draft = await eth.draftCall(address, 0n, WITHDRAW_GAS);
+        const draft = await eth.draftCall(address, 0n, TORNADO_CHAINS[chain].withdrawGas);
         const data = tornadoAbi.encodeFunctionData('withdraw', [proof, args[0], args[1], quote.recipient, relayer, 0n, 0n]);
-        txHash = await eth.send({ ...draft, data }, deriveEthAccount(secrets.tronMnemonic).wallet);
+        txHash = await eth.send({ ...draft, data }, this.tornadoSigner(chain, secrets.tronMnemonic));
       }
       note.status = 'withdrawn';
       note.withdrawTx = txHash;
@@ -305,13 +355,13 @@ export class SendService extends ServiceCore {
     return note;
   }
 
-  // ---- Tornado: things signed now that go out later ----
+  // ---- Tornado: things that go out later ----
 
   protected get tornadoLaterPath(): string { return path.join(this.dir, 'tornado-later.json'); }
   protected tornadoTimers = new Map<string, ReturnType<typeof setTimeout>>();
   protected async tornadoLater(): Promise<any[]> {
     const j = await this.records.read(this.tornadoLaterPath).catch(() => undefined);
-    return Array.isArray(j) ? j.filter((e: any) => typeof e?.id === 'string' && Number.isFinite(e?.at) && (e.kind === 'withdraw' || e.kind === 'deposit')) : [];
+    return Array.isArray(j) ? j.filter((e: any) => typeof e?.id === 'string' && Number.isFinite(e?.at) && (e.kind === 'withdraw' || e.kind === 'deposit' || e.kind === 'send-on')) : [];
   }
   protected armTornado(e: any): void {
     clearTimeout(this.tornadoTimers.get(e.id));
@@ -331,8 +381,11 @@ export class SendService extends ServiceCore {
     this.tornadoTimers.delete(id);
     const e = (await this.tornadoLater()).find((x) => x.id === id);
     if (!e || !this.eth) return;
-    const eth = this.eth;
-    const retry = () => { const t = setTimeout(() => void this.fireTornado(id), 5 * 60_000); (t as any).unref?.(); this.tornadoTimers.set(id, t); };
+    const retry = (minutes = 5) => { const t = setTimeout(() => void this.fireTornado(id), minutes * 60_000); (t as any).unref?.(); this.tornadoTimers.set(id, t); };
+    const note = (await this.tornadoStore.read()).notes.find((n) => n.id === id);
+    const chain: TornadoChain = note ? chainOfNote(note) : 'eth';
+    let eth: EthClient;
+    try { eth = this.tornadoClient(chain); } catch { return; }
     if (e.kind === 'deposit') {
       try {
         await eth.sendRaw(e.raw);
@@ -348,6 +401,29 @@ export class SendService extends ServiceCore {
           return;
         }
         retry();
+      }
+      return;
+    }
+    if (e.kind === 'send-on') {
+      // Proven now, sent now, through a relayer picked now (or the one chosen at the time).
+      if (!note) { await this.records.write(this.tornadoLaterPath, (await this.tornadoLater()).filter((x) => x.id !== id)).catch(() => undefined); return; }
+      const say = (m: string) => this.emit('tornado-progress', m);
+      try {
+        const address = this.poolAddress(note.pool, chain);
+        const [{ nullifierHash }] = await runTornado('commit', { notes: [e.keys] });
+        const spent = tornadoAbi.decodeFunctionResult('isSpent', await eth.call(address, tornadoAbi.encodeFunctionData('isSpent', [nullifierHash])));
+        if (spent[0]) { await this.tornadoDone(id, (n) => { n.status = 'withdrawn'; delete n.at; delete n.scheduledKind; }); return; }
+        const quote = await this.tornadoWithdrawQuote(id, e.to, e.url || 'auto');
+        if (quote.mode !== 'relayer') throw new Error('No relayer.');
+        const { proof, args } = await this.tornadoProve(note, e.keys, quote.recipient, quote.relayer as string, parseAmount(quote.fee, 18), say);
+        this.renewTorRoute('ETH');
+        const hash = await relayerSubmit(await relayerStatus(quote.relayerUrl, this.priceAgent, this.dev.tornadoLocalRelayer ? 1 : TORNADO_CHAINS[chain].netId), address, proof, args, this.priceAgent, this.dev.tornadoLocalRelayer ? 200 : 5000);
+        await this.tornadoDone(id, (n) => { n.status = 'withdrawn'; n.withdrawTx = hash; n.recipient = quote.recipient; delete n.at; delete n.scheduledKind; delete n.problem; });
+      } catch (err) {
+        const store = await this.tornadoStore.read();
+        const n = store.notes.find((x) => x.id === id);
+        if (n) { n.problem = `The send-on will be tried again: ${(err as Error).message}`.slice(0, 300); await this.tornadoStore.write(store); }
+        retry(20);
       }
       return;
     }
@@ -371,8 +447,8 @@ export class SendService extends ServiceCore {
   async tornadoSplitPrepare(amountInput: string, spread: boolean) {
     const { eth } = this.session();
     const amount = parseAmount(amountInput, 18);
-    const plan = splitPlan(amount, Object.keys(this.tornadoPoolMap));
-    if (!plan.pools.length) throw new Error(`The smallest deposit is ${Object.keys(this.tornadoPoolMap).sort((a, b) => Number(a) - Number(b))[0]} ETH.`);
+    const plan = splitPlan(amount, Object.keys(this.tornadoPoolMap()));
+    if (!plan.pools.length) throw new Error(`The smallest deposit is ${Object.keys(this.tornadoPoolMap()).sort((a, b) => Number(a) - Number(b))[0]} ETH.`);
     const total = plan.pools.reduce((s2, p) => s2 + denomination(p), 0n);
     const one = await eth.draftCall(this.poolAddress(plan.pools[0]), 0n, DEPOSIT_GAS);
     const fees = one.expectedFee * BigInt(plan.pools.length);
@@ -446,7 +522,7 @@ export class SendService extends ServiceCore {
     const keys = Array.from({ length: limit }, (_, i) => noteSecrets(secrets.tronMnemonic, i));
     const commits: { commitment: string; nullifierHash: string }[] = await runTornado('commit', { notes: keys });
     let found = 0;
-    for (const [pool, address] of Object.entries(this.tornadoPoolMap)) {
+    for (const [pool, address] of Object.entries(this.tornadoPoolMap())) {
       const leaves = new Set((await tor.leaves(pool, address, eth, { seed: !this.dev.tornadoPools, agent: this.priceAgent, progress: say })).map((l) => l.toLowerCase()));
       for (let index = 0; index < limit; index++) {
         const c = commits[index];
@@ -490,7 +566,7 @@ export class SendService extends ServiceCore {
     return { ok: true };
   }
 
-  async prepareSend(asset: Asset, to: string, amountInput: string, opts: { coins?: string[]; fromMixed?: boolean; fromAddress?: number } = {}) {
+  async prepareSend(asset: Asset, to: string, amountInput: string, opts: { coins?: string[]; fromMixed?: boolean; fromAddress?: number; memo?: string } = {}) {
     const { tron, monero, btc, eth, dash } = this.session();
     if (this.torNotReady) throw new Error('Tor is connecting. Try again once it connects.');
     const address = to.trim();
@@ -499,7 +575,10 @@ export class SendService extends ServiceCore {
     const warnings: string[] = [];
     let preview: Preview;
 
-    if (asset === 'ARRR') {
+    if (this.accounts.has(asset)) {
+      const draft = await this.accounts.get(asset)!.draft(address, isMax ? 'max' : parseAmount(amountInput, decimals), typeof opts.memo === 'string' ? opts.memo : undefined);
+      preview = this.storePreview({ asset, to: draft.to, amount: draft.amount, fee: draft.fee, account: { asset, draft } });
+    } else if (asset === 'ARRR') {
       if (!this.arrr) throw new Error('Pirate Chain is not available on this device.');
       if (!isArrrAddress(address)) throw new Error('Not a Pirate Chain address. It should start with zs1 or pirate1.');
       if (address === this.arrr.receive) throw new Error('You cannot send to your own address.');
@@ -586,13 +665,6 @@ export class SendService extends ServiceCore {
       if (address === dash.receiveAddress) throw new Error('You cannot send to your own address.');
       const draft = await dash.draft(address, isMax ? 'max' : parseAmount(amountInput, decimals));
       preview = this.storePreview({ asset, to: address, amount: draft.amount, fee: draft.fee, dash: draft });
-    } else if (asset === 'SCRT') {
-      if (!isScrtAddress(address)) throw new Error('Not a Secret Network address. Only addresses starting with secret1 can be used.');
-      const draft = await this.scrt!.draft(address, isMax ? 'max' : parseAmount(amountInput, decimals));
-      preview = this.storePreview({ asset, to: address, amount: draft.amount, fee: draft.fee, scrt: draft });
-    } else if (asset === 'SSCRT') {
-      const draft = await this.scrt!.draftPrivate('transfer', address, isMax ? 'max' : parseAmount(amountInput, decimals));
-      preview = this.storePreview({ asset, to: address, amount: draft.amount, fee: draft.fee, scrt: draft });
     } else if (asset === 'LTC' && isMwebAddress(address)) {
       // To an MWEB address: paid from the private balance, so amount and both addresses stay hidden.
       if (!this.mweb) throw new Error('Private (MWEB) Litecoin isn\'t available on this device.');
@@ -672,12 +744,12 @@ export class SendService extends ServiceCore {
           tron: { asset, to: address, amount, feeLimit: fee.feeLimitSun },
         });
       } else {
-        const probe = await tron.estimateFee({ asset, to: address, amount: 1n });
+        const probe = await tron.estimateFee({ asset: asset as 'TRX', to: address, amount: 1n });
         const amount = isMax ? trx - probe.feeSun : parseAmount(amountInput, decimals);
         if (amount <= 0n) throw new Error('No TRX left to send after the fee.');
         if (amount + probe.feeSun > trx) throw new Error('Not enough TRX to cover the amount and fee.');
         if (probe.recipientIsNew) warnings.push('This is a new address, so an activation fee is included.');
-        preview = this.storePreview({ asset, to: address, amount, fee: probe.feeSun, tron: { asset, to: address, amount } });
+        preview = this.storePreview({ asset, to: address, amount, fee: probe.feeSun, tron: { asset: asset as 'TRX', to: address, amount } });
       }
     }
     // Coins spent together are tied together on the chain; say so, unless the person picked the coins themselves.
@@ -691,9 +763,10 @@ export class SendService extends ServiceCore {
     return {
       id: preview.id, asset, to: address, lookalike,
       amount: formatAmount(preview.amount, decimals),
-      fee: formatAmount(preview.fee, preview.eth ? 18 : asset === 'XMR' ? 12 : asset === 'ZANO' || asset === 'KSR' ? 12 : asset === 'SCRT' || asset === 'SSCRT' ? 6 : asset === 'SOL' || isSpl(asset) ? 9 : asset === 'DOGE' || asset === 'DCR' || asset === 'BCH' || asset === 'LTC' || asset === 'BTC' || asset === 'DASH' || asset === 'FIRO' || asset === 'ZEC' || asset === 'ARRR' ? 8 : 6),
-      feeAsset: preview.eth ? chainOf(preview.eth.asset).native : isSpl(asset) ? 'SOL' : asset === 'SSCRT' ? 'SCRT' : asset === 'SOL' || asset === 'DCR' || asset === 'DOGE' || asset === 'BCH' || asset === 'LTC' || asset === 'SCRT' || asset === 'XMR' || asset === 'BTC' || asset === 'DASH' || asset === 'FIRO' || asset === 'ZEC' || asset === 'ZANO' || asset === 'KSR' || asset === 'ARRR' ? asset : 'TRX',
-      feeIsEstimate: asset !== 'SOL' && !isSpl(asset) && asset !== 'DCR' && asset !== 'DOGE' && asset !== 'BCH' && asset !== 'LTC' && asset !== 'SCRT' && asset !== 'SSCRT' && asset !== 'XMR' && asset !== 'BTC' && asset !== 'DASH' && asset !== 'FIRO' && asset !== 'ZEC' && asset !== 'ZANO' && asset !== 'KSR' && asset !== 'ARRR',
+      fee: formatAmount(preview.fee, preview.account ? DECIMALS[ACCOUNT_COINS[asset]!.feeAsset] : preview.eth ? 18 : asset === 'XMR' ? 12 : asset === 'ZANO' || asset === 'KSR' ? 12 : asset === 'SOL' || isSpl(asset) ? 9 : asset === 'DOGE' || asset === 'DCR' || asset === 'BCH' || asset === 'LTC' || asset === 'BTC' || asset === 'DASH' || asset === 'FIRO' || asset === 'ZEC' || asset === 'ARRR' ? 8 : 6),
+      feeAsset: preview.account ? ACCOUNT_COINS[asset]!.feeAsset : preview.eth ? chainOf(preview.eth.asset).native : isSpl(asset) ? 'SOL' : asset === 'SOL' || asset === 'DCR' || asset === 'DOGE' || asset === 'BCH' || asset === 'LTC' || asset === 'XMR' || asset === 'BTC' || asset === 'DASH' || asset === 'FIRO' || asset === 'ZEC' || asset === 'ZANO' || asset === 'KSR' || asset === 'ARRR' ? asset : 'TRX',
+      feeIsEstimate: asset !== 'SUI' && asset !== 'NEAR' && asset !== 'XRP' && asset !== 'SOL' && !isSpl(asset) && asset !== 'DCR' && asset !== 'DOGE' && asset !== 'BCH' && asset !== 'LTC' && asset !== 'XMR' && asset !== 'BTC' && asset !== 'DASH' && asset !== 'FIRO' && asset !== 'ZEC' && asset !== 'ZANO' && asset !== 'KSR' && asset !== 'ARRR',
+      ...(preview.account?.draft?.tag !== undefined ? { memo: String(preview.account.draft.tag), memoKind: 'tag' } : preview.account?.draft?.comment ? { memo: String(preview.account.draft.comment), memoKind: 'comment' } : {}),
       warnings,
     };
   }
@@ -1020,7 +1093,7 @@ export class SendService extends ServiceCore {
     if (enabled && (this.torActive || this.dev.solPoolRelayer)) this.poolScan(a);
     const b = await pool.balance(a);
     const st = this.poolScanState.get(a);
-    const later = (await this.poolLaterList()).filter((e) => e.asset === a).map((e) => ({ id: e.id, at: e.at, amount: formatAmount(BigInt(e.amount), t.decimals), to: e.to }));
+    const later = (await this.poolLaterList()).filter((e) => e.asset === a).map((e) => ({ id: e.id, at: e.at, amount: formatAmount(BigInt(e.amount.replace(/^deposit:/, '')), t.decimals), afterDeposit: e.amount.startsWith('deposit:'), to: e.to }));
     return {
       asset: a, symbol: t.symbol, enabled, tor: this.torActive || !!this.dev.solPoolRelayer,
       ready: formatAmount(b.ready, t.decimals), arriving: formatAmount(b.arriving, t.decimals), notes: b.notes,
@@ -1065,9 +1138,11 @@ export class SendService extends ServiceCore {
     return { asset: a, symbol: t.symbol, amount: formatAmount(amount, t.decimals), cost: formatAmount(fee, 9), round: digits <= 2 };
   }
 
-  async solPoolDeposit(asset: string, amountText: string, password: string) {
+  /** `sendTo`: sent on from the pool to this address at a random time 1 to 24 hours later (while the app is open). */
+  async solPoolDeposit(asset: string, amountText: string, password: string, opts: { sendTo?: string } = {}) {
     const a = this.poolAsset(asset);
     await this.solPoolDepositQuote(a, amountText);
+    const sendTo = opts.sendTo?.trim() ? this.poolRecipient(opts.sendTo) : undefined;
     const { pool, sol } = this.poolOpen();
     const secrets = await this.vault.open(password);
     const amount = parseAmount(amountText, POOL_TOKENS[a].decimals);
@@ -1075,6 +1150,11 @@ export class SendService extends ServiceCore {
     this.emit('sol-pool-progress', 'proof');
     const id = await pool.deposit(a, amount, solSecret(secrets.tronMnemonic));
     await this.poolRemember('in', a, amount);
+    if (sendTo) {
+      const entry = { id: randomUUID(), asset: a, amount: `deposit:${amount}`, to: sendTo, at: randomLater() };
+      await this.records.write(this.poolLaterPath, [...(await this.poolLaterList()), entry]);
+      this.armPoolLater(entry);
+    }
     void sol.getBalance().catch(() => undefined);
     setTimeout(() => this.poolScan(a, true), 45_000).unref?.();
     this.emit('balance-changed');
@@ -1111,8 +1191,7 @@ export class SendService extends ServiceCore {
     const amount = parseAmount(q.amount, POOL_TOKENS[a].decimals);
     const delay = Number(opts.delayMinutes) || 0;
     if (delay) {
-      if (!POOL_DELAY_CHOICES.includes(delay)) throw new Error('Choose when to send.');
-      const entry = { id: randomUUID(), asset: a, amount: String(amount), to: q.to, at: Date.now() + Math.round((0.1 + Math.random() * 0.9) * delay * 60_000) };
+      const entry = { id: randomUUID(), asset: a, amount: String(amount), to: q.to, at: randomLater() };
       await this.records.write(this.poolLaterPath, [...(await this.poolLaterList()), entry]);
       this.armPoolLater(entry);
       return { scheduledAt: entry.at };
@@ -1132,7 +1211,7 @@ export class SendService extends ServiceCore {
 
   protected async poolLaterList(): Promise<{ id: string; asset: PoolAsset; amount: string; to: string; at: number }[]> {
     const j = await this.records.read(this.poolLaterPath).catch(() => undefined);
-    return Array.isArray(j) ? j.filter((e: any) => typeof e?.id === 'string' && Object.prototype.hasOwnProperty.call(POOL_TOKENS, e.asset) && /^\d+$/.test(e.amount) && isSolAddress(e.to) && Number.isFinite(e.at)) : [];
+    return Array.isArray(j) ? j.filter((e: any) => typeof e?.id === 'string' && Object.prototype.hasOwnProperty.call(POOL_TOKENS, e.asset) && /^(deposit:)?\d+$/.test(e.amount) && isSolAddress(e.to) && Number.isFinite(e.at)) : [];
   }
   /** Runs while the wallet is open; one that came due while it was closed goes out within a minute of opening. */
   protected armPoolLater(e: { id: string; at: number }): void {
@@ -1147,12 +1226,18 @@ export class SendService extends ServiceCore {
     if (!e || !this.solPool) return;
     const drop = async () => this.records.write(this.poolLaterPath, (await this.poolLaterList()).filter((x) => x.id !== id)).catch(() => undefined);
     try {
-      await this.poolSend(e.asset, BigInt(e.amount), e.to);
+      let amount: bigint;
+      if (e.amount.startsWith('deposit:')) {
+        // Sent on after a deposit: what the deposit holds, less the relayer's fee. The note must have been found.
+        await this.solPool.scan(e.asset);
+        amount = (await this.solPool.quoteWithin(e.asset, BigInt(e.amount.slice(8)))).amount;
+      } else amount = BigInt(e.amount);
+      await this.poolSend(e.asset, amount, e.to);
       await drop();
     } catch (err) {
       const m = (err as Error).message;
       // Refusals that waiting won't fix end it; anything else (offline, relayer busy) tries again later.
-      if (/refused|More than one|less than|nothing in the private pool|not a SOL address/i.test(m)) { await drop(); this.emit('sol-pool-progress', `failed:${m}`); return; }
+      if (/refused|More than one|less than|nothing in the private pool|not a SOL address/i.test(m) && !e.amount.startsWith('deposit:')) { await drop(); this.emit('sol-pool-progress', `failed:${m}`); return; }
       const t = setTimeout(() => void this.firePoolLater(id), 10 * 60_000); (t as any).unref?.(); this.poolTimers.set(id, t);
     }
   }
@@ -1245,6 +1330,7 @@ export class SendService extends ServiceCore {
     }
     if (preview.sol) return { hashes: [await this.sol!.send(preview.sol, secrets.tronMnemonic)] };
     if (preview.solUsdt) return { hashes: [await this.sol!.sendUsdt(preview.solUsdt, secrets.tronMnemonic)] };
+    if (preview.account) return { hashes: [await this.accounts.get(preview.account.asset)!.send(preview.account.draft, secrets.tronMnemonic)] };
     if (preview.doge) return { hashes: [await this.doge!.send(preview.doge, secrets.tronMnemonic)] };
     if (preview.dcr) return { hashes: [await this.dcr!.send(preview.dcr, secrets.tronMnemonic)] };
     if (preview.dcrMixed) {
@@ -1273,7 +1359,6 @@ export class SendService extends ServiceCore {
       if (!this.mixer) throw new Error('CoinJoin is not available.');
       return { hashes: [await this.mixer.sendPrivate(preview.dashPrivate)] };
     }
-    if (preview.scrt) return { hashes: [await this.scrt!.send(preview.scrt, secrets.tronMnemonic)] };
     if (preview.ltc) return { hashes: [await this.ltc!.send(preview.ltc, secrets.tronMnemonic)] };
     if (preview.mweb) return { hashes: [await this.mweb!.send(preview.mweb, secrets.tronMnemonic)] };
     if (preview.pegin) return { hashes: [await this.mweb!.pegin(preview.pegin, secrets.tronMnemonic)] };
@@ -1336,27 +1421,6 @@ export class SendService extends ServiceCore {
       error: this.zec?.lastError ?? null,
       phase: this.zec?.phase ?? null,
       detail: zecEngineInfo(this.dev.zecBin),
-    };
-  }
-
-  /**
-   * wrap: SCRT into private sSCRT. unwrap: back to plain SCRT. key: sets the viewing key once, so the private balance
-   * can be read. Each is a transaction, confirmed with confirmSend like any other.
-   */
-  async prepareScrtPrivate(kind: 'wrap' | 'unwrap' | 'key', amountInput: string) {
-    this.session();
-    if (this.torNotReady) throw new Error('Tor is connecting. Try again once it connects.');
-    const isMax = amountInput.trim().toLowerCase() === 'max';
-    const amount = kind === 'key' ? 0n : isMax ? 'max' as const : parseAmount(amountInput, 6);
-    const draft = await this.scrt!.draftPrivate(kind, this.scrt!.address, amount);
-    const asset: Asset = kind === 'unwrap' ? 'SCRT' : 'SSCRT';
-    const preview = this.storePreview({ asset, to: draft.to, amount: draft.amount, fee: draft.fee, scrt: draft });
-    return {
-      id: preview.id, asset, to: draft.to, kind,
-      amount: formatAmount(draft.amount, 6), fee: formatAmount(draft.fee, 6), feeAsset: 'SCRT', feeIsEstimate: false,
-      warnings: kind === 'wrap' ? ['How much you make private is visible on the chain. What you do with sSCRT afterwards is not.']
-        : kind === 'unwrap' ? ['How much you make public is visible on the chain.']
-        : ['If another wallet set a viewing key for this address, this replaces it there.'],
     };
   }
 
@@ -1551,9 +1615,6 @@ export class SendService extends ServiceCore {
       next.torBridgeLines = lines.trim();
     }
     if (typeof patch.tronApiKey === 'string') next.tronApiKey = patch.tronApiKey.trim();
-    if (typeof patch.autoLockMinutes === 'number' && patch.autoLockMinutes >= 1 && patch.autoLockMinutes <= 240) {
-      next.autoLockMinutes = Math.floor(patch.autoLockMinutes);
-    }
     // Each EVM chain on its own address, or all on one: the wallet reopens with the other addresses.
     const evmChanged = typeof patch.evmSeparate === 'boolean' && Boolean(this.tron) && patch.evmSeparate !== this.evmSplit;
     if (evmChanged) await this.writeEvmLayout(patch.evmSeparate as boolean);
@@ -1672,7 +1733,6 @@ export class SendService extends ServiceCore {
    * The wallet only opens the page; nothing about this wallet is put in the link.
    */
   buyUrl(asset: Asset): string {
-    if (asset === 'SSCRT') throw new Error('This coin can\'t be bought here.');
     return BUY_PAGE;
   }
 
@@ -1695,18 +1755,15 @@ export class SendService extends ServiceCore {
       if (!KSR_EXPLORER_TX) throw new Error('Kusari has no public explorer yet.');
       return KSR_EXPLORER_TX + hash;
     }
+    if (ACCOUNT_COINS[asset]) return ACCOUNT_COINS[asset]!.explorerTx + hash;
     if (asset === 'ARRR') return ARRR_EXPLORER_TX + hash;
     if (asset === 'BTC') return BTC_EXPLORER_TX + hash;
     if (asset === 'LTC') return LTC_EXPLORER_TX + hash;
-    if (asset === 'SCRT' || asset === 'SSCRT') {
-      if (!/^[0-9A-F]{64}$/i.test(hash)) throw new Error('Private transfers have no public page. Only the sender and receiver can see them.');
-      return SCRT_EXPLORER_TX + hash;
-    }
     return (asset === 'XMR' ? net.monero.explorerTx : net.tron.explorerTx) + hash;
   }
 }
 
 /** How long a delayed Bitcoin send may wait: it goes out at a random moment within it. */
 export const DELAY_CHOICES = [10, 60, 240];
-/** The same for sends out of the Solana private pool, which may wait longer (the wallet has to be open). */
-export const POOL_DELAY_CHOICES = [60, 360, 1440];
+/** When a mixer send goes out later: a random moment 1 to 24 hours from now (the wallet has to be open then). */
+export function randomLater(now = Date.now()): number { return now + Math.round((60 + Math.random() * 23 * 60) * 60_000); }

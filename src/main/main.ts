@@ -25,17 +25,11 @@ if (!app.requestSingleInstanceLock()) app.quit();
 
 let win: BrowserWindow | null = null;
 let service: WalletService;
-let lockTimer: NodeJS.Timeout | null = null;
 let clipboardTimer: NodeJS.Timeout | null = null;
 
 const emit = (channel: string, payload?: unknown) => {
   if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
 };
-
-function bumpAutoLock(): void {
-  if (lockTimer) clearTimeout(lockTimer);
-  lockTimer = setTimeout(() => { void service.lock(); }, service.settings.autoLockMinutes * 60_000);
-}
 
 function createWindow(): void {
   win = new BrowserWindow({
@@ -61,7 +55,6 @@ function handle(channel: string, fn: (...args: any[]) => unknown): void {
   ipcMain.handle(channel, async (event, ...args) => {
     const url = event.senderFrame?.url ?? '';
     if (!url.startsWith('file://') || !url.endsWith('/renderer/index.html')) throw new Error('This call is not allowed.');
-    if (channel !== 'wallet:status') bumpAutoLock();
     return fn(...args);
   });
 }
@@ -87,7 +80,7 @@ app.whenReady().then(async () => {
   // Unpacked development runs only: a packaged app can't be redirected to another Tron host.
   // A local Decred simnet (tests/dcr-simnet.js) in place of mainnet, for development builds only.
   if (!app.isPackaged && process.env.VAULT_DEV_DCR_NET === 'simnet') useDcrNetwork('simnet');
-  const dev = app.isPackaged ? {} : { tronHost: process.env.VAULT_DEV_TRON_HOST, priceUrl: process.env.VAULT_DEV_PRICE_URL, firoApi: process.env.VAULT_DEV_FIRO_API, solRpc: process.env.VAULT_DEV_SOL_RPC, solPoolRelayer: process.env.VAULT_DEV_SOLPOOL_RELAYER, dogeApi: process.env.VAULT_DEV_DOGE_API, dcrApi: process.env.VAULT_DEV_DCR_API, dashApi: process.env.VAULT_DEV_DASH_API, dashConnect: process.env.VAULT_DEV_DASH_CONNECT, dashSeeds: process.env.VAULT_DEV_DASH_SEEDS ? process.env.VAULT_DEV_DASH_SEEDS.split(',') : undefined, zecBin: process.env.VAULT_DEV_ZEC_BIN, arrrBin: process.env.VAULT_DEV_ARRR_BIN, arrrServers: process.env.VAULT_DEV_ARRR_SERVER ? [process.env.VAULT_DEV_ARRR_SERVER] : undefined, zanoBin: process.env.VAULT_DEV_ZANO_BIN, zanoNode: process.env.VAULT_DEV_ZANO_NODE, ksrBin: process.env.VAULT_DEV_KSR_BIN, ksrNode: process.env.VAULT_DEV_KSR_NODE, zecServers: process.env.VAULT_DEV_ZEC_SERVER ? [process.env.VAULT_DEV_ZEC_SERVER] : undefined, ethRpc: process.env.VAULT_DEV_ETH_RPC, tornadoPools: process.env.VAULT_DEV_TORNADO ? JSON.parse(process.env.VAULT_DEV_TORNADO) : undefined, ethScout: process.env.VAULT_DEV_ETH_SCOUT, bchApi: process.env.VAULT_DEV_BCH_API, ltcApi: process.env.VAULT_DEV_LTC_API, scrtLcd: process.env.VAULT_DEV_SCRT_LCD, mwebBin: process.env.VAULT_DEV_MWEB_BIN, mwebConnect: process.env.VAULT_DEV_MWEB_CONNECT, sparkBin: process.env.VAULT_DEV_SPARK_BIN, sparkServer: process.env.VAULT_DEV_SPARK_SERVER, sparkConnect: process.env.VAULT_DEV_SPARK_CONNECT, polRpc: process.env.VAULT_DEV_POL_RPC, polScout: process.env.VAULT_DEV_POL_SCOUT, arbRpc: process.env.VAULT_DEV_ARB_RPC, arbScout: process.env.VAULT_DEV_ARB_SCOUT, bscRpc: process.env.VAULT_DEV_BSC_RPC, uniswapBase: process.env.VAULT_DEV_UNISWAP_BASE, uniswapKey: process.env.VAULT_DEV_UNISWAP_KEY, bscScout: process.env.VAULT_DEV_BSC_SCOUT, swapBase: process.env.VAULT_DEV_SWAP_BASE, simpleSwapBase: process.env.VAULT_DEV_SIMPLESWAP_BASE, ghostSwapBase: process.env.VAULT_DEV_GHOSTSWAP_BASE, btcApi: process.env.VAULT_DEV_BTC_API, coinjoinCoordinator: process.env.VAULT_DEV_COINJOIN, coinjoinTest: process.env.VAULT_DEV_COINJOIN_TEST ? JSON.parse(process.env.VAULT_DEV_COINJOIN_TEST) : undefined, torBin: process.env.VAULT_DEV_TOR_BIN, socks: process.env.VAULT_DEV_SOCKS };
+  const dev = app.isPackaged ? {} : { tronHost: process.env.VAULT_DEV_TRON_HOST, priceUrl: process.env.VAULT_DEV_PRICE_URL, firoApi: process.env.VAULT_DEV_FIRO_API, solRpc: process.env.VAULT_DEV_SOL_RPC, solPoolRelayer: process.env.VAULT_DEV_SOLPOOL_RELAYER, dogeApi: process.env.VAULT_DEV_DOGE_API, dcrApi: process.env.VAULT_DEV_DCR_API, dashApi: process.env.VAULT_DEV_DASH_API, dashConnect: process.env.VAULT_DEV_DASH_CONNECT, dashSeeds: process.env.VAULT_DEV_DASH_SEEDS ? process.env.VAULT_DEV_DASH_SEEDS.split(',') : undefined, zecBin: process.env.VAULT_DEV_ZEC_BIN, arrrBin: process.env.VAULT_DEV_ARRR_BIN, arrrServers: process.env.VAULT_DEV_ARRR_SERVER ? [process.env.VAULT_DEV_ARRR_SERVER] : undefined, zanoBin: process.env.VAULT_DEV_ZANO_BIN, zanoNode: process.env.VAULT_DEV_ZANO_NODE, ksrBin: process.env.VAULT_DEV_KSR_BIN, ksrNode: process.env.VAULT_DEV_KSR_NODE, zecServers: process.env.VAULT_DEV_ZEC_SERVER ? [process.env.VAULT_DEV_ZEC_SERVER] : undefined, ethRpc: process.env.VAULT_DEV_ETH_RPC, tornadoPools: process.env.VAULT_DEV_TORNADO ? JSON.parse(process.env.VAULT_DEV_TORNADO) : undefined, ethScout: process.env.VAULT_DEV_ETH_SCOUT, bchApi: process.env.VAULT_DEV_BCH_API, ltcApi: process.env.VAULT_DEV_LTC_API, mwebBin: process.env.VAULT_DEV_MWEB_BIN, mwebConnect: process.env.VAULT_DEV_MWEB_CONNECT, sparkBin: process.env.VAULT_DEV_SPARK_BIN, sparkServer: process.env.VAULT_DEV_SPARK_SERVER, sparkConnect: process.env.VAULT_DEV_SPARK_CONNECT, polRpc: process.env.VAULT_DEV_POL_RPC, polScout: process.env.VAULT_DEV_POL_SCOUT, arbRpc: process.env.VAULT_DEV_ARB_RPC, arbScout: process.env.VAULT_DEV_ARB_SCOUT, bscRpc: process.env.VAULT_DEV_BSC_RPC, uniswapBase: process.env.VAULT_DEV_UNISWAP_BASE, uniswapKey: process.env.VAULT_DEV_UNISWAP_KEY, bscScout: process.env.VAULT_DEV_BSC_SCOUT, swapBase: process.env.VAULT_DEV_SWAP_BASE, simpleSwapBase: process.env.VAULT_DEV_SIMPLESWAP_BASE, ghostSwapBase: process.env.VAULT_DEV_GHOSTSWAP_BASE, btcApi: process.env.VAULT_DEV_BTC_API, coinjoinCoordinator: process.env.VAULT_DEV_COINJOIN, coinjoinTest: process.env.VAULT_DEV_COINJOIN_TEST ? JSON.parse(process.env.VAULT_DEV_COINJOIN_TEST) : undefined, torBin: process.env.VAULT_DEV_TOR_BIN, socks: process.env.VAULT_DEV_SOCKS };
   service = new WalletService(app.getPath('userData'), undefined, dev);
   void service.removeLeftovers().catch(() => undefined);
   await service.init();
@@ -114,7 +107,6 @@ app.whenReady().then(async () => {
   handle('wallet:prepareDashMix', (amount: string) => service.prepareDashMix(amount));
   handle('wallet:prepareDashPrivate', (to: string, amount: string) => service.prepareDashPrivate(to, amount));
   handle('wallet:coinjoinPause', (paused: boolean) => service.coinjoinPause(Boolean(paused)));
-  handle('wallet:prepareScrtPrivate', (kind: 'wrap' | 'unwrap' | 'key', amount: string) => service.prepareScrtPrivate(kind, amount));
   handle('wallet:zecRescan', (date: string, pw: string) => service.zecRescan(date, pw));
   handle('wallet:generateSeeds', () => service.generateSeeds());
   handle('wallet:finishCreate', (pw: string, pass?: string) => service.finishCreate(pw, typeof pass === 'string' ? pass : ''));
@@ -126,7 +118,7 @@ app.whenReady().then(async () => {
   handle('wallet:moneroAddresses', () => service.moneroAddresses());
   handle('wallet:newSubaddress', () => service.newSubaddress());
   handle('wallet:qr', (text: string) => service.qr(text));
-  handle('wallet:prepareSend', (asset, to: string, amount: string, opts?: { coins?: string[]; fromMixed?: boolean; fromAddress?: number }) => service.prepareSend(asset, to, amount, opts ?? {}));
+  handle('wallet:prepareSend', (asset, to: string, amount: string, opts?: { coins?: string[]; fromMixed?: boolean; fromAddress?: number; memo?: string }) => service.prepareSend(asset, to, amount, opts ?? {}));
   handle('wallet:ethAddresses', () => service.ethAddresses());
   handle('wallet:ethAddressNew', () => service.ethAddressNew());
   handle('wallet:ethAddressesFind', () => service.ethAddressesFind());
@@ -176,10 +168,10 @@ app.whenReady().then(async () => {
   handle('wallet:walletBeginAdd', (n: string) => service.walletBeginAdd(n));
   handle('wallet:walletCancelAdd', () => service.walletCancelAdd());
   handle('wallet:feeEstimate', (a) => service.feeEstimate(a));
-  handle('wallet:tornadoInfo', () => service.tornadoInfo());
+  handle('wallet:tornadoInfo', (c?: string) => service.tornadoInfo(typeof c === 'string' ? c : undefined));
   handle('wallet:tornadoCheck', () => service.tornadoCheck());
-  handle('wallet:tornadoDepositPrepare', (p: string) => service.tornadoDepositPrepare(p));
-  handle('wallet:tornadoDepositConfirm', (i: string, p: string, w: string) => service.tornadoDepositConfirm(i, p, w));
+  handle('wallet:tornadoDepositPrepare', (p: string, c?: string) => service.tornadoDepositPrepare(String(p), typeof c === 'string' ? c : undefined));
+  handle('wallet:tornadoDepositConfirm', (i: string, p: string, w: string, o?: { chain?: string; sendTo?: string }) => service.tornadoDepositConfirm(String(i), String(p), String(w), o && typeof o === 'object' ? { chain: typeof o.chain === 'string' ? o.chain : undefined, sendTo: typeof o.sendTo === 'string' ? o.sendTo : undefined } : {}));
   handle('wallet:tornadoExport', (i: string, w: string) => service.tornadoExport(i, w));
   handle('wallet:tornadoWithdrawQuote', (i: string, r: string, l: string) => service.tornadoWithdrawQuote(i, r, l));
   handle('wallet:tornadoWithdraw', (i: string, r: string, l: string, w: string, o?: { delayMinutes?: number }) => service.tornadoWithdraw(i, r, l, w, o && typeof o === 'object' ? { delayMinutes: Number(o.delayMinutes) || 0 } : {}));
@@ -196,7 +188,7 @@ app.whenReady().then(async () => {
   handle('wallet:solPoolInfo', (a: string) => service.solPoolInfo(String(a)));
   handle('wallet:solPoolEnable', (a: string, f: boolean) => service.solPoolEnable(String(a), f === true));
   handle('wallet:solPoolDepositQuote', (a: string, m: string) => service.solPoolDepositQuote(String(a), String(m)));
-  handle('wallet:solPoolDeposit', (a: string, m: string, w: string) => service.solPoolDeposit(String(a), String(m), String(w)));
+  handle('wallet:solPoolDeposit', (a: string, m: string, w: string, o?: { sendTo?: string }) => service.solPoolDeposit(String(a), String(m), String(w), o && typeof o === 'object' && typeof o.sendTo === 'string' ? { sendTo: o.sendTo } : {}));
   handle('wallet:solPoolWithdrawQuote', (a: string, m: string, t: string) => service.solPoolWithdrawQuote(String(a), String(m), String(t)));
   handle('wallet:solPoolWithdraw', (a: string, m: string, t: string, w: string, o?: { delayMinutes?: number }) => service.solPoolWithdraw(String(a), String(m), String(t), String(w), o && typeof o === 'object' ? { delayMinutes: Number(o.delayMinutes) || 0 } : {}));
   handle('wallet:solPoolCancelLater', (i: string) => service.solPoolCancelLater(String(i)));
@@ -219,7 +211,6 @@ app.whenReady().then(async () => {
     }, 60_000);
   });
 
-  bumpAutoLock();
   createWindow();
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });

@@ -84,12 +84,21 @@ Java WebView (`android/java`) running the same code as an esbuild bundle (`src/a
 - Monero sends go out through another node than the sync node (`MoneroClient.submitElsewhere`), own Tor login.
 - Extra Ethereum addresses (`ethAddresses`/`ethAddressNew`/`ethAddressesFind`, sealed `eth-addresses.json`): account
   4, 5, ... (`ETH_EXTRA_FIRST`), each its own `EthClient` and Tor route; sends pick one with `fromAddress`.
+- Tornado on Ethereum, BNB Chain, Polygon and Arbitrum ETH (`TORNADO_CHAINS` in `tornado.ts`: the site's pools, ENS key
+  `<chain>-tornado.<name>`, withdraw gas; notes carry `chain`, absent = Ethereum). A deposit can name an address to
+  send it on to (`sendTo`): the note's keys wait sealed in `tornado-later.json` and the proof is made at the random
+  time (1 to 24 hours, `randomLater`). Withdrawals later work the same way. Mixers take no service fee.
 - Tornado: relayers from the registry's events and ENS (`mainnet-tornado.<name>` "url" text), picked as the site does
   (random among the cheapest 30%); withdrawals to a new wallet address ("new"); deposits after yours shown from the
   local deposit list; withdrawals later (proof made now, sealed in `tornado-later.json`, relayer only); split deposits
   (`splitPlan`, later ones pre-signed with following nonces).
 - Android launcher: two activity-aliases (`.Launcher`, `.PlainLauncher` "Tools"); `setPlainLauncher` swaps them.
 - Own servers per coin: `customServers` setting, `OWN_SERVER_COINS` in `config.ts`.
+- Account coins with their own client, wired through `ACCOUNT_COINS` / `AccountCoin` (`service-common.ts`): GRAM and
+  USDT on TON (`ton.ts`, v4r2 wallet at m/44'/607'/0', toncenter), SUI (`sui.ts`, m/44'/784'/0'/0'/0', Sui GraphQL;
+  JSON-RPC is gone), NEAR (`near.ts`), XRP (`xrp.ts`, m/44'/144'/0'/0/0, binary format pinned to
+  ripple-binary-codec). Sends can carry a memo (XRP destination tag, TON comment). No auto-lock: the wallet stays
+  open until locked.
 - Swaps into XMR use a new subaddress per order (`swapSubaddress`); XMR sends reconnect with a new Tor login
   (`MoneroClient.renewRoute`, desktop). Coin selection takes the smallest single coin that covers a payment.
 - Delayed Bitcoin sends: signed at confirm, kept sealed in `btc-delayed.json`, coins reserved, sent at a random
