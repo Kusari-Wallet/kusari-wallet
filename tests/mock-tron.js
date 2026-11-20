@@ -44,7 +44,8 @@ function mockNode() {
         const out = (o) => { res.setHeader('content-type', 'application/json'); res.end(JSON.stringify(o)); };
         const first = state.dcrFirst;
         if (p.endsWith('/utxo')) return out(first && p.includes(first) && !state.dcr ? [{ address: first, txid: 'ab'.repeat(32), vout: 0, atoms: 12_500_000_000, amount: 125, confirmations: 30 }] : []);
-        if (p.endsWith('/txs')) return out({ totalItems: 0, items: [] });
+        // The coin's transaction is in the first address's history, as on a real server.
+        if (p.endsWith('/txs')) return out(first && p.includes(first) ? { totalItems: 1, items: [{ txid: 'ab'.repeat(32), confirmations: 30, time: 1_700_000_000, vin: [], vout: [{ value: 125, n: 0, scriptPubKey: { addresses: [first] } }] }] } : { totalItems: 0, items: [] });
         if (p === '/tx/send' && req.method === 'POST') {
           const { verifyDcrInput, dcrScript, dcrTxid } = require('../dist/main/dcr');
           const raw = Buffer.from(JSON.parse(body).rawtx, 'hex');

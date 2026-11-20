@@ -351,3 +351,6 @@ body.developer-build { padding-top: 22px; }
 .swap-sees li { margin: 4px 0; }
 .own-servers summary { cursor: pointer; font-weight: 600; margin: 8px 0; }
 .warn-text { color: var(--warn-text); }
+
+.donate-row { margin-top: 14px; display: flex; flex-direction: column; gap: 6px; }
+.donate-row .addr-check { word-break: break-all; }

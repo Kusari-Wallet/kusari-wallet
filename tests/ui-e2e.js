@@ -163,6 +163,16 @@ const PASSWORD = 'correct horse battery';
   const revealed = (await page.locator('.seed').nth(0).locator('li').allInnerTexts()).map((t) => t.split('\n').pop().trim());
   assert.deepEqual(revealed, tronSeed, 'revealed seed equals generated seed');
   await shot('5-settings');
+  // Donation addresses: hidden until asked for, each with a QR code.
+  assert.equal(await page.locator('#donate-list').isHidden(), true);
+  await page.click('#donate');
+  await page.locator('#donate-XMR', { hasText: '46ZEpH2z' }).waitFor();
+  assert.equal(await page.locator('.donate-row').count(), 5);
+  await page.locator('#donate-BTC button', { hasText: 'QR' }).click();
+  await page.locator('#donate-BTC img').waitFor();
+  await page.locator('#donate-section').scrollIntoViewIfNeeded();
+  await shot('donate');
+  await page.click('#donate');
   await page.fill('#del-pw', PASSWORD);
   await page.click('#delete');
   await page.getByText('Get started').waitFor({ timeout: 30000 });
@@ -202,11 +212,11 @@ const PASSWORD = 'correct horse battery';
   assert.match(await page.locator('#asset-TRX').innerText(), /\+1\.20%/);
   assert.match(await page.locator('#asset-USDT').innerText(), /\$10\.00/);
   await shot('home');
-  assert.deepEqual(await page.locator('.actions .action').allInnerTexts(), ['Send', 'Receive', 'Swap', 'Buy']);
+  assert.deepEqual(await page.locator('.actions .action').allInnerTexts(), ['Send', 'Receive', 'Swap', 'BUY/SELL']);
   // Buy goes straight to LocalCoinSwap with the referral link, no screen in between.
   await page.click('#go-buy');
   await page.getByText(/LocalCoinSwap opened in your browser/).waitFor({ timeout: 15000 });
-  assert.deepEqual(fs.readFileSync(externalLog, 'utf8').trim().split('\n'), ['https://localcoinswap.com/?rc=FE969A35']);
+  assert.deepEqual(fs.readFileSync(externalLog, 'utf8').trim().split('\n'), ['https://localcoinswap.com/']);
   await page.locator('#go-buy').waitFor();
 
 

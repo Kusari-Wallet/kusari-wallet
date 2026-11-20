@@ -247,10 +247,46 @@ async function renderSettings(): Promise<void> {
           (e.currentTarget as HTMLElement).setAttribute('aria-expanded', String(!note.hidden));
         } }, 'Support'),
         h('p', { class: 'small', id: 'support-note', hidden: true }, 'Need help? Email kusari_wallet@proton.me.')),
+      donateSection(),
       h('div', { class: 'section' }, h('h3', {}, 'Delete wallet'), delBox.el,
         h('p', { class: 'muted small' }, 'Coins stay on the blockchain, but can never be reached without the seeds. Check your seeds before deleting.'), h('br'),
         h('label', { class: 'field' }, h('span', {}, 'Password'), delPw), del)),
     bottomNav('settings'));
+}
+
+// ---- donations ----
+// Fixed in the app (never fetched), so nobody can swap them; tests/donate.test.js checks each and pins the list.
+const DONATE: { asset: Asset; address: string }[] = [
+  { asset: 'XMR', address: '46ZEpH2zBmjCu1cRXiN6DYbwZDvw5LUrRNKKeketbJNv7f8thMEbFABSoZVYT6nJ2CGQfPvAXcEficrwZXN35mdZLTBHVNL' },
+  { asset: 'BTC', address: 'bc1p60xgyyjl38vqset09hetv7ll3wenhg8zgfn9rpexlkcu59fu5s0qj89fex' },
+  { asset: 'ETH', address: '0x27A2BB4E97BB6F58998Ae7A0A921774aa645fE1d' },
+  { asset: 'TRX', address: 'TQwoiwr5NuDWxkjRivoGh11tCPG6ZAiyHb' },
+  { asset: 'DOGE', address: 'DEiSC35omanbohfcwzQzYpYJY5d3ugv9pe' },
+];
+
+/** Voluntary: shown only here, never tied to a send or a mix. */
+function donateSection(): HTMLElement {
+  const list = h('div', { id: 'donate-list', hidden: true },
+    h('p', { class: 'small muted' }, 'Kusari Wallet is free. If it helps you, you can support its development. Donations are optional and change nothing in the app.'),
+    ...DONATE.map((d) => {
+      const qr = h('div', { class: 'qr-frame', hidden: true });
+      return h('div', { class: 'donate-row', id: `donate-${d.asset}` },
+        h('div', { class: 'small' }, h('strong', {}, d.asset)),
+        h('div', { class: 'addr-check small' }, d.address),
+        h('div', { class: 'row' },
+          h('button', { class: 'ghost', onclick: () => { void wallet.copy(d.address); toast('Copied.'); } }, 'Copy'),
+          h('button', { class: 'ghost', onclick: async () => {
+            if (!qr.hidden) { qr.hidden = true; return; }
+            try { setKids(qr, h('img', { src: await wallet.qr(d.address), alt: `QR code of the ${coinName(d.asset)} donation address` })); qr.hidden = false; } catch (e) { toast(errMsg(e)); }
+          } }, 'QR')),
+        qr);
+    }));
+  return h('div', { class: 'section', id: 'donate-section' }, h('h3', {}, 'Support the developer'),
+    h('button', { class: 'ghost', id: 'donate', 'aria-expanded': 'false', onclick: (e: Event) => {
+      list.hidden = !list.hidden;
+      (e.currentTarget as HTMLElement).setAttribute('aria-expanded', String(!list.hidden));
+    } }, 'Donation addresses'),
+    list);
 }
 
 // ---- boot ----

@@ -1712,5 +1712,12 @@
 "The USDT wallet address is missing.": "Thiếu địa chỉ ví USDT.",
 "This wallet's seed does not match the SUI address.": "Hạt giống của ví này không khớp với địa chỉ SUI.",
 "This wallet's seed does not match the TON address.": "Hạt giống của ví này không khớp với địa chỉ TON.",
-"This wallet's seed does not match the XRP account.": "Hạt giống của ví này không khớp với tài khoản XRP."
+"This wallet's seed does not match the XRP account.": "Hạt giống của ví này không khớp với tài khoản XRP.",
+"Support the developer": "Ủng hộ nhà phát triển",
+"Donation addresses": "Địa chỉ ủng hộ",
+"Kusari Wallet is free. If it helps you, you can support its development. Donations are optional and change nothing in the app.": "Kusari Wallet miễn phí. Nếu nó hữu ích, bạn có thể ủng hộ việc phát triển. Ủng hộ là tùy ý và không thay đổi gì trong ứng dụng.",
+"Copied.": "Đã sao chép.",
+"QR": "QR",
+"QR code of the {0} donation address": "Mã QR địa chỉ ủng hộ {0}",
+"BUY/SELL": "BUY/SELL"
 }

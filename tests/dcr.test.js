@@ -138,11 +138,13 @@ test('a send through a stand-in dcrdata: coins found, fee for the size, the raw 
   assert.deepEqual(await c.getBalance(), { total: 300_000_000n, spendable: 300_000_000n });
   // Every address asked about on its own: no request names two, so the server can't group them.
   const lookups = asked.filter((u) => /utxo|txs/.test(u));
-  assert.ok(lookups.length >= 2 * (10 + 4), `${lookups.length} lookups`);
+  assert.ok(lookups.filter((u) => u.includes('/txs')).length >= 10 + 4, `${lookups.length} lookups`);
+  // An address with no history isn't asked for its coins: only the used one is.
+  assert.deepEqual([...new Set(lookups.filter((u) => u.includes('/utxo')).map((u) => u.match(/D[sc]\w+/)[0]))], [mine]);
   for (const u of lookups) assert.equal((u.match(/D[sc][1-9A-HJ-NP-Za-km-z]{33}/g) ?? []).length, 1, u);
   assert.ok(!lookups.some((u) => u.includes(',')));
   // Found at index 2, so the scan looked further; each address only once per scan.
-  const perAddress = new Map(); for (const u of lookups.filter((x) => x.includes('/utxo'))) { const a = u.match(/D[sc]\w+/)[0]; perAddress.set(a, (perAddress.get(a) ?? 0) + 1); }
+  const perAddress = new Map(); for (const u of lookups.filter((x) => x.includes('/txs'))) { const a = u.match(/D[sc]\w+/)[0]; perAddress.set(a, (perAddress.get(a) ?? 0) + 1); }
   assert.ok([...perAddress.values()].every((n) => n === 1), 'no address asked twice in one scan');
   assert.ok(perAddress.has(c0.addressAt(0, 12)), 'the gap counted from the used address');
   const d = await c.draft(DCRD_PKH[0], 100_000_000n);

@@ -1712,5 +1712,12 @@
 "The USDT wallet address is missing.": "USDTウォレットのアドレスがありません。",
 "This wallet's seed does not match the SUI address.": "このウォレットのシードがSUIアドレスと一致しません。",
 "This wallet's seed does not match the TON address.": "このウォレットのシードがTONアドレスと一致しません。",
-"This wallet's seed does not match the XRP account.": "このウォレットのシードがXRPアカウントと一致しません。"
+"This wallet's seed does not match the XRP account.": "このウォレットのシードがXRPアカウントと一致しません。",
+"Support the developer": "開発者を支援",
+"Donation addresses": "寄付アドレス",
+"Kusari Wallet is free. If it helps you, you can support its development. Donations are optional and change nothing in the app.": "Kusari Walletは無料です。役に立ったら開発を支援できます。寄付は任意で、アプリの機能は何も変わりません。",
+"Copied.": "コピーしました。",
+"QR": "QR",
+"QR code of the {0} donation address": "{0}の寄付アドレスのQRコード",
+"BUY/SELL": "BUY/SELL"
 }

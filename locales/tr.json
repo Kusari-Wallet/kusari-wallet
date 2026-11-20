@@ -1712,5 +1712,12 @@
 "The USDT wallet address is missing.": "USDT cüzdan adresi eksik.",
 "This wallet's seed does not match the SUI address.": "Bu cüzdanın tohumu SUI adresiyle eşleşmiyor.",
 "This wallet's seed does not match the TON address.": "Bu cüzdanın tohumu TON adresiyle eşleşmiyor.",
-"This wallet's seed does not match the XRP account.": "Bu cüzdanın tohumu XRP hesabıyla eşleşmiyor."
+"This wallet's seed does not match the XRP account.": "Bu cüzdanın tohumu XRP hesabıyla eşleşmiyor.",
+"Support the developer": "Geliştiriciyi destekle",
+"Donation addresses": "Bağış adresleri",
+"Kusari Wallet is free. If it helps you, you can support its development. Donations are optional and change nothing in the app.": "Kusari Wallet ücretsizdir. İşinize yarıyorsa geliştirilmesini destekleyebilirsiniz. Bağışlar isteğe bağlıdır ve uygulamada hiçbir şeyi değiştirmez.",
+"Copied.": "Kopyalandı.",
+"QR": "QR",
+"QR code of the {0} donation address": "{0} bağış adresinin QR kodu",
+"BUY/SELL": "BUY/SELL"
 }

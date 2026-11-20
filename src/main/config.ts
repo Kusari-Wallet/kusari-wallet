@@ -24,7 +24,7 @@ export const XRP_SERVERS = ['https://xrplcluster.com', 'https://s1.ripple.com:51
 export const SOL_RPCS = ['https://api.mainnet-beta.solana.com', 'https://api.mainnet.solana.com', 'https://solana-rpc.publicnode.com'];
 export const SOL_EXPLORER_TX = 'https://solscan.io/tx/';
 // Buying opens LocalCoinSwap's P2P marketplace in the browser. The code only credits the referral account.
-export const BUY_PAGE = 'https://localcoinswap.com/?rc=FE969A35';
+export const BUY_PAGE = 'https://localcoinswap.com/';
 // BitPay's public Bitcore API. It needs no key.
 // The Litecoin project's mempool site, the same API as mempool.space.
 /** A blockbook+ entry is a Blockbook server, read through an Esplora-shaped adapter. */

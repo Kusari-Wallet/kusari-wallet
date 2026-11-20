@@ -1712,5 +1712,12 @@
 "The USDT wallet address is missing.": "USDT 지갑 주소가 없습니다.",
 "This wallet's seed does not match the SUI address.": "이 지갑의 시드가 SUI 주소와 맞지 않습니다.",
 "This wallet's seed does not match the TON address.": "이 지갑의 시드가 TON 주소와 맞지 않습니다.",
-"This wallet's seed does not match the XRP account.": "이 지갑의 시드가 XRP 계정과 맞지 않습니다."
+"This wallet's seed does not match the XRP account.": "이 지갑의 시드가 XRP 계정과 맞지 않습니다.",
+"Support the developer": "개발자 후원",
+"Donation addresses": "후원 주소",
+"Kusari Wallet is free. If it helps you, you can support its development. Donations are optional and change nothing in the app.": "Kusari Wallet은 무료입니다. 도움이 되었다면 개발을 후원할 수 있습니다. 후원은 선택이며 앱에서 달라지는 것은 없습니다.",
+"Copied.": "복사했습니다.",
+"QR": "QR",
+"QR code of the {0} donation address": "{0} 후원 주소 QR 코드",
+"BUY/SELL": "BUY/SELL"
 }

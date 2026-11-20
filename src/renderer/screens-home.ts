@@ -168,7 +168,7 @@ function renderHome(): void {
       h('button', { class: 'action', id: 'go-send', onclick: () => renderSend() }, h('span', { class: 'box' }, icon('send')), 'Send'),
       h('button', { class: 'action', id: 'go-receive', onclick: () => void renderReceive() }, h('span', { class: 'box' }, icon('receive')), 'Receive'),
       h('button', { class: 'action swap-action', id: 'go-swap', onclick: () => void renderSwap() }, h('span', { class: 'box' }, icon('swap')), 'Swap'),
-      h('button', { class: 'action', id: 'go-buy', onclick: () => void openBuyPage() }, h('span', { class: 'box' }, icon('buy')), 'Buy')),
+      h('button', { class: 'action', id: 'go-buy', onclick: () => void openBuyPage() }, h('span', { class: 'box' }, icon('buy')), 'BUY/SELL')),
     h('div', { class: 'tabs', role: 'tablist' }, tab('assets', 'Assets'), tab('history', 'History')),
     body,
     bottomNav('home'));
@@ -233,7 +233,7 @@ function assetRow(a: Asset, child = false, toggle?: HTMLElement): HTMLElement {
     ? (moneroBusy() ? syncLabel() : status)
     : p
       ? h('span', {}, usdFormat(p.usd), p.change !== null && h('span', { class: p.change >= 0 ? 'up' : 'down' }, `${p.change >= 0 ? '+' : ''}${p.change.toFixed(2)}%`))
-      : a === 'BTC' ? 'Bitcoin' : a === 'SOL' ? 'Solana' : a === 'GRAM' || a === 'USDTT' ? 'TON' : a === 'SUI' ? 'Sui' : a === 'NEAR' ? 'NEAR' : a === 'XRP' ? 'XRP Ledger' : a === 'DOGE' ? 'Dogecoin' : a === 'DCR' ? 'Decred' : a === 'BCH' ? 'Bitcoin Cash' : a === 'LTC' ? 'Litecoin' : a === 'DASH' ? 'Dash' : a === 'FIRO' ? 'Firo' : a === 'ZEC' ? 'Zcash' : a === 'ZANO' ? 'Zano' : a === 'KSR' ? 'Kusari' : a === 'ARRR' ? 'Pirate Chain' : a === 'ETH' || a === 'ETHA' ? 'Ethereum' : a === 'POL' ? 'Polygon' : a === 'LINK' ? 'Chainlink' : a === 'ARB' ? 'Arbitrum' : a === 'PEPE' ? 'Pepe' : a === 'ETHP' ? 'Ethereum' : a === 'BNB' ? 'BNB Smart Chain' : a === 'SHIB' ? 'Shiba Inu' : a === 'ORCA' ? 'Orca' : a === 'PUMP' ? 'pump.fun' : a === 'USDT' || a === 'USDTE' || a === 'USDTS' || a === 'USDTP' || a === 'USDTA' ? 'Tether' : a === 'TRX' ? 'Tron' : 'Monero';
+      : a === 'BTC' ? 'Bitcoin' : a === 'SOL' ? 'Solana' : a === 'GRAM' || a === 'USDTT' ? 'TON' : a === 'SUI' ? 'Sui' : a === 'NEAR' ? 'NEAR' : a === 'XRP' ? 'XRP Ledger' : a === 'DOGE' ? 'Dogecoin' : a === 'DCR' ? 'Decred' : a === 'BCH' ? 'Bitcoin Cash' : a === 'LTC' ? 'Litecoin' : a === 'DASH' ? 'Dash' : a === 'FIRO' ? 'Firo' : a === 'ZEC' ? 'Zcash' : a === 'ZANO' ? 'Zano' : a === 'KSR' ? 'Kusari' : a === 'ARRR' ? 'Pirate Chain' : a === 'ETH' || a === 'ETHA' ? 'Ethereum' : a === 'POL' ? 'Polygon' : a === 'LINK' ? 'Chainlink' : a === 'ARB' ? 'Arbitrum' : a === 'PEPE' ? 'Pepe' : a === 'ETHP' ? 'Ethereum' : a === 'BNB' ? 'BNB Smart Chain' : a === 'SHIB' ? 'Shiba Inu' : a === 'ORCA' ? 'Orca' : a === 'PUMP' ? 'pump.fun' : a === 'USDT' || a === 'USDTE' || a === 'USDTS' || a === 'USDTP' || a === 'USDTA' || a === 'USDTB' ? 'Tether' : a.startsWith('USDC') ? 'USD Coin' : a === 'TRX' ? 'Tron' : a === 'XMR' ? 'Monero' : a;
   const usd = assetUsd(a);
   return h('button', { class: `asset${child ? ' child' : ''}`, id: `asset-${a}`, onclick: () => { selected = a; void renderAsset(); } },
     coin(a),

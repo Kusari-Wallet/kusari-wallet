@@ -1712,5 +1712,12 @@
 "The USDT wallet address is missing.": "Нет адреса кошелька USDT.",
 "This wallet's seed does not match the SUI address.": "Сид этого кошелька не соответствует адресу SUI.",
 "This wallet's seed does not match the TON address.": "Сид этого кошелька не соответствует адресу TON.",
-"This wallet's seed does not match the XRP account.": "Сид этого кошелька не соответствует счёту XRP."
+"This wallet's seed does not match the XRP account.": "Сид этого кошелька не соответствует счёту XRP.",
+"Support the developer": "Поддержать разработчика",
+"Donation addresses": "Адреса для пожертвований",
+"Kusari Wallet is free. If it helps you, you can support its development. Donations are optional and change nothing in the app.": "Kusari Wallet бесплатен. Если он вам полезен, вы можете поддержать разработку. Пожертвования добровольны и ничего не меняют в приложении.",
+"Copied.": "Скопировано.",
+"QR": "QR",
+"QR code of the {0} donation address": "QR-код адреса для пожертвований {0}",
+"BUY/SELL": "BUY/SELL"
 }

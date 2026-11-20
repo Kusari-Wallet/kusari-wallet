@@ -130,7 +130,7 @@ export class DcrClient extends InsightWallet<'DCR'> {
   // amount differs from the coin's, so a server that misreports a coin only makes the send fail.
   constructor(xpub: string, apis: string[], agent?: Agent, timeoutMs = 30_000, private readonly isolate: DcrIsolate = () => ({ agent }), readonly path = DCR_PATH) {
     // A smaller gap and a longer reuse than other coins: each address is asked about on its own (see lookup).
-    super({ symbol: 'DCR', dust: DUST, feePerByte: FEE_ATOMS_PER_BYTE, base: SIZE_BASE, input: SIZE_INPUT, output: SIZE_OUTPUT, sign: (d, m) => signDcrDraft(d, m, path), gapReceive: 10, gapChange: 4, cacheMs: 3 * 60_000, coin: dcrCoinKind }, apis, agent, timeoutMs);
+    super({ symbol: 'DCR', dust: DUST, feePerByte: FEE_ATOMS_PER_BYTE, base: SIZE_BASE, input: SIZE_INPUT, output: SIZE_OUTPUT, sign: (d, m) => signDcrDraft(d, m, path), gapReceive: 10, gapChange: 4, cacheMs: 5 * 60_000, coin: dcrCoinKind }, apis, agent, timeoutMs);
     this.account = HDKey.fromExtendedKey(xpub);
   }
 
@@ -195,17 +195,23 @@ export class DcrClient extends InsightWallet<'DCR'> {
     for (let i = todo.length - 1; i > 0; i--) { const j = randomInt(i + 1); [todo[i], todo[j]] = [todo[j], todo[i]]; }
     let failed: unknown = null;
     const one = async (a: string) => {
-      for (let attempt = 0; attempt < 3; attempt++) {
+      for (let attempt = 0; attempt < 4; attempt++) {
         const { agent, route } = this.isolate();
         try {
-          const [u, t] = await Promise.all([this.get(`/addr/${a}/utxo`, agent ?? this.agent, route), this.get(`/addrs/${a}/txs?from=0&to=50&noAsm=1`, agent ?? this.agent, route)]);
-          const r = { utxoRows: Array.isArray(u) ? u : [], txs: Array.isArray(t?.items) ? t.items : [] };
+          // The history first: an address never used has no coins either, so its coin list isn't asked for
+          // (most addresses scanned are unused, and dcrdata limits how often it is asked).
+          const t = await this.get(`/addrs/${a}/txs?from=0&to=50&noAsm=1`, agent ?? this.agent, route);
+          const items = Array.isArray(t?.items) ? t.items : [];
+          const u = items.length ? await this.get(`/addr/${a}/utxo`, agent ?? this.agent, route) : [];
+          const r = { utxoRows: Array.isArray(u) ? u : [], txs: items };
           this.asked.set(a, r);
           this.known.set(a, { at: Date.now(), ...r });
           return;
         } catch (e) {
           failed = e;
-          await new Promise((res) => setTimeout(res, 500 + attempt * 1500 + randomInt(1000)));
+          // Too many requests: the server is limiting this route's exit. Wait well, then take another route.
+          const limited = /429|too many/i.test((e as Error).message);
+          await new Promise((res) => setTimeout(res, limited ? 6_000 + attempt * 6_000 + randomInt(6_000) : 500 + attempt * 1500 + randomInt(1000)));
         }
       }
       const last = this.known.get(a);
@@ -213,8 +219,12 @@ export class DcrClient extends InsightWallet<'DCR'> {
       else gaveUp = true;
     };
     // An address with no answer and none from before fails the lookup: stop there rather than keep asking.
+    // Two at a time, with a short random pause between, so the requests don't arrive as one burst.
     let gaveUp = false;
-    for (let i = 0; i < todo.length && !gaveUp; i += 3) await Promise.all(todo.slice(i, i + 3).map(one));
+    for (let i = 0; i < todo.length && !gaveUp; i += 2) {
+      await Promise.all(todo.slice(i, i + 2).map(one));
+      if (i + 2 < todo.length) await new Promise((res) => setTimeout(res, 250 + randomInt(500)));
+    }
     const missing = addresses.filter((a) => !this.asked.has(a));
     if (missing.length) throw failed instanceof Error ? failed : new Error('Could not reach the DCR server.');
     const utxoRows: any[] = []; const txs = new Map<string, any>();

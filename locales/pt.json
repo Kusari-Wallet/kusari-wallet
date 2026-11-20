@@ -1712,5 +1712,12 @@
 "The USDT wallet address is missing.": "Falta o endereço da carteira USDT.",
 "This wallet's seed does not match the SUI address.": "A seed desta carteira não corresponde ao endereço SUI.",
 "This wallet's seed does not match the TON address.": "A seed desta carteira não corresponde ao endereço TON.",
-"This wallet's seed does not match the XRP account.": "A seed desta carteira não corresponde à conta XRP."
+"This wallet's seed does not match the XRP account.": "A seed desta carteira não corresponde à conta XRP.",
+"Support the developer": "Apoiar o desenvolvedor",
+"Donation addresses": "Endereços de doação",
+"Kusari Wallet is free. If it helps you, you can support its development. Donations are optional and change nothing in the app.": "A Kusari Wallet é gratuita. Se ela ajuda você, pode apoiar o desenvolvimento. Doações são opcionais e não mudam nada no app.",
+"Copied.": "Copiado.",
+"QR": "QR",
+"QR code of the {0} donation address": "Código QR do endereço de doação {0}",
+"BUY/SELL": "BUY/SELL"
 }
