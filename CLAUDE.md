@@ -119,6 +119,15 @@ Java WebView (`android/java`) running the same code as an esbuild bundle (`src/a
   dcrwallet's denominations in the mixed account `m/44'/42'/1'` (`DCR_MIXED_PATH`), change back to the regular
   account; Tor required. Mixed sends put their change in the regular account (`changePath`); tickets can be bought
   from mixed coins. `tests/dcr-mix-simnet.js` mixes with dcrwallet (2.1.6+, mixing v0.7.x) on simnet by hand.
+- Solana private pool (PrivacyCash, program `9fhQBb…`): `sol-privacy.ts` (keys from the SOL key's signature of the
+  site's sign-in text, so the site shows the same notes; Poseidon notes, AES-GCM note encryption, ext-data hash,
+  instruction bytes, v0 messages with the pool's lookup table), `sol-pool.ts` (scan of every published output, the
+  index being its place in the list; tree paths asked among decoys and checked against the program's root history;
+  deposits signed here and passed through the relayer; withdrawals through the relayer), `src/solpool/worker.js`
+  (snarkjs Groth16, single-threaded, circuit files in `assets/solpool/` pinned by hash). Never use the relayer's
+  `/utxos/indices`. Each purpose gets its own Tor route; Tor required. `tests/solpool-standin.js` stands in for the
+  program and relayer (proof checked as the program's verifier reads it). Sends out of the pool can wait (sealed
+  `sol-pool-later.json`, while unlocked).
 - `src/main/tor-bridges.ts`: Snowflake/obfs4 via lyrebird (`scripts/fetch-lyrebird-android.sh` for Android).
 - `src/main/blockbook.ts`, `config.ts`: servers and their backups.
 - `src/main/zano.ts`, `zano-process.ts`: Zano, and Kusari (KSR) on the same client with its own engine (`ksr-bridge`:

@@ -321,6 +321,7 @@ async function renderAsset(): Promise<void> {
       a === 'BTC' && overview?.btcMix && btcMixPanel(overview.btcMix),
       a === 'DCR' && overview?.dcrMix && dcrMixPanel(overview.dcrMix),
       a === 'DCR' && b?.ok && dcrStakePanel(),
+      POOL_ASSETS.includes(a) && b?.ok && solPoolPanel(a),
       a === 'FIRO' && overview?.spark && h('div', { class: 'panel', id: 'spark-panel' },
         overview.spark.ready && overview.spark.balance
           ? h('p', { class: 'small' }, `Private (Spark): ${shortAmount(overview.spark.balance.total)} FIRO. Its amounts and addresses are hidden on the chain.`)

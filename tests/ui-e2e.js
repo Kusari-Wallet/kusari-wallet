@@ -65,13 +65,16 @@ const PASSWORD = 'correct horse battery';
     });
   });
   await new Promise((res) => cjServer.listen(0, '127.0.0.1', res));
+  // A stand-in for the Solana private pool's program and relayer.
+  const solPool = require('./solpool-standin').standIn();
+  await new Promise((res) => solPool.server.listen(0, '127.0.0.1', res));
   const connectionsToNode = [];
   server.on('connection', (c) => connectionsToNode.push(c.remotePort));
   const data = fs.mkdtempSync(path.join(os.tmpdir(), 'vw-ui-'));
   const externalLog = path.join(data, 'external-links.txt');
   const launch = () => _electron.launch({
     args: ['--no-sandbox', '--use-fake-device-for-media-stream', `--use-file-for-fake-video-capture=${camVideo}`, path.join(__dirname, '..')],
-    env: { ...process.env, VAULT_WALLET_DATA: data, VAULT_DEV_EXTERNAL_LOG: externalLog, VAULT_DEV_TRON_HOST: `http://127.0.0.1:${server.address().port}`, VAULT_DEV_SOCKS: socks.uri, VAULT_DEV_BTC_API: `http://127.0.0.1:${server.address().port}/btc`, VAULT_DEV_COINJOIN: `http://127.0.0.1:${cjServer.address().port}/`, VAULT_DEV_COINJOIN_TEST: JSON.stringify({ pollMs: 300, registrationMarginMs: 2000, minInputs: 3 }), VAULT_DEV_TORNADO: JSON.stringify({ 0.1: '0x12D66f87A04A9E220743712cE6d9bB1B5616B8Fc', 1: '0x47CE0C6eD5B0Ce3d3A51fdb1C52DC66a7c3c2936' }), VAULT_DEV_DASH_API: `http://127.0.0.1:${server.address().port}/dash`, VAULT_DEV_SOL_RPC: `http://127.0.0.1:${server.address().port}/sol`, VAULT_DEV_DOGE_API: `http://127.0.0.1:${server.address().port}/doge`, VAULT_DEV_DCR_API: `http://127.0.0.1:${server.address().port}/dcr`, VAULT_DEV_FIRO_API: `http://127.0.0.1:${server.address().port}/dash-firo`, VAULT_DEV_ZEC_BIN: path.join(__dirname, 'fake-zec-engine.js'), VAULT_DEV_ZANO_BIN: path.join(__dirname, 'fake-zano-engine.js'), VAULT_DEV_KSR_BIN: path.join(__dirname, 'fake-ksr-engine.js'), VAULT_DEV_KSR_NODE: '127.0.0.1:21081', VAULT_DEV_ARRR_BIN: path.join(__dirname, 'fake-arrr-engine.js'), VAULT_DEV_MWEB_BIN: path.join(__dirname, 'fake-mweb-engine.js'), ...(spark ? { VAULT_DEV_SPARK_BIN: SPARK_ENGINE, VAULT_DEV_SPARK_SERVER: `127.0.0.1:${spark.port}` } : {}), VAULT_DEV_ETH_RPC: `http://127.0.0.1:${server.address().port}/eth/rpc`, VAULT_DEV_ETH_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_LTC_API: `http://127.0.0.1:${server.address().port}/btc`, VAULT_DEV_BCH_API: `http://127.0.0.1:${server.address().port}/bch`, VAULT_DEV_SCRT_LCD: `http://127.0.0.1:${server.address().port}/scrt,http://localhost:${server.address().port}/scrt`, VAULT_DEV_NEAR_RPC: `http://127.0.0.1:${server.address().port}/near/rpc`, VAULT_DEV_NEAR_HISTORY: `http://127.0.0.1:${server.address().port}/near/history`, VAULT_DEV_POL_RPC: `http://127.0.0.1:${server.address().port}/pol/rpc`, VAULT_DEV_POL_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_ARB_RPC: `http://127.0.0.1:${server.address().port}/arb/rpc`, VAULT_DEV_ARB_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_BSC_RPC: `http://127.0.0.1:${server.address().port}/bsc/rpc`, VAULT_DEV_HYPE_RPC: `http://127.0.0.1:${server.address().port}/hype/rpc`, VAULT_DEV_UNISWAP_BASE: `http://127.0.0.1:${server.address().port}/uniswap`, VAULT_DEV_UNISWAP_KEY: 'test-key', VAULT_DEV_BSC_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_SIMPLESWAP_BASE: `http://127.0.0.1:${server.address().port}/simple`, VAULT_DEV_GHOSTSWAP_BASE: `http://127.0.0.1:${server.address().port}/ghost`, VAULT_DEV_SWAP_BASE: `http://127.0.0.1:${server.address().port}/swap`, VAULT_DEV_PRICE_URL: `http://127.0.0.1:${server.address().port}/simple/price`, NO_PROXY: '*' },
+    env: { ...process.env, VAULT_WALLET_DATA: data, VAULT_DEV_EXTERNAL_LOG: externalLog, VAULT_DEV_TRON_HOST: `http://127.0.0.1:${server.address().port}`, VAULT_DEV_SOCKS: socks.uri, VAULT_DEV_BTC_API: `http://127.0.0.1:${server.address().port}/btc`, VAULT_DEV_COINJOIN: `http://127.0.0.1:${cjServer.address().port}/`, VAULT_DEV_COINJOIN_TEST: JSON.stringify({ pollMs: 300, registrationMarginMs: 2000, minInputs: 3 }), VAULT_DEV_TORNADO: JSON.stringify({ 0.1: '0x12D66f87A04A9E220743712cE6d9bB1B5616B8Fc', 1: '0x47CE0C6eD5B0Ce3d3A51fdb1C52DC66a7c3c2936' }), VAULT_DEV_DASH_API: `http://127.0.0.1:${server.address().port}/dash`, VAULT_DEV_SOL_RPC: `http://127.0.0.1:${server.address().port}/sol`, VAULT_DEV_SOLPOOL_RELAYER: `http://127.0.0.1:${solPool.server.address().port}/r`, VAULT_DEV_DOGE_API: `http://127.0.0.1:${server.address().port}/doge`, VAULT_DEV_DCR_API: `http://127.0.0.1:${server.address().port}/dcr`, VAULT_DEV_FIRO_API: `http://127.0.0.1:${server.address().port}/dash-firo`, VAULT_DEV_ZEC_BIN: path.join(__dirname, 'fake-zec-engine.js'), VAULT_DEV_ZANO_BIN: path.join(__dirname, 'fake-zano-engine.js'), VAULT_DEV_KSR_BIN: path.join(__dirname, 'fake-ksr-engine.js'), VAULT_DEV_KSR_NODE: '127.0.0.1:21081', VAULT_DEV_ARRR_BIN: path.join(__dirname, 'fake-arrr-engine.js'), VAULT_DEV_MWEB_BIN: path.join(__dirname, 'fake-mweb-engine.js'), ...(spark ? { VAULT_DEV_SPARK_BIN: SPARK_ENGINE, VAULT_DEV_SPARK_SERVER: `127.0.0.1:${spark.port}` } : {}), VAULT_DEV_ETH_RPC: `http://127.0.0.1:${server.address().port}/eth/rpc`, VAULT_DEV_ETH_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_LTC_API: `http://127.0.0.1:${server.address().port}/btc`, VAULT_DEV_BCH_API: `http://127.0.0.1:${server.address().port}/bch`, VAULT_DEV_SCRT_LCD: `http://127.0.0.1:${server.address().port}/scrt,http://localhost:${server.address().port}/scrt`, VAULT_DEV_NEAR_RPC: `http://127.0.0.1:${server.address().port}/near/rpc`, VAULT_DEV_NEAR_HISTORY: `http://127.0.0.1:${server.address().port}/near/history`, VAULT_DEV_POL_RPC: `http://127.0.0.1:${server.address().port}/pol/rpc`, VAULT_DEV_POL_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_ARB_RPC: `http://127.0.0.1:${server.address().port}/arb/rpc`, VAULT_DEV_ARB_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_BSC_RPC: `http://127.0.0.1:${server.address().port}/bsc/rpc`, VAULT_DEV_HYPE_RPC: `http://127.0.0.1:${server.address().port}/hype/rpc`, VAULT_DEV_UNISWAP_BASE: `http://127.0.0.1:${server.address().port}/uniswap`, VAULT_DEV_UNISWAP_KEY: 'test-key', VAULT_DEV_BSC_SCOUT: `http://127.0.0.1:${server.address().port}/eth/scout`, VAULT_DEV_SIMPLESWAP_BASE: `http://127.0.0.1:${server.address().port}/simple`, VAULT_DEV_GHOSTSWAP_BASE: `http://127.0.0.1:${server.address().port}/ghost`, VAULT_DEV_SWAP_BASE: `http://127.0.0.1:${server.address().port}/swap`, VAULT_DEV_PRICE_URL: `http://127.0.0.1:${server.address().port}/simple/price`, NO_PROXY: '*' },
   });
   let app = await launch();
   let page = await app.firstWindow();
@@ -276,6 +279,29 @@ const PASSWORD = 'correct horse battery';
   await page.click('#back');
   await page.locator('#asset-TRX').waitFor();
   console.log('ok Decred: send signed and its signature checked');
+
+  // Solana private pool: set up (with every warning shown), the private balance, and a deposit this wallet can't pay.
+  await page.click('#asset-SOL');
+  await page.locator('#sol-pool-setup').waitFor({ timeout: 30000 });
+  await page.click('#sol-pool-setup');
+  const poolWarn = await page.locator('#sol-pool-warnings').innerText();
+  for (const w of [/Squads/, /risk lists/, /Amounts and timing/, /smaller than Tornado/, /only 4 participants/]) assert.match(poolWarn, w);
+  assert.equal(await page.locator('#sol-pool-enable').isDisabled(), true, 'not until the warnings are agreed to');
+  await page.check('#sol-pool-agree');
+  await shot('sol-pool-setup');
+  await page.click('#sol-pool-enable');
+  await page.locator('#sol-pool-balance', { hasText: /Private pool: 0 SOL/ }).waitFor({ timeout: 30000 });
+  await shot('sol-pool-panel');
+  await page.click('#sol-pool-deposit');
+  await page.fill('#sol-pool-amount', '1');
+  await page.click('#sol-pool-next');
+  await page.locator('.error', { hasText: /Not enough SOL/ }).waitFor({ timeout: 30000 });
+  await page.click('#back');
+  await page.locator('#sol-pool-panel').waitFor();
+  assert.equal(await page.locator('#sol-pool-send').isDisabled(), true, 'nothing to send yet');
+  await page.click('#back');
+  await page.locator('#asset-TRX').waitFor();
+  console.log('ok Solana private pool: warnings, set up, balance, deposit checks');
 
   if (spark) {
     // Firo Spark: the private balance, a private receiving address, and paying a transparent address from it.
@@ -1223,6 +1249,7 @@ const PASSWORD = 'correct horse battery';
   console.log('page errors:', JSON.stringify(errors).slice(0,800)); assert.deepEqual(errors, [], 'no page errors');
   await app.close();
   server.close();
+  solPool.server.close();
   fs.rmSync(data, { recursive: true, force: true });
   console.log('ALL PASSED; screenshots in', shots);
   process.exit(0);

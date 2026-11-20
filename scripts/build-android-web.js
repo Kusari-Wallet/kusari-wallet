@@ -11,8 +11,8 @@ const android = path.join(root, 'src/android');
 const aliasPlugin = {
   name: 'android-aliases',
   setup(b) {
-    const swap = { './vault': 'vault.ts', './request': 'request.ts', './tor': 'tor.ts', './tornado-run': 'tornado-run.ts', './zec-process': 'zec-process.ts', './zano-process': 'zano-process.ts', './arrr-process': 'arrr-process.ts', './mweb-process': 'mweb-process.ts', './spark-process': 'spark-process.ts', './dash-net': 'dash-net.ts' };
-    b.onResolve({ filter: /^\.\/(vault|request|tor|tornado-run|zec-process|zano-process|arrr-process|mweb-process|spark-process|dash-net)$/ }, (args) => (args.importer.includes(`${path.sep}src${path.sep}main${path.sep}`) ? { path: path.join(android, swap[args.path]) } : undefined));
+    const swap = { './vault': 'vault.ts', './request': 'request.ts', './tor': 'tor.ts', './tornado-run': 'tornado-run.ts', './solpool-run': 'solpool-run.ts', './zec-process': 'zec-process.ts', './zano-process': 'zano-process.ts', './arrr-process': 'arrr-process.ts', './mweb-process': 'mweb-process.ts', './spark-process': 'spark-process.ts', './dash-net': 'dash-net.ts' };
+    b.onResolve({ filter: /^\.\/(vault|request|tor|tornado-run|solpool-run|zec-process|zano-process|arrr-process|mweb-process|spark-process|dash-net)$/ }, (args) => (args.importer.includes(`${path.sep}src${path.sep}main${path.sep}`) ? { path: path.join(android, swap[args.path]) } : undefined));
     // Node-only branches of libraries never run in the WebView. They just need something to import.
     const empty = /^(node:)?(fs|fs\/promises|http|https|net|tls|os|zlib|url|stream|child_process|worker_threads|perf_hooks|crypto|dns|http2)$/;
     b.onResolve({ filter: empty }, (args) => (args.path === 'node:crypto' || args.path === 'node:fs' ? undefined : { path: path.join(android, 'shim-empty.js') }));
@@ -38,7 +38,7 @@ const aliasPlugin = {
   });
   const r = path.join(root, 'dist/renderer');
   // The screen code, in the order index.html loads it.
-  const RENDERER_SCRIPTS = ['ui.js', 'terms.js', 'screens-start.js', 'screens-home.js', 'screens-private.js', 'screens-send.js', 'screens-swap.js', 'screens-tornado.js', 'app.js'];
+  const RENDERER_SCRIPTS = ['ui.js', 'terms.js', 'screens-start.js', 'screens-home.js', 'screens-private.js', 'screens-send.js', 'screens-swap.js', 'screens-tornado.js', 'screens-solpool.js', 'app.js'];
   for (const f of ['locales.js', 'i18n.js', ...RENDERER_SCRIPTS, 'jsQR.js', 'style.css', 'logo.png', 'PretendardVariable.woff2']) fs.copyFileSync(path.join(r, f), path.join(out, f));
   fs.cpSync(path.join(r, 'coins'), path.join(out, 'coins'), { recursive: true });
   fs.copyFileSync(path.join(android, 'index.html'), path.join(out, 'index.html'));
@@ -49,6 +49,8 @@ const aliasPlugin = {
   fs.copyFileSync(path.join(root, 'node_modules/monero-ts/dist/monero.worker.js'), path.join(out, 'monero.worker.js'));
   await require('./build-tornado-worker').browser(path.join(out, 'tornado.worker.js'), path.join(android, 'shim-empty.js'), path.join(android, 'shim-globals.js'));
   fs.cpSync(path.join(root, 'assets/tornado'), path.join(out, 'tornado'), { recursive: true });
+  await require('./build-solpool-worker').browser(path.join(out, 'solpool.worker.js'), path.join(android, 'shim-empty.js'), path.join(android, 'shim-globals.js'));
+  fs.cpSync(path.join(root, 'assets/solpool'), path.join(out, 'solpool'), { recursive: true });
   fs.copyFileSync(path.join(android, 'tornado.html'), path.join(out, 'tornado.html'));
   const size = fs.readdirSync(out).filter((f) => fs.statSync(path.join(out, f)).isFile()).map((f) => [f, fs.statSync(path.join(out, f)).size]);
   console.log(size.map(([f, s]) => `${f} ${(s / 1048576).toFixed(1)}MB`).join(', '));

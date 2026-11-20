@@ -1,5 +1,6 @@
 // Gives the shared screen the same window.wallet API that the desktop preload script provides.
 import { runTornado } from './tornado-run';
+import { runSolPool } from './solpool-run';
 import { Buffer } from 'buffer';
 (globalThis as any).Buffer = (globalThis as any).Buffer ?? Buffer;
 import { WalletService } from '../main/service';
@@ -38,6 +39,7 @@ const service = new WalletService('/data', undefined, {
   btcApi: __TEST__ ? testConfig.btcApi : undefined,
   dashApi: __TEST__ ? testConfig.dashApi : undefined,
   solRpc: __TEST__ ? testConfig.solRpc : undefined,
+  solPoolRelayer: __TEST__ ? testConfig.solPoolRelayer : undefined,
   dogeApi: __TEST__ ? testConfig.dogeApi : undefined,
   firoApi: __TEST__ ? testConfig.dashApi && `${testConfig.dashApi}-firo` : undefined,
   zecServers: __TEST__ ? testConfig.zecServers : undefined,
@@ -60,6 +62,7 @@ const ready = service.init();
 const listeners = new Map<string, ((p: unknown) => void)[]>();
 const emit = (name: string, payload?: unknown) => { for (const fn of listeners.get(name) ?? []) fn(payload); };
 if (__TEST__) (window as any).__tornadoRun = runTornado;
+if (__TEST__) (window as any).__solPoolRun = runSolPool;
 if (__TEST__) (window as any).__emit = emit;
 service.on('monero-state', (s) => emit('monero-state', s));
 service.on('balance-changed', () => emit('balance-changed'));
@@ -71,6 +74,7 @@ service.on('unlocked', () => { try { native.keepRunning?.(true, 'Kusari Wallet',
 service.on('locked', () => { try { native.keepRunning?.(false, '', ''); } catch { /* older app shell */ } });
 service.on('tor-state', (s) => emit('tor-state', s));
 service.on('tornado-progress', (m) => emit('tornado-progress', m));
+service.on('sol-pool-progress', (m) => emit('sol-pool-progress', m));
 
 let lockTimer: ReturnType<typeof setTimeout> | undefined;
 const bump = () => {
@@ -199,6 +203,13 @@ const bioCall = (fn: (id: number) => void) => new Promise<string>((resolve, reje
   dcrMixInfo: call(() => service.dcrMixInfo()),
   dcrMixStart: call((p: string) => service.dcrMixStart(p)),
   dcrMixStop: call(() => service.dcrMixStop()),
+  solPoolInfo: call((a: string) => service.solPoolInfo(String(a))),
+  solPoolEnable: call((a: string, f: boolean) => service.solPoolEnable(String(a), f === true)),
+  solPoolDepositQuote: call((a: string, m: string) => service.solPoolDepositQuote(String(a), String(m))),
+  solPoolDeposit: call((a: string, m: string, w: string) => service.solPoolDeposit(String(a), String(m), String(w))),
+  solPoolWithdrawQuote: call((a: string, m: string, t: string) => service.solPoolWithdrawQuote(String(a), String(m), String(t))),
+  solPoolWithdraw: call((a: string, m: string, t: string, w: string, o?: { delayMinutes?: number }) => service.solPoolWithdraw(String(a), String(m), String(t), String(w), o && typeof o === 'object' ? { delayMinutes: Number(o.delayMinutes) || 0 } : {})),
+  solPoolCancelLater: call((i: string) => service.solPoolCancelLater(String(i))),
   dcrStakeFinish: call((p: string) => service.dcrStakeFinish(p)),
   dcrTickets: call((force?: boolean) => service.dcrTickets(!!force)),
   swapConfirm: call((id: string, pw: string) => service.swapConfirm(id, pw)),

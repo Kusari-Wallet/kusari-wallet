@@ -12,6 +12,9 @@ import { Asset, BTC_APIS, BTC_ONION_APIS, DECIMALS, FIRO_APIS, SOL_RPCS, BCH_API
 import { MIN_PASSWORD, Secrets, Vault } from './vault';
 import { TronClient, deriveTronAccount, generateTronMnemonic } from './tron';
 import { socksAgent, getJson, newTorRoute, isolatedAgent } from './request';
+import { SolPool } from './sol-pool';
+import { poolKeys } from './sol-privacy';
+import { runSolPool } from './solpool-run';
 import type { Agent } from 'node:http';
 import { AAVE_MARKETS, aaveCall, readAave } from './aave';
 import { ScrtClient, scrtPrivacyKeys, scrtPublicKey } from './scrt';
@@ -35,7 +38,7 @@ import { DCR_API, DCR_MIXED_PATH, DCR_PATH, DcrClient, dcrAccountXpub, dcrNet } 
 import { DcrMixer } from './dcr-mixer';
 import { tcpDial as dcrDial } from './dash-net';
 import { BchClient, bchAccountXpub } from './bch';
-import { SolClient, solAddress } from './sol';
+import { SolClient, solAddress, solSecret } from './sol';
 import { DashClient, dashAccountXpub } from './dash';
 import { DashMixer, MIX_ROUNDS } from './dash-mix';
 import { tcpDial } from './dash-net';
@@ -85,6 +88,8 @@ export class ServiceCore extends EventEmitter {
   protected dcrMixHeld: string[] = [];
   protected bch: BchClient | null = null;
   protected sol: SolClient | null = null;
+  /** The Solana private pool (sol-pool.ts): its note keys are held while the wallet is open. */
+  protected solPool: SolPool | null = null;
   protected zec: ZecClient | null = null;
   protected zano: ZanoClient | null = null;
   /** Kusari (KSR): the Zano client on its own engine, chain and keys. */
@@ -114,7 +119,7 @@ export class ServiceCore extends EventEmitter {
   settings: Settings = { ...DEFAULT_SETTINGS };
 
   constructor(protected readonly baseDir: string, protected readonly kdf?: { N: number; r: number; p: number }, protected readonly dev: {
-    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; bchApi?: string; ltcApi?: string; scrtLcd?: string; polRpc?: string; polScout?: string; polUsdt?: string; arbRpc?: string; arbScout?: string; arbUsdt?: string; bscRpc?: string; bscScout?: string; uniswapKey?: string; uniswapBase?: string; dashApi?: string; dashSeeds?: string[]; dashConnect?: string; firoApi?: string; solRpc?: string; dogeApi?: string; dogeBackup?: string; dcrApi?: string; zecBin?: string; zecServers?: string[]; zanoBin?: string; zanoNode?: string; ksrBin?: string; ksrNode?: string; arrrBin?: string; arrrServers?: string[]; mwebBin?: string; mwebConnect?: string; sparkBin?: string; sparkServer?: string; sparkConnect?: string; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; tornadoRelayerNames?: { name: string; address: string; url?: string }[]; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; etzSwapBase?: string; cceCashBase?: string; changeNowBase?: string; quoteDeadlineMs?: number; btcApi?: string; coinjoinCoordinator?: string; coinjoinTest?: { pollMs?: number; registrationMarginMs?: number; minInputs?: number };
+    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; bchApi?: string; ltcApi?: string; scrtLcd?: string; polRpc?: string; polScout?: string; polUsdt?: string; arbRpc?: string; arbScout?: string; arbUsdt?: string; bscRpc?: string; bscScout?: string; uniswapKey?: string; uniswapBase?: string; dashApi?: string; dashSeeds?: string[]; dashConnect?: string; firoApi?: string; solRpc?: string; solPoolRelayer?: string; dogeApi?: string; dogeBackup?: string; dcrApi?: string; zecBin?: string; zecServers?: string[]; zanoBin?: string; zanoNode?: string; ksrBin?: string; ksrNode?: string; arrrBin?: string; arrrServers?: string[]; mwebBin?: string; mwebConnect?: string; sparkBin?: string; sparkServer?: string; sparkConnect?: string; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; tornadoRelayerNames?: { name: string; address: string; url?: string }[]; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; etzSwapBase?: string; cceCashBase?: string; changeNowBase?: string; quoteDeadlineMs?: number; btcApi?: string; coinjoinCoordinator?: string; coinjoinTest?: { pollMs?: number; registrationMarginMs?: number; minInputs?: number };
     /** Android: every outside address goes through the app's local forwarder. */
     route?: (url: string) => string;
     moneroStore?: (net: NetworkId, walletId: string) => MoneroOptions['store'];
@@ -417,6 +422,23 @@ export class ServiceCore extends EventEmitter {
     void this.dcrStakeLoad?.().catch(() => undefined);
     this.bch = new BchClient(bchAccountXpub(secrets.tronMnemonic), this.dev.bchApi ? [this.dev.bchApi] : this.ownList('BCH', BCH_APIS), this.ownAgent('BCH', 'bch'), slow ? 60_000 : 20_000);
     this.sol = new SolClient(solAddress(secrets.tronMnemonic), this.dev.solRpc ? [this.dev.solRpc] : this.ownList('SOL', SOL_RPCS), this.ownAgent('SOL', 'sol'), slow ? 60_000 : 20_000);
+    {
+      const solAgent = this.ownAgent('SOL', 'sol');
+      const poolAgent = this.torRoute('sol-pool');
+      const local = !!this.dev.solRpc;
+      this.solPool = new SolPool(poolKeys(solSecret(secrets.tronMnemonic)), this.sol.address, {
+        // Development: the stand-in relayer answers the pool's chain lookups too (at /rpc beside it).
+        rpcs: this.dev.solPoolRelayer ? [this.dev.solPoolRelayer.replace(/\/r$/, '/rpc')] : this.dev.solRpc ? [this.dev.solRpc] : this.ownList('SOL', SOL_RPCS),
+        relayer: this.dev.solPoolRelayer,
+        // Each purpose on a Tor route of its own (a new one each time): the scan, the tree-path lookup, the
+        // withdrawal and the chain lookups can't be put together by the relayer or the SOL server.
+        conn: (purpose) => (purpose === 'chain' || purpose === 'spent' ? this.isolated(`sol-pool-${purpose}`, solAgent, local) : this.isolated(`sol-pool-${purpose}`, poolAgent, local && !!this.dev.solPoolRelayer)),
+        records: this.records, file: path.join(this.dir, 'sol-pool.json'),
+        prove: (input) => runSolPool('prove', { input }),
+        timeoutMs: slow ? 90_000 : 30_000,
+        ...(this.dev.solPoolRelayer ? { pauseMs: () => 200 } : {}),
+      });
+    }
     this.dash = new DashClient(dashAccountXpub(secrets.tronMnemonic), this.dev.dashApi ? [this.dev.dashApi] : this.ownList('DASH', DASH_APIS), this.ownAgent('DASH', 'dash'), slow ? 60_000 : 20_000);
     this.startMixer(secrets, slow);
     this.eth = new EthClient(this.dev.ethRpc ? [this.dev.ethRpc] : this.ownList('ETH', ETH_RPCS), this.dev.ethScout ?? ETH_SCOUT, ETH_USDT, deriveEthAccount(secrets.tronMnemonic).address, this.ownAgent('ETH', 'eth'), slow ? 60_000 : 15_000);
@@ -840,6 +862,7 @@ export class ServiceCore extends EventEmitter {
     this.dcr = null;
     this.bch = null;
     this.sol = null;
+    this.solPool = null;
     // Engines stop in the background; deleting a wallet waits for them, since they hold its files open.
     const starting = this.enginesStarting;
     this.engineStops = Promise.allSettled([this.zec?.stop(), this.zano?.stop(), this.ksr?.stop(), this.arrr?.stop(), starting]).then(() => undefined);

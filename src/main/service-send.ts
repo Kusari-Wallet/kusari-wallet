@@ -25,7 +25,8 @@ import { isDogeAddress, typicalDogeFee } from './doge';
 import { DCR_EXPLORER_TX, DCR_MIXED_PATH, DCR_PATH, DcrClient, isDcrAddress, typicalDcrFee, dcrNet } from './dcr';
 import { MAX_TICKETS, TICKET_FEE, VSP_LIST_URL, VspClient, commitmentKey, feeFundFor, feeTx, parseVspList, planTickets, ticketExpiry, vspFee, vspOrigin, votingKey } from './dcr-stake';
 import { isBchAddress, normalBchAddress, typicalBchFee } from './bch';
-import { SOL_FEE, SPL_TOKENS, isSolAddress } from './sol';
+import { SOL_FEE, SPL_TOKENS, isSolAddress, solSecret } from './sol';
+import { POOL_TOKENS, type PoolAsset } from './sol-privacy';
 import { DASH_DUST, dashFee, isDashAddress, signDashOutputs, typicalDashFee } from './dash';
 import { DashMixer, MIX_ROUNDS } from './dash-mix';
 import { COINJOIN_COORDINATORS, MIX_TARGETS } from './btc-mix';
@@ -966,10 +967,199 @@ export class SendService extends ServiceCore {
   protected override async afterBtcReady(): Promise<void> {
     for (const e of await this.delayedList()) this.armDelayed(e);
     await this.armAllTornado().catch(() => undefined);
+    for (const e of await this.poolLaterList().catch(() => [])) this.armPoolLater(e);
   }
   protected override onLock(): void {
     for (const t of this.delayedTimers.values()) clearTimeout(t); this.delayedTimers.clear();
     for (const t of this.tornadoTimers.values()) clearTimeout(t); this.tornadoTimers.clear();
+    for (const t of this.poolTimers.values()) clearTimeout(t); this.poolTimers.clear();
+    this.poolScanState.clear();
+  }
+
+  // ---- Solana private pool (PrivacyCash) ----
+  // Deposits are signed here and go into the pool's program; the private balance is found by trying to open every
+  // note the pool publishes; sends out of the pool go through its relayer, which signs and pays for them. Tor only.
+
+  protected poolTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  protected poolScanState = new Map<PoolAsset, { running: boolean; at: number; done?: number; total?: number; error?: string }>();
+  protected get poolHistoryPath(): string { return path.join(this.dir, 'sol-pool-history.json'); }
+  protected get poolLaterPath(): string { return path.join(this.dir, 'sol-pool-later.json'); }
+
+  protected poolAsset(asset: string): PoolAsset {
+    if (!Object.prototype.hasOwnProperty.call(POOL_TOKENS, asset)) throw new Error('The private pool takes SOL, USDC and USDT on Solana.');
+    return asset as PoolAsset;
+  }
+  protected poolOpen() {
+    this.session();
+    if (!this.solPool || !this.sol) throw new Error('Solana is not available.');
+    if (!this.torActive && !this.dev.solPoolRelayer) throw new Error('The private pool needs Tor. Turn it on in Settings first.');
+    return { pool: this.solPool, sol: this.sol };
+  }
+
+  /** Looks for new notes in the background (at most every two minutes per coin). */
+  protected poolScan(asset: PoolAsset, force = false): void {
+    const st = this.poolScanState.get(asset);
+    if (st?.running || (!force && st && Date.now() - st.at < 120_000)) return;
+    const pool = this.solPool;
+    if (!pool) return;
+    const state = { running: true, at: Date.now(), done: st?.done, total: st?.total } as { running: boolean; at: number; done?: number; total?: number; error?: string };
+    this.poolScanState.set(asset, state);
+    void pool.scan(asset, (done, total) => { state.done = done; state.total = total; this.emit('sol-pool-progress', `scan:${asset}:${done}:${total}`); })
+      .then((found) => { if (found) this.emit('balance-changed'); })
+      .catch((e) => { state.error = (e as Error).message; })
+      .finally(() => { state.running = false; state.at = Date.now(); if (this.solPool === pool) this.emit('sol-pool-progress', `scanned:${asset}`); });
+  }
+
+  async solPoolInfo(asset: string) {
+    const a = this.poolAsset(asset);
+    this.session();
+    const pool = this.solPool;
+    if (!pool) throw new Error('Solana is not available.');
+    const t = POOL_TOKENS[a];
+    const enabled = await pool.enabled(a);
+    if (enabled && (this.torActive || this.dev.solPoolRelayer)) this.poolScan(a);
+    const b = await pool.balance(a);
+    const st = this.poolScanState.get(a);
+    const later = (await this.poolLaterList()).filter((e) => e.asset === a).map((e) => ({ id: e.id, at: e.at, amount: formatAmount(BigInt(e.amount), t.decimals), to: e.to }));
+    return {
+      asset: a, symbol: t.symbol, enabled, tor: this.torActive || !!this.dev.solPoolRelayer,
+      ready: formatAmount(b.ready, t.decimals), arriving: formatAmount(b.arriving, t.decimals), notes: b.notes,
+      scanning: !!st?.running, scanDone: st?.done ?? b.scannedTo, scanTotal: st?.total ?? null, error: st?.error ?? null, later,
+    };
+  }
+
+  /** Starts looking for this coin's notes: from now on, or (`fromStart`) through the whole pool, for notes made
+   *  before (with this wallet or on the pool's site with the same SOL key). */
+  async solPoolEnable(asset: string, fromStart: boolean): Promise<void> {
+    const a = this.poolAsset(asset);
+    const { pool } = this.poolOpen();
+    await pool.enable(a, fromStart === true);
+    this.poolScan(a, true);
+  }
+
+  protected async poolHistory(): Promise<{ kind: 'in' | 'out'; asset: string; amount: string; at: number }[]> {
+    const j = await this.records.read(this.poolHistoryPath).catch(() => undefined);
+    return Array.isArray(j) ? j.filter((e: any) => (e?.kind === 'in' || e?.kind === 'out') && typeof e.amount === 'string' && Number.isFinite(e.at)) : [];
+  }
+  protected async poolRemember(kind: 'in' | 'out', asset: PoolAsset, amount: bigint): Promise<void> {
+    const list = [...(await this.poolHistory()), { kind, asset, amount: String(amount), at: Date.now() }].slice(-200);
+    await this.records.write(this.poolHistoryPath, list).catch(() => undefined);
+  }
+
+  async solPoolDepositQuote(asset: string, amountText: string) {
+    const a = this.poolAsset(asset);
+    const { pool, sol } = this.poolOpen();
+    const t = POOL_TOKENS[a];
+    const amount = parseAmount(amountText, t.decimals);
+    if (amount <= 0n) throw new Error('Enter an amount.');
+    const { fee, max } = await pool.depositCost(a);
+    if (amount > max) throw new Error(`The pool takes at most ${formatAmount(max, t.decimals)} ${t.symbol} in one deposit.`);
+    const { spendable } = await sol.getBalance();
+    if (a === 'SOL') { if (amount + fee > spendable) throw new Error(`Not enough SOL: this needs ${formatAmount(amount + fee, 9)} SOL with the network costs.`); }
+    else {
+      if ((await sol.getUsdtBalance(a)) < amount) throw new Error(`Not enough ${t.symbol}.`);
+      if (fee > spendable) throw new Error(`Not enough SOL for the network costs (${formatAmount(fee, 9)} SOL).`);
+    }
+    // Amounts like other people's (round ones) are harder to match with a withdrawal.
+    const digits = amount.toString().replace(/0+$/, '').length;
+    return { asset: a, symbol: t.symbol, amount: formatAmount(amount, t.decimals), cost: formatAmount(fee, 9), round: digits <= 2 };
+  }
+
+  async solPoolDeposit(asset: string, amountText: string, password: string) {
+    const a = this.poolAsset(asset);
+    await this.solPoolDepositQuote(a, amountText);
+    const { pool, sol } = this.poolOpen();
+    const secrets = await this.vault.open(password);
+    const amount = parseAmount(amountText, POOL_TOKENS[a].decimals);
+    if (!(await pool.enabled(a))) await pool.enable(a);
+    this.emit('sol-pool-progress', 'proof');
+    const id = await pool.deposit(a, amount, solSecret(secrets.tronMnemonic));
+    await this.poolRemember('in', a, amount);
+    void sol.getBalance().catch(() => undefined);
+    setTimeout(() => this.poolScan(a, true), 45_000).unref?.();
+    this.emit('balance-changed');
+    return { id, url: SOL_EXPLORER_TX + id };
+  }
+
+  protected poolRecipient(to: string): string {
+    const r = to.trim();
+    if (!isSolAddress(r)) throw new Error('The receiving address is not a SOL address.');
+    if (r === this.sol?.address) throw new Error('Sending to this wallet\'s own address would link it to the deposit. Use another address.');
+    return r;
+  }
+
+  async solPoolWithdrawQuote(asset: string, amountText: string, to: string) {
+    const a = this.poolAsset(asset);
+    const { pool } = this.poolOpen();
+    const t = POOL_TOKENS[a];
+    const recipient = this.poolRecipient(to);
+    const q = await pool.withdrawQuote(a, amountText === 'max' ? 'max' : parseAmount(amountText, t.decimals));
+    // The relayer and anyone watching the chain see this amount and time: close to a deposit's, they can be paired.
+    const deposits = (await this.poolHistory()).filter((e) => e.kind === 'in' && e.asset === a);
+    const near = deposits.some((e) => { const d = BigInt(e.amount); const diff = d > q.amount ? d - q.amount : q.amount - d; return diff * 100n <= d * 2n; });
+    const recent = deposits.some((e) => Date.now() - e.at < 6 * 3600_000);
+    return {
+      asset: a, symbol: t.symbol, to: recipient, amount: formatAmount(q.amount, t.decimals), fee: formatAmount(q.fee, t.decimals),
+      total: formatAmount(q.amount + q.fee, t.decimals), max: formatAmount(q.max, t.decimals), matchesDeposit: near, soonAfterDeposit: recent,
+    };
+  }
+
+  async solPoolWithdraw(asset: string, amountText: string, to: string, password: string, opts: { delayMinutes?: number } = {}) {
+    const a = this.poolAsset(asset);
+    const q = await this.solPoolWithdrawQuote(a, amountText, to);
+    await this.vault.open(password);
+    const amount = parseAmount(q.amount, POOL_TOKENS[a].decimals);
+    const delay = Number(opts.delayMinutes) || 0;
+    if (delay) {
+      if (!POOL_DELAY_CHOICES.includes(delay)) throw new Error('Choose when to send.');
+      const entry = { id: randomUUID(), asset: a, amount: String(amount), to: q.to, at: Date.now() + Math.round((0.1 + Math.random() * 0.9) * delay * 60_000) };
+      await this.records.write(this.poolLaterPath, [...(await this.poolLaterList()), entry]);
+      this.armPoolLater(entry);
+      return { scheduledAt: entry.at };
+    }
+    const id = await this.poolSend(a, amount, q.to);
+    return { id, url: SOL_EXPLORER_TX + id };
+  }
+
+  protected async poolSend(a: PoolAsset, amount: bigint, to: string): Promise<string> {
+    const { pool } = this.poolOpen();
+    const id = await pool.withdraw(a, amount, to, (stage) => this.emit('sol-pool-progress', stage));
+    await this.poolRemember('out', a, amount);
+    setTimeout(() => this.poolScan(a, true), 45_000).unref?.();
+    this.emit('balance-changed');
+    return id;
+  }
+
+  protected async poolLaterList(): Promise<{ id: string; asset: PoolAsset; amount: string; to: string; at: number }[]> {
+    const j = await this.records.read(this.poolLaterPath).catch(() => undefined);
+    return Array.isArray(j) ? j.filter((e: any) => typeof e?.id === 'string' && Object.prototype.hasOwnProperty.call(POOL_TOKENS, e.asset) && /^\d+$/.test(e.amount) && isSolAddress(e.to) && Number.isFinite(e.at)) : [];
+  }
+  /** Runs while the wallet is open; one that came due while it was closed goes out within a minute of opening. */
+  protected armPoolLater(e: { id: string; at: number }): void {
+    clearTimeout(this.poolTimers.get(e.id));
+    const t = setTimeout(() => void this.firePoolLater(e.id), Math.max(e.at - Date.now(), 5_000 + Math.random() * 55_000));
+    (t as any).unref?.();
+    this.poolTimers.set(e.id, t);
+  }
+  protected async firePoolLater(id: string): Promise<void> {
+    this.poolTimers.delete(id);
+    const e = (await this.poolLaterList()).find((x) => x.id === id);
+    if (!e || !this.solPool) return;
+    const drop = async () => this.records.write(this.poolLaterPath, (await this.poolLaterList()).filter((x) => x.id !== id)).catch(() => undefined);
+    try {
+      await this.poolSend(e.asset, BigInt(e.amount), e.to);
+      await drop();
+    } catch (err) {
+      const m = (err as Error).message;
+      // Refusals that waiting won't fix end it; anything else (offline, relayer busy) tries again later.
+      if (/refused|More than one|less than|nothing in the private pool|not a SOL address/i.test(m)) { await drop(); this.emit('sol-pool-progress', `failed:${m}`); return; }
+      const t = setTimeout(() => void this.firePoolLater(id), 10 * 60_000); (t as any).unref?.(); this.poolTimers.set(id, t);
+    }
+  }
+  async solPoolCancelLater(id: string): Promise<void> {
+    this.session();
+    clearTimeout(this.poolTimers.get(id)); this.poolTimers.delete(id);
+    await this.records.write(this.poolLaterPath, (await this.poolLaterList()).filter((x) => x.id !== String(id)));
   }
   protected get delayedPath(): string { return path.join(this.dir, 'btc-delayed.json'); }
 
@@ -1518,3 +1708,5 @@ export class SendService extends ServiceCore {
 
 /** How long a delayed Bitcoin send may wait: it goes out at a random moment within it. */
 export const DELAY_CHOICES = [10, 60, 240];
+/** The same for sends out of the Solana private pool, which may wait longer (the wallet has to be open). */
+export const POOL_DELAY_CHOICES = [60, 360, 1440];

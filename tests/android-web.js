@@ -322,6 +322,21 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
     await (await chain.tornado.connect(chain.relayer).withdraw(proof, ...args)).wait();
     console.log('ok Tornado proof made in the WebView bundle in', Date.now() - started, 'ms, accepted by the contract');
   } finally { await chain.stop(); }
+  {
+    // The Solana private pool's prover in the WebView bundle: a deposit proof whose signals match the transaction.
+    const P = require('../dist/main/sol-privacy');
+    const rnd = (n) => new Uint8Array(require('node:crypto').randomBytes(n));
+    const keys = P.poolKeys(new Uint8Array(32).fill(7));
+    const t = P.POOL_TOKENS.SOL;
+    const outs = [{ amount: 10_000_000n, blinding: P.randomBlinding(rnd) }, { amount: 0n, blinding: P.randomBlinding(rnd) }];
+    const ext = { recipient: P.POOL_FEE_RECIPIENT, extAmount: 10_000_000n, enc1: rnd(80), enc2: rnd(80), fee: 0n, feeRecipient: P.POOL_FEE_RECIPIENT, mint: t.mint };
+    const { input, signals } = P.circuitInput(keys, t, P.zeros()[P.TREE_DEPTH], [{ note: null, path: [] }, { note: null, path: [] }], outs, ext, rnd);
+    const started = Date.now();
+    const r = await page.evaluate((i) => window.__solPoolRun('prove', { input: i }), input);
+    assert.deepEqual(r.publicSignals, signals.map(String));
+    assert.equal(P.proofBytes(r.proof).length, 256);
+    console.log('ok Solana pool proof made in the WebView bundle in', Date.now() - started, 'ms');
+  }
   await page.click('#back');
   await page.click('#back');
 

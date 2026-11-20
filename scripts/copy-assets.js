@@ -14,3 +14,5 @@ fs.cpSync(path.join(root, 'src/renderer/coins'), path.join(out, 'coins'), { recu
 fs.copyFileSync(path.join(root, 'node_modules/pretendard/dist/web/variable/woff2/PretendardVariable.woff2'), path.join(out, 'PretendardVariable.woff2'));
 fs.cpSync(path.join(root, 'assets/tornado'), path.join(root, 'dist/main/tornado'), { recursive: true });
 require('./build-tornado-worker').node().catch((e) => { console.error(e.message); process.exit(1); });
+fs.cpSync(path.join(root, 'assets/solpool'), path.join(root, 'dist/main/solpool'), { recursive: true });
+require('./build-solpool-worker').node().catch((e) => { console.error(e.message); process.exit(1); });

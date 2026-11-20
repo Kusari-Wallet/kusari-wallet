@@ -51,6 +51,9 @@ function deriveSecret(mnemonic: string): Uint8Array {
   return node.slice(0, 32);
 }
 
+/** The wallet's SOL signing key, for the private pool's keys (sol-privacy.ts) and its deposits. */
+export const solSecret = (mnemonic: string): Uint8Array => deriveSecret(mnemonic);
+
 export function solAddress(mnemonic: string): string {
   return base58.encode(ed25519.getPublicKey(deriveSecret(mnemonic)));
 }
