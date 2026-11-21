@@ -65,6 +65,9 @@ public class MainActivity extends Activity {
         super.onCreate(state);
         // Keeps seed words out of screenshots and the recent-apps preview.
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
+        // Android 13+: the recent-apps list shows a blank card instead of a picture of the last screen, on top of the
+        // flag above (some launchers took their own snapshot).
+        if (android.os.Build.VERSION.SDK_INT >= 33) setRecentsScreenshotEnabled(false);
         biometric = new BiometricVault(this);
         arrr = new ZecProcess(new File(getApplicationInfo().nativeLibraryDir, "libarrrbridge.so"), new File(getFilesDir(), "arrr"), new ZecProcess.Listener() {
             @Override public void onLine(String line) { toPage("window.__arrrLine&&window.__arrrLine(" + JSONObject.quote(line) + ")"); }

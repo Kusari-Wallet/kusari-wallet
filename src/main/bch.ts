@@ -2,7 +2,7 @@ import { bip39Seed } from './seed';
 import { BLOCKBOOK, blockbookSend, isBlockbook } from './blockbook';
 import type { Agent } from 'node:http';
 import { SigningKey, getBytes, ripemd160, sha256 } from 'ethers';
-import { getJson, requestJson } from './request';
+import { getJson, requestJson, USER_AGENT } from './request';
 import { InsightDraft, InsightWallet } from './insight';
 
 const { HDKey } = require('@scure/bip32');
@@ -201,7 +201,7 @@ export class BchClient extends InsightWallet<'BCH'> {
   protected async get(path: string): Promise<any> {
     let last: unknown;
     for (const base of this.only ? [this.only] : this.apis.filter((b) => !isBlockbook(b))) {
-      try { return await getJson(base + path, { agent: this.agent, timeoutMs: this.timeoutMs, headers: { Accept: 'application/json', 'User-Agent': 'KusariWallet' } }); } catch (e) { last = e; }
+      try { return await getJson(base + path, { agent: this.agent, timeoutMs: this.timeoutMs, headers: { Accept: 'application/json', 'User-Agent': USER_AGENT } }); } catch (e) { last = e; }
     }
     throw last instanceof Error ? last : new Error('Could not reach the BCH server.');
   }
@@ -216,7 +216,7 @@ export class BchClient extends InsightWallet<'BCH'> {
   }
 
   private one(base: string, path: string): Promise<any> {
-    return getJson(base + path, { agent: this.agent, timeoutMs: this.timeoutMs, headers: { Accept: 'application/json', 'User-Agent': 'KusariWallet' } });
+    return getJson(base + path, { agent: this.agent, timeoutMs: this.timeoutMs, headers: { Accept: 'application/json', 'User-Agent': USER_AGENT } });
   }
 
   /** Blockbook gives coins and transactions per address with their addresses and values in satoshis. */

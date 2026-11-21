@@ -106,7 +106,7 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
   assert.equal((await proxied(pPlain, '/x')).status, 502, 'unresolvable name fails while direct');
   await open(`socks:${new URL(fwd.uri).port}`);
   const echoed = await (await proxied(pPlain, '/json_rpc?a=1', { method: 'POST', body: 'hello', headers: { 'Content-Type': 'application/json', 'X-Api-Signature': 'sig', 'X-API-SECRET-KEY': 'sec', 'Ref-Code': 'ref', 'x-api-key': 'K1', Authorization: 'Bearer a:b', 'Idempotency-Key': 'I1' } })).json();
-  assert.deepEqual(echoed, { method: 'POST', url: '/json_rpc?a=1', body: 'hello', key: 'K1', sig: 'sig', secret: 'sec', ref: 'ref', auth: 'Bearer a:b', idem: 'I1', ua: 'KusariWallet', accept: 'application/json', type: 'application/json' });
+  assert.deepEqual(echoed, { method: 'POST', url: '/json_rpc?a=1', body: 'hello', key: 'K1', sig: 'sig', secret: 'sec', ref: 'ref', auth: 'Bearer a:b', idem: 'I1', ua: 'Mozilla/5.0 (Windows NT 10.0; rv:140.0) Gecko/20100101 Firefox/140.0', accept: 'application/json', type: 'application/json' });
   assert.deepEqual(await (await proxied(pTls, '/p')).json(), { tls: true });
   assert.ok(fwd.log.every((d) => d.type === 'domain'), 'hostnames reach the proxy unresolved');
   assert.ok(fwd.log.every((d) => d.user), 'every connection names its Tor route');

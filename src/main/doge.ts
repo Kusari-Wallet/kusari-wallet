@@ -1,6 +1,6 @@
 import { bip39Seed } from './seed';
 import type { Agent } from 'node:http';
-import { getJson, requestJson } from './request';
+import { getJson, requestJson, USER_AGENT } from './request';
 import { InsightDraft, InsightWallet } from './insight';
 
 const { HDKey } = require('@scure/bip32');
@@ -83,7 +83,7 @@ export class DogeClient extends InsightWallet<'DOGE'> {
     this.lastAsked = Date.now();
     let last: unknown;
     for (const base of this.apis) {
-      try { return await getJson(base + path, { agent: this.agent, timeoutMs: this.timeoutMs, headers: { Accept: 'application/json', 'User-Agent': 'KusariWallet' } }); } catch (e) { last = e; }
+      try { return await getJson(base + path, { agent: this.agent, timeoutMs: this.timeoutMs, headers: { Accept: 'application/json', 'User-Agent': USER_AGENT } }); } catch (e) { last = e; }
     }
     throw last instanceof Error ? last : new Error('Could not reach the DOGE server.');
   }
@@ -96,7 +96,7 @@ export class DogeClient extends InsightWallet<'DOGE'> {
     } catch { /* try the others */ }
     for (const base of this.rawUrls) {
       try {
-        const r = await getJson(base + txid, { agent: this.agent, timeoutMs: this.timeoutMs, headers: { Accept: 'application/json', 'User-Agent': 'KusariWallet' } });
+        const r = await getJson(base + txid, { agent: this.agent, timeoutMs: this.timeoutMs, headers: { Accept: 'application/json', 'User-Agent': USER_AGENT } });
         const hex = r?.data?.[txid]?.raw_transaction;
         if (typeof hex === 'string' && hex) return hex;
       } catch { /* next */ }
@@ -146,7 +146,7 @@ export class DogeClient extends InsightWallet<'DOGE'> {
       const hold = this.lastAsked + this.paceMs - Date.now();
       if (hold > 0) await wait(hold);
       this.lastAsked = Date.now();
-      const r = await getJson(base + p, { agent: this.agent, timeoutMs: this.timeoutMs, headers: { Accept: 'application/json', 'User-Agent': 'KusariWallet' } });
+      const r = await getJson(base + p, { agent: this.agent, timeoutMs: this.timeoutMs, headers: { Accept: 'application/json', 'User-Agent': USER_AGENT } });
       if (r?.success !== 1) throw new Error(UNEXPECTED);
       return r;
     };

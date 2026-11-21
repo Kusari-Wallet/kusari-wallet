@@ -393,6 +393,9 @@ export function signProposal(checked: { tx: any; ours: number[] }, r: SenderRule
 
 // ---- the receiver's side (BIP78 checks, then one coin added) ----
 
+/** The highest fee rate (sat/vB) at which this wallet adds its coin to a Payjoin. */
+export const MAX_RECEIVER_FEE_RATE = 500;
+
 export interface ReceiverCoin { txid: string; vout: number; amount: bigint; script: Uint8Array; tapInternalKey: Uint8Array }
 export interface OriginalSeen { tx: any; payIndex: number; fee: bigint; vsize: number; hex: string; params: URLSearchParams; outpoints: string[] }
 
@@ -433,6 +436,8 @@ export function buildProposal(seen: OriginalSeen, coin: ReceiverCoin, sign: (tx:
   const seq = orig.getInput(0).sequence;
   for (let i = 1; i < orig.inputsLength; i++) if (orig.getInput(i).sequence !== seq) throw new Error('original-psbt-rejected: mixed sequence numbers');
   const rate = Number(seen.fee) / seen.vsize;
+  // This wallet pays its coin's share at the original's fee rate: an absurd rate would make it pay an absurd fee.
+  if (rate > MAX_RECEIVER_FEE_RATE) throw new Error('original-psbt-rejected: fee rate too high');
   const extraFee = BigInt(Math.ceil(rate * 57.5));
   let fromSender = 0n;
   const feeIdx = Number(seen.params.get('additionalfeeoutputindex'));

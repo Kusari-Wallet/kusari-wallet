@@ -1524,12 +1524,11 @@ export class SendService extends ServiceCore {
       // The recipient gets up to a minute to add a coin; otherwise, or if anything about it is off, the ordinary
       // payment goes out. Either way the payment is made.
       const r = await payjoinPay({ draft: preview.btc, mnemonic: secrets.tronMnemonic, target: preview.payjoin, post: this.payjoinPost(), waitMs: 60_000 });
-      if (r.payjoin) {
-        try { return { hashes: [await btc.sendSigned(r.draft, r.hex, r.id)], payjoin: true }; } catch {
-          // The recipient's coin may have been spent meanwhile: the ordinary payment, then.
-        }
-      }
       const plain = btc.sign(preview.btc, secrets.tronMnemonic);
+      if (r.payjoin) {
+        // Should the Payjoin not go through (the recipient's coin spent meanwhile), the ordinary payment does.
+        try { return { hashes: [await btc.sendSigned(r.draft, r.hex, r.id, { draft: preview.btc, ...plain })], payjoin: true }; } catch { /* the ordinary payment, then */ }
+      }
       return { hashes: [await btc.sendSigned(preview.btc, plain.hex, plain.id)], payjoin: false, payjoinProblem: r.problem ?? 'The recipient\'s Payjoin could not be sent.' };
     }
     if (preview.btc) {

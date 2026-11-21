@@ -28,6 +28,9 @@ import javax.net.ssl.SSLSocketFactory;
  * the phone's browser can send a plain GET without one, and must not be able to use or detect the forwarder.
  */
 final class LocalProxy {
+    /** Tor Browser's own string (Firefox ESR on Windows), the most common over Tor, rather than the wallet's name. */
+    static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; rv:140.0) Gecko/20100101 Firefox/140.0";
+
     private static final int MAX_BODY = 64 * 1024 * 1024;
     private static final int MAX_HEADER = 64 * 1024;
     /** Not a header that's sent: a route name, for requests that must each leave on a Tor route of their own (CoinJoin). */
@@ -150,7 +153,7 @@ final class LocalProxy {
             up.setInstanceFollowRedirects(false);
             up.setUseCaches(false);
             up.setRequestMethod(method);
-            up.setRequestProperty("User-Agent", "KusariWallet");
+            up.setRequestProperty("User-Agent", USER_AGENT);
             up.setRequestProperty("Accept", "application/json");
             if (contentType != null) up.setRequestProperty("Content-Type", contentType);
             if (apiKey != null) up.setRequestProperty("TRON-PRO-API-KEY", apiKey);
@@ -233,7 +236,7 @@ final class LocalProxy {
             h.append("Host: ").append(host).append(defaultPort ? "" : ":" + port).append("\r\n");
             boolean routed = swap.containsKey(ROUTE);
             // A routed (CoinJoin) request carries only what Wasabi's own client sends, so it can't be told apart.
-            if (!routed) h.append("User-Agent: KusariWallet\r\nAccept: application/json\r\nAccept-Encoding: identity\r\nConnection: close\r\n");
+            if (!routed) h.append("User-Agent: ").append(USER_AGENT).append("\r\nAccept: application/json\r\nAccept-Encoding: identity\r\nConnection: close\r\n");
             if (contentType != null) h.append("Content-Type: ").append(contentType).append("\r\n");
             if (apiKey != null && !routed) h.append("TRON-PRO-API-KEY: ").append(apiKey).append("\r\n");
             // A Decred VSP's request signature goes on routed requests too: it is part of the request itself.

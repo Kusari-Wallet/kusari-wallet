@@ -11,7 +11,7 @@ import { formatAmount, parseAmount } from './amount';
 import { Asset, BTC_APIS, BTC_ONION_APIS, DECIMALS, FIRO_APIS, SOL_RPCS, TON_APIS, BCH_APIS, LTC_APIS, DOGE_APIS, DOGE_PUSH_URLS, DOGE_BACKUP, DOGE_RAW_URLS, POL_RPCS, POL_SCOUT, ARB_RPCS, ARB_SCOUT, BSC_RPCS, BSC_SCOUT, DASH_APIS, DEFAULT_SETTINGS, ARRR_SERVERS, ZANO_NODE, KSR_NODE, ZEC_SERVERS, ETH_RPCS, ETH_SCOUT, ETH_USDT, NETWORKS, NetworkId, Settings, estimateMainnetHeight } from './config';
 import { MIN_PASSWORD, Secrets, Vault } from './vault';
 import { TronClient, deriveTronAccount, generateTronMnemonic } from './tron';
-import { socksAgent, getJson, newTorRoute, isolatedAgent } from './request';
+import { socksAgent, getJson, newTorRoute, isolatedAgent, USER_AGENT } from './request';
 import { SolPool } from './sol-pool';
 import { poolKeys } from './sol-privacy';
 import { runSolPool } from './solpool-run';
@@ -1023,7 +1023,7 @@ export class ServiceCore extends EventEmitter {
     return this.torActive && /ECONNREFUSED 127\.0\.0\.1|socks/i.test(e.message) ? 'Not connected to Tor. Balances load once it connects.' : e.message;
   }
 
-  protected balanceMemo = new Map<string, { at: number; total: bigint; spendable: bigint; decimals: number }>();
+  protected balanceMemo = new Map<string, { at: number; total: bigint; spendable: bigint; decimals: number; hold?: number }>();
   protected balanceRetryAt = new Map<string, number>();
 
   /**
@@ -1110,7 +1110,7 @@ export class ServiceCore extends EventEmitter {
   protected async readBalanceOnce(key: string, fn: () => Promise<[bigint, bigint]>, decimals: number, ttl: number): Promise<BalanceView> {
     const view = (m: { total: bigint; spendable: bigint }, stale = false): BalanceView => ({ ok: true, total: formatAmount(m.total, decimals), spendable: formatAmount(m.spendable, decimals), ...(stale ? { stale: true } : {}) });
     const memo = this.balanceMemo.get(key);
-    if (memo && Date.now() - memo.at < ttl) return view(memo);
+    if (memo && Date.now() - memo.at < Math.max(ttl, memo.hold ?? 0)) return view(memo);
     if (key !== 'XMR' && this.torNotReady) return { ok: false, pending: true, total: '', spendable: '' };
     let failure: Error | undefined;
     if (Date.now() >= (this.balanceRetryAt.get(key) ?? 0)) {
@@ -1121,7 +1121,10 @@ export class ServiceCore extends EventEmitter {
           const [total, spendable] = await fn();
           this.lastLookupError.delete(key);
           this.balanceFails.delete(key);
-          this.balanceMemo.set(key, { at: Date.now(), total, spendable, decimals });
+          // Each coin is looked up again after a random while of its own, so lookups don't go out together, on a
+          // beat a server or network could tie to one wallet. Tests (with their own servers) skip it.
+          const hold = this.dev.tronHost ? 0 : 15_000 + Math.floor(Math.random() * 45_000);
+          this.balanceMemo.set(key, { at: Date.now(), total, spendable, decimals, hold });
           this.balanceRetryAt.delete(key);
           return view({ total, spendable });
         } catch (e) {
@@ -1500,7 +1503,7 @@ export class ServiceCore extends EventEmitter {
     const tiers = this.dev.priceSources ? [this.dev.priceSources] : this.dev.priceUrl ? [[coingecko(this.dev.priceUrl)]] : PRICE_TIERS;
     const tor = this.torActive;
     const agent = this.pricesAgent();
-    const ask = async (source: PriceSource) => source.parse(await getJson(source.url, { agent, timeoutMs: tor ? 30_000 : 10_000, headers: { Accept: 'application/json', 'User-Agent': 'KusariWallet', ...source.headers } }));
+    const ask = async (source: PriceSource) => source.parse(await getJson(source.url, { agent, timeoutMs: tor ? 30_000 : 10_000, headers: { Accept: 'application/json', 'User-Agent': USER_AGENT, ...source.headers } }));
     // A coin no market lists (KSR before launch) can't be found in a later tier either, so it sends no one there.
     const missing = (v: PriceMap | null) => !v || (Object.keys(DECIMALS) as Asset[]).some((a) => !NO_MARKET.has(a) && !v[a]);
     // Each tier only when the ones before it left a coin out; within a tier all at once, earlier sources winning.

@@ -14,11 +14,19 @@ async function enterWallet(): Promise<void> {
   torState = (await wallet.torInfo().catch(() => null))?.enabled ? (await wallet.torInfo()).state : null;
   renderHome();
   void refresh(); // Balances fill in on the home screen; a slow node or Tor must not hold it back.
-  window.clearInterval(pollTimer);
-  // Every 20 seconds while the wallet is on screen; while it is hidden or minimized, every 3 minutes, so it doesn't
-  // keep asking servers (and using battery and data) for a screen nobody sees. Coming back looks at once.
+  window.clearTimeout(pollTimer);
+  // About every 20 seconds while the wallet is on screen, at a random moment each time (12 to 32 s), so lookups keep
+  // no regular beat; while it is hidden or minimized, about every 3 minutes, so it doesn't keep asking servers (and
+  // using battery and data) for a screen nobody sees. Coming back looks at once.
   let ticks = 0;
-  pollTimer = window.setInterval(() => { ticks++; if (!document.hidden || ticks % 9 === 0) void refresh(); }, 20_000);
+  pollTimer = 1;
+  const tick = (): void => {
+    if (!pollTimer) return;
+    ticks++;
+    if (!document.hidden || ticks % 9 === 0) void refresh();
+    pollTimer = window.setTimeout(tick, 12_000 + Math.floor(Math.random() * 20_000));
+  };
+  pollTimer = window.setTimeout(tick, 12_000 + Math.floor(Math.random() * 20_000));
   if (!watchingVisibility) {
     watchingVisibility = true;
     document.addEventListener('visibilitychange', () => { if (!document.hidden && pollTimer) void refresh(); });

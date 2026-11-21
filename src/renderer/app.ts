@@ -308,7 +308,7 @@ wallet.on('balance-changed', () => void refresh());
 wallet.on('locked', () => {
   closeScanner?.();
   document.querySelectorAll('.modal').forEach((m) => m.remove());
-  window.clearInterval(pollTimer);
+  window.clearTimeout(pollTimer);
   pollTimer = undefined;
   overview = null;
   addresses = null;

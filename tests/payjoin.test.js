@@ -222,3 +222,12 @@ test('the original carries only coins and final signatures', () => {
   assert.equal(i.tapInternalKey, undefined);
   assert.equal(i.tapBip32Derivation, undefined);
 });
+
+test('the payee won\'t pay its coin\'s share at an absurd fee rate', async () => {
+  const s = setup(6);
+  s.draft.fee = 200_000n; s.draft.change = 1_000_000n - s.draft.amount - s.draft.fee;
+  const { result, receiver } = await exchange(s);
+  assert.equal(receiver, 'refused');
+  assert.equal(result.payjoin, false);
+  assert.equal(result.problem, 'The recipient turned the payment down for Payjoin.');
+});

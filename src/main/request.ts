@@ -4,6 +4,12 @@ import type { Agent } from 'node:http';
 import { SocksProxyAgent } from 'socks-proxy-agent';
 import { randomUUID } from 'node:crypto';
 
+/**
+ * What every request says it is: the browser string Tor Browser (Firefox ESR, Windows) sends, the most common one
+ * over Tor, rather than the wallet's name. Some APIs refuse requests that carry none.
+ */
+export const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; rv:140.0) Gecko/20100101 Firefox/140.0';
+
 /** socks5h: the proxy resolves hostnames, so no DNS query leaves this PC. */
 export function socksAgent(proxyUri: string): SocksProxyAgent {
   const { host } = new URL(proxyUri);
@@ -36,7 +42,7 @@ export function requestJson(url: string, opts: { method?: 'GET' | 'POST'; body?:
     const lib = url.startsWith('https:') ? https : http;
     const payload = opts.body === undefined ? undefined : JSON.stringify(opts.body);
     // Plain: only what a .NET HttpClient sends, so CoinJoin requests look like everyone else's.
-    const headers: Record<string, string> = opts.plain ? {} : { Accept: 'application/json', 'User-Agent': 'KusariWallet', ...opts.headers };
+    const headers: Record<string, string> = opts.plain ? {} : { Accept: 'application/json', 'User-Agent': USER_AGENT, ...opts.headers };
     if (payload) { headers['Content-Type'] = opts.plain ? 'application/json; charset=utf-8' : 'application/json'; headers['Content-Length'] = String(Buffer.byteLength(payload)); }
     const req = lib.request(url, { method: opts.method ?? 'GET', headers, agent: opts.agent }, (res) => {
       const chunks: Buffer[] = [];
@@ -59,7 +65,7 @@ export function requestJson(url: string, opts: { method?: 'GET' | 'POST'; body?:
 export function requestText(url: string, opts: { method: 'POST'; body: string; agent?: Agent; timeoutMs?: number }): Promise<string> {
   return new Promise((resolve, reject) => {
     const lib = url.startsWith('https:') ? https : http;
-    const req = lib.request(url, { method: opts.method, headers: { 'Content-Type': 'text/plain', 'Content-Length': String(Buffer.byteLength(opts.body)), 'User-Agent': 'KusariWallet' }, agent: opts.agent }, (res) => {
+    const req = lib.request(url, { method: opts.method, headers: { 'Content-Type': 'text/plain', 'Content-Length': String(Buffer.byteLength(opts.body)), 'User-Agent': USER_AGENT }, agent: opts.agent }, (res) => {
       const chunks: Buffer[] = [];
       res.on('data', (c: Buffer) => chunks.push(c));
       res.on('end', () => {
@@ -102,7 +108,7 @@ export function getJson(url: string, opts: { headers?: Record<string, string>; a
 export function requestForm(url: string, opts: { method: 'GET' | 'POST' | 'DELETE'; form?: string; json?: string; agent?: Agent; timeoutMs?: number }): Promise<{ status: number; body: any }> {
   return new Promise((resolve, reject) => {
     const lib = url.startsWith('https:') ? https : http;
-    const headers: Record<string, string> = { Accept: 'application/json', 'User-Agent': 'KusariWallet' };
+    const headers: Record<string, string> = { Accept: 'application/json', 'User-Agent': USER_AGENT };
     const payload = opts.json ?? opts.form;
     if (payload !== undefined) { headers['Content-Type'] = opts.json !== undefined ? 'application/json' : 'application/x-www-form-urlencoded'; headers['Content-Length'] = String(Buffer.byteLength(payload)); }
     const req = lib.request(url, { method: opts.method, headers, agent: opts.agent }, (res) => {
@@ -130,7 +136,7 @@ export function requestForm(url: string, opts: { method: 'GET' | 'POST' | 'DELET
 export function requestRaw(url: string, opts: { method: 'GET' | 'POST'; body?: string; headers?: Record<string, string>; agent?: Agent; timeoutMs?: number; route?: string }): Promise<{ status: number; text: string; headers: Record<string, string> }> {
   return new Promise((resolve, reject) => {
     const lib = url.startsWith('https:') ? https : http;
-    const headers: Record<string, string> = { Accept: 'application/json', 'User-Agent': 'KusariWallet', ...opts.headers };
+    const headers: Record<string, string> = { Accept: 'application/json', 'User-Agent': USER_AGENT, ...opts.headers };
     if (opts.body !== undefined) { headers['Content-Type'] = 'application/json'; headers['Content-Length'] = String(Buffer.byteLength(opts.body)); }
     const req = lib.request(url, { method: opts.method, headers, agent: opts.agent }, (res) => {
       const chunks: Buffer[] = [];

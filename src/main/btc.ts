@@ -549,7 +549,11 @@ export class BtcClient {
   readonly reserved = new Set<string>();
   sign(draft: BtcDraft, mnemonic: string): { hex: string; id: string } { return this.coin.sign(draft, mnemonic); }
 
-  async sendSigned(draft: BtcDraft, hex: string, id: string): Promise<string> {
+  /**
+   * `fallback`: another signed version of the same payment (a Payjoin's ordinary original). If peers never relay
+   * this one and a server refuses it (the other side's coin was spent, say), the fallback goes out instead.
+   */
+  async sendSigned(draft: BtcDraft, hex: string, id: string, fallback?: { draft: BtcDraft; hex: string; id: string }): Promise<string> {
     if (this.filters) {
       // Handed to Bitcoin nodes over Tor. Only when fewer than two took it does a server get it too: a server that
       // is sent a transaction can tie it to the connection, while a node can't tell it from the ones it relays.
@@ -557,7 +561,7 @@ export class BtcClient {
       const peers = await this.filters.sync.broadcast(raw).catch(() => 0);
       let answer: string | null = null;
       if (peers < 2) answer = (await this.broadcast(hex)).trim();
-      else this.checkLater(hex, id);
+      else this.checkLater(hex, id, fallback);
       if (answer !== null && answer !== id) throw new Error(`The server returned a different transaction ID. Check ${id} on an explorer.`);
       // Only once it went out: a replacement frees the coins of the send it replaces.
       if (draft.replaces) this.filters.sync.dropPending(draft.replaces);
@@ -594,7 +598,7 @@ export class BtcClient {
    * Peers don't say whether they took a transaction. If, once nodes would hand it out, none asked has it, it goes to
    * a server as well, which says why when it is refused.
    */
-  private checkLater(hex: string, id: string): void {
+  private checkLater(hex: string, id: string, fallback?: { draft: BtcDraft; hex: string; id: string }): void {
     const sync = this.filters?.sync;
     if (!sync) return;
     const to = sync.lastBroadcastTo;
@@ -606,7 +610,13 @@ export class BtcClient {
         try {
           const answer = (await this.broadcast(hex)).trim();
           if (answer !== id) throw new Error(`The server returned a different transaction ID. Check ${id} on an explorer.`);
-        } catch (e) { this.sendProblem = { id, message: (e as Error).message }; }
+        } catch (e) {
+          if (fallback) {
+            // The same payment, made the ordinary way: this one's coins are freed and the fallback goes out.
+            try { sync.dropPending(id); await this.sendSigned(fallback.draft, fallback.hex, fallback.id); return; } catch { /* reported below */ }
+          }
+          this.sendProblem = { id, message: (e as Error).message };
+        }
       })();
     }, this.broadcastCheckMs);
     (timer as any).unref?.(); // never what keeps the app running

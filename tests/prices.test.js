@@ -189,7 +189,7 @@ test('with the first source down, every other one fills gaps at once, and one th
   assert.equal(p.SOL.usd, 150);
   assert.equal(p.XMR.usd, 150, 'an earlier source wins');
   assert.equal(p.USDT.usd, 1);
-  assert.ok(seen.every((ua) => ua === 'KusariWallet'), 'names a client, as some services require');
+  assert.ok(seen.every((ua) => ua === 'Mozilla/5.0 (Windows NT 10.0; rv:140.0) Gecko/20100101 Firefox/140.0'), 'a common browser string, as some services require one, never the wallet\'s name');
 });
 
 test('when everything fails: no made-up price, and it stops asking for a while', async (tt) => {
