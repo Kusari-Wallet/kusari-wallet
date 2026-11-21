@@ -1677,7 +1677,6 @@
 "This wallet's seed does not match the TON address.": "Сид этого кошелька не соответствует адресу TON.",
 "Support the developer": "Поддержать разработчика",
 "Donation addresses": "Адреса для пожертвований",
-"Kusari Wallet is free. If it helps you, you can support its development. Donations are optional and change nothing in the app.": "Kusari Wallet бесплатен. Если он вам полезен, вы можете поддержать разработку. Пожертвования добровольны и ничего не меняют в приложении.",
 "Copied.": "Скопировано.",
 "QR": "QR",
 "QR code of the {0} donation address": "QR-код адреса для пожертвований {0}",
@@ -1733,5 +1732,6 @@
 "Wallet": "Кошелёк",
 "Balance": "Баланс",
 "Menu": "Меню",
-"Settings sections": "Разделы настроек"
+"Settings sections": "Разделы настроек",
+"Kusari Wallet is free. If it helps you, you can support its development. Donations are optional and change nothing in the app. Donations go to the developer's living costs and the costs of development.": "Kusari Wallet бесплатен. Если он вам полезен, вы можете поддержать разработку. Пожертвования добровольны и ничего не меняют в приложении. Пожертвования идут на расходы разработчика на жизнь и на расходы на разработку."
 }

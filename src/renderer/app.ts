@@ -291,7 +291,7 @@ const DONATE: { asset: Asset; address: string }[] = [
 /** Voluntary: shown only here, never tied to a send or a mix. */
 function donateSection(): HTMLElement {
   const list = h('div', { id: 'donate-list', hidden: true },
-    h('p', { class: 'small muted' }, 'Kusari Wallet is free. If it helps you, you can support its development. Donations are optional and change nothing in the app.'),
+    h('p', { class: 'small muted' }, 'Kusari Wallet is free. If it helps you, you can support its development. Donations are optional and change nothing in the app. Donations go to the developer\'s living costs and the costs of development.'),
     ...DONATE.map((d) => {
       const qr = h('div', { class: 'qr-frame', hidden: true });
       return h('div', { class: 'donate-row', id: `donate-${d.asset}` },

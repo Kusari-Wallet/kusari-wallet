@@ -1677,7 +1677,6 @@
 "This wallet's seed does not match the TON address.": "Hạt giống của ví này không khớp với địa chỉ TON.",
 "Support the developer": "Ủng hộ nhà phát triển",
 "Donation addresses": "Địa chỉ ủng hộ",
-"Kusari Wallet is free. If it helps you, you can support its development. Donations are optional and change nothing in the app.": "Kusari Wallet miễn phí. Nếu nó hữu ích, bạn có thể ủng hộ việc phát triển. Ủng hộ là tùy ý và không thay đổi gì trong ứng dụng.",
 "Copied.": "Đã sao chép.",
 "QR": "QR",
 "QR code of the {0} donation address": "Mã QR địa chỉ ủng hộ {0}",
@@ -1733,5 +1732,6 @@
 "Wallet": "Ví",
 "Balance": "Số dư",
 "Menu": "Menu",
-"Settings sections": "Các mục cài đặt"
+"Settings sections": "Các mục cài đặt",
+"Kusari Wallet is free. If it helps you, you can support its development. Donations are optional and change nothing in the app. Donations go to the developer's living costs and the costs of development.": "Kusari Wallet miễn phí. Nếu nó hữu ích, bạn có thể ủng hộ việc phát triển. Ủng hộ là tùy ý và không thay đổi gì trong ứng dụng. Tiền ủng hộ được dùng cho chi phí sinh hoạt của nhà phát triển và chi phí phát triển."
 }

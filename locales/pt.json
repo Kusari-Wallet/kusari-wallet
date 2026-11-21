@@ -1677,7 +1677,6 @@
 "This wallet's seed does not match the TON address.": "A seed desta carteira não corresponde ao endereço TON.",
 "Support the developer": "Apoiar o desenvolvedor",
 "Donation addresses": "Endereços de doação",
-"Kusari Wallet is free. If it helps you, you can support its development. Donations are optional and change nothing in the app.": "A Kusari Wallet é gratuita. Se ela ajuda você, pode apoiar o desenvolvimento. Doações são opcionais e não mudam nada no app.",
 "Copied.": "Copiado.",
 "QR": "QR",
 "QR code of the {0} donation address": "Código QR do endereço de doação {0}",
@@ -1733,5 +1732,6 @@
 "Wallet": "Carteira",
 "Balance": "Saldo",
 "Menu": "Menu",
-"Settings sections": "Seções das configurações"
+"Settings sections": "Seções das configurações",
+"Kusari Wallet is free. If it helps you, you can support its development. Donations are optional and change nothing in the app. Donations go to the developer's living costs and the costs of development.": "A Kusari Wallet é gratuita. Se ela ajuda você, pode apoiar o desenvolvimento. Doações são opcionais e não mudam nada no app. As doações vão para o custo de vida do desenvolvedor e os custos de desenvolvimento."
 }
