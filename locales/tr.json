@@ -1727,5 +1727,7 @@
 "The recipient's Payjoin proposal didn't pass this wallet's checks, so it wasn't signed.": "Alıcının Payjoin önerisi bu cüzdanın kontrollerinden geçemedi, bu yüzden imzalanmadı.",
 "Amount (BTC)": "Tutar (BTC)",
 "Copy link": "Bağlantıyı kopyala",
-"Stop": "Durdur"
+"Stop": "Durdur",
+"Kusari Wallet keeps 0.3% of the XMR sent in this step, in the same transaction. The quotes above are for the rest.": "Kusari Wallet bu adımda gönderilen XMR'nin %0.3'ünü aynı işlemde alır. Yukarıdaki teklifler kalan tutar içindir.",
+"Kusari Wallet's fee: {0} XMR (0.3%), in the same transaction.": "Kusari Wallet ücreti: {0} XMR (%0.3), aynı işlemde."
 }

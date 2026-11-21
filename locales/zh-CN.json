@@ -1727,5 +1727,7 @@
 "The recipient's Payjoin proposal didn't pass this wallet's checks, so it wasn't signed.": "收款人的 Payjoin 提议未通过本钱包的检查，因此没有签名。",
 "Amount (BTC)": "金额 (BTC)",
 "Copy link": "复制链接",
-"Stop": "停止"
+"Stop": "停止",
+"Kusari Wallet keeps 0.3% of the XMR sent in this step, in the same transaction. The quotes above are for the rest.": "Kusari Wallet 会在同一笔交易中收取本步骤所发 XMR 的 0.3%。上面的报价按其余金额计算。",
+"Kusari Wallet's fee: {0} XMR (0.3%), in the same transaction.": "Kusari Wallet 手续费：{0} XMR (0.3%)，在同一笔交易中。"
 }

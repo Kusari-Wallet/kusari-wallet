@@ -1727,5 +1727,7 @@
 "The recipient's Payjoin proposal didn't pass this wallet's checks, so it wasn't signed.": "Пропозиція Payjoin отримувача не пройшла перевірки цього гаманця, тож її не підписано.",
 "Amount (BTC)": "Сума (BTC)",
 "Copy link": "Копіювати посилання",
-"Stop": "Зупинити"
+"Stop": "Зупинити",
+"Kusari Wallet keeps 0.3% of the XMR sent in this step, in the same transaction. The quotes above are for the rest.": "Kusari Wallet бере 0.3% XMR, надісланого на цьому кроці, у тій самій транзакції. Котирування вище — для решти.",
+"Kusari Wallet's fee: {0} XMR (0.3%), in the same transaction.": "Комісія Kusari Wallet: {0} XMR (0.3%), у тій самій транзакції."
 }

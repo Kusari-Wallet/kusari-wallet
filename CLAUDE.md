@@ -149,3 +149,6 @@ Java WebView (`android/java`) running the same code as an esbuild bundle (`src/a
 - `src/main/zano.ts`, `zano-process.ts`: Zano, and Kusari (KSR) on the same client with its own engine (`ksr-bridge`:
   `native/zano-bridge` built against the KSR chain), key label, wallet file, node and Tor route. `native/kusari-zano/`
   is the KSR chain itself (see its README).
+- Fees: the privacy swap's step 2 (XMR out) takes 0.3% (`kusariSwapFee`, `KUSARI_FEE_XMR` in config.ts) as a second
+  output of the same Monero transaction; the order is opened for the rest. No other feature takes a fee (mixers,
+  CoinJoin, Tornado, ordinary swaps).

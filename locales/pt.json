@@ -1727,5 +1727,7 @@
 "The recipient's Payjoin proposal didn't pass this wallet's checks, so it wasn't signed.": "A proposta Payjoin do destinatário não passou nas verificações desta carteira, então não foi assinada.",
 "Amount (BTC)": "Valor (BTC)",
 "Copy link": "Copiar link",
-"Stop": "Parar"
+"Stop": "Parar",
+"Kusari Wallet keeps 0.3% of the XMR sent in this step, in the same transaction. The quotes above are for the rest.": "A Kusari Wallet fica com 0.3% do XMR enviado nesta etapa, na mesma transação. As cotações acima são para o restante.",
+"Kusari Wallet's fee: {0} XMR (0.3%), in the same transaction.": "Taxa da Kusari Wallet: {0} XMR (0.3%), na mesma transação."
 }
