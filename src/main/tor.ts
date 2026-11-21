@@ -17,7 +17,8 @@ const MAX_DOWNLOAD = 250 * 1024 * 1024;
 const PLATFORM: Record<string, { bundle: string; versionFile: string; exe: string }> = {
   win32: { bundle: 'windows-x86_64', versionFile: 'download-windows-x86_64.json', exe: 'tor.exe' },
   linux: { bundle: 'linux-x86_64', versionFile: 'download-linux-x86_64.json', exe: 'tor' },
-  darwin: { bundle: 'macos-aarch64', versionFile: 'download-macos.json', exe: 'tor' },
+  // Apple Silicon and Intel Macs each get their own build.
+  darwin: { bundle: process.arch === 'x64' ? 'macos-x86_64' : 'macos-aarch64', versionFile: 'download-macos.json', exe: 'tor' },
 };
 
 export interface TorSources {

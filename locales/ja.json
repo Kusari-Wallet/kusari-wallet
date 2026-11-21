@@ -1729,5 +1729,9 @@
 "Copy link": "リンクをコピー",
 "Stop": "停止",
 "Kusari Wallet keeps 0.3% of the XMR sent in this step, in the same transaction. The quotes above are for the rest.": "このステップで送る XMR の 0.3% を、Kusari Wallet が同じトランザクションで手数料として受け取ります。上の見積もりは残りの額に対するものです。",
-"Kusari Wallet's fee: {0} XMR (0.3%), in the same transaction.": "Kusari Wallet の手数料：{0} XMR (0.3%)、同じトランザクション内。"
+"Kusari Wallet's fee: {0} XMR (0.3%), in the same transaction.": "Kusari Wallet の手数料：{0} XMR (0.3%)、同じトランザクション内。",
+"Wallet": "ウォレット",
+"Balance": "残高",
+"Menu": "メニュー",
+"Settings sections": "設定の項目"
 }

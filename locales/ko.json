@@ -1729,5 +1729,9 @@
 "Copy link": "링크 복사",
 "Stop": "중지",
 "Kusari Wallet keeps 0.3% of the XMR sent in this step, in the same transaction. The quotes above are for the rest.": "이 단계에서 보내는 XMR의 0.3%를 Kusari Wallet이 같은 트랜잭션에서 수수료로 가져갑니다. 위 견적은 나머지 금액 기준입니다.",
-"Kusari Wallet's fee: {0} XMR (0.3%), in the same transaction.": "Kusari Wallet 수수료: {0} XMR (0.3%), 같은 트랜잭션에 포함."
+"Kusari Wallet's fee: {0} XMR (0.3%), in the same transaction.": "Kusari Wallet 수수료: {0} XMR (0.3%), 같은 트랜잭션에 포함.",
+"Wallet": "지갑",
+"Balance": "잔액",
+"Menu": "메뉴",
+"Settings sections": "설정 항목"
 }

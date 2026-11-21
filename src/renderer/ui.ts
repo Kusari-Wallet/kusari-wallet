@@ -240,12 +240,34 @@ function torLabel(s: any): { text: string; cls: string } {
   return { text: `Tor ${s.percent}%`, cls: '' };
 }
 
+/** Which item of the desktop side menu is lit. */
+let navOn: 'home' | 'history' | 'send' | 'receive' | 'swap' | 'settings' | '' = 'home';
+
 function show(kind: string, ...kids: Child[]): void {
   closeScanner?.();
   onData = null;
-  setKids(root, h('div', { class: `screen ${kind}` },
+  const screen = h('div', { class: `screen ${kind}` },
     h('div', { class: 'fx fx-tr' }), h('div', { class: 'fx fx-bl' }), h('div', { class: 'fx fx-br' }),
-    ...kids));
+    ...kids);
+  // Once a wallet is open, a wide window gets a menu at the side (narrow ones keep the menu at the bottom).
+  setKids(root, kind === 'entry' ? screen : h('div', { class: 'shell' }, sideNav(), screen));
+}
+
+function sideNav(): HTMLElement {
+  const item = (id: typeof navOn, label: string, ic: keyof typeof ICONS, go: () => void) =>
+    h('button', { class: navOn === id ? 'on' : undefined, id: `side-${id}`, ...(navOn === id ? { 'aria-current': 'page' } : {}), onclick: () => { navOn = id; go(); } }, icon(ic), h('span', {}, label));
+  return h('aside', { class: 'side', 'aria-label': 'Menu' },
+    h('div', { class: 'side-brand' }, h('img', { src: 'logo.png', alt: '' }), h('span', {}, 'Kusari Wallet')),
+    h('nav', { class: 'side-items' },
+      item('home', 'Wallet', 'wallet', () => { homeTab = 'assets'; renderHome(); }),
+      item('history', 'History', 'chart', () => { homeTab = 'history'; renderHome(); }),
+      item('send', 'Send', 'send', () => renderSend()),
+      item('receive', 'Receive', 'receive', () => void renderReceive()),
+      item('swap', 'Swap', 'swap', () => void renderSwap()),
+      h('button', { id: 'side-buy', onclick: () => void openBuyPage() }, icon('buy'), h('span', {}, 'BUY/SELL')),
+      item('settings', 'Settings', 'gear', () => void renderSettings())),
+    h('div', { class: 'side-foot' },
+      h('button', { id: 'side-lock', onclick: () => wallet.lock() }, icon('lock'), h('span', {}, 'Lock'))));
 }
 
 function subBar(title: string, back: () => void): HTMLElement {

@@ -2,6 +2,7 @@
 // ---- settings ----
 
 async function renderSettings(): Promise<void> {
+  navOn = 'settings';
   const s = await wallet.getSettings();
   const netBox = errorBox(), pwBox = errorBox(), seedBox = errorBox(), delBox = errorBox();
   const node = h('input', { id: 'set-node', value: s.customMoneroNode, placeholder: 'http://127.0.0.1:18081', spellcheck: 'false' });
@@ -252,6 +253,24 @@ async function renderSettings(): Promise<void> {
         h('p', { class: 'muted small' }, 'Coins stay on the blockchain, but can never be reached without the seeds. Check your seeds before deleting.'), h('br'),
         h('label', { class: 'field' }, h('span', {}, 'Password'), delPw), del)),
     bottomNav('settings'));
+  settingsIndex();
+}
+
+/** Wide windows: the settings' sections listed beside them, each a jump to its place. */
+function settingsIndex(): void {
+  const scroll = document.querySelector<HTMLElement>('.screen .scroll');
+  if (!scroll) return;
+  const sections = [...scroll.querySelectorAll<HTMLElement>(':scope > .section')].filter((sec) => sec.querySelector('h3') && !sec.hidden);
+  const index = h('nav', { class: 'settings-index', id: 'settings-index', 'aria-label': 'Settings sections' },
+    ...sections.map((sec, i) => h('button', { id: `settings-go-${i}`, onclick: (e: Event) => {
+      index.querySelectorAll('button').forEach((b: Element) => b.classList.remove('on'));
+      (e.currentTarget as HTMLElement).classList.add('on');
+      sec.scrollIntoView({ block: 'start' });
+    } }, sec.querySelector('h3')!.textContent ?? '')));
+  index.querySelector('button')?.classList.add('on');
+  const body = h('div', { class: 'settings-body' });
+  scroll.replaceWith(body);
+  body.append(index, scroll);
 }
 
 // ---- donations ----
@@ -262,6 +281,11 @@ const DONATE: { asset: Asset; address: string }[] = [
   { asset: 'ETH', address: '0x27A2BB4E97BB6F58998Ae7A0A921774aa645fE1d' },
   { asset: 'TRX', address: 'TQwoiwr5NuDWxkjRivoGh11tCPG6ZAiyHb' },
   { asset: 'DOGE', address: 'DEiSC35omanbohfcwzQzYpYJY5d3ugv9pe' },
+  { asset: 'BCH', address: 'qqu06gfx29r09pan9dx2dkaxux3jaya4rywcaa9dgy' },
+  { asset: 'LTC', address: 'ltcmweb1qqvqnuy3wr2d54v7ffs5p02uxz5gc3ve7ve2fhq3gfmv0juj0c8e0cqjfwck5p5apv773hyfu4urv0rq8aajzeexws4sgt7q9f7m874l35sd0cca4' },
+  { asset: 'FIRO', address: 'sm1zstz4eskrjtvunmrhqpvh9u0w78ksezzvn2nhzk5awwuksazsctw75l0gnjjwype53pyrfyspachywle7l87jmgu0gmgzmunqtld4l63pkrsceruyl69mdcz5xvve3sjcfsdsegncwelp' },
+  { asset: 'ZANO', address: 'ZxDT9JBt5iqSMFk2TPv5c1fRh6vZ6cr7cDdL8KQjrBxYcoZCM8Y7vfYGBmVy4w2jccGNdZjxwcDP1Zeqg5HRnrUu2HLmGF2Zf' },
+  { asset: 'ARRR', address: 'pirate1zt22p7aywfv7anwu3xr6qzet5advvpnawxay4pg7jrw0nnua76vx4jnrp3u7khusdxlqqd7a25h' },
 ];
 
 /** Voluntary: shown only here, never tied to a send or a mix. */
@@ -271,7 +295,7 @@ function donateSection(): HTMLElement {
     ...DONATE.map((d) => {
       const qr = h('div', { class: 'qr-frame', hidden: true });
       return h('div', { class: 'donate-row', id: `donate-${d.asset}` },
-        h('div', { class: 'small' }, h('strong', {}, d.asset)),
+        h('div', { class: 'small' }, h('strong', {}, d.asset === 'LTC' ? 'LTC (MWEB)' : d.asset === 'FIRO' ? 'FIRO (Spark)' : d.asset)),
         h('div', { class: 'addr-check small' }, d.address),
         h('div', { class: 'row' },
           h('button', { class: 'ghost', onclick: () => { void wallet.copy(d.address); toast('Copied.'); } }, 'Copy'),

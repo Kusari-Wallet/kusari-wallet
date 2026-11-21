@@ -1729,5 +1729,9 @@
 "Copy link": "Bağlantıyı kopyala",
 "Stop": "Durdur",
 "Kusari Wallet keeps 0.3% of the XMR sent in this step, in the same transaction. The quotes above are for the rest.": "Kusari Wallet bu adımda gönderilen XMR'nin %0.3'ünü aynı işlemde alır. Yukarıdaki teklifler kalan tutar içindir.",
-"Kusari Wallet's fee: {0} XMR (0.3%), in the same transaction.": "Kusari Wallet ücreti: {0} XMR (%0.3), aynı işlemde."
+"Kusari Wallet's fee: {0} XMR (0.3%), in the same transaction.": "Kusari Wallet ücreti: {0} XMR (%0.3), aynı işlemde.",
+"Wallet": "Cüzdan",
+"Balance": "Bakiye",
+"Menu": "Menü",
+"Settings sections": "Ayar bölümleri"
 }

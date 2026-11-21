@@ -2,6 +2,7 @@
 // ---- send ----
 
 function renderSend(keep?: { to: string; amount: string }): void {
+  navOn = 'send';
   const asset = selected;
   const to = h('input', { id: 'to', spellcheck: 'false', autocomplete: 'off', class: 'mono', placeholder: 'Enter, paste or scan an address', value: keep?.to ?? '' });
   const amount = numbersOnly(h('input', { id: 'amount', class: 'amount-input', inputmode: 'decimal', autocomplete: 'off', placeholder: '0.00', value: keep?.amount ?? '' }) as HTMLInputElement);
@@ -413,6 +414,7 @@ function numbersOnly(input: HTMLInputElement): HTMLInputElement {
 // ---- receive ----
 
 async function renderReceive(current?: string): Promise<void> {
+  navOn = 'receive';
   const asset = selected;
   const qrFrame = h('div', { class: 'qr-frame' });
   const addressEl = h('div', { class: 'mono', id: 'my-address' }, 'Loading…');

@@ -1729,5 +1729,9 @@
 "Copy link": "Копировать ссылку",
 "Stop": "Остановить",
 "Kusari Wallet keeps 0.3% of the XMR sent in this step, in the same transaction. The quotes above are for the rest.": "Kusari Wallet берёт 0.3% XMR, отправленного на этом шаге, в той же транзакции. Котировки выше — для остатка.",
-"Kusari Wallet's fee: {0} XMR (0.3%), in the same transaction.": "Комиссия Kusari Wallet: {0} XMR (0.3%), в той же транзакции."
+"Kusari Wallet's fee: {0} XMR (0.3%), in the same transaction.": "Комиссия Kusari Wallet: {0} XMR (0.3%), в той же транзакции.",
+"Wallet": "Кошелёк",
+"Balance": "Баланс",
+"Menu": "Меню",
+"Settings sections": "Разделы настроек"
 }

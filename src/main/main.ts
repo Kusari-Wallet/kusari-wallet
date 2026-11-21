@@ -33,7 +33,7 @@ const emit = (channel: string, payload?: unknown) => {
 
 function createWindow(): void {
   win = new BrowserWindow({
-    width: 500, height: 880, minWidth: 420, minHeight: 640,
+    width: 1220, height: 820, minWidth: 420, minHeight: 640,
     title: 'Kusari Wallet', backgroundColor: '#070707', show: false,
     icon: path.join(__dirname, '../renderer/icon.png'),
     webPreferences: {

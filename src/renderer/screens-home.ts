@@ -128,6 +128,7 @@ function syncLabel(): HTMLElement {
 // ---- home ----
 
 function renderHome(): void {
+  navOn = homeTab === 'history' ? 'history' : 'home';
   const totalValue = h('div', { class: 'value', id: 'total' });
   const note = h('div', { class: 'total-note', id: 'total-note' });
   const waiting = h('div', { id: 'make-private' });
@@ -150,6 +151,8 @@ function renderHome(): void {
     onclick: () => { homeTab = id; renderHome(); paint(); },
   }, label);
   const list = h('div', { class: 'list', id: 'asset-list' });
+  // Wide windows: the largest holdings as cards above the list.
+  const holdings = h('div', { class: 'holdings', id: 'holdings' });
 
   function paint(): void {
     const t = totalUsd();
@@ -164,7 +167,12 @@ function renderHome(): void {
       setKids(torChip, icon('shield'), label.text);
       torChip.setAttribute('class', `chip tor ${label.cls}`);
     }
-    if (homeTab === 'assets') setKids(list, ...assetRows());
+    if (homeTab === 'assets') setKids(list, h('div', { class: 'list-head' }, h('span', {}, 'Coin'), h('span', {}, 'Balance')), ...assetRows());
+    const top = hideBalance ? [] : ASSETS.map((a) => [a, assetUsd(a) ?? 0] as const).filter(([, v]) => v > 0).sort((x, y) => y[1] - x[1]).slice(0, 3);
+    setKids(holdings, ...top.map(([a, v], i) => h('button', { class: `holding h${i}`, id: `holding-${a}`, onclick: () => { selected = a; void renderAsset(); } },
+      h('div', { class: 'holding-top' }, h('span', {}, COIN[a].label), coin(a)),
+      h('div', { class: 'holding-amt' }, `${balanceText(a)} ${coinName(a)}`),
+      h('div', { class: 'small muted' }, usdFormat(v)))));
   }
 
   show('home',
@@ -177,6 +185,7 @@ function renderHome(): void {
       h('button', { class: 'action', id: 'go-receive', onclick: () => void renderReceive() }, h('span', { class: 'box' }, icon('receive')), 'Receive'),
       h('button', { class: 'action swap-action', id: 'go-swap', onclick: () => void renderSwap() }, h('span', { class: 'box' }, icon('swap')), 'Swap'),
       h('button', { class: 'action', id: 'go-buy', onclick: () => void openBuyPage() }, h('span', { class: 'box' }, icon('buy')), 'BUY/SELL')),
+    holdings,
     h('div', { class: 'tabs', role: 'tablist' }, tab('assets', 'Assets'), tab('history', 'History')),
     body,
     bottomNav('home'));

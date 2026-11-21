@@ -1,6 +1,6 @@
 {
   "name": "kusari-wallet",
-  "version": "0.70.0",
+  "version": "0.71.0",
   "description": "XMR, BTC, ETH, TRX, USDT wallet",
   "main": "dist/main/app.js",
   "scripts": {
@@ -215,8 +215,22 @@
       ]
     },
     "mac": {
-      "target": "dmg",
-      "icon": "assets/icon.png"
+      "target": [
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.png",
+      "category": "public.app-category.finance",
+      "identity": null,
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "darkModeSupport": true,
+      "extraResources": []
     },
     "electronFuses": {
       "runAsNode": false,
@@ -226,7 +240,8 @@
       "enableEmbeddedAsarIntegrityValidation": false
     },
     "artifactName": "KusariWallet-${version}-${os}-${arch}.${ext}",
-    "publish": null
+    "publish": null,
+    "afterSign": "scripts/mac-adhoc-sign.js"
   },
   "overrides": {
     "axios": "1.21.0"

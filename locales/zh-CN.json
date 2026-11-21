@@ -1729,5 +1729,9 @@
 "Copy link": "复制链接",
 "Stop": "停止",
 "Kusari Wallet keeps 0.3% of the XMR sent in this step, in the same transaction. The quotes above are for the rest.": "Kusari Wallet 会在同一笔交易中收取本步骤所发 XMR 的 0.3%。上面的报价按其余金额计算。",
-"Kusari Wallet's fee: {0} XMR (0.3%), in the same transaction.": "Kusari Wallet 手续费：{0} XMR (0.3%)，在同一笔交易中。"
+"Kusari Wallet's fee: {0} XMR (0.3%), in the same transaction.": "Kusari Wallet 手续费：{0} XMR (0.3%)，在同一笔交易中。",
+"Wallet": "钱包",
+"Balance": "余额",
+"Menu": "菜单",
+"Settings sections": "设置分区"
 }

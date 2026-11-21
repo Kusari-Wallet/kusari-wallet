@@ -1729,5 +1729,9 @@
 "Copy link": "Sao chép liên kết",
 "Stop": "Dừng",
 "Kusari Wallet keeps 0.3% of the XMR sent in this step, in the same transaction. The quotes above are for the rest.": "Kusari Wallet giữ 0.3% số XMR gửi ở bước này, trong cùng giao dịch. Các báo giá ở trên tính cho phần còn lại.",
-"Kusari Wallet's fee: {0} XMR (0.3%), in the same transaction.": "Phí của Kusari Wallet: {0} XMR (0.3%), trong cùng giao dịch."
+"Kusari Wallet's fee: {0} XMR (0.3%), in the same transaction.": "Phí của Kusari Wallet: {0} XMR (0.3%), trong cùng giao dịch.",
+"Wallet": "Ví",
+"Balance": "Số dư",
+"Menu": "Menu",
+"Settings sections": "Các mục cài đặt"
 }

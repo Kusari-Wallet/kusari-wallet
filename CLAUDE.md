@@ -152,4 +152,9 @@ Java WebView (`android/java`) running the same code as an esbuild bundle (`src/a
 - Fees: the privacy swap's step 2 (XMR out) takes 0.3% (`kusariSwapFee`, `KUSARI_FEE_XMR` in config.ts) as a second
   output of the same Monero transaction; the order is opened for the rest. No other feature takes a fee (mixers,
   CoinJoin, Tornado, ordinary swaps).
-- Releases: Windows and Linux only from 0.70.0 (`npm run dist:win && npm run dist:linux`); Android is no longer built.
+- Releases: Windows, Linux and macOS (`npm run dist:win && npm run dist:linux && npm run dist:mac`); Android is no
+  longer built. macOS zips (arm64, x64) are made on Linux and signed ad hoc after the fuses (`scripts/mac-adhoc-sign.js`,
+  rcodesign from `RCODESIGN`); no Developer ID, so Gatekeeper asks on first start. They carry no native engines yet
+  (ZEC, ZANO, ARRR, MWEB, Spark need a Mac or the macOS SDK to build), so those coins stay off there.
+- Wide windows (960 px+): side menu (`sideNav`, `navOn` in ui.ts), holdings cards on home, settings section index
+  (`settingsIndex`); narrow windows keep the bottom menu.

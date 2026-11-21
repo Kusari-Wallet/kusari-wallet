@@ -78,6 +78,9 @@ const PASSWORD = 'correct horse battery';
   });
   let app = await launch();
   let page = await app.firstWindow();
+  // Most of the run is the narrow layout (menu at the bottom); the wide one is checked at the end.
+  const sized = (w, hgt) => app.evaluate(({ BrowserWindow }, [a, b]) => BrowserWindow.getAllWindows()[0].setSize(a, b), [w, hgt]);
+  await sized(500, 880);
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
@@ -167,9 +170,11 @@ const PASSWORD = 'correct horse battery';
   assert.equal(await page.locator('#donate-list').isHidden(), true);
   await page.click('#donate');
   await page.locator('#donate-XMR', { hasText: '46ZEpH2z' }).waitFor();
-  assert.equal(await page.locator('.donate-row').count(), 5);
+  assert.equal(await page.locator('.donate-row').count(), 10);
   await page.locator('#donate-BTC button', { hasText: 'QR' }).click();
   await page.locator('#donate-BTC img').waitFor();
+  await page.locator('#donate-LTC button', { hasText: 'QR' }).click();
+  await page.locator('#donate-LTC img').waitFor();
   await page.locator('#donate-section').scrollIntoViewIfNeeded();
   await shot('donate');
   await page.click('#donate');
@@ -1039,6 +1044,7 @@ const PASSWORD = 'correct horse battery';
   await app.close();
   app = await launch();
   page = await app.firstWindow();
+  await sized(500, 880);
   await page.locator('#unlock').waitFor({ timeout: 15000 });
   await page.fill('#pw', PASSWORD);
   await page.click('#unlock');
@@ -1225,6 +1231,36 @@ const PASSWORD = 'correct horse battery';
   await page.locator('#open-settings', { hasText: 'Settings' }).waitFor({ timeout: 5000 });
   await page.click('#nav-home');
   console.log('ok language: switches live, fills gaps, leaves addresses, comes back to English');
+
+  // A wide window: the menu moves to the side, holdings show as cards, settings get an index.
+  await sized(1280, 820);
+  await page.waitForTimeout(400);
+  await page.click('#side-home');
+  await page.locator('.side #side-home.on').waitFor({ timeout: 5000 });
+  assert.equal(await page.locator('.nav').isVisible(), false, 'no bottom menu on a wide window');
+  await page.locator('#holdings .holding').first().waitFor({ timeout: 10000 });
+  await shot('desk-home');
+  await page.click('#side-settings');
+  await page.locator('#settings-index button').first().waitFor({ timeout: 10000 });
+  assert.ok((await page.locator('#settings-index button').count()) > 8, 'every section listed');
+  await page.locator('#settings-index button', { hasText: 'Support the developer' }).click();
+  await shot('desk-settings');
+  await page.click('#side-receive');
+  await page.locator('#my-address').waitFor({ timeout: 10000 });
+  await shot('desk-receive');
+  await page.click('#side-send');
+  await page.locator('#to').waitFor({ timeout: 10000 });
+  await shot('desk-send');
+  for (const id of ['#side-home', '#side-history']) {
+    await page.click(id);
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    assert.ok(overflow <= 0, 'nothing pushes the wide page sideways');
+  }
+  await shot('desk-history');
+  await sized(500, 880);
+  await page.waitForTimeout(300);
+  assert.equal(await page.locator('.side').isVisible(), false, 'narrow again: the side menu goes');
+  console.log('ok wide window: side menu, holdings, settings index');
 
   const raw = fs.readFileSync(path.join(data, 'vault.json'), 'utf8');
   assert.ok(!raw.includes('abandon'), 'seed is not stored in plaintext');
