@@ -74,3 +74,13 @@ export async function requestRaw(url: string, opts: { method: 'GET' | 'POST'; bo
   res.headers.forEach((v, k) => { headers[k.toLowerCase()] = v; });
   return { status: res.status, text: await res.text(), headers };
 }
+
+export async function requestBinary(url: string, opts: { method: 'GET' | 'POST'; body?: Uint8Array; contentType?: string; timeoutMs?: number; route?: string }): Promise<{ status: number; body: Uint8Array }> {
+  const res = await fetch(route(url), {
+    method: opts.method,
+    headers: { ...(opts.body ? { 'Content-Type': opts.contentType ?? 'application/octet-stream' } : {}), ...(opts.route ? { 'X-Kusari-Route': opts.route } : {}) },
+    body: opts.body,
+    signal: AbortSignal.timeout(Math.max(opts.timeoutMs ?? 30_000, 45_000)),
+  });
+  return { status: res.status, body: new Uint8Array(await res.arrayBuffer()) };
+}

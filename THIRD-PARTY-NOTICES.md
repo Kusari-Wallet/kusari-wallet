@@ -137,6 +137,37 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
+## Litecoin Core (https://github.com/litecoin-project/litecoin)
+
+Private Litecoin sync uses Litecoin Core's seed list (src/main/ltc-seeds.ts), a block checkpoint from its chain parameters, and its difficulty test vectors (tests/ltc-filters.test.js).
+
+```
+The MIT License (MIT)
+
+Copyright (c) 2009-2021 The Bitcoin Core developers
+Copyright (c) 2009-2021 Bitcoin Developers
+Copyright (c) 2011-2021 The Litecoin Core developers
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```
+
+
 ## libbacktrace (https://github.com/ianlancetaylor/libbacktrace)
 
 Linked into the Linux Zano engine (zano-bridge).
@@ -176,6 +207,31 @@ Linked into the Linux Zano engine (zano-bridge).
 ## BIP 352 test vectors (https://github.com/bitcoin/bips/blob/master/bip-0352/send_and_receive_test_vectors.json)
 
 Used by tests/btc-silent.test.js (tests/fixtures/bip352-vectors.json). BIP 352 is licensed BSD-2-Clause.
+
+## Payjoin test material
+
+tests/payjoin-crypto.test.js and tests/payjoin.test.js use BIP 324's ElligatorSwift test vectors (tests/fixtures/bip324-*.csv, BIP 324 is licensed BSD-3-Clause), BIP 78's test vector PSBTs (BIP 78 is licensed BSD-2-Clause), an example link from BIP 77 (BSD-2-Clause), and the DHKEM(secp256k1) HPKE test vectors as published with bitcoin-hpke (https://github.com/payjoin/bitcoin-hpke, tests/fixtures/hpke-k256-vectors.json):
+
+```
+The MIT License (MIT)
+
+Copyright (c) 2020 Michael Rosenberg
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
+associated documentation files (the "Software"), to deal in the Software without restriction,
+including without limitation the rights to use, copy, modify, merge, publish, distribute,
+sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial
+portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT
+NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES
+OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
 
 ## dcrd and dcrwallet (https://github.com/decred/dcrd, https://github.com/decred/dcrwallet)
 

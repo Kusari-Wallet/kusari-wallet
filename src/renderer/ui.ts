@@ -70,6 +70,8 @@ let overview: any = null;
 /** Private Bitcoin sync (block filters) still working through blocks. */
 const btcScanning = (): boolean => { const b = overview?.btcSync; return !!b && b.tip > 0 && b.scanned < b.tip; };
 const btcBlocksLeft = (): string => { const b = overview?.btcSync; return b ? Math.max(0, b.tip - b.scanned).toLocaleString() : '0'; };
+const ltcScanning = (): boolean => { const b = overview?.ltcSync; return !!b && b.tip > 0 && b.scanned < b.tip; };
+const ltcBlocksLeft = (): string => { const b = overview?.ltcSync; return b ? Math.max(0, b.tip - b.scanned).toLocaleString() : '0'; };
 let addresses: Record<Asset, string> | null = null;
 let torState: any = null;
 let prices: any = null;

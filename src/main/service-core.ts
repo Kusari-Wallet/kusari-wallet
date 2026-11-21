@@ -18,7 +18,10 @@ import { runSolPool } from './solpool-run';
 import type { Agent } from 'node:http';
 import { AAVE_MARKETS, aaveCall, readAave } from './aave';
 import { BITCOIN, BITCOIN_MIXED, BTC_MIXED_PATH, BTC_PATH, BTC_V0_PATH, V0_CHAIN, BtcClient, LITECOIN, btcAccountXpub, coinId, ltcAccountXpub } from './btc';
-import { FilterSync, TAPROOT_HEIGHT, estimateBtcHeight } from './btc-filter-sync';
+import { FilterSync, LTC_CHECKPOINTS, TAPROOT_HEIGHT, estimateBtcHeight, estimateLtcHeight } from './btc-filter-sync';
+import { LTC_P2P } from './p2p-net';
+import type { ReceiveSession } from './btc-payjoin';
+import type { Post } from './payjoin';
 import { clearPassphrases, setPassphrase } from './seed';
 import { PRICE_TIERS, PriceMap, PriceSource, coingecko, mirror, NO_MARKET } from './prices';
 import { ArrrClient } from './arrr';
@@ -376,6 +379,8 @@ export class ServiceCore extends EventEmitter {
     this.settings.btcFiltersFrom = btcSync.filters || btcSync.birthday ? btcSync.from : undefined;
     this.btcFilters?.close();
     this.btcFilters = null;
+    this.ltcFilters?.close();
+    this.ltcFilters = null;
     // Filters come from onion nodes, so they need Tor; a server of one's own is asked instead when set.
     if (btcSync.filters && this.torActive && this.torProxy && !ownBtc && !this.dev.btcApi) {
       this.btcFilters = new FilterSync({
@@ -410,6 +415,15 @@ export class ServiceCore extends EventEmitter {
     if (!this.torNotReady) void this.btcMixed.refresh().catch(() => undefined);
     this.startBtcMixer();
     this.ltc = new BtcClient(ltcAccountXpub(secrets.tronMnemonic), this.dev.ltcApi ? [this.dev.ltcApi] : this.ownList('LTC', LTC_APIS), this.ownAgent('LTC', 'ltc'), slow ? 60_000 : 30_000, LITECOIN);
+    // Private Litecoin sync: the same switch and date as Bitcoin's, from block filters Litecoin nodes serve.
+    if (btcSync.filters && this.torActive && this.torProxy && !this.own('LTC') && !this.dev.ltcApi) {
+      this.ltcFilters = new FilterSync({
+        dir: this.dir, records: this.records, dial: tcpDial(this.torProxy, 60_000), net: LTC_P2P,
+        birthday: ltcBirthdayFor(btcSync.from ? new Date(btcSync.from + 'T00:00:00Z') : new Date()),
+        onProgress: () => this.emit('btc-sync'),
+      });
+      this.ltc.useFilters(this.ltcFilters, 'ltc');
+    }
     if (!ownBtc || !isLocalServer(ownBtc)) { this.btc.lookupRoutes = this.lookupRoutes('btc'); this.btcMixed.lookupRoutes = this.lookupRoutes('btc-mixed'); }
     this.ltc.lookupRoutes = this.lookupRoutes('ltc');
     if (this.dev.ltcApi) this.ltc.spacingMs = 0;
@@ -849,8 +863,11 @@ export class ServiceCore extends EventEmitter {
     this.btc = null;
     this.btcFilters?.close();
     this.btcFilters = null;
+    this.ltcFilters?.close();
+    this.ltcFilters = null;
     this.btcMixer?.stop();
     this.btcMixer = null;
+    this.payjoinReceiveStop();
     this.btcMixed = null;
     this.ltc = null;
     this.eth = null;
@@ -1289,6 +1306,7 @@ export class ServiceCore extends EventEmitter {
       mweb: this.mweb ? { ...this.mweb.info(), balance: this.mweb.balance() ? { total: formatAmount(this.mweb.balance()!.total, 8), spendable: formatAmount(this.mweb.balance()!.spendable, 8) } : null } : null,
       arrr: arrr ? { scanning: arrr.isScanning, percent: arrr.percent } : null,
       btcSync: this.btcFilters ? { ...this.btcFilters.progress, error: this.btcFilters.lastError } : null,
+      ltcSync: this.ltcFilters ? { ...this.ltcFilters.progress, error: this.ltcFilters.lastError } : null,
       zec: zec ? { ...zec.state(), address: zec.receive?.unified ?? '', transparentAddress: zec.transparentAddress } : null,
       addresses: { ...Object.fromEntries(EVM.map((a) => [a, this.evm(a).address])), BTC: btc.receiveAddress, XMR: await monero.getPrimaryAddress(), ETH: eth.address, TRX: tron.address, USDTE: eth.address, USDT: tron.address, DASH: dash.receiveAddress, FIRO: firo.receiveAddress, SOL: this.sol!.receiveAddress, USDTS: this.sol!.receiveAddress, USDCS: this.sol!.receiveAddress, ORCA: this.sol!.receiveAddress, PUMP: this.sol!.receiveAddress, BCH: bareBch(this.bch!.receiveAddress), LTC: this.ltc!.receiveAddress, DOGE: this.doge!.receiveAddress, ...Object.fromEntries([...this.accounts].map(([a, c]) => [a, c.receiveAddress])), ...(this.dcr ? { DCR: this.dcr.receiveAddress } : {}), ...(zec ? { ZEC: zec.receive?.unified ?? '' } : {}), ...(zano ? { ZANO: zano.receive } : {}), ...(ksr ? { KSR: ksr.receive } : {}), ...(arrr ? { ARRR: arrr.receive } : {}) },
       ksr: ksr ? { scanning: ksr.isScanning } : null,
@@ -1353,6 +1371,17 @@ export class ServiceCore extends EventEmitter {
 
   /** Private Bitcoin sync (block filters): on or off for this wallet, and the block it scans from. */
   protected btcFilters: FilterSync | null = null;
+  protected ltcFilters: FilterSync | null = null;
+  /** A Payjoin request being answered (service-send). */
+  protected pjRecv: { s: ReceiveSession; coinId: string; post: Post; gen: number; timer?: ReturnType<typeof setTimeout>; fallback?: ReturnType<typeof setTimeout>; error?: string } | null = null;
+  protected payjoinReceiveStop(): void {
+    const r = this.pjRecv;
+    if (!r) return;
+    clearTimeout(r.timer); clearTimeout(r.fallback);
+    this.btc?.reserved.delete(r.coinId);
+    r.s.coin.key.fill(0); r.s.receiverSk.fill(0);
+    this.pjRecv = null;
+  }
   protected newBtcSync: { filters: boolean; birthday: number; from?: string } | null = null;
   protected get btcSyncPath() { return path.join(this.dir, 'btc-sync.json'); }
   protected async readBtcSync(): Promise<{ filters: boolean; birthday: number; from?: string }> {
@@ -1560,6 +1589,11 @@ const ENGINE_GATE: Record<string, string | undefined> = { ZANO: 'zano', KSR: 'ks
 const KSR_NO_NODE = '127.0.0.1:1';
 
 /** The block a private Bitcoin sync starts from for a wallet first used on `date`: a week early, never before taproot. */
+/** Litecoin's first block to scan for a wallet first used on a date: two days early, never before the checkpoint. */
+export function ltcBirthdayFor(date: Date): number {
+  return Math.max(LTC_CHECKPOINTS[0].height + 1, estimateLtcHeight(date) - 1152);
+}
+
 export function btcBirthdayFor(date: Date): number {
   return Math.max(TAPROOT_HEIGHT, estimateBtcHeight(date) - 1008);
 }

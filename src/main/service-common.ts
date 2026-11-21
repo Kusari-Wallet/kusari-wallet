@@ -1,5 +1,6 @@
 // Shared pieces of the wallet service: constants, small helpers and types used by its layers.
 import { Asset, POL_EXPLORER_TX, ARB_EXPLORER_TX, BSC_EXPLORER_TX, ETH_EXPLORER_TX } from './config';
+import type { PayjoinTarget } from './payjoin';
 import { TronTransfer } from './tron';
 import { DexCall, DexQuote } from './dex';
 import { BtcDraft } from './btc';
@@ -113,6 +114,8 @@ export interface Preview {
   tron?: TronTransfer;
   monero?: MoneroDraft;
   btc?: BtcDraft;
+  /** A Bitcoin send to a Payjoin link: the recipient may add a coin of theirs. */
+  payjoin?: PayjoinTarget;
   btcMixed?: BtcDraft;
   ltc?: BtcDraft;
   mweb?: MwebDraft;

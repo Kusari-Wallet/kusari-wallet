@@ -39,25 +39,42 @@ function renderSend(keep?: { to: string; amount: string }): void {
     const n = raw.toLowerCase() === 'max' ? Number(overview?.balances?.[asset]?.spendable) : Number(raw);
     usd.textContent = typeof p === 'number' && Number.isFinite(n) && raw ? `≈ ${usdFormat(n * p)}` : '';
   };
-  to.addEventListener('input', update);
+  // A Payjoin link keeps its pj part here; the field shows just the address.
+  let payjoin: { pj: string; pjos: string } | null = null;
+  const pjNote = h('div', { class: 'small muted', id: 'payjoin-note', hidden: true }, 'Payjoin link: the recipient can add a coin of theirs to this payment, so the chain doesn\'t show which coins were yours or how much was paid.');
+  const takeLink = (found: { address: string; amount: string; payjoin?: { pj: string; pjos: string } }): void => {
+    to.value = found.address;
+    if (found.amount && !amount.value.trim()) amount.value = found.amount;
+    payjoin = found.payjoin ?? null;
+    pjNote.hidden = !payjoin;
+    update();
+  };
+  /** A pasted or typed payment link is read like a scanned one. */
+  const readLink = (): void => {
+    if (!/^[a-z]+:/i.test(to.value.trim())) return;
+    const found = parseScanned(asset, to.value);
+    if (found) takeLink(found);
+  };
+  to.addEventListener('input', () => { if (payjoin) { payjoin = null; pjNote.hidden = true; } update(); });
+  to.addEventListener('change', readLink);
   amount.addEventListener('input', update);
   const form = h('form', { onsubmit: (e: Event) => {
     e.preventDefault();
+    readLink();
     busy(next, asset === 'XMR' ? 'Creating the transaction…' : 'Calculating the fee…', box, async () => {
+      const opts = fromMixedBtc?.checked || fromMixedDcr?.checked ? { fromMixed: true } : coins?.chosen.size ? { coins: [...coins.chosen] } : fromEth?.value ? { fromAddress: Number(fromEth.value) } : memo?.value.trim() ? { memo: memo.value.trim() } : undefined;
+      const withPj = payjoin && !fromMixedBtc?.checked ? { ...opts, payjoin } : opts;
       const preview = asset === 'DASH' && fromMixed?.checked
         ? await wallet.prepareDashPrivate(to.value, amount.value)
-        : await wallet.prepareSend(asset, to.value, amount.value, fromMixedBtc?.checked || fromMixedDcr?.checked ? { fromMixed: true } : coins?.chosen.size ? { coins: [...coins.chosen] } : fromEth?.value ? { fromAddress: Number(fromEth.value) } : memo?.value.trim() ? { memo: memo.value.trim() } : undefined);
+        : await wallet.prepareSend(asset, to.value, amount.value, withPj);
       renderReview(preview, { to: to.value, amount: amount.value });
     });
   } },
   box.el,
   h('div', { class: 'panel' }, h('label', { class: 'label', for: 'to' }, 'Receiving address'),
-    h('div', { class: 'input-wrap' }, to, h('button', { type: 'button', class: 'icon-btn', id: 'paste', 'aria-label': 'Paste', title: 'Paste', onclick: async () => { to.value = await wallet.paste(); update(); } }, icon('paste')),
-      h('button', { type: 'button', class: 'icon-btn', id: 'scan', 'aria-label': 'Scan QR code', title: 'Scan QR code', onclick: () => void openScanner(asset, (found) => {
-        to.value = found.address;
-        if (found.amount && !amount.value.trim()) amount.value = found.amount;
-        update();
-      }) }, icon('scan')))),
+    h('div', { class: 'input-wrap' }, to, h('button', { type: 'button', class: 'icon-btn', id: 'paste', 'aria-label': 'Paste', title: 'Paste', onclick: async () => { to.value = await wallet.paste(); payjoin = null; pjNote.hidden = true; readLink(); update(); } }, icon('paste')),
+      h('button', { type: 'button', class: 'icon-btn', id: 'scan', 'aria-label': 'Scan QR code', title: 'Scan QR code', onclick: () => void openScanner(asset, takeLink) }, icon('scan'))),
+    pjNote),
   h('div', { class: 'panel' }, h('label', { class: 'label', for: 'amount' }, 'Amount'),
     h('div', { class: 'input-wrap' }, amount, h('span', { class: 'unit' }, unitOf(asset)),
       h('button', { type: 'button', class: 'max', id: 'max', onclick: () => { amount.value = 'max'; update(); } }, 'Max')),
@@ -134,7 +151,7 @@ function coinControl(purpose: 'send' | 'mix' = 'send'): { el: HTMLElement; chose
 // ---- QR scan ----
 
 /** Reads an address out of a QR code. Accepts a bare address or a wallet link such as monero:4...?tx_amount=1. */
-function parseScanned(asset: Asset, raw: string): { address: string; amount: string } | null {
+function parseScanned(asset: Asset, raw: string): { address: string; amount: string; payjoin?: { pj: string; pjos: string } } | null {
   const text = raw.trim();
   const m = text.match(/^(?:(bitcoincash|bitcoin|btc|litecoin|ltc|solana|sol|dogecoin|doge|decred|dcr|dash|firo|zcash|zec|zano|kusari|ksr|pirate|arrr|ethereum|eth|tron|trx|usdt|monero|xmr|ton)(?::\/\/|:))?([0-9A-Za-z._:-]+?)(?:@1)?(?:\?(.*))?$/i);
   if (!m) return null;
@@ -161,14 +178,17 @@ function parseScanned(asset: Asset, raw: string): { address: string; amount: str
       : /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(address);
   if (!valid) return null;
   // Ethereum links carry value in wei, so the amount is left for the person to type.
-  const amount = EVM_ASSETS.includes(asset) ? '' : new URLSearchParams(m[3] ?? '').get(asset === 'XMR' ? 'tx_amount' : 'amount') ?? '';
-  return { address, amount: /^\d+(\.\d+)?$/.test(amount) ? amount : '' };
+  const query = new URLSearchParams(m[3] ?? '');
+  const amount = EVM_ASSETS.includes(asset) ? '' : query.get(asset === 'XMR' ? 'tx_amount' : 'amount') ?? '';
+  // A Bitcoin Payjoin link (BIP77/78): the recipient may add a coin of theirs. The wallet checks the link itself.
+  const pj = asset === 'BTC' ? query.get('pj') ?? query.get('req-pj') : null;
+  return { address, amount: /^\d+(\.\d+)?$/.test(amount) ? amount : '', ...(pj ? { payjoin: { pj, pjos: query.get('pjos') ?? '' } } : {}) };
 }
 
 let closeScanner: (() => void) | null = null;
 
 /** custom reads something other than an address: parse returns it, or null with the wrong message. */
-async function openScanner(asset: Asset, onFound: (found: { address: string; amount: string }) => void, custom?: { parse: (text: string) => string | null; wrong: string; onText: (text: string) => void }): Promise<void> {
+async function openScanner(asset: Asset, onFound: (found: { address: string; amount: string; payjoin?: { pj: string; pjos: string } }) => void, custom?: { parse: (text: string) => string | null; wrong: string; onText: (text: string) => void }): Promise<void> {
   closeScanner?.();
   const video = h('video', { playsinline: 'true', muted: 'true', autoplay: 'true', 'aria-label': 'Camera view' });
   const status = h('p', { class: 'scan-status', id: 'scan-status', role: 'status' }, 'Turning on the camera…');
@@ -253,7 +273,7 @@ function addressCheck(address: string): HTMLElement {
 function renderReview(p: any, keep: { to: string; amount: string }): void {
   const pw = h('input', { type: 'password', id: 'confirm-pw', autocomplete: 'current-password' });
   // Bitcoin can go out later, at a random moment, so its timing doesn't tie it to what just happened.
-  const when = p.asset === 'BTC' && !p.speedUp ? h('select', { id: 'send-when' },
+  const when = p.asset === 'BTC' && !p.speedUp && !p.payjoin ? h('select', { id: 'send-when' },
     h('option', { value: '0' }, 'Now'), h('option', { value: '10' }, 'At a random time within 10 minutes'),
     h('option', { value: '60' }, 'At a random time within an hour'), h('option', { value: '240' }, 'At a random time within 4 hours')) as HTMLSelectElement : null;
   const box = errorBox();
@@ -262,11 +282,11 @@ function renderReview(p: any, keep: { to: string; amount: string }): void {
   const price = prices?.[p.asset]?.usd;
   const form = h('form', { onsubmit: (e: Event) => {
     e.preventDefault();
-    busy(send, 'Sending…', box, async () => {
+    busy(send, p.payjoin ? 'Waiting for the recipient…' : 'Sending…', box, async () => {
       const delayMinutes = when ? Number(when.value) : 0;
       const res = await wallet.confirmSend(p.id, pw.value, delayMinutes ? { delayMinutes } : undefined);
       pw.value = '';
-      if (res.scheduledAt) renderScheduled(p, res.scheduledAt); else renderSent(p, res.hashes);
+      if (res.scheduledAt) renderScheduled(p, res.scheduledAt); else renderSent(p, res.hashes, res);
       void refresh();
     });
   } },
@@ -333,11 +353,13 @@ function renderDexReview(p: any, back: () => void): void {
   pw.focus();
 }
 
-function renderSent(p: any, hashes: string[]): void {
+function renderSent(p: any, hashes: string[], res?: { payjoin?: boolean; payjoinProblem?: string }): void {
   show('receive', subBar('Sent', renderHome), h('div', { class: 'scroll' },
     h('div', { class: 'picker' }, h('div', { class: 'picker-btn' }, coin(p.asset))),
     h('h2', { id: 'sent' }, `Sent ${p.amount} ${coinName(p.asset)}`),
     h('p', { class: 'muted' }, 'It\'s on the network. History shows it as confirmed once it\'s in a block.'),
+    res?.payjoin === true && h('p', { class: 'small', id: 'payjoin-done' }, 'Sent as a Payjoin: the recipient added a coin of theirs.'),
+    res?.payjoin === false && h('div', { class: 'warn', id: 'payjoin-done' }, h('div', {}, 'Sent as an ordinary payment, without Payjoin.'), res.payjoinProblem && h('div', {}, res.payjoinProblem)),
     h('br'),
     ...hashes.map((hash) => h('div', { class: 'panel' },
       h('span', { class: 'label' }, 'Transaction hash'),
@@ -506,6 +528,7 @@ async function renderReceive(current?: string): Promise<void> {
     try { await listEth(); } catch { /* the main address is already on screen */ }
     return;
   }
+  if (asset === 'BTC') { await payjoinPanel(extra, box); return; }
   if (asset !== 'XMR') return;
   const add = h('button', { class: 'ghost', id: 'new-sub', onclick: () => busy(add, 'Creating… This can take a while during sync', box, async () => { await renderReceive(await wallet.newSubaddress()); }) }, 'New address');
   setKids(extra, add);
@@ -515,4 +538,55 @@ async function renderReceive(current?: string): Promise<void> {
     setKids(extra, add, h('div', { class: 'sub-list' }, ...list.map((s) => h('button', { class: `mono${s.address === address ? ' on' : ''}`, onclick: () => void renderReceive(s.address) },
       `${s.index === 0 ? 'Main' : '#' + s.index}  ${s.address.slice(0, 14)}…${s.address.slice(-10)}`))));
   } catch { /* the main address is already on screen */ }
+}
+
+/** Bitcoin: asking to be paid with Payjoin (BIP77), and following the request while it runs. */
+async function payjoinPanel(extra: HTMLElement, box: ReturnType<typeof errorBox>): Promise<void> {
+  const about = 'With Payjoin the payer\'s wallet and this one each put in a coin, so the chain doesn\'t show who paid or how much. The payer\'s wallet must support Payjoin; others just pay the address. This wallet adds its smallest confirmed coin, which the payer gets to see. Needs Tor, and the wallet open until paid (up to an hour).';
+  let timer: number | undefined;
+  const draw = async (): Promise<void> => {
+    window.clearTimeout(timer);
+    if (!extra.isConnected) return;
+    const st = await wallet.payjoinReceiveStatus();
+    if (!extra.isConnected) return;
+    if (!st) {
+      const start = h('button', { class: 'ghost', id: 'pj-start', onclick: () => {
+        const amount = numbersOnly(h('input', { id: 'pj-amount', class: 'amount-input', inputmode: 'decimal', autocomplete: 'off', placeholder: 'Optional' }) as HTMLInputElement);
+        const pw = h('input', { type: 'password', id: 'pj-pw', autocomplete: 'current-password' }) as HTMLInputElement;
+        const go = h('button', { class: 'primary', id: 'pj-go', type: 'submit' }, 'Make Payjoin request');
+        setKids(extra, h('form', { class: 'panel', id: 'pj-form', onsubmit: (e: Event) => {
+          e.preventDefault();
+          busy(go, 'Reaching a Payjoin directory over Tor…', box, async () => { await wallet.payjoinReceiveStart(pw.value, amount.value); pw.value = ''; await draw(); });
+        } },
+        h('span', { class: 'label' }, 'Payjoin request'),
+        h('p', { class: 'small muted' }, about),
+        h('label', { class: 'field' }, h('span', {}, 'Amount (BTC)'), amount),
+        h('label', { class: 'field' }, h('span', {}, 'Password'), pw),
+        go));
+        pw.focus();
+      } }, 'Ask for a Payjoin payment');
+      setKids(extra, start);
+      return;
+    }
+    const qr = await wallet.qr(st.uri).catch(() => null);
+    if (!extra.isConnected) return;
+    const left = Math.max(0, Math.round((st.expires - Date.now()) / 60_000));
+    const text = st.status === 'waiting' ? `Waiting for the payer. The request runs for ${left} more minutes while the wallet is open.`
+      : st.status === 'answered' ? 'The payer\'s payment came in and this wallet added its coin. It shows in History once the payer sends it.'
+      : st.status === 'failed' ? 'A payment came in but couldn\'t be joined; the payer can still send it as an ordinary one.'
+      : 'The request expired.';
+    const status = h('span', { class: 'status', role: 'status' });
+    setKids(extra, h('div', { class: 'panel', id: 'pj-request' },
+      h('span', { class: 'label' }, 'Payjoin request'),
+      qr && h('div', { class: 'qr-frame' }, h('img', { src: qr, alt: 'QR code of the Payjoin request' })),
+      h('div', { class: 'mono small', id: 'pj-uri' }, st.uri),
+      h('p', { class: 'small', id: 'pj-status' }, text),
+      st.error && h('p', { class: 'small muted' }, st.error),
+      h('div', { class: 'row' },
+        h('button', { onclick: async () => { await wallet.copy(st.uri); status.textContent = 'Copied. It clears from the clipboard in 60 seconds.'; } }, 'Copy link'),
+        h('button', { class: 'ghost', id: 'pj-end', onclick: async () => { await wallet.payjoinReceiveEnd(); await draw(); } }, st.status === 'waiting' ? 'Stop' : 'Close')),
+      status));
+    if (st.status === 'waiting') timer = window.setTimeout(() => void draw().catch(() => undefined), 5_000);
+  };
+  try { await draw(); } catch (e) { box.show(e); }
 }

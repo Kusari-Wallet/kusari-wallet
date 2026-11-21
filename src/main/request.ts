@@ -152,3 +152,26 @@ export function requestRaw(url: string, opts: { method: 'GET' | 'POST'; body?: s
     req.end(opts.body);
   });
 }
+
+/** Bytes both ways, with only the headers the request needs (Payjoin's Oblivious HTTP and BIP78 posts). */
+export function requestBinary(url: string, opts: { method: 'GET' | 'POST'; body?: Uint8Array; contentType?: string; agent?: Agent; timeoutMs?: number; route?: string }): Promise<{ status: number; body: Uint8Array }> {
+  return new Promise((resolve, reject) => {
+    const lib = url.startsWith('https:') ? https : http;
+    const headers: Record<string, string> = {};
+    if (opts.body) { headers['Content-Type'] = opts.contentType ?? 'application/octet-stream'; headers['Content-Length'] = String(opts.body.length); }
+    const req = lib.request(url, { method: opts.method, headers, agent: opts.agent }, (res) => {
+      const chunks: Buffer[] = [];
+      let size = 0;
+      res.on('data', (c: Buffer) => {
+        size += c.length;
+        if (size > 64 * 1024) { req.destroy(new Error('The answer is too large.')); return; }
+        chunks.push(c);
+      });
+      res.on('end', () => resolve({ status: res.statusCode ?? 500, body: new Uint8Array(Buffer.concat(chunks)) }));
+      res.on('error', reject);
+    });
+    req.setTimeout(opts.timeoutMs ?? 30_000, () => req.destroy(new Error('Timed out')));
+    req.on('error', reject);
+    req.end(opts.body ? Buffer.from(opts.body) : undefined);
+  });
+}

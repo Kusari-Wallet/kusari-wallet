@@ -29,8 +29,8 @@ async function renderSettings(): Promise<void> {
   const evmSeparate = h('input', { type: 'checkbox', id: 'set-evm-separate', checked: Boolean(s.evmSeparate) });
   const btcFilters = h('input', { type: 'checkbox', id: 'set-btc-filters', checked: Boolean(s.btcFilters) }) as HTMLInputElement;
   const btcFrom = h('input', { id: 'set-btc-filters-from', type: 'date', value: s.btcFiltersFrom ?? '' }) as HTMLInputElement;
-  const btcFromRow = h('label', { class: 'field', id: 'set-btc-filters-from-row' }, h('span', {}, 'Bitcoin first used on'), btcFrom,
-    h('div', { class: 'hint' }, 'Blocks are checked from this date. Earlier means more to download: roughly 100 MB for each month, through Tor. Choose a date a little before your first Bitcoin was received.'));
+  const btcFromRow = h('label', { class: 'field', id: 'set-btc-filters-from-row' }, h('span', {}, 'Bitcoin and Litecoin first used on'), btcFrom,
+    h('div', { class: 'hint' }, 'Blocks are checked from this date. Earlier means more to download: roughly 100 MB for each month of Bitcoin, less for Litecoin, through Tor. Choose a date a little before your first coins were received.'));
   const showBtcFrom = () => { btcFromRow.style.display = btcFilters.checked ? '' : 'none'; };
   btcFilters.addEventListener('change', showBtcFrom);
   showBtcFrom();
@@ -195,8 +195,8 @@ async function renderSettings(): Promise<void> {
         h('label', { class: 'field' }, h('span', {}, 'Custom Monero node'), node, h('div', { class: 'hint' }, 'Enter your own node if you have one. Empty chooses a public node automatically. Public nodes can see your IP.')),
         h('label', { class: 'field' }, h('span', {}, 'TronGrid API key'), key, h('div', { class: 'hint' }, 'Works without one. Add a free key if lookups are often limited.')),
         h('label', { class: 'check' }, showPrices, h('span', {}, 'Show USD prices', h('div', { class: 'hint' }, 'Prices come from CoinGecko, then from other price services and exchanges if it\'s blocked or a coin is missing. Addresses and balances aren\'t sent, but your IP can be seen.'))),
-        h('label', { class: 'check' }, btcFilters, h('span', {}, 'Private Bitcoin sync',
-          h('div', { class: 'hint' }, 'Instead of asking servers about your addresses, the wallet downloads compact block filters from Bitcoin nodes over Tor and checks them on this device, so no server or node learns which addresses are yours. Two nodes must agree on every filter. It needs Tor, uses more data, and incoming payments show after their first confirmation. New wallets use it from the start. Switching reopens the wallet.'))),
+        h('label', { class: 'check' }, btcFilters, h('span', {}, 'Private Bitcoin and Litecoin sync',
+          h('div', { class: 'hint' }, 'Instead of asking servers about your addresses, the wallet downloads compact block filters from Bitcoin and Litecoin nodes over Tor and checks them on this device, so no server or node learns which addresses are yours. Two nodes must agree on every filter. Litecoin\'s private (MWEB) balance syncs as before. It needs Tor, uses more data, and incoming payments show after their first confirmation. New wallets use it from the start. Switching reopens the wallet.'))),
         btcFromRow,
         h('label', { class: 'check' }, evmSeparate, h('span', {}, 'A separate address for each EVM chain', h('div', { class: 'hint' }, 'BNB Chain, Polygon and Arbitrum each get an address of their own instead of sharing your Ethereum address, so one address doesn\'t link your activity on all four. Switching changes those receiving addresses and reopens the wallet. Coins on the other addresses show again when you switch back, so move them first.'))),
         tor.allowed === false ? copyLog : h('div', { class: 'tor-block', id: 'tor-block' },

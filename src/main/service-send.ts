@@ -6,9 +6,11 @@ import QRCode from 'qrcode';
 import { formatAmount, parseAmount } from './amount';
 import { Asset, BTC_EXPLORER_TX, DECIMALS, FIRO_EXPLORER_TX, SOL_EXPLORER_TX, BUY_PAGE, BCH_EXPLORER_TX, LTC_EXPLORER_TX, DOGE_EXPLORER_TX, DASH_EXPLORER_TX, ARRR_EXPLORER_TX, KSR_EXPLORER_TX, ZANO_EXPLORER_TX, ZEC_EXPLORER_TX, NETWORKS, OWN_SERVER_COINS, Settings } from './config';
 import { TronTransfer, deriveTronAccount, isTronAddress } from './tron';
-import { requestJson, getJson } from './request';
+import { requestJson, getJson, requestBinary, socksAgent, isolatedAgent } from './request';
+import { parseOhttpKeys, parsePayjoin, payjoinUri, type OhttpKeys, type Post } from './payjoin';
+import { PAYJOIN_DIRECTORIES, btcAddressOf, btcScriptOf, coinKey, newReceiverKey, payjoinPay, receiveStep } from './btc-payjoin';
 import { isSilentAddress } from './btc-silent';
-import { type BtcClient, type BtcDraft, LITECOIN, coinId, estimateVbytes, isBtcAddress, isLtcAddress } from './btc';
+import { type BtcClient, type BtcDraft, LITECOIN, V0_CHAIN, coinId, estimateVbytes, isBtcAddress, isLtcAddress } from './btc';
 import { DEPOSIT_GAS, TORNADO_CHAINS, TORNADO_POOLS, type TornadoChain, TornadoNote, chainOfNote, isTornadoChain, TornadoStore, WITHDRAW_GAS, abi as tornadoAbi, checkRelayerUrl, denomination, noteSecrets, noteText, pickRelayer, relayerFee, relayerHost, relayerStatus, relayerSubmit, splitPlan, tornadoEngineCheck } from './tornado';
 import { runTornado } from './tornado-run';
 import { isArrrAddress } from './arrr';
@@ -579,7 +581,7 @@ export class SendService extends ServiceCore {
     return { ok: true };
   }
 
-  async prepareSend(asset: Asset, to: string, amountInput: string, opts: { coins?: string[]; fromMixed?: boolean; fromAddress?: number; memo?: string } = {}) {
+  async prepareSend(asset: Asset, to: string, amountInput: string, opts: { coins?: string[]; fromMixed?: boolean; fromAddress?: number; memo?: string; payjoin?: { pj?: unknown; pjos?: unknown } } = {}) {
     const { tron, monero, btc, eth, dash } = this.session();
     if (this.torNotReady) throw new Error('Tor is connecting. Try again once it connects.');
     const address = to.trim();
@@ -714,7 +716,8 @@ export class SendService extends ServiceCore {
         const use = Array.isArray(opts.coins) ? opts.coins.filter((c) => typeof c === 'string' && COIN_ID.test(c)) : [];
         const draft = await btc.draft(address, isMax ? 'max' : parseAmount(amountInput, decimals), { use, frozen: new Set((await this.btcCoinNotes()).frozen) });
         if (draft.fee * 2n > draft.amount) warnings.push('The fee is more than half of the amount being sent.');
-        preview = this.storePreview({ asset, to: address, amount: draft.amount, fee: draft.fee, btc: draft });
+        const payjoin = opts.payjoin ? this.payjoinTarget(opts.payjoin, draft, silent, warnings) : undefined;
+        preview = this.storePreview({ asset, to: address, amount: draft.amount, fee: draft.fee, btc: draft, ...(payjoin ? { payjoin } : {}) });
       }
     } else if (isEvm(asset)) {
       if (!isEthAddress(address)) throw new Error('Not an Ethereum address. Only addresses starting with 0x can be used.');
@@ -780,6 +783,7 @@ export class SendService extends ServiceCore {
       feeAsset: preview.account ? ACCOUNT_COINS[asset]!.feeAsset : preview.eth ? chainOf(preview.eth.asset).native : isSpl(asset) ? 'SOL' : asset === 'SOL' || asset === 'DCR' || asset === 'DOGE' || asset === 'BCH' || asset === 'LTC' || asset === 'XMR' || asset === 'BTC' || asset === 'DASH' || asset === 'FIRO' || asset === 'ZEC' || asset === 'ZANO' || asset === 'KSR' || asset === 'ARRR' ? asset : 'TRX',
       feeIsEstimate: asset !== 'SOL' && !isSpl(asset) && asset !== 'DCR' && asset !== 'DOGE' && asset !== 'BCH' && asset !== 'LTC' && asset !== 'XMR' && asset !== 'BTC' && asset !== 'DASH' && asset !== 'FIRO' && asset !== 'ZEC' && asset !== 'ZANO' && asset !== 'KSR' && asset !== 'ARRR',
       ...(preview.account?.draft?.comment ? { memo: String(preview.account.draft.comment), memoKind: 'comment' } : {}),
+      ...(preview.payjoin ? { payjoin: true } : {}),
       warnings,
     };
   }
@@ -1263,11 +1267,137 @@ export class SendService extends ServiceCore {
     clearTimeout(this.poolTimers.get(id)); this.poolTimers.delete(id);
     await this.records.write(this.poolLaterPath, (await this.poolLaterList()).filter((x) => x.id !== String(id)));
   }
+  // ---- receiving with Payjoin (BIP77) ----
+  // A request lives while the wallet is unlocked, for up to an hour: the coin this wallet adds is held out of other
+  // sends meanwhile, and its key is kept in memory only.
+
+  protected get pjSeenPath(): string { return path.join(this.dir, 'payjoin-seen.json'); }
+
+  async payjoinReceiveStart(password: string, amountInput?: string) {
+    const { btc } = this.session();
+    if (!this.torActive) throw new Error('Payjoin needs Tor. Turn it on in Settings first.');
+    const amount = typeof amountInput === 'string' && amountInput.trim() ? formatAmount(parseAmount(amountInput.trim(), 8), 8) : undefined;
+    const frozen = new Set((await this.btcCoinNotes()).frozen);
+    const coins = (await btc.coins()).filter((u) => u.confirmed && u.chain !== V0_CHAIN && u.value >= 10_000n && !frozen.has(coinId(u)) && !btc.reserved.has(coinId(u)));
+    if (!coins.length) throw new Error('Payjoin needs a confirmed, unfrozen coin of at least 0.0001 BTC in this wallet, to add to the payment.');
+    // The smallest: the payer sees the coin added, so the least is shown.
+    const coin = coins.sort((a, b) => (a.value < b.value ? -1 : a.value > b.value ? 1 : 0))[0];
+    const secrets = await this.vault.open(password);
+    const ck = coinKey(secrets.tronMnemonic, coin.chain, coin.index);
+    if (Buffer.compare(Buffer.from(ck.script), Buffer.from(btcScriptOf(coin.address))) !== 0) throw new Error('A coin does not match this wallet\'s keys.');
+    const get = this.payjoinGet();
+    let directory = ''; let ohttp: OhttpKeys | null = null;
+    for (const d of PAYJOIN_DIRECTORIES) {
+      try { ohttp = parseOhttpKeys((await get(`${d}/.well-known/ohttp-gateway`)).body); directory = d; break; } catch { /* the next one */ }
+    }
+    if (!ohttp) throw new Error('No Payjoin directory could be reached over Tor. Try again later.');
+    this.payjoinReceiveStop();
+    const { sk, pub } = newReceiverKey();
+    const address = btc.receiveAddress;
+    const expires = Math.floor(Date.now() / 1000) + 3600;
+    const uri = payjoinUri({ address, amount, directory, receiverKey: pub, ohttp, expires });
+    btc.reserved.add(coinId(coin));
+    this.pjRecv = {
+      coinId: coinId(coin), post: this.payjoinPost(), gen: this.sessionGen,
+      s: { id: randomUUID(), address, amount, directory, ohttp, receiverSk: sk, expires, uri, status: 'waiting', coin: { txid: coin.txid, vout: coin.vout, amount: coin.value, chain: coin.chain, index: coin.index, ...ck } },
+    };
+    this.pjPoll();
+    return this.payjoinReceiveStatus();
+  }
+
+  payjoinReceiveStatus() {
+    const r = this.pjRecv;
+    if (!r) return null;
+    return { uri: r.s.uri, address: r.s.address, amount: r.s.amount ?? null, expires: r.s.expires * 1000, status: r.s.status, error: r.error ?? null };
+  }
+
+  protected pjPoll(): void {
+    const r = this.pjRecv;
+    const btc = this.btc;
+    if (!r || !btc || r.gen !== this.sessionGen || r.s.status !== 'waiting') return;
+    if (Date.now() / 1000 > r.s.expires) { r.s.status = 'expired'; this.pjRelease(r); return; }
+    const next = (ms: number) => { r.timer = setTimeout(() => this.pjPoll(), ms); (r.timer as any).unref?.(); };
+    const isOurs = (script: Uint8Array): boolean => { try { return btc.ownsAddress(btcAddressOf(script)); } catch { return false; } };
+    void (async () => {
+      const seen = await this.pjSeenList();
+      const seenBefore = (outpoints: string[]): boolean => {
+        const dup = outpoints.some((o) => seen.includes(o));
+        void this.records.write(this.pjSeenPath, [...new Set([...outpoints, ...seen])].slice(0, 500)).catch(() => undefined);
+        return dup;
+      };
+      return receiveStep(r.post, r.s, isOurs, seenBefore);
+    })().then((res) => {
+      if (this.pjRecv !== r || r.gen !== this.sessionGen) return;
+      r.error = undefined;
+      if (res === 'none') { next(3_000); return; }
+      r.s.status = res === 'answered' ? 'answered' : 'failed';
+      this.emit('balance-changed');
+      // If the payer never sends either version, its ordinary payment goes out from here (it pays this wallet).
+      // Once the Payjoin is out, this one is refused as a conflict, which is fine.
+      const original = r.s.original?.hex;
+      r.fallback = setTimeout(() => { if (original && this.btc) void this.btc.relay(original); this.pjRelease(r); }, 10 * 60_000);
+      (r.fallback as any).unref?.();
+    }, (e) => {
+      if (this.pjRecv !== r) return;
+      r.error = 'The Payjoin directory could not be reached. Retrying.';
+      void e;
+      next(15_000);
+    });
+  }
+
+  protected async pjSeenList(): Promise<string[]> {
+    const j = await this.records.read(this.pjSeenPath).catch(() => undefined);
+    return Array.isArray(j) ? j.filter((x) => typeof x === 'string') : [];
+  }
+
+  /** The coin goes back to ordinary use and its key is wiped; the request's status stays on screen. */
+  protected pjRelease(r: NonNullable<typeof this.pjRecv>): void {
+    this.btc?.reserved.delete(r.coinId);
+    r.s.coin.key.fill(0);
+    r.s.receiverSk.fill(0);
+  }
+
+  async payjoinReceiveEnd(): Promise<void> { this.payjoinReceiveStop(); }
+
+  /** Payjoin's directory lookups, through Tor. */
+  protected payjoinGet(): (url: string) => Promise<{ status: number; body: Uint8Array }> {
+    const agent = this.torProxy ? isolatedAgent(socksAgent(this.torProxy)) : undefined;
+    const route = `payjoin-${randomUUID().slice(0, 8)}`;
+    return async (url) => {
+      if (!this.torActive) throw new Error('Payjoin needs Tor.');
+      const res = await requestBinary(url, { method: 'GET', agent, timeoutMs: 60_000, route });
+      if (res.status !== 200) throw new Error(`The Payjoin directory answered ${res.status}.`);
+      return res;
+    };
+  }
+
+  /** A Payjoin link checked for this send; a reason in the warnings when it is set aside. */
+  protected payjoinTarget(given: { pj?: unknown; pjos?: unknown }, draft: BtcDraft, silent: boolean, warnings: string[]) {
+    const pj = typeof given.pj === 'string' && given.pj.length < 2000 ? parsePayjoin(given.pj, typeof given.pjos === 'string' ? given.pjos : null) : null;
+    if (!pj) { warnings.push('This Payjoin link can\'t be used safely, so this goes out as an ordinary payment.'); return undefined; }
+    if (pj.kind === 'v2' && pj.expires * 1000 < Date.now()) { warnings.push('This Payjoin link has expired, so this goes out as an ordinary payment.'); return undefined; }
+    if (!this.torActive) { warnings.push('Payjoin needs Tor, so this goes out as an ordinary payment. Turn on Tor in Settings to use it.'); return undefined; }
+    if (silent || draft.inputs.some((u) => u.chain === V0_CHAIN)) { warnings.push('Payjoin can\'t be used with these coins, so this goes out as an ordinary payment.'); return undefined; }
+    warnings.push('Payjoin: the recipient can add a coin of theirs to this payment, so the chain doesn\'t show which coins were yours or how much was paid. If they don\'t answer within a minute, the ordinary payment goes out instead.');
+    return pj;
+  }
+
+  /** Payjoin's requests, through Tor on a route of their own. */
+  protected payjoinPost(): Post {
+    const agent = this.torProxy ? isolatedAgent(socksAgent(this.torProxy)) : undefined;
+    const route = `payjoin-${randomUUID().slice(0, 8)}`;
+    return async (url, body, contentType, timeoutMs) => {
+      if (!this.torActive) throw new Error('Payjoin needs Tor.');
+      return requestBinary(url, { method: 'POST', body, contentType, agent, timeoutMs, route });
+    };
+  }
+
   protected get delayedPath(): string { return path.join(this.dir, 'btc-delayed.json'); }
 
   protected async scheduleSend(preview: Preview, mnemonic: string, minutes: number) {
     const draft = preview.btc ?? preview.btcMixed;
     if (!draft) throw new Error('Only Bitcoin sends can go out later.');
+    if (preview.payjoin) throw new Error('A Payjoin payment goes out right away: the recipient answers while it is made.');
     if (!DELAY_CHOICES.includes(minutes)) throw new Error('Choose when to send.');
     const client = preview.btcMixed ? this.btcMixed! : this.session().btc;
     const { hex, id } = client.sign(draft, mnemonic);
@@ -1385,6 +1515,18 @@ export class SendService extends ServiceCore {
       const hash = await this.btcMixed!.send(preview.btcMixed, secrets.tronMnemonic);
       this.btcMixedBalance = null;
       return { hashes: [hash] };
+    }
+    if (preview.btc && preview.payjoin) {
+      // The recipient gets up to a minute to add a coin; otherwise, or if anything about it is off, the ordinary
+      // payment goes out. Either way the payment is made.
+      const r = await payjoinPay({ draft: preview.btc, mnemonic: secrets.tronMnemonic, target: preview.payjoin, post: this.payjoinPost(), waitMs: 60_000 });
+      if (r.payjoin) {
+        try { return { hashes: [await btc.sendSigned(r.draft, r.hex, r.id)], payjoin: true }; } catch {
+          // The recipient's coin may have been spent meanwhile: the ordinary payment, then.
+        }
+      }
+      const plain = btc.sign(preview.btc, secrets.tronMnemonic);
+      return { hashes: [await btc.sendSigned(preview.btc, plain.hex, plain.id)], payjoin: false, payjoinProblem: r.problem ?? 'The recipient\'s Payjoin could not be sent.' };
     }
     if (preview.btc) {
       return { hashes: [await btc.send(preview.btc, secrets.tronMnemonic)] };

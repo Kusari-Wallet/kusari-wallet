@@ -308,6 +308,7 @@ async function renderAsset(): Promise<void> {
       a === 'ZEC' && overview?.zec?.syncing && !overview.zec.firstScanDone && h('div', { class: 'sync-banner', id: 'zec-scan' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), 'Scanning Zcash blocks. Closing the app before this finishes means scanning again from the start.'),
       a === 'ARRR' && overview?.arrr?.scanning && h('div', { class: 'sync-banner', id: 'arrr-scan' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), `Scanning Pirate Chain blocks. ${overview.arrr.percent}%`),
       a === 'BTC' && btcScanning() && h('div', { class: 'sync-banner', id: 'btc-filter-scan' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), `Checking Bitcoin blocks privately, on this device: ${btcBlocksLeft()} blocks to go.`),
+      a === 'LTC' && ltcScanning() && h('div', { class: 'sync-banner', id: 'ltc-filter-scan' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), `Checking Litecoin blocks privately, on this device: ${ltcBlocksLeft()} blocks to go.`),
       a === 'ARRR' && b?.ok && b.total !== b.spendable && h('div', { class: 'warn' }, `${b.spendable} ARRR can be sent now. The rest is waiting for confirmations.`),
       a === 'ZANO' && b?.ok && b.total !== b.spendable && h('div', { class: 'warn' }, `${b.spendable} ZANO can be sent now. Received coins can be used after 10 confirmations.`),
       a === 'KSR' && b?.ok && b.total !== b.spendable && h('div', { class: 'warn' }, `${b.spendable} KSR can be sent now. Received coins can be used after 10 confirmations.`),

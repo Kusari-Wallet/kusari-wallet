@@ -39,6 +39,23 @@ export const POW_LIMIT = 0x00000000fffffffffffffffffffffffffffffffffffffffffffff
 export const RETARGET = 2016;
 const TIMESPAN = 14 * 24 * 60 * 60;
 
+/** Litecoin's highest target (00000fff…f), and its retarget: 3.5 days, the same /4 and ×4 limits. */
+export const LTC_POW_LIMIT = (1n << 236n) - 1n;
+const LTC_TIMESPAN = 302_400;
+const bitLength = (n: bigint): number => n.toString(2).length;
+/** As Litecoin Core computes it: halved first when it is near the limit (its uint256 could overflow), doubled after. */
+export function nextTargetLtc(lastBits: number, firstTime: number, lastTime: number): number {
+  let span = lastTime - firstTime;
+  span = Math.min(Math.max(span, Math.floor(LTC_TIMESPAN / 4)), LTC_TIMESPAN * 4);
+  let t = bitsToTarget(lastBits);
+  const shift = bitLength(t) > bitLength(LTC_POW_LIMIT) - 1;
+  if (shift) t >>= 1n;
+  t = (t * BigInt(span)) / BigInt(LTC_TIMESPAN);
+  if (shift) t <<= 1n;
+  if (t > LTC_POW_LIMIT) t = LTC_POW_LIMIT;
+  return targetToBits(t);
+}
+
 /** The next period's target from the last one's (Bitcoin's rule, including its off-by-one). */
 export function nextTarget(lastBits: number, firstTime: number, lastTime: number): number {
   let span = lastTime - firstTime;

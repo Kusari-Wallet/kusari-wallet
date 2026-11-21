@@ -71,6 +71,8 @@ export interface UtxoCoin {
   inputVb: number; outputVb: number; dust: bigint; maxFeeRate: bigint;
   /** How far past the last used receiving address a full scan looks. */
   gap?: number;
+  /** The address network, for reading addresses back into scripts (Bitcoin when left out). */
+  network?: typeof btc.NETWORK;
 }
 export interface BtcHistoryItem { asset: 'BTC' | 'LTC'; hash: string; direction: 'in' | 'out' | 'self'; amount: string; counterparty: string; timestamp: number; status: 'confirmed' | 'pending'; dust: boolean }
 
@@ -216,7 +218,7 @@ export class BtcClient {
   private filters: { sync: FilterSync; id: string } | null = null;
   useFilters(sync: FilterSync, id: string): void {
     this.filters = { sync, id };
-    sync.addAccount({ id, gap: [this.coin.gap ?? GAP, GAP_CHANGE], script: (chain, index) => btc.OutScript.encode(btc.Address(btc.NETWORK).decode(this.addressAt(chain, index))) });
+    sync.addAccount({ id, gap: [this.coin.gap ?? GAP, GAP_CHANGE], script: (chain, index) => btc.OutScript.encode(btc.Address(this.coin.network ?? btc.NETWORK).decode(this.addressAt(chain, index))) });
     // The segwit v0 change addresses, as an account of their own with change only.
     if (this.v0) sync.addAccount({ id: `${id}:v0`, gap: [0, GAP_CHANGE], script: (_chain, index) => btc.OutScript.encode(btc.Address(btc.NETWORK).decode(this.addressAt(V0_CHAIN, index))) });
   }
@@ -572,6 +574,18 @@ export class BtcClient {
     return id;
   }
 
+  /** Whether an address is one this wallet has handed out or seen paid. */
+  ownsAddress(address: string): boolean { return this.state?.addresses.has(address) ?? false; }
+
+  /**
+   * Someone else's transaction, passed on (a Payjoin sender's ordinary payment, when the sender went quiet). Peers
+   * first when syncing privately; a refusal (it conflicts with one already out) is no error here.
+   */
+  async relay(hex: string): Promise<void> {
+    if (this.filters && (await this.filters.sync.broadcast(Buffer.from(hex, 'hex')).catch(() => 0)) >= 2) return;
+    await this.broadcast(hex).catch(() => undefined);
+  }
+
   /** How long after handing a send to peers it is looked for: nodes give out a waiting transaction after 2 minutes. */
   broadcastCheckMs = 150_000;
   /** Sends handed to peers whose check hasn't run yet. */
@@ -772,6 +786,6 @@ export function signLtcDraft(draft: BtcDraft, mnemonic: string): { hex: string; 
 }
 
 export const LITECOIN: UtxoCoin = {
-  symbol: 'LTC', address: (pub) => btc.p2wpkh(pub, LTC_NET).address, sign: signLtcDraft,
+  symbol: 'LTC', address: (pub) => btc.p2wpkh(pub, LTC_NET).address, sign: signLtcDraft, network: LTC_NET as typeof btc.NETWORK,
   inputVb: 68, outputVb: 43, dust: 1_000n, maxFeeRate: 500n,
 };

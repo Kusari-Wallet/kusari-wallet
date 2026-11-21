@@ -4,12 +4,12 @@
 // wallet's. Peers are onion nodes reached over Tor; filters are only trusted when two peers agree on them.
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { BtcPeer, BTC_PORT, type PeerAddress } from './btc-p2p';
+import { BtcPeer, type PeerAddress } from './btc-p2p';
+import { BTC_P2P, type P2pNet } from './p2p-net';
 import type { Dial } from './dash-p2p';
-import { RETARGET, bitsToTarget, dsha, fromHexLE, hashValue, headerWork, nextTarget, parseBlock, parseTx, readHeader } from './btc-block';
+import { RETARGET, bitsToTarget, dsha, fromHexLE, hashValue, headerWork, parseBlock, parseTx, readHeader } from './btc-block';
 import { filterHash, filterMatchesAny } from './btc-gcs';
 import type { Records } from './records';
-import { BTC_ONION_SEEDS } from './btc-seeds';
 
 /** Blocks the chain is followed from, from Bitcoin Core's own parameters, with the least difficulty expected after each. */
 export interface Checkpoint { height: number; hash: string; minDifficulty: number }
@@ -21,6 +21,16 @@ export const BTC_CHECKPOINTS: Checkpoint[] = [
   { height: 935000, hash: '0000000000000000000147034958af1652b2b91bba607beacc5e72a56f0fb5ee', minDifficulty: 4e13 },
   { height: 965000, hash: '00000000000000000001595977e6000ce56129f5c9b4073e31ccc30b90b97da9', minDifficulty: 4e13 },
 ];
+/** Litecoin: the block Litecoin Core 0.21 trusts its history up to (defaultAssumeValid, 2772730). */
+export const LTC_CHECKPOINTS: Checkpoint[] = [
+  { height: 2772730, hash: '80cdb35c080484df5bf384b311fde3c4694d3405765bc0f596e9eb369ff286e5', minDifficulty: 5e6 },
+];
+/** Litecoin block height around a date: 2.5-minute blocks from MWEB's activation (block 2265984, May 2022). */
+export function estimateLtcHeight(date: Date): number {
+  const [h1, t1] = [2265984, 1652997000];
+  return Math.round(h1 + (date.getTime() / 1000 - t1) / 150);
+}
+
 /** Taproot (the wallet's address type) began here: nothing can have been sent to the wallet before. */
 export const TAPROOT_HEIGHT = 709632;
 
@@ -43,7 +53,7 @@ export class HeaderChain {
   private readonly index = new Map<string, number>();
   private works: bigint[] = [0n];
 
-  constructor(readonly base: number, baseHash: Uint8Array, readonly maxTarget: bigint) {
+  constructor(readonly base: number, baseHash: Uint8Array, readonly maxTarget: bigint, readonly net: P2pNet = BTC_P2P) {
     this.hashes = [baseHash];
     this.index.set(Buffer.from(baseHash).toString('hex'), base);
   }
@@ -73,7 +83,8 @@ export class HeaderChain {
     if (!list.length) return { changedFrom: null };
     const first = readHeader(list[0]);
     const at = this.heightOf(first.prev);
-    if (at === undefined) throw new Error('The Bitcoin peer sent headers that do not join the chain.');
+    const name = this.net.name;
+    if (at === undefined) throw new Error(`The ${name} peer sent headers that do not join the chain.`);
     const fresh: { raw: Buffer; hash: Uint8Array; bits: number; time: number }[] = [];
     const hdr = (h: number): { bits: number; time: number } | undefined => {
       if (h > at) { const f = fresh[h - at - 1]; return f && { bits: f.bits, time: f.time }; }
@@ -85,16 +96,16 @@ export class HeaderChain {
     for (let i = 0; i < list.length; i++) {
       const h = at + 1 + i;
       const head = readHeader(list[i]);
-      if (Buffer.compare(Buffer.from(head.prev), Buffer.from(prev)) !== 0) throw new Error('The Bitcoin peer sent headers out of order.');
+      if (Buffer.compare(Buffer.from(head.prev), Buffer.from(prev)) !== 0) throw new Error(`The ${name} peer sent headers out of order.`);
       const target = bitsToTarget(head.bits);
-      if (target <= 0n || target > this.maxTarget) throw new Error('A Bitcoin header claims too little work.');
-      if (hashValue(head.hash) > target) throw new Error('A Bitcoin header does not have the work it claims.');
+      if (target <= 0n || target > this.maxTarget) throw new Error(`A ${name} header claims too little work.`);
+      if (hashValue(this.net.powHash(list[i])) > target) throw new Error(`A ${name} header does not have the work it claims.`);
       const before = hdr(h - 1);
       if (h % RETARGET !== 0) {
-        if (before && before.bits !== head.bits) throw new Error('A Bitcoin header changed difficulty out of turn.');
+        if (before && before.bits !== head.bits) throw new Error(`A ${name} header changed difficulty out of turn.`);
       } else {
-        const firstOfPeriod = hdr(h - RETARGET);
-        if (before && firstOfPeriod && nextTarget(before.bits, firstOfPeriod.time, before.time) !== head.bits) throw new Error('A Bitcoin header has the wrong difficulty.');
+        const firstOfPeriod = hdr(h - this.net.firstBack);
+        if (before && firstOfPeriod && this.net.nextBits(before.bits, firstOfPeriod.time, before.time) !== head.bits) throw new Error(`A ${name} header has the wrong difficulty.`);
       }
       fresh.push({ raw: Buffer.from(list[i]), hash: head.hash, bits: head.bits, time: head.time });
       work += headerWork(head.bits);
@@ -127,8 +138,8 @@ export class HeaderChain {
     return Buffer.concat([head, ...this.raw]);
   }
 
-  static restore(buf: Buffer, base: number, baseHash: Uint8Array, maxTarget: bigint): HeaderChain {
-    const chain = new HeaderChain(base, baseHash, maxTarget);
+  static restore(buf: Buffer, base: number, baseHash: Uint8Array, maxTarget: bigint, net: P2pNet = BTC_P2P): HeaderChain {
+    const chain = new HeaderChain(base, baseHash, maxTarget, net);
     if (buf.length < 40 || buf.toString('ascii', 0, 4) !== 'KBH1' || buf.readUInt32LE(4) !== base || !buf.subarray(8, 40).equals(Buffer.from(baseHash))) return chain;
     const list: Buffer[] = [];
     for (let at = 40; at + 80 <= buf.length; at += 80) list.push(buf.subarray(at, at + 80));
@@ -147,7 +158,8 @@ export class PeerPool {
   private loaded = false;
   private bad = new Map<string, number>();
 
-  constructor(private readonly opts: { dial: Dial; file: string; seeds?: string[]; parallel?: number }) {}
+  constructor(private readonly opts: { dial: Dial; file: string; seeds?: string[]; parallel?: number; net?: P2pNet }) {}
+  private get net(): P2pNet { return this.opts.net ?? BTC_P2P; }
 
   private async load(): Promise<void> {
     if (this.loaded) return;
@@ -164,7 +176,7 @@ export class PeerPool {
   }
 
   private async open(host: string, port: number): Promise<BtcPeer> {
-    const peer = new BtcPeer(await this.opts.dial(host, port), host);
+    const peer = new BtcPeer(await this.opts.dial(host, port), host, this.net);
     try { await peer.handshake(); } catch (e) { peer.close(); throw e; }
     return peer;
   }
@@ -202,7 +214,7 @@ export class PeerPool {
 
   /** Asks seed nodes (and peers already connected) for more onion nodes that serve filters. */
   private async discover(tried: Set<string>): Promise<void> {
-    const seeds = (this.opts.seeds ?? BTC_ONION_SEEDS).filter((s) => !tried.has(s.replace(/:\d+$/, ''))).sort(() => Math.random() - 0.5).slice(0, this.opts.parallel ?? 4);
+    const seeds = (this.opts.seeds ?? this.net.seeds).filter((s) => !tried.has(s.replace(/:\d+$/, ''))).sort(() => Math.random() - 0.5).slice(0, this.opts.parallel ?? 4);
     const ask = async (peer: BtcPeer): Promise<void> => {
       const found = await peer.addresses().catch(() => []);
       const add = found.filter((p) => (p.services & (1n << 6n)) && (p.services & ((1n << 0n) | (1n << 10n))));
@@ -210,7 +222,7 @@ export class PeerPool {
       for (const p of add) if (!have.has(p.host)) { this.known.push(p); have.add(p.host); }
     };
     await Promise.allSettled(this.connected.map(ask));
-    const got = await Promise.allSettled(seeds.map((s) => { const [host, port] = s.split(':'); tried.add(host); return this.open(host, Number(port ?? BTC_PORT)); }));
+    const got = await Promise.allSettled(seeds.map((s) => { const [host, port] = s.split(':'); tried.add(host); return this.open(host, Number(port ?? this.net.port)); }));
     for (const g of got) {
       if (g.status !== 'fulfilled') continue;
       await ask(g.value);
@@ -238,6 +250,8 @@ interface SyncState {
 export interface FilterSyncOptions {
   dir: string; records: Records; dial: Dial; birthday: number;
   checkpoints?: Checkpoint[]; seeds?: string[];
+  /** Bitcoin when left out. */
+  net?: P2pNet;
   onProgress?: (p: { scanned: number; tip: number }) => void;
 }
 
@@ -260,15 +274,16 @@ export class FilterSync {
   progress = { scanned: 0, tip: 0 };
 
   constructor(private readonly opts: FilterSyncOptions) {
-    const cps = opts.checkpoints ?? BTC_CHECKPOINTS;
+    const cps = opts.checkpoints ?? (opts.net?.id === 'ltc' ? LTC_CHECKPOINTS : BTC_CHECKPOINTS);
     // The chain is followed from the newest checkpoint below the first filter needed.
     const start = Math.floor((Math.max(opts.birthday, 1) - 1) / BATCH) * BATCH;
     this.checkpoint = [...cps].reverse().find((c) => c.height <= start) ?? cps[0];
-    this.pool = new PeerPool({ dial: opts.dial, file: path.join(opts.dir, 'btc-peers.json'), seeds: opts.seeds });
+    this.pool = new PeerPool({ dial: opts.dial, file: path.join(opts.dir, `${this.net.id}-peers.json`), seeds: opts.seeds, net: this.net });
   }
 
-  get file(): string { return path.join(this.opts.dir, 'btc-filters.json'); }
-  get headersFile(): string { return path.join(this.opts.dir, 'btc-headers.txt'); }
+  get net(): P2pNet { return this.opts.net ?? BTC_P2P; }
+  get file(): string { return path.join(this.opts.dir, `${this.net.id}-filters.json`); }
+  get headersFile(): string { return path.join(this.opts.dir, `${this.net.id}-headers.txt`); }
 
   addAccount(a: FilterAccount): void {
     this.accounts = [...this.accounts.filter((x) => x.id !== a.id), a];
@@ -276,7 +291,8 @@ export class FilterSync {
   }
 
   private fresh(): SyncState {
-    const start = Math.max(this.checkpoint.height, Math.floor((Math.max(this.opts.birthday, 1) - 1) / BATCH) * BATCH);
+    // Scanning starts on a thousandth block: the filter header there is one the peers' checkpoints give.
+    const start = Math.max(Math.ceil(this.checkpoint.height / BATCH) * BATCH, Math.floor((Math.max(this.opts.birthday, 1) - 1) / BATCH) * BATCH);
     return { v: 1, birthday: this.opts.birthday, base: this.checkpoint.height, scanned: start, filterHeader: '', next: {}, coins: {}, txs: {}, pending: {} };
   }
 
@@ -290,7 +306,7 @@ export class FilterSync {
     let buf: Buffer | null = null;
     // Kept as base64 text: the same on every platform's file store.
     try { buf = Buffer.from(String(await fs.readFile(this.headersFile, 'utf8')), 'base64'); } catch { /* none yet */ }
-    this.chain = buf ? HeaderChain.restore(buf, this.checkpoint.height, baseHash, maxTarget) : new HeaderChain(this.checkpoint.height, baseHash, maxTarget);
+    this.chain = buf ? HeaderChain.restore(buf, this.checkpoint.height, baseHash, maxTarget, this.net) : new HeaderChain(this.checkpoint.height, baseHash, maxTarget, this.net);
     if (this.state.scanned > this.chain.tip) { this.state = this.fresh(); } // headers lost: scan again
     this.rebuildScripts();
   }
@@ -328,7 +344,7 @@ export class FilterSync {
     await this.load();
     const s = this.state!; const chain = this.chain!;
     const peers = await this.pool.get(2);
-    if (peers.length < 2) throw new Error('Could not reach enough Bitcoin nodes over Tor to check block filters. It will retry automatically.');
+    if (peers.length < 2) throw new Error(`Could not reach enough ${this.net.name} nodes over Tor to check block filters. It will retry automatically.`);
     // Headers from every peer: the chain with the most work wins.
     let changedFrom: number | null = null;
     for (const p of peers) {
@@ -348,20 +364,20 @@ export class FilterSync {
     if (s.scanned >= tip) { this.expirePending(); await this.save(); return; }
 
     const ok = await this.pool.get(2);
-    if (ok.length < 2) throw new Error('Could not reach enough Bitcoin nodes over Tor to check block filters. It will retry automatically.');
+    if (ok.length < 2) throw new Error(`Could not reach enough ${this.net.name} nodes over Tor to check block filters. It will retry automatically.`);
     const checkpoints = await this.agreedCheckpoints(ok, chain.tipHash);
 
     let retries = 0;
     const retry = (p: BtcPeer): void => {
       this.pool.drop(p);
-      if (++retries > 12) throw new Error('The Bitcoin nodes reached keep sending filters that don\'t check out. It will retry with others later.');
+      if (++retries > 12) throw new Error(`The ${this.net.name} nodes reached keep sending filters that don't check out. It will retry with others later.`);
     };
     while (s.scanned < tip) {
       const start = s.scanned + 1;
       const end = Math.min(tip, Math.floor(s.scanned / BATCH) * BATCH + BATCH);
       const stop = chain.hashAt(end)!;
       const [a, b] = await this.pool.get(2);
-      if (!a || !b) throw new Error('Lost the connection to the Bitcoin nodes. It will retry automatically.');
+      if (!a || !b) throw new Error(`Lost the connection to the ${this.net.name} nodes. It will retry automatically.`);
       // The filter hashes, chained from the last checked filter header, must meet the checkpoint both peers gave.
       const fh = await a.filterHashes(start, stop);
       if (fh.hashes.length !== end - start + 1) { retry(a); continue; }
@@ -380,14 +396,14 @@ export class FilterSync {
         // Past the last checkpoint: the second peer must give the same filter headers.
         const other = await b.filterHashes(start, stop).catch(() => null);
         if (!other || !other.prev.equals(fh.prev) || other.hashes.length !== fh.hashes.length || other.hashes.some((x, i) => !x.equals(fh.hashes[i]))) {
-          throw new Error('Two Bitcoin nodes disagree about the newest block filters. It will retry with others.');
+          throw new Error(`Two ${this.net.name} nodes disagree about the newest block filters. It will retry with others.`);
         }
       }
       const filters = await a.filters(start, stop, end - start + 1);
       for (let i = 0; i < filters.length; i++) {
         const height = start + i;
         const f = filters[i];
-        if (!f.block.equals(Buffer.from(chain.hashAt(height)!)) || !Buffer.from(filterHash(f.filter)).equals(fh.hashes[i])) throw new Error('A Bitcoin node sent a filter that does not match.');
+        if (!f.block.equals(Buffer.from(chain.hashAt(height)!)) || !Buffer.from(filterHash(f.filter)).equals(fh.hashes[i])) throw new Error(`A ${this.net.name} node sent a filter that does not match.`);
         if (filterMatchesAny(f.filter, f.block, this.items)) await this.applyBlock(height, f.block, ok);
       }
       s.scanned = end;
@@ -411,7 +427,7 @@ export class FilterSync {
     const c = third ? await third.filterCheckpoints(stop).catch(() => null) : null;
     if (same(c, lists[0])) { this.pool.drop(pair[1]); return lists[0]!; }
     if (same(c, lists[1])) { this.pool.drop(pair[0]); return lists[1]!; }
-    throw new Error('Bitcoin nodes disagree about block filters. It will retry with others.');
+    throw new Error(`${this.net.name} nodes disagree about block filters. It will retry with others.`);
   }
 
   private async applyBlock(height: number, hash: Buffer, peers: BtcPeer[]): Promise<void> {
@@ -420,9 +436,9 @@ export class FilterSync {
     for (const p of [...peers.filter((x) => x.fullHistory || recent), ...this.pool.connected.filter((x) => !peers.includes(x) && (x.fullHistory || recent))]) {
       try { raw = await p.block(hash); break; } catch { /* the next one */ }
     }
-    if (!raw) throw new Error('Could not download a Bitcoin block that has this wallet\'s coins. It will retry automatically.');
+    if (!raw) throw new Error(`Could not download a ${this.net.name} block that has this wallet's coins. It will retry automatically.`);
     const { header, txs } = parseBlock(raw);
-    if (!Buffer.from(header.hash).equals(hash)) throw new Error('A Bitcoin node sent the wrong block.');
+    if (!Buffer.from(header.hash).equals(hash)) throw new Error(`A ${this.net.name} node sent the wrong block.`);
     const s = this.state!;
     for (const tx of txs) {
       const touched: Record<string, { in: bigint; out: bigint }> = {};
