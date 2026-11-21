@@ -152,3 +152,4 @@ Java WebView (`android/java`) running the same code as an esbuild bundle (`src/a
 - Fees: the privacy swap's step 2 (XMR out) takes 0.3% (`kusariSwapFee`, `KUSARI_FEE_XMR` in config.ts) as a second
   output of the same Monero transaction; the order is opened for the rest. No other feature takes a fee (mixers,
   CoinJoin, Tornado, ordinary swaps).
+- Releases: Windows and Linux only from 0.70.0 (`npm run dist:win && npm run dist:linux`); Android is no longer built.

@@ -2,7 +2,7 @@
 // coins were the payer's or how much was paid. BIP78 (the sender posts to the receiver's server) and BIP77 (both
 // sides leave end-to-end encrypted messages at a directory, reached through Oblivious HTTP, so neither the
 // directory nor the other side learns the IP address). Written from the two specifications.
-import { createHash, randomBytes, randomInt } from 'node:crypto';
+import { randomBytes, randomInt } from 'node:crypto';
 import { ellswiftDecode, ellswiftEncode } from './ellswift';
 import { compressed, newPrivateKey, publicKeyOf, setupReceiver, setupSender, AEAD_ID, KDF_ID, KEM_ID } from './hpke';
 
@@ -36,7 +36,7 @@ export function b32decode(s: string): Uint8Array {
   return fromWords(words);
 }
 /** A mailbox's name at the directory: the first 8 bytes of SHA-256 of its compressed key. */
-export const shortId = (pub: Uint8Array): string => b32encode(createHash('sha256').update(compressed(pub)).digest().subarray(0, 8));
+export const shortId = (pub: Uint8Array): string => b32encode(sha256(compressed(pub)).subarray(0, 8));
 
 // ---- links ----
 
@@ -225,11 +225,15 @@ export function psbtLength(b: Uint8Array): number {
   if (b.length < 5 || hex(b.subarray(0, 5)) !== '70736274ff') throw new Error('Not a PSBT.');
   let o = 5;
   const compact = (): number => {
+    if (o >= b.length) throw new Error('A PSBT was cut short.');
     const f = b[o++];
     if (f < 0xfd) return f;
     const n = f === 0xfd ? 2 : f === 0xfe ? 4 : 8;
+    if (o + n > b.length) throw new Error('A PSBT was cut short.');
     let v = 0; for (let i = n - 1; i >= 0; i--) v = v * 256 + b[o + i];
-    o += n; return v;
+    o += n;
+    if (v > b.length) throw new Error('A PSBT was cut short.'); // never a real length here
+    return v;
   };
   let tx: Uint8Array | null = null;
   const map = (): void => {

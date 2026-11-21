@@ -231,3 +231,9 @@ test('the payee won\'t pay its coin\'s share at an absurd fee rate', async () =>
   assert.equal(result.payjoin, false);
   assert.equal(result.problem, 'The recipient turned the payment down for Payjoin.');
 });
+
+test('a damaged PSBT is refused, never read forever', () => {
+  const { randomBytes } = require('node:crypto');
+  for (const h of ['70736274ff01ff', '70736274ff01ffffffffffffffffff', '70736274ff0100fe']) assert.throws(() => psbtLength(Buffer.from(h, 'hex')));
+  for (let i = 0; i < 2000; i++) { try { psbtLength(Buffer.concat([Buffer.from('70736274ff', 'hex'), randomBytes(1 + (i % 200))])); } catch (e) { assert.ok(e instanceof Error); } }
+});
