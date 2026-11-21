@@ -1238,6 +1238,7 @@ const PASSWORD = 'correct horse battery';
   await page.click('#side-home');
   await page.locator('.side #side-home.on').waitFor({ timeout: 5000 });
   assert.equal(await page.locator('.nav').isVisible(), false, 'no bottom menu on a wide window');
+  assert.equal(await page.locator('#go-send').isVisible(), false, 'the side menu has Send; the home page gives the room to the total');
   await page.locator('#holdings .holding').first().waitFor({ timeout: 10000 });
   await shot('desk-home');
   await page.click('#side-settings');

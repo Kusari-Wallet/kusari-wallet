@@ -382,7 +382,11 @@ body.developer-build { padding-top: 22px; }
   /* Home: total and actions side by side, holdings as cards, the list as a table. */
   .shell .home .top, .shell .home .total, .shell .home .total-note, .shell .home #make-private, .shell .home .holdings, .shell .home .tabs { padding-left: max(32px, calc((100% - 1040px) / 2)); padding-right: max(32px, calc((100% - 1040px) / 2)); }
   .shell .home .scroll { padding-left: max(32px, calc((100% - 1040px) / 2)); padding-right: max(32px, calc((100% - 1040px) / 2)); }
-  .shell .home .actions { justify-content: flex-start; gap: 18px; padding-left: max(32px, calc((100% - 1040px) / 2)); }
+  /* The side menu already has Send, Receive, Swap and BUY/SELL: the home page gives that room to the total. */
+  .shell .home .actions { display: none; }
+  .shell .home .total { padding-top: 30px; gap: 14px; }
+  .shell .home .total .value { font-size: 68px; letter-spacing: -.03em; }
+  .shell .home .total-note { padding-top: 6px; padding-bottom: 22px; font-size: 14px; }
   .shell .home .fx-bl { bottom: 0; }
   .holdings { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin: 4px 0 22px; flex: none; }
   .holdings:empty { display: none; }
