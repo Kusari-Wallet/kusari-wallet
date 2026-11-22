@@ -1,0 +1,74 @@
+Darwin sjc20-bb713-b60ea178-eed5-49f6-9225-8461a60d9874-8266F57824B5.local 24.6.0 Darwin Kernel Version 24.6.0: Sun Oct 11 23:44:11 PDT 2026; root:xnu-11417.140.69.713.47~2/RELEASE_ARM64_VMAPPLE arm64
+ProductName:		macOS
+ProductVersion:		15.8.2
+BuildVersion:		24H232
+[32m==>[0m [1mDownloading bottle manifests[0m
+✔︎ Bottle Manifest gnu-sed (4.10)
+✔︎ Bottle Manifest coreutils (9.12_1)
+✔︎ Bottle Manifest protobuf (36.2)
+✔︎ Bottle Manifest autoconf (2.73)
+✔︎ Bottle Manifest automake (1.20)
+✔︎ Bottle Manifest libtool (2.6.2)
+✔︎ Bottle Manifest boost (1.92.0_1)
+[32m==>[0m [1mFetching downloads for: [32mgnu-sed[39m, [32mcoreutils[39m, [32mprotobuf[39m, [32mautoconf[39m, [32mautomake[39m, [32mlibtool[39m and [32mboost[39m[0m
+✔︎ Bottle gnu-sed (4.10)
+✔︎ Bottle Manifest abseil (20260817.0)
+✔︎ Bottle Manifest m4 (1.4.21)
+✔︎ Bottle automake (1.20)
+✔︎ Bottle libtool (2.6.2)
+✔︎ Bottle autoconf (2.73)
+✔︎ Bottle coreutils (9.12_1)
+✔︎ Bottle protobuf (36.2)
+✔︎ Bottle abseil (20260817.0)
+✔︎ Bottle m4 (1.4.21)
+✔︎ Bottle boost (1.92.0_1)
+go: downloading github.com/ltcmweb/ltcd/btcec/v2 v2.3.3
+go: downloading github.com/ltcmweb/ltcd/chaincfg/chainhash v1.0.3
+go: downloading github.com/ltcmweb/ltcd v0.25.12
+go: downloading github.com/ltcmweb/mwebd v0.1.20-0.20260529130154-e7cdbe745e12
+go: downloading golang.org/x/net v0.49.0
+go: downloading golang.org/x/crypto v0.48.0
+go: downloading github.com/ltcmweb/secp256k1 v0.1.1
+go: downloading lukechampine.com/blake3 v1.4.1
+go: downloading github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0
+go: downloading github.com/btcsuite/btclog v1.0.0
+go: downloading github.com/hashicorp/golang-lru/v2 v2.0.7
+go: downloading github.com/ltcmweb/mwebd/sign v0.1.0
+go: downloading github.com/ltcmweb/neutrino v0.17.4
+go: downloading github.com/ltcsuite/ltcwallet/walletdb v1.3.5
+go: downloading gopkg.in/natefinch/lumberjack.v2 v2.2.1
+go: downloading google.golang.org/grpc v1.75.0
+go: downloading google.golang.org/protobuf v1.36.6
+go: downloading golang.org/x/sys v0.41.0
+go: downloading github.com/alitto/pond/v2 v2.2.0
+go: downloading github.com/ltcmweb/neutrino/cache v1.1.0
+go: downloading go.etcd.io/bbolt v1.3.10
+go: downloading google.golang.org/genproto/googleapis/rpc v0.0.0-20250707201910-8d1bb00bc6a7
+go: downloading github.com/klauspost/cpuid/v2 v2.3.0
+go: downloading github.com/decred/dcrd/crypto/blake256 v1.1.0
+go: downloading github.com/aead/siphash v1.0.1
+go: downloading github.com/kkdai/bstream v1.0.0
+go: downloading github.com/btcsuite/go-socks v0.0.0-20170105172521-4720035b7bfd
+go: downloading github.com/davecgh/go-spew v1.1.1
+go: downloading github.com/decred/dcrd/lru v1.1.2
+go: downloading github.com/btcsuite/websocket v0.0.0-20150119174127-31079b680792
+go: downloading github.com/ltcsuite/lnd/queue v1.1.0
+go: downloading golang.org/x/text v0.34.0
+go: downloading github.com/ltcsuite/lnd/ticker v1.1.0
+/Users/runner/work/_temp/up/mweb/mweb-bridge: replacing existing signature
+/Users/runner/work/_temp/up/mweb/mweb-bridge: Mach-O 64-bit executable arm64
+/Users/runner/work/_temp/up/mweb/mweb-bridge:
+	/usr/lib/libresolv.9.dylib (compatibility version 1.0.0, current version 1.0.0)
+	/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation (compatibility version 150.0.0, current version 3502.1.255)
+	/System/Library/Frameworks/Security.framework/Versions/A/Security (compatibility version 1.0.0, current version 61439.120.27)
+	/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)
+      cmd LC_BUILD_VERSION
+  cmdsize 32
+ platform 1
+    minos 11.0
+      sdk 15.5
+f3ab7e5e531f86dd3b0f7b45a1bf22514551448440bd6b099faca75215053723  /Users/runner/work/_temp/up/mweb/mweb-bridge
+mweb-bridge 1
+== check mweb arm64
+no network check for mweb; --version passed
+== check exit 0

@@ -1,0 +1,104 @@
+Darwin sat12-bq152-9d229c25-b0da-4797-b89e-2dfdd435883b-EE9A0E00E799.local 24.6.0 Darwin Kernel Version 24.6.0: Sun Oct 11 23:44:11 PDT 2026; root:xnu-11417.140.69.713.47~2/RELEASE_ARM64_VMAPPLE arm64
+ProductName:		macOS
+ProductVersion:		15.8.2
+BuildVersion:		24H232
+[32m==>[0m [1mDownloading bottle manifests[0m
+✔︎ Bottle Manifest gnu-sed (4.10)
+✔︎ Bottle Manifest coreutils (9.12_1)
+✔︎ Bottle Manifest protobuf (36.2)
+✔︎ Bottle Manifest autoconf (2.73)
+✔︎ Bottle Manifest automake (1.20)
+✔︎ Bottle Manifest libtool (2.6.2)
+✔︎ Bottle Manifest boost (1.92.0_1)
+[32m==>[0m [1mFetching downloads for: [32mgnu-sed[39m, [32mcoreutils[39m, [32mprotobuf[39m, [32mautoconf[39m, [32mautomake[39m, [32mlibtool[39m and [32mboost[39m[0m
+✔︎ Bottle gnu-sed (4.10)
+✔︎ Bottle Manifest abseil (20260817.0)
+✔︎ Bottle Manifest m4 (1.4.21)
+✔︎ Bottle libtool (2.6.2)
+✔︎ Bottle autoconf (2.73)
+✔︎ Bottle protobuf (36.2)
+✔︎ Bottle coreutils (9.12_1)
+✔︎ Bottle automake (1.20)
+✔︎ Bottle m4 (1.4.21)
+✔︎ Bottle abseil (20260817.0)
+✔︎ Bottle boost (1.92.0_1)
+ar: creating archive apps/libapps.a
+ar: creating archive libssl.a
+ar: creating archive libcrypto.a
+In file included from src/secp256k1.c:14:
+src/ecmult_impl.h:752:9: warning: unused variable 'i' [-Wunused-variable]
+  752 |     int i;
+      |         ^
+In file included from src/secp256k1.c:15:
+src/ecmult_const_impl.h:20:9: warning: 'WNAF_SIZE' macro redefined [-Wmacro-redefined]
+   20 | #define WNAF_SIZE(w) ((WNAF_BITS + (w) - 1) / (w))
+      |         ^
+src/ecmult_impl.h:51:9: note: previous definition is here
+   51 | #define WNAF_SIZE(w) WNAF_SIZE_BITS(WNAF_BITS, w)
+      |         ^
+2 warnings generated.
+/Users/runner/work/kusari-wallet/kusari-wallet/native/spark-bridge/.deps/fls/src/deps/sparkmobile/src/bpplus.cpp:318:39: warning: operator '<<' has lower precedence than '+'; '+' will be evaluated first [-Wshift-op-parentheses]
+  318 |             M = 1 << log2(unpadded_M) + 1;
+      |                   ~~ ~~~~~~~~~~~~~~~~~^~~
+/Users/runner/work/kusari-wallet/kusari-wallet/native/spark-bridge/.deps/fls/src/deps/sparkmobile/src/bpplus.cpp:318:39: note: place parentheses around the '+' expression to silence this warning
+  318 |             M = 1 << log2(unpadded_M) + 1;
+      |                                       ^  
+      |                      (                   )
+1 warning generated.
+/Users/runner/work/kusari-wallet/kusari-wallet/native/spark-bridge/.deps/fls/src/deps/sparkmobile/bitcoin/uint256.cpp:31:9: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+   31 |         sprintf(psz + i * 2, "%02x", data[sizeof(data) - i - 1]);
+      |         ^
+/Users/runner/work/kusari-wallet/kusari-wallet/native/spark-bridge/.deps/fls/src/deps/sparkmobile/bitcoin/uint256.cpp:102:38: note: in instantiation of member function 'base_blob<160>::GetHex' requested here
+  102 | template std::string base_blob<160>::GetHex() const;
+      |                                      ^
+/Applications/Xcode_16.4.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode_16.4.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:218:48: note: expanded from macro '__deprecated_msg'
+  218 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+/Users/runner/work/kusari-wallet/kusari-wallet/native/spark-bridge/.deps/fls/src/deps/sparkmobile/bitcoin/uint256.cpp:31:9: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+   31 |         sprintf(psz + i * 2, "%02x", data[sizeof(data) - i - 1]);
+      |         ^
+/Users/runner/work/kusari-wallet/kusari-wallet/native/spark-bridge/.deps/fls/src/deps/sparkmobile/bitcoin/uint256.cpp:112:38: note: in instantiation of member function 'base_blob<256>::GetHex' requested here
+  112 | template std::string base_blob<256>::GetHex() const;
+      |                                      ^
+/Applications/Xcode_16.4.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode_16.4.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:218:48: note: expanded from macro '__deprecated_msg'
+  218 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+/Users/runner/work/kusari-wallet/kusari-wallet/native/spark-bridge/.deps/fls/src/deps/sparkmobile/bitcoin/uint256.cpp:31:9: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+   31 |         sprintf(psz + i * 2, "%02x", data[sizeof(data) - i - 1]);
+      |         ^
+/Users/runner/work/kusari-wallet/kusari-wallet/native/spark-bridge/.deps/fls/src/deps/sparkmobile/bitcoin/uint256.cpp:122:38: note: in instantiation of member function 'base_blob<512>::GetHex' requested here
+  122 | template std::string base_blob<512>::GetHex() const;
+      |                                      ^
+/Applications/Xcode_16.4.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode_16.4.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:218:48: note: expanded from macro '__deprecated_msg'
+  218 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+3 warnings generated.
+/Users/runner/work/kusari-wallet/kusari-wallet/native-bin/spark-mac-arm64/spark-bridge: replacing existing signature
+/Users/runner/work/kusari-wallet/kusari-wallet/native-bin/spark:
+/Users/runner/work/kusari-wallet/kusari-wallet/native-bin/spark-linux:
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/strip: warning: changes being made to the file will invalidate the code signature in: /Users/runner/work/_temp/up/spark/spark-bridge
+/Users/runner/work/_temp/up/spark/spark-bridge: replacing existing signature
+/Users/runner/work/_temp/up/spark/spark-bridge: Mach-O 64-bit executable arm64
+/Users/runner/work/_temp/up/spark/spark-bridge:
+	/usr/lib/libc++.1.dylib (compatibility version 1.0.0, current version 1900.180.0)
+	/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)
+      cmd LC_BUILD_VERSION
+  cmdsize 32
+ platform 1
+    minos 11.0
+      sdk 15.5
+677897ee0b86bd7a5126628423f6e7bc169652929f5c574e3c5a6b839abd9d48  /Users/runner/work/_temp/up/spark/spark-bridge
+== check spark arm64
+{"id":1,"r":"sm1lev5h7apfth2f5j50kvrmcr3h42mefefvezr9af5a5y9md6dvrvn2gtejfleklh5d09j468mnrrx0ptd3fvhjc06ujcw55zryvvrl4rcmhdy0mv8a5unu9j4dmnh5e9pcewznnqh6f39q"}
+{"id":2,"r":"1e8b5cea519eb1da578b481e818ce89f3dcaa5399875ce8ba5f1201e17ef9b3dae0600ddc698666595cb724e70d13baea14c93e279e033e4f54c49a3789dd25713615d82956cc52fc7f1697d1ad50f4acf6773eab5a602c5a3291ccffdbcfab9000024932fa5f7acc5905dec9fe928bf710d42214f6206a9c0e9a9e6cad7133742830000"}
+selftest ok
+== check exit 0

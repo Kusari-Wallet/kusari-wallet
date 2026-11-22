@@ -1,0 +1,103 @@
+Darwin sjc20-av646-557f204f-eb46-4f73-8371-b39e127bb985-722F3F8B153A.local 24.6.0 Darwin Kernel Version 24.6.0: Tue Jul 21 20:50:07 PDT 2026; root:xnu-11417.140.69.711.44~1/RELEASE_X86_64 x86_64
+ProductName:		macOS
+ProductVersion:		15.7.9
+BuildVersion:		24G830
+[32m==>[0m [1mDownloading bottle manifests[0m
+✔︎ Bottle Manifest gnu-sed (4.10)
+✔︎ Bottle Manifest coreutils (9.11)
+✔︎ Bottle Manifest protobuf (36.0)
+✔︎ Bottle Manifest automake (1.18.1_1)
+✔︎ Bottle Manifest boost (1.92.0)
+[32m==>[0m [1mFetching downloads for: [32mgnu-sed[39m, [32mcoreutils[39m, [32mprotobuf[39m, [32mautomake[39m and [32mboost[39m[0m
+✔︎ Bottle Manifest abseil (20260817.0)
+✔︎ Bottle gnu-sed (4.10)
+✔︎ Bottle automake (1.18.1_1)
+✔︎ Bottle coreutils (9.11)
+✔︎ Bottle protobuf (36.0)
+✔︎ Bottle abseil (20260817.0)
+✔︎ Bottle boost (1.92.0)
+Updated Git hooks.
+Git LFS initialized.
+-- The CXX compiler identification is AppleClang 17.0.0.17000013
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Zano bridge links 5 libraries
+-- Configuring done (5.3s)
+-- Generating done (0.0s)
+-- Build files have been written to: /Users/runner/work/kusari-wallet/kusari-wallet/out
+[ 50%] Building CXX object CMakeFiles/zano-bridge.dir/main.cpp.o
+[100%] Linking CXX executable zano-bridge
+[100%] Built target zano-bridge
+/Users/runner/work/_temp/up/zano/zano-bridge: Mach-O 64-bit executable x86_64
+/Users/runner/work/_temp/up/zano/zano-bridge:
+	/usr/lib/libz.1.dylib (compatibility version 1.0.0, current version 1.2.12)
+	/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation (compatibility version 150.0.0, current version 3502.1.255)
+	/System/Library/Frameworks/Foundation.framework/Versions/C/Foundation (compatibility version 300.0.0, current version 3502.1.255)
+	/System/Library/Frameworks/Security.framework/Versions/A/Security (compatibility version 1.0.0, current version 61439.120.27)
+	/System/Library/Frameworks/SystemConfiguration.framework/Versions/A/SystemConfiguration (compatibility version 1.0.0, current version 1351.120.3)
+	/usr/lib/libc++.1.dylib (compatibility version 1.0.0, current version 1900.180.0)
+	/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)
+      cmd LC_BUILD_VERSION
+  cmdsize 32
+ platform 1
+    minos 11.0
+      sdk 15.5
+3a725391f67d00badd1b6005499c2e98012295752dd02e48ff8c1d49e347c368  /Users/runner/work/_temp/up/zano/zano-bridge
+2.2.3.607[27eec0e]
+== check zano x64
+init: 2026-Nov-22 06:25:16.237121 [tid:0x7ff8589df180] Plain wallet initialized: Zano v2.2.3.607[27eec0e], log location: /Users/runner/work/_temp/check/logs/plain_wallet.log
+2026-Nov-22 06:25:16.238195 [tid:0x7ff8589df180] Initing...
+2026-Nov-22 06:25:16.238384 [tid:0x7ff8589df180] [INIT PLAIN_WALLET_INSTANCE] Ver:2.2.3.607[27eec0e](Release)
+Working dir: /Users/runner/work/_temp/check
+URL: 37.27.100.59,  port: 10500
+{
+  "id": 0,
+  "jsonrpc": "",
+  "result": {
+    "return_code": "OK"
+  }
+}
+2026-Nov-22 06:25:16.239560 [tid:0x7ff8589df180] [DEFFERED_MODE]: 1
+2026-Nov-22 06:25:16.415173 [tid:0x7ff8589df180] [W:???] daemon address: 37.27.100.59:10500
+2026-Nov-22 06:25:16.415745 [tid:0x7ff8589df180] (before storing: pending_key_images: 0, pki file elements: 0, tx_keys: 0)
+2026-Nov-22 06:25:17.645113 [tid:0x7ff8589df180] [W:ZxD4Mr] Storing to temporary file /Users/runner/work/_temp/check/wallets/selftest-a.newtmp_1795328717 ...
+2026-Nov-22 06:25:17.645341 [tid:0x7ff8589df180] Serializing file with ver: 172
+2026-Nov-22 06:25:17.645538 [tid:0x7ff8589df180] [W:ZxD4Mr] Stored successfully to temporary file /Users/runner/work/_temp/check/wallets/selftest-a.newtmp_1795328717, file size=547
+2026-Nov-22 06:25:17.649773 [tid:0x7ff8589df180] [W:ZxD4Mr] Wallet was successfully stored to /Users/runner/work/_temp/check/wallets/selftest-a, file size=547 blockchain_size: 1
+2026-Nov-22 06:25:17.772618 [tid:0x70000cf56000] [WALLET_HANDLER] Wallet handler thread started, addr: ZxD4MrWAuXC13qst2goGYAMGQrEUuuP8fioKMd5MNW42DzKgw1khYrueb1CTUWKhMtVBAS5HbwUGrK4BWT1E5xhz2PwuRCvTA
+wallet id: 0
+address prefix: ZxD4Mr length 97
+t=0 wallet 0 node 3914257 0%
+2026-Nov-22 06:25:20.167856 [tid:0x70000cf56000] Wallet is getting fully resynced due to lookup_item_around failed at 3912344
+2026-Nov-22 06:25:20.167969 [tid:0x70000cf56000] [W:ZxD4Mr] Detaching blockchain on height 1
+2026-Nov-22 06:25:20.168022 [tid:0x70000cf56000] [W:ZxD4Mr] Detached blockchain on height 1, transfers detached 0, blocks detached 0, new top: 00000.. @ 0
+2026-Nov-22 06:25:21.726365 [tid:0x70000cf56000] [wallet_lock_time_watching_policy::watch_lock_time] LOCK_TIME: 3803ms
+synced after 4s
+balance: {
+  "id": 0,
+  "jsonrpc": "2.0",
+  "result": {
+    "balance": 0,
+    "balances": [{
+      "asset_info": {
+        "asset_id": "d6329b5b1f7c0805b5c345f4957554002a2f557845f64d7645dae0e051a6498a",
+2026-Nov-22 06:25:22.119116 [tid:0x7ff8589df180] (before storing: pending_key_images: 0, pki file elements: 0, tx_keys: 0)
+2026-Nov-22 06:25:22.250566 [tid:0x70000cf56000] [WALLET_HANDLER] Wallet thread thread stopped
+2026-Nov-22 06:25:23.249791 [tid:0x7ff8589df180] [W:ZxD4Mr] Storing to temporary file /Users/runner/work/_temp/check/wallets/selftest-a.newtmp_1795328723 ...
+2026-Nov-22 06:25:23.249907 [tid:0x7ff8589df180] Serializing file with ver: 172
+2026-Nov-22 06:25:23.250787 [tid:0x7ff8589df180] [W:ZxD4Mr] Stored successfully to temporary file /Users/runner/work/_temp/check/wallets/selftest-a.newtmp_1795328723, file size=14598
+2026-Nov-22 06:25:23.251217 [tid:0x7ff8589df180] [W:ZxD4Mr] Wallet was successfully stored to /Users/runner/work/_temp/check/wallets/selftest-a, file size=14598 blockchain_size: 3914257
+2026-Nov-22 06:25:23.251264 [tid:0x7ff8589df180] [wallet_lock_time_watching_policy::watch_lock_time] LOCK_TIME: 1132ms
+2026-Nov-22 06:25:23.251569 [tid:0x7ff8589df180] [DEFFERED_MODE]: 1
+2026-Nov-22 06:25:23.424148 [tid:0x7ff8589df180] [W:???] daemon address: 37.27.100.59:10500
+2026-Nov-22 06:25:23.424455 [tid:0x7ff8589df180] (before storing: pending_key_images: 0, pki file elements: 0, tx_keys: 0)
+2026-Nov-22 06:25:24.565656 [tid:0x7ff8589df180] [W:ZxD4Mr] Storing to temporary file /Users/runner/work/_temp/check/wallets/selftest-b.newtmp_1795328724 ...
+2026-Nov-22 06:25:24.565767 [tid:0x7ff8589df180] Serializing file with ver: 172
+2026-Nov-22 06:25:24.565927 [tid:0x7ff8589df180] [W:ZxD4Mr] Stored successfully to temporary file /Users/runner/work/_temp/check/wallets/selftest-b.newtmp_1795328724, file size=547
+2026-Nov-22 06:25:24.566095 [tid:0x7ff8589df180] [W:ZxD4Mr] Wallet was successfully stored to /Users/runner/work/_temp/check/wallets/selftest-b, file size=547 blockchain_size: 1
+2026-Nov-22 06:25:24.633702 [tid:0x70000cf56000] [WALLET_HANDLER] Wallet handler thread started, addr: ZxD4MrWAuXC13qst2goGYAMGQrEUuuP8fioKMd5MNW42DzKgw1khYrueb1CTUWKhMtVBAS5HbwUGrK4BWT1E5xhz2PwuRCvTA
+selftest ok
+== check exit 0

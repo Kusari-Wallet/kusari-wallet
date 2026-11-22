@@ -1,0 +1,160 @@
+Darwin sat12-jr325-8cbaa362-9246-4a60-86c0-ff17f800e303-E6829BD37998.local 24.6.0 Darwin Kernel Version 24.6.0: Tue Jul 21 20:50:07 PDT 2026; root:xnu-11417.140.69.711.44~1/RELEASE_X86_64 x86_64
+ProductName:		macOS
+ProductVersion:		15.7.9
+BuildVersion:		24G830
+[32m==>[0m [1mDownloading bottle manifests[0m
+✔︎ Bottle Manifest gnu-sed (4.10)
+✔︎ Bottle Manifest coreutils (9.11)
+✔︎ Bottle Manifest protobuf (36.0)
+✔︎ Bottle Manifest automake (1.18.1_1)
+✔︎ Bottle Manifest boost (1.92.0)
+[32m==>[0m [1mFetching downloads for: [32mgnu-sed[39m, [32mcoreutils[39m, [32mprotobuf[39m, [32mautomake[39m and [32mboost[39m[0m
+✔︎ Bottle Manifest abseil (20260817.0)
+✔︎ Bottle gnu-sed (4.10)
+✔︎ Bottle automake (1.18.1_1)
+✔︎ Bottle coreutils (9.11)
+✔︎ Bottle protobuf (36.0)
+✔︎ Bottle abseil (20260817.0)
+✔︎ Bottle boost (1.92.0)
+ar: creating archive apps/libapps.a
+ar: creating archive libcrypto.a
+ar: creating archive libssl.a
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: libcrypto.a(async_null.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: libcrypto.a(async_win.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: libcrypto.a(cms_cd.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: libcrypto.a(dso_dl.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: libcrypto.a(dso_dlfcn.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: libcrypto.a(dso_vms.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: libcrypto.a(dso_win32.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: libcrypto.a(ebcdic.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: libcrypto.a(ecp_nistp224.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: libcrypto.a(ecp_nistp256.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: libcrypto.a(ecp_nistp521.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: libcrypto.a(ecp_nistputil.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: libcrypto.a(e_rc5.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: libcrypto.a(m_md2.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: libcrypto.a(rand_egd.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: libcrypto.a(rand_vms.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: libcrypto.a(rand_win.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: libcrypto.a(threads_none.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: libcrypto.a(threads_win.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: libssl.a(ssl_utst.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: libssl.a(t1_trce.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: libssl.a(ssl_utst.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: libssl.a(t1_trce.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: libcrypto.a(async_null.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: libcrypto.a(async_win.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: libcrypto.a(cms_cd.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: libcrypto.a(dso_dl.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: libcrypto.a(dso_dlfcn.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: libcrypto.a(dso_vms.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: libcrypto.a(dso_win32.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: libcrypto.a(ebcdic.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: libcrypto.a(ecp_nistp224.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: libcrypto.a(ecp_nistp256.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: libcrypto.a(ecp_nistp521.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: libcrypto.a(ecp_nistputil.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: libcrypto.a(e_rc5.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: libcrypto.a(m_md2.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: libcrypto.a(rand_egd.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: libcrypto.a(rand_vms.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: libcrypto.a(rand_win.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: libcrypto.a(threads_none.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: libcrypto.a(threads_win.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: /Users/runner/work/kusari-wallet/kusari-wallet/native/spark-bridge/.deps/ossl-mac/prefix/lib/libcrypto.a.new(async_null.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: /Users/runner/work/kusari-wallet/kusari-wallet/native/spark-bridge/.deps/ossl-mac/prefix/lib/libcrypto.a.new(async_win.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: /Users/runner/work/kusari-wallet/kusari-wallet/native/spark-bridge/.deps/ossl-mac/prefix/lib/libcrypto.a.new(cms_cd.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: /Users/runner/work/kusari-wallet/kusari-wallet/native/spark-bridge/.deps/ossl-mac/prefix/lib/libcrypto.a.new(dso_dl.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: /Users/runner/work/kusari-wallet/kusari-wallet/native/spark-bridge/.deps/ossl-mac/prefix/lib/libcrypto.a.new(dso_dlfcn.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: /Users/runner/work/kusari-wallet/kusari-wallet/native/spark-bridge/.deps/ossl-mac/prefix/lib/libcrypto.a.new(dso_vms.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: /Users/runner/work/kusari-wallet/kusari-wallet/native/spark-bridge/.deps/ossl-mac/prefix/lib/libcrypto.a.new(dso_win32.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: /Users/runner/work/kusari-wallet/kusari-wallet/native/spark-bridge/.deps/ossl-mac/prefix/lib/libcrypto.a.new(ebcdic.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: /Users/runner/work/kusari-wallet/kusari-wallet/native/spark-bridge/.deps/ossl-mac/prefix/lib/libcrypto.a.new(ecp_nistp224.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: /Users/runner/work/kusari-wallet/kusari-wallet/native/spark-bridge/.deps/ossl-mac/prefix/lib/libcrypto.a.new(ecp_nistp256.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: /Users/runner/work/kusari-wallet/kusari-wallet/native/spark-bridge/.deps/ossl-mac/prefix/lib/libcrypto.a.new(ecp_nistp521.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: /Users/runner/work/kusari-wallet/kusari-wallet/native/spark-bridge/.deps/ossl-mac/prefix/lib/libcrypto.a.new(ecp_nistputil.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: /Users/runner/work/kusari-wallet/kusari-wallet/native/spark-bridge/.deps/ossl-mac/prefix/lib/libcrypto.a.new(e_rc5.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: /Users/runner/work/kusari-wallet/kusari-wallet/native/spark-bridge/.deps/ossl-mac/prefix/lib/libcrypto.a.new(m_md2.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: /Users/runner/work/kusari-wallet/kusari-wallet/native/spark-bridge/.deps/ossl-mac/prefix/lib/libcrypto.a.new(rand_egd.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: /Users/runner/work/kusari-wallet/kusari-wallet/native/spark-bridge/.deps/ossl-mac/prefix/lib/libcrypto.a.new(rand_vms.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: /Users/runner/work/kusari-wallet/kusari-wallet/native/spark-bridge/.deps/ossl-mac/prefix/lib/libcrypto.a.new(rand_win.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: /Users/runner/work/kusari-wallet/kusari-wallet/native/spark-bridge/.deps/ossl-mac/prefix/lib/libcrypto.a.new(threads_none.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: /Users/runner/work/kusari-wallet/kusari-wallet/native/spark-bridge/.deps/ossl-mac/prefix/lib/libcrypto.a.new(threads_win.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: /Users/runner/work/kusari-wallet/kusari-wallet/native/spark-bridge/.deps/ossl-mac/prefix/lib/libssl.a.new(ssl_utst.o) has no symbols
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ranlib: file: /Users/runner/work/kusari-wallet/kusari-wallet/native/spark-bridge/.deps/ossl-mac/prefix/lib/libssl.a.new(t1_trce.o) has no symbols
+In file included from src/secp256k1.c:14:
+src/ecmult_impl.h:752:9: warning: unused variable 'i' [-Wunused-variable]
+  752 |     int i;
+      |         ^
+In file included from src/secp256k1.c:15:
+src/ecmult_const_impl.h:20:9: warning: 'WNAF_SIZE' macro redefined [-Wmacro-redefined]
+   20 | #define WNAF_SIZE(w) ((WNAF_BITS + (w) - 1) / (w))
+      |         ^
+src/ecmult_impl.h:51:9: note: previous definition is here
+   51 | #define WNAF_SIZE(w) WNAF_SIZE_BITS(WNAF_BITS, w)
+      |         ^
+2 warnings generated.
+/Users/runner/work/kusari-wallet/kusari-wallet/native/spark-bridge/.deps/fls/src/deps/sparkmobile/src/bpplus.cpp:318:39: warning: operator '<<' has lower precedence than '+'; '+' will be evaluated first [-Wshift-op-parentheses]
+  318 |             M = 1 << log2(unpadded_M) + 1;
+      |                   ~~ ~~~~~~~~~~~~~~~~~^~~
+/Users/runner/work/kusari-wallet/kusari-wallet/native/spark-bridge/.deps/fls/src/deps/sparkmobile/src/bpplus.cpp:318:39: note: place parentheses around the '+' expression to silence this warning
+  318 |             M = 1 << log2(unpadded_M) + 1;
+      |                                       ^  
+      |                      (                   )
+1 warning generated.
+/Users/runner/work/kusari-wallet/kusari-wallet/native/spark-bridge/.deps/fls/src/deps/sparkmobile/bitcoin/uint256.cpp:31:9: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+   31 |         sprintf(psz + i * 2, "%02x", data[sizeof(data) - i - 1]);
+      |         ^
+/Users/runner/work/kusari-wallet/kusari-wallet/native/spark-bridge/.deps/fls/src/deps/sparkmobile/bitcoin/uint256.cpp:102:38: note: in instantiation of member function 'base_blob<160>::GetHex' requested here
+  102 | template std::string base_blob<160>::GetHex() const;
+      |                                      ^
+/Applications/Xcode_16.4.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode_16.4.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:218:48: note: expanded from macro '__deprecated_msg'
+  218 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+/Users/runner/work/kusari-wallet/kusari-wallet/native/spark-bridge/.deps/fls/src/deps/sparkmobile/bitcoin/uint256.cpp:31:9: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+   31 |         sprintf(psz + i * 2, "%02x", data[sizeof(data) - i - 1]);
+      |         ^
+/Users/runner/work/kusari-wallet/kusari-wallet/native/spark-bridge/.deps/fls/src/deps/sparkmobile/bitcoin/uint256.cpp:112:38: note: in instantiation of member function 'base_blob<256>::GetHex' requested here
+  112 | template std::string base_blob<256>::GetHex() const;
+      |                                      ^
+/Applications/Xcode_16.4.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode_16.4.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:218:48: note: expanded from macro '__deprecated_msg'
+  218 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+/Users/runner/work/kusari-wallet/kusari-wallet/native/spark-bridge/.deps/fls/src/deps/sparkmobile/bitcoin/uint256.cpp:31:9: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+   31 |         sprintf(psz + i * 2, "%02x", data[sizeof(data) - i - 1]);
+      |         ^
+/Users/runner/work/kusari-wallet/kusari-wallet/native/spark-bridge/.deps/fls/src/deps/sparkmobile/bitcoin/uint256.cpp:122:38: note: in instantiation of member function 'base_blob<512>::GetHex' requested here
+  122 | template std::string base_blob<512>::GetHex() const;
+      |                                      ^
+/Applications/Xcode_16.4.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Applications/Xcode_16.4.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:218:48: note: expanded from macro '__deprecated_msg'
+  218 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+3 warnings generated.
+/Users/runner/work/kusari-wallet/kusari-wallet/native-bin/spark:
+/Users/runner/work/kusari-wallet/kusari-wallet/native-bin/spark-linux:
+/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/strip: warning: changes being made to the file will invalidate the code signature in: /Users/runner/work/_temp/up/spark/spark-bridge
+/Users/runner/work/_temp/up/spark/spark-bridge: replacing existing signature
+/Users/runner/work/_temp/up/spark/spark-bridge: Mach-O 64-bit executable x86_64
+/Users/runner/work/_temp/up/spark/spark-bridge:
+	/usr/lib/libc++.1.dylib (compatibility version 1.0.0, current version 1900.180.0)
+	/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)
+      cmd LC_BUILD_VERSION
+  cmdsize 32
+ platform 1
+    minos 11.0
+      sdk 15.5
+6b09e84fcf5e099988adb60ccfa2a2ccc2994d2c0dc48936a8833e824ab15de3  /Users/runner/work/_temp/up/spark/spark-bridge
+== check spark x64
+{"id":1,"r":"sm1lev5h7apfth2f5j50kvrmcr3h42mefefvezr9af5a5y9md6dvrvn2gtejfleklh5d09j468mnrrx0ptd3fvhjc06ujcw55zryvvrl4rcmhdy0mv8a5unu9j4dmnh5e9pcewznnqh6f39q"}
+{"id":2,"r":"1e8b5cea519eb1da578b481e818ce89f3dcaa5399875ce8ba5f1201e17ef9b3dae0600ddc698666595cb724e70d13baea14c93e279e033e4f54c49a3789dd25713615d82956cc52fc7f1697d1ad50f4acf6773eab5a602c5a3291ccffdbcfab9000024932fa5f7acc5905dec9fe928bf710d42214f6206a9c0e9a9e6cad7133742830000"}
+selftest ok
+== check exit 0

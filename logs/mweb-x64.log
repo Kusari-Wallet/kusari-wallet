@@ -1,0 +1,67 @@
+Darwin sjc20-av658-be1bd62d-c2b8-4e92-b317-7a00a0d4cb15-CA34FAD6FB7F.local 24.6.0 Darwin Kernel Version 24.6.0: Tue Jul 21 20:50:07 PDT 2026; root:xnu-11417.140.69.711.44~1/RELEASE_X86_64 x86_64
+ProductName:		macOS
+ProductVersion:		15.7.9
+BuildVersion:		24G830
+[32m==>[0m [1mDownloading bottle manifests[0m
+✔︎ Bottle Manifest gnu-sed (4.10)
+✔︎ Bottle Manifest coreutils (9.11)
+✔︎ Bottle Manifest protobuf (36.0)
+✔︎ Bottle Manifest automake (1.18.1_1)
+✔︎ Bottle Manifest boost (1.92.0)
+[32m==>[0m [1mFetching downloads for: [32mgnu-sed[39m, [32mcoreutils[39m, [32mprotobuf[39m, [32mautomake[39m and [32mboost[39m[0m
+✔︎ Bottle Manifest abseil (20260817.0)
+✔︎ Bottle gnu-sed (4.10)
+✔︎ Bottle automake (1.18.1_1)
+✔︎ Bottle coreutils (9.11)
+✔︎ Bottle protobuf (36.0)
+✔︎ Bottle abseil (20260817.0)
+✔︎ Bottle boost (1.92.0)
+go: downloading github.com/ltcmweb/ltcd/btcec/v2 v2.3.3
+go: downloading github.com/ltcmweb/ltcd/chaincfg/chainhash v1.0.3
+go: downloading github.com/ltcmweb/ltcd v0.25.12
+go: downloading github.com/ltcmweb/mwebd v0.1.20-0.20260529130154-e7cdbe745e12
+go: downloading golang.org/x/net v0.49.0
+go: downloading golang.org/x/crypto v0.48.0
+go: downloading github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0
+go: downloading lukechampine.com/blake3 v1.4.1
+go: downloading github.com/btcsuite/btclog v1.0.0
+go: downloading github.com/ltcmweb/secp256k1 v0.1.1
+go: downloading github.com/hashicorp/golang-lru/v2 v2.0.7
+go: downloading github.com/ltcmweb/mwebd/sign v0.1.0
+go: downloading github.com/ltcmweb/neutrino v0.17.4
+go: downloading github.com/ltcsuite/ltcwallet/walletdb v1.3.5
+go: downloading gopkg.in/natefinch/lumberjack.v2 v2.2.1
+go: downloading google.golang.org/grpc v1.75.0
+go: downloading google.golang.org/protobuf v1.36.6
+go: downloading golang.org/x/sys v0.41.0
+go: downloading github.com/alitto/pond/v2 v2.2.0
+go: downloading github.com/ltcmweb/neutrino/cache v1.1.0
+go: downloading go.etcd.io/bbolt v1.3.10
+go: downloading github.com/klauspost/cpuid/v2 v2.3.0
+go: downloading github.com/decred/dcrd/crypto/blake256 v1.1.0
+go: downloading google.golang.org/genproto/googleapis/rpc v0.0.0-20250707201910-8d1bb00bc6a7
+go: downloading github.com/aead/siphash v1.0.1
+go: downloading github.com/kkdai/bstream v1.0.0
+go: downloading github.com/btcsuite/go-socks v0.0.0-20170105172521-4720035b7bfd
+go: downloading github.com/davecgh/go-spew v1.1.1
+go: downloading github.com/decred/dcrd/lru v1.1.2
+go: downloading github.com/btcsuite/websocket v0.0.0-20150119174127-31079b680792
+go: downloading github.com/ltcsuite/lnd/queue v1.1.0
+go: downloading golang.org/x/text v0.34.0
+go: downloading github.com/ltcsuite/lnd/ticker v1.1.0
+/Users/runner/work/_temp/up/mweb/mweb-bridge: Mach-O 64-bit executable x86_64
+/Users/runner/work/_temp/up/mweb/mweb-bridge:
+	/usr/lib/libresolv.9.dylib (compatibility version 1.0.0, current version 1.0.0)
+	/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation (compatibility version 150.0.0, current version 3502.1.255)
+	/System/Library/Frameworks/Security.framework/Versions/A/Security (compatibility version 1.0.0, current version 61439.120.27)
+	/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)
+      cmd LC_BUILD_VERSION
+  cmdsize 32
+ platform 1
+    minos 11.0
+      sdk 15.5
+35d51e9e4d9f9bbe76b6b30b600b58ed6e0c34f1e602d147cae61350b7a69480  /Users/runner/work/_temp/up/mweb/mweb-bridge
+mweb-bridge 1
+== check mweb x64
+no network check for mweb; --version passed
+== check exit 0
