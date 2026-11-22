@@ -1731,5 +1731,7 @@
 "Balance": "Saldo",
 "Menu": "Menu",
 "Settings sections": "Seções das configurações",
-"Kusari Wallet is free. If it helps you, you can support its development. Donations are optional and change nothing in the app. Donations go to the developer's living costs and the costs of development. Most of it goes to development costs.": "A Kusari Wallet é gratuita. Se ela ajuda você, pode apoiar o desenvolvimento. Doações são opcionais e não mudam nada no app. As doações vão para o custo de vida do desenvolvedor e os custos de desenvolvimento. A maior parte vai para os custos de desenvolvimento."
+"Kusari Wallet is free. If it helps you, you can support its development. Donations are optional and change nothing in the app. Donations go to the developer's living costs and the costs of development. Most of it goes to development costs.": "A Kusari Wallet é gratuita. Se ela ajuda você, pode apoiar o desenvolvimento. Doações são opcionais e não mudam nada no app. As doações vão para o custo de vida do desenvolvedor e os custos de desenvolvimento. A maior parte vai para os custos de desenvolvimento.",
+"PegasusSwap doesn't offer this coin.": "A PegasusSwap não oferece esta moeda.",
+"Check the PegasusSwap API key.": "Verifique a chave de API da PegasusSwap."
 }

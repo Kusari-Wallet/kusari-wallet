@@ -149,6 +149,9 @@ Java WebView (`android/java`) running the same code as an esbuild bundle (`src/a
 - `src/main/zano.ts`, `zano-process.ts`: Zano, and Kusari (KSR) on the same client with its own engine (`ksr-bridge`:
   `native/zano-bridge` built against the KSR chain), key label, wallet file, node and Tor route. `native/kusari-zano/`
   is the KSR chain itself (see its README).
+- Swap providers in `swap.ts`, each with its own coin table (coin + network as that provider names it; GhostSwap
+  matches tokens by contract): Exolix, SimpleSwap, GhostSwap, ETZ Swap, CCECash, ChangeNOW, PegasusSwap (HMAC-SHA512
+  of the endpoint name, `x-api-*` headers). ETZ, CCECash and PegasusSwap keys can read the account's orders.
 - No feature takes a fee for Kusari Wallet (swaps, mixers, CoinJoin, Tornado); donations are optional.
 - Releases: Windows, Linux and macOS (`npm run dist:win && npm run dist:linux && npm run dist:mac`); Android is no
   longer built. macOS zips (arm64, x64) are made on Linux and signed ad hoc after the fuses (`scripts/mac-adhoc-sign.js`,

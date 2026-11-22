@@ -1731,5 +1731,7 @@
 "Balance": "잔액",
 "Menu": "메뉴",
 "Settings sections": "설정 항목",
-"Kusari Wallet is free. If it helps you, you can support its development. Donations are optional and change nothing in the app. Donations go to the developer's living costs and the costs of development. Most of it goes to development costs.": "Kusari Wallet은 무료입니다. 도움이 되었다면 개발을 후원할 수 있습니다. 후원은 선택이며 앱에서 달라지는 것은 없습니다. 이 기금은 개발자 생활비 및 개발 비용에 쓰입니다. 기부금의 대부분은 개발 비용에 사용됩니다."
+"Kusari Wallet is free. If it helps you, you can support its development. Donations are optional and change nothing in the app. Donations go to the developer's living costs and the costs of development. Most of it goes to development costs.": "Kusari Wallet은 무료입니다. 도움이 되었다면 개발을 후원할 수 있습니다. 후원은 선택이며 앱에서 달라지는 것은 없습니다. 이 기금은 개발자 생활비 및 개발 비용에 쓰입니다. 기부금의 대부분은 개발 비용에 사용됩니다.",
+"PegasusSwap doesn't offer this coin.": "PegasusSwap은 이 코인을 지원하지 않습니다.",
+"Check the PegasusSwap API key.": "PegasusSwap API 키를 확인하세요."
 }

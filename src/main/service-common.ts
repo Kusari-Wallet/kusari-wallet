@@ -33,7 +33,7 @@ export const QUOTE_EXTRAS_MS = 8_000;
 // Shown without its bitcoincash: prefix, as most wallets and exchanges show it; both forms are the same address.
 export const bareBch = (a: string) => a.replace(/^bitcoincash:/, '');
 
-export const SWAP_NAMES: Record<SwapProviderId, string> = { exolix: 'Exolix', simpleswap: 'SimpleSwap', ghostswap: 'GhostSwap', etzswap: 'ETZ Swap', ccecash: 'CCECash', changenow: 'ChangeNOW' };
+export const SWAP_NAMES: Record<SwapProviderId, string> = { exolix: 'Exolix', simpleswap: 'SimpleSwap', ghostswap: 'GhostSwap', etzswap: 'ETZ Swap', ccecash: 'CCECash', changenow: 'ChangeNOW', pegasus: 'PegasusSwap' };
 
 /** A host on the person's own network or machine, which is reached directly rather than through Tor. */
 export function isLocalServer(url: string): boolean {

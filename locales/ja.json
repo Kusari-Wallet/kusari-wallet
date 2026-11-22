@@ -1731,5 +1731,7 @@
 "Balance": "残高",
 "Menu": "メニュー",
 "Settings sections": "設定の項目",
-"Kusari Wallet is free. If it helps you, you can support its development. Donations are optional and change nothing in the app. Donations go to the developer's living costs and the costs of development. Most of it goes to development costs.": "Kusari Walletは無料です。役に立ったら開発を支援できます。寄付は任意で、アプリの機能は何も変わりません。 寄付は開発者の生活費と開発費用に使われます。 寄付の大部分は開発費用に使われます。"
+"Kusari Wallet is free. If it helps you, you can support its development. Donations are optional and change nothing in the app. Donations go to the developer's living costs and the costs of development. Most of it goes to development costs.": "Kusari Walletは無料です。役に立ったら開発を支援できます。寄付は任意で、アプリの機能は何も変わりません。 寄付は開発者の生活費と開発費用に使われます。 寄付の大部分は開発費用に使われます。",
+"PegasusSwap doesn't offer this coin.": "PegasusSwap はこのコインに対応していません。",
+"Check the PegasusSwap API key.": "PegasusSwap の API キーを確認してください。"
 }

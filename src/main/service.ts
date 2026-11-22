@@ -21,7 +21,7 @@ import { isBchAddress, normalBchAddress } from './bch';
 import { isSolAddress } from './sol';
 import { isDashAddress } from './dash';
 import { BSC, EvmChain, EthAsset, chainOf, isEthAddress } from './eth';
-import { BUILTIN_SWAP_KEYS, CCECASH_BASE, CHANGENOW_BASE, CceCashClient, ChangeNowClient, ETZSWAP_BASE, EtzSwapClient, GHOSTSWAP_BASE, GhostSwapClient, NOT_SWAPPABLE, PRIVACY_ASSETS, PrivacySwap, SIMPLESWAP_BASE, SWAP_BASE, SWAP_DEAD, SWAP_DONE, SimpleSwapClient, SwapClient, SwapProvider, SwapProviderId, SwapRecord } from './swap';
+import { BUILTIN_SWAP_KEYS, CCECASH_BASE, CHANGENOW_BASE, CceCashClient, ChangeNowClient, PEGASUS_BASE, PegasusClient, ETZSWAP_BASE, EtzSwapClient, GHOSTSWAP_BASE, GhostSwapClient, NOT_SWAPPABLE, PRIVACY_ASSETS, PrivacySwap, SIMPLESWAP_BASE, SWAP_BASE, SWAP_DEAD, SWAP_DONE, SimpleSwapClient, SwapClient, SwapProvider, SwapProviderId, SwapRecord } from './swap';
 import { QUOTE_DEADLINE_MS, QUOTE_DEADLINE_TOR_MS, QUOTE_EXTRAS_MS, SWAP_NAMES, within, isSpl, isEvm, ASSET_LABEL, swapCost } from './service-common';
 import { SendService } from './service-send';
 export { checkOwnServer, isLocalServer, lookupRetryDelay, swapCost } from './service-common';
@@ -48,6 +48,8 @@ export class WalletService extends SendService {
     if (cce?.key && cce.secret) clients.ccecash = new CceCashClient(this.dev.cceCashBase ?? CCECASH_BASE, cce.key, cce.secret, cce.ref, this.priceAgent, timeout);
     const changenow = this.dev.changeNowBase ? 'cn-key' : built?.changenow;
     if (changenow) clients.changenow = new ChangeNowClient(this.dev.changeNowBase ?? CHANGENOW_BASE, changenow, this.priceAgent, timeout);
+    const peg = this.dev.pegasusBase ? { key: 'peg-key', secret: 'peg-secret' } : built && { key: built.pegasusKey, secret: built.pegasusSecret };
+    if (peg?.key && peg.secret) clients.pegasus = new PegasusClient(this.dev.pegasusBase ?? PEGASUS_BASE, peg.key, peg.secret, this.priceAgent, timeout);
     return clients;
   }
   // ---- swaps on the chain itself (Uniswap, PancakeSwap) ----

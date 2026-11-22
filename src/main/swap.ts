@@ -63,7 +63,7 @@ export interface SwapQuote { from: Asset; to: Asset; amount: string; receive: st
 /** No provider takes the private form of a coin; it's made from or turned back into the plain one in the wallet. */
 export const NOT_SWAPPABLE: ReadonlySet<Asset> = new Set<Asset>(['KSR']);
 
-export type SwapProviderId = 'exolix' | 'simpleswap' | 'ghostswap' | 'etzswap' | 'ccecash' | 'changenow';
+export type SwapProviderId = 'exolix' | 'simpleswap' | 'ghostswap' | 'etzswap' | 'ccecash' | 'changenow' | 'pegasus';
 
 export interface SwapProvider {
   quote(from: Asset, to: Asset, amount: string): Promise<SwapQuote>;
@@ -293,7 +293,7 @@ export const GHOSTSWAP_BASE = 'https://partners-api.ghostswap.io';
 // explorer, so a token of the same name on another chain is never picked. Empty: GhostSwap doesn't offer it.
 const GHOST_NATIVE: Partial<Record<Asset, string>> = {
   BTC: 'btc', XMR: 'xmr', ETH: 'eth', TRX: 'trx', DASH: 'dash', SOL: 'sol', BCH: 'bch', LTC: 'ltc', DOGE: 'doge', ZEC: 'zec',
-  POL: 'pol', BNB: 'bnbbsc', ETHA: 'etharb', DCR: 'dcr',
+  POL: 'pol', BNB: 'bnbbsc', ETHA: 'etharb', DCR: 'dcr', ARRR: 'arrr',
 };
 const GHOST_FIXED: Partial<Record<Asset, string>> = { USDT: 'usdtrx' };
 const EXPLORER_HOST: Record<string, RegExp> = { '1': /(^|\.)etherscan\.io$/, '137': /(^|\.)polygonscan\.com$/, '42161': /(^|\.)arbiscan\.io$/, '56': /(^|\.)bscscan\.com$/, sol: /(^|\.)solscan\.io$/ };
@@ -441,6 +441,9 @@ const ETZ_COIN: Partial<Record<Asset, { coin: string; network: string }>> = {
   USDCS: { coin: 'USDC', network: 'SOL' },
   USDCP: { coin: 'USDC', network: 'MATIC' },
   USDCA: { coin: 'USDC', network: 'ARBITRUM' },
+  GRAM: { coin: 'TON', network: 'TON' },
+  USDTT: { coin: 'USDT', network: 'TON' },
+  SHIB: { coin: 'SHIB', network: 'ETH' },
 };
 
 /** Their errors come as { errors: { someName: { message, args } } }. */
@@ -657,6 +660,10 @@ const CCE_COIN: Partial<Record<Asset, { abbr: string; chain: string }>> = {
   USDCS: { abbr: 'USDC', chain: 'Solana' },
   USDCP: { abbr: 'USDC', chain: 'Polygon' },
   USDCA: { abbr: 'USDC', chain: 'Arbitrum' },
+  // TON is listed under its new name.
+  GRAM: { abbr: 'GRAM', chain: 'TON' },
+  USDTT: { abbr: 'USDT', chain: 'TON' },
+  SHIB: { abbr: 'SHIB', chain: 'Ethereum' },
 };
 /** Their order states, as the words the rest of the wallet uses. */
 const CCE_STATUS: Record<number, string> = { 1: 'wait', 2: 'confirming', 3: 'exchanging', 4: 'success', 5: 'refunded', 7: 'hold', 8: 'expired', 9: 'failed' };
@@ -759,6 +766,107 @@ export interface PrivacySwap {
 }
 
 /** Every coin that can go through XMR and out again. XMR itself has nothing to gain. */
+// ---- PegasusSwap ----
+
+export const PEGASUS_BASE = 'https://api.pegasusswap.com';
+/** Coin and network as PegasusSwap names them (from their coin list, /api/private/get-all-coins). */
+const PEG_COIN: Partial<Record<Asset, { coin: string; network: string }>> = {
+  BTC: { coin: 'BTC', network: 'BTC' },
+  XMR: { coin: 'XMR', network: 'XMR' },
+  ETH: { coin: 'ETH', network: 'ETH' },
+  ETHA: { coin: 'ETH', network: 'ARBITRUM' },
+  TRX: { coin: 'TRX', network: 'TRX' },
+  USDT: { coin: 'USDT', network: 'TRX' },
+  USDTE: { coin: 'USDT', network: 'ETH' },
+  USDTS: { coin: 'USDT', network: 'SOL' },
+  USDTA: { coin: 'USDT', network: 'ARBITRUM' },
+  USDCE: { coin: 'USDC', network: 'ETH' },
+  USDCA: { coin: 'USDC', network: 'ARBITRUM' },
+  USDCP: { coin: 'USDC', network: 'MATIC' },
+  SOL: { coin: 'SOL', network: 'SOL' },
+  LTC: { coin: 'LTC', network: 'LTC' },
+  BCH: { coin: 'BCH', network: 'BCH' },
+  DASH: { coin: 'DASH', network: 'DASH' },
+  DOGE: { coin: 'DOGE', network: 'DOGE' },
+  ARB: { coin: 'ARB', network: 'ARBITRUM' },
+  POL: { coin: 'POL', network: 'MATIC' },
+  LINK: { coin: 'LINK', network: 'ETH' },
+  PEPE: { coin: 'PEPE', network: 'ETH' },
+  SHIB: { coin: 'SHIB', network: 'ETH' },
+  ORCA: { coin: 'ORCA', network: 'SOL' },
+};
+/** Their order states (numbers), as the words the rest of the wallet uses. */
+const PEG_STATUS: Record<number, string> = { 9: 'wait', 1: 'confirming', 3: 'exchanging', 12: 'sending', 4: 'success', 5: 'overdue', 6: 'failed', 10: 'hold', 11: 'hold', 13: 'refunded' };
+
+export class PegasusClient implements SwapProvider {
+  constructor(private readonly base: string, private readonly key: string, private readonly secret: string, private readonly agent?: Agent, private readonly timeoutMs = 30_000) {}
+
+  /** Every request is signed: the payload is the endpoint's name, the signature its HMAC-SHA512 under the secret. */
+  private call(method: 'GET' | 'POST', name: string, query = '', body?: unknown) {
+    const signature = computeHmac('sha512', toUtf8Bytes(this.secret), toUtf8Bytes(name)).slice(2);
+    return requestJson(`${this.base}/api/private/${name}${query ? `?${query}` : ''}`, {
+      method, body, agent: this.agent, timeoutMs: this.timeoutMs,
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'x-api-public-key': this.key, 'x-api-signature': signature, 'x-api-payload': name },
+    });
+  }
+
+  async quote(from: Asset, to: Asset, amount: string): Promise<SwapQuote> {
+    const base = { from, to, amount, provider: 'PegasusSwap', providerId: 'pegasus' as const, approximate: true };
+    const none = (problem: string, min: string | null = null, max: string | null = null) => ({ ...base, receive: '0', rate: '0', min, max, problem });
+    const a = PEG_COIN[from];
+    const b = PEG_COIN[to];
+    if (!a || !b) return none('PegasusSwap doesn\'t offer this coin.');
+    const q = new URLSearchParams({ amount, coinFrom: a.coin, coinTo: b.coin, networkFrom: a.network, networkTo: b.network, lastSource: 'deposit', typeSwap: '2' });
+    const res = await this.call('GET', 'exchange-coin', q.toString());
+    if (res.status === 401 || res.status === 403) return none('Check the PegasusSwap API key.');
+    const d = res.body ?? {};
+    const min = num(d.minAmount);
+    const max = num(d.maxAmount);
+    const receive = num(d.receive);
+    if (res.status >= 400 || !receive || Number(receive) <= 0) {
+      if (min && Number(amount) < Number(min)) return none(`The minimum amount is ${min} ${unit(from)}.`, min, max);
+      if (max && Number(amount) > Number(max)) return none(`The maximum amount is ${max} ${unit(from)}.`, min, max);
+      return none(apiMessage(d, 'No quote available for this swap right now.'), min, max);
+    }
+    return { ...base, receive, rate: num(d.exchangeRate) ?? String(Number(receive) / Number(amount)), min, max, problem: null };
+  }
+
+  async create(from: Asset, to: Asset, amount: string, expectedReceive: string, withdrawalAddress: string, refundAddress: string): Promise<SwapOrder> {
+    const a = PEG_COIN[from];
+    const c = PEG_COIN[to];
+    if (!a || !c) throw new Error('PegasusSwap doesn\'t offer this coin.');
+    const res = await this.call('POST', 'create-transaction', '', {
+      depositCoin: a.coin, depositNetwork: a.network, depositAmount: Number(amount), receiveCoin: c.coin, receiveNetwork: c.network,
+      receiveAddress: withdrawalAddress, refundAddress, typeSwap: 2, lastSource: 'deposit',
+    });
+    const b = res.body ?? {};
+    if (res.status >= 400 || !b.pairs) throw new Error(`Swap order failed: ${apiMessage(b, String(res.status))}`);
+    const dep = b.pairs.deposit ?? {};
+    const rec = b.pairs.receive ?? {};
+    if (typeof b.orderNumber !== 'string' || !ORDER_ID.test(b.orderNumber)) stop('no order number');
+    if (typeof dep.address !== 'string' || !dep.address) stop('no deposit address');
+    if (dep.memo) stop('the deposit address needs an extra memo');
+    if (!sameAddress(rec.address, withdrawalAddress)) stop('the receiving address is not yours');
+    if (b.refundAddress && !sameAddress(b.refundAddress, refundAddress)) stop('the refund address is not yours');
+    if (String(dep.coin?.name).toUpperCase() !== a.coin) stop('the sent coin differs');
+    if (String(rec.coin?.name).toUpperCase() !== c.coin) stop('the received coin differs');
+    if (String(dep.coin?.network).toUpperCase() !== a.network) stop('the sending network differs');
+    if (String(rec.coin?.network).toUpperCase() !== c.network) stop('the receiving network differs');
+    if (!closeAmount(dep.coin?.value, amount)) stop('the send amount differs');
+    const receive = num(rec.coin?.value);
+    if (!receive || Number(receive) < Number(expectedReceive) * 0.98) stop('the receive amount is less than quoted');
+    return { id: b.orderNumber, depositAddress: dep.address, receive: receive as string, rate: String(Number(receive) / Number(amount)), provider: 'PegasusSwap', approximate: true };
+  }
+
+  async status(id: string): Promise<{ status: string; hashIn?: string; hashOut?: string }> {
+    if (!ORDER_ID.test(id)) throw new Error('Invalid order number.');
+    const res = await this.call('GET', 'get-transaction', new URLSearchParams({ id }).toString());
+    if (res.status >= 400) throw new Error(apiMessage(res.body, `Could not read the swap status (${res.status}).`));
+    const b = res.body ?? {};
+    return { status: PEG_STATUS[Number(b.status)] ?? 'unknown', hashIn: typeof b.txId === 'string' && b.txId ? b.txId : undefined, hashOut: typeof b.receiveTransaction?.txId === 'string' && b.receiveTransaction.txId ? b.receiveTransaction.txId : undefined };
+  }
+}
+
 export const PRIVACY_ASSETS: Asset[] = (Object.keys(DECIMALS) as Asset[]).filter((a) => a !== 'XMR' && !NOT_SWAPPABLE.has(a));
 export const SWAP_DEAD = ['failed', 'refunded', 'refund', 'overdue', 'expired'];
 export const SWAP_DONE = ['success', 'finished'];

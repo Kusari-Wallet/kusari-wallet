@@ -1731,5 +1731,7 @@
 "Balance": "Bakiye",
 "Menu": "Menü",
 "Settings sections": "Ayar bölümleri",
-"Kusari Wallet is free. If it helps you, you can support its development. Donations are optional and change nothing in the app. Donations go to the developer's living costs and the costs of development. Most of it goes to development costs.": "Kusari Wallet ücretsizdir. İşinize yarıyorsa geliştirilmesini destekleyebilirsiniz. Bağışlar isteğe bağlıdır ve uygulamada hiçbir şeyi değiştirmez. Bağışlar geliştiricinin yaşam masraflarına ve geliştirme maliyetlerine gider. Bağışların çoğu geliştirme maliyetlerine gider."
+"Kusari Wallet is free. If it helps you, you can support its development. Donations are optional and change nothing in the app. Donations go to the developer's living costs and the costs of development. Most of it goes to development costs.": "Kusari Wallet ücretsizdir. İşinize yarıyorsa geliştirilmesini destekleyebilirsiniz. Bağışlar isteğe bağlıdır ve uygulamada hiçbir şeyi değiştirmez. Bağışlar geliştiricinin yaşam masraflarına ve geliştirme maliyetlerine gider. Bağışların çoğu geliştirme maliyetlerine gider.",
+"PegasusSwap doesn't offer this coin.": "PegasusSwap bu coini sunmuyor.",
+"Check the PegasusSwap API key.": "PegasusSwap API anahtarını kontrol edin."
 }

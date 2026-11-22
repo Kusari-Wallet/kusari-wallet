@@ -14,6 +14,9 @@ const keys = {
   etzswapVersion: process.env.ETZSWAP_KEY_VERSION || String(local.etzswapVersion || '1'),
   ccecashKey: process.env.CCECASH_KEY || local.ccecashKey || '',
   changenow: process.env.CHANGENOW_KEY || local.changenow || '',
+  // PegasusSwap signs with the secret (HMAC-SHA512); like ETZ and CCECash, these can read the account's orders.
+  pegasusKey: process.env.PEGASUS_KEY || local.pegasusPublic || '',
+  pegasusSecret: process.env.PEGASUS_SECRET || local.pegasusSecret || '',
   uniswap: process.env.UNISWAP_KEY || local.uniswap || '',
   // CoinMarketCap price API key: one more price source, asked only when the others leave coins unpriced.
   coinmarketcap: process.env.CMC_KEY || local.coinmarketcap || '',
