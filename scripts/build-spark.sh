@@ -40,12 +40,13 @@ secp() {
   fi
 }
 
-# OpenSSL's libcrypto, static, for one OpenSSL target, into $1/install.
+# OpenSSL's libcrypto, static, for one OpenSSL target, into $1/prefix (not "install": macOS file names ignore case,
+# and OpenSSL ships an INSTALL file).
 openssl() {
   local dir="$1" target="$2" cc="$3"
-  if [ ! -f "$dir/install/lib/libcrypto.a" ] && [ ! -f "$dir/install/lib64/libcrypto.a" ]; then
+  if [ ! -f "$dir/prefix/lib/libcrypto.a" ] && [ ! -f "$dir/prefix/lib64/libcrypto.a" ]; then
     rm -rf "$dir" && cp -r "$S/deps/openssl-cmake" "$dir"
-    (cd "$dir" && CC="$cc" AR="${AR_TOOL:-ar}" RANLIB="${RANLIB_TOOL:-ranlib}" ./Configure "$target" no-shared no-asm no-tests no-engine no-dso --prefix="$dir/install" >/dev/null && make -j"$jobs" build_libs >/dev/null && make install_dev >/dev/null)
+    (cd "$dir" && CC="$cc" AR="${AR_TOOL:-ar}" RANLIB="${RANLIB_TOOL:-ranlib}" ./Configure "$target" no-shared no-asm no-tests no-engine no-dso --prefix="$dir/prefix" >/dev/null && make -j"$jobs" build_libs >/dev/null && make install_dev >/dev/null)
   fi
 }
 
@@ -69,7 +70,7 @@ if [ "$targets" = windows ] || [ "$targets" = all ]; then
   printf '#!/bin/sh\nexec python3 -m ziglang ranlib "$@"\n' > "$zig/ranlib"
   chmod +x "$zig"/*
   AR_TOOL="$zig/ar" RANLIB_TOOL="$zig/ranlib" openssl "$work/ossl-win" mingw64 "$zig/cc"
-  ossl="$work/ossl-win/install"; lib="$ossl/lib"; [ -d "$ossl/lib64" ] && lib="$ossl/lib64"
+  ossl="$work/ossl-win/prefix"; lib="$ossl/lib"; [ -d "$ossl/lib64" ] && lib="$ossl/lib64"
   secp "$work/secp-win" x86_64-w64-mingw32 "$zig/cc" "$zig/c++" "-I$ossl/include"
   (cd "$out/spark" && "$zig/c++" -std=c++17 -O2 -s "${INC[@]}" -I"$work/secp-win/include" -I"$ossl/include" -I"$S/deps/missing_headers/windows" "${SRC[@]}" "$work/secp-win/.libs/libsecp256k1.a" "$lib/libssl.a" "$lib/libcrypto.a" -lws2_32 -lcrypt32 -lbcrypt -luser32 -ladvapi32 -static -o "$out/spark/spark-bridge.exe") && rm -f "$out/spark/"*.lib
 fi
@@ -77,7 +78,7 @@ fi
 if [ "$targets" = android ] || [ "$targets" = all ]; then
   tc="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
   PATH="$tc:$PATH" AR_TOOL="$tc/llvm-ar" RANLIB_TOOL="$tc/llvm-ranlib" ANDROID_NDK_ROOT="$NDK" ANDROID_NDK_HOME="$NDK" openssl "$work/ossl-android" android-arm64 "$tc/aarch64-linux-android26-clang"
-  ossl="$work/ossl-android/install"; lib="$ossl/lib"; [ -d "$ossl/lib64" ] && lib="$ossl/lib64"
+  ossl="$work/ossl-android/prefix"; lib="$ossl/lib"; [ -d "$ossl/lib64" ] && lib="$ossl/lib64"
   secp "$work/secp-android" aarch64-linux-android "$tc/aarch64-linux-android26-clang" "$tc/aarch64-linux-android26-clang++" "-I$ossl/include"
   # An executable named like a library, so Android unpacks it next to the app's other native code.
   "$tc/aarch64-linux-android26-clang++" -std=c++17 -O2 -s -fPIE -pie -static-libstdc++ -D_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION -Wno-enum-constexpr-conversion "${INC[@]}" -I"$work/secp-android/include" -I"$ossl/include" "${SRC[@]}" "$work/secp-android/.libs/libsecp256k1.a" "$lib/libssl.a" "$lib/libcrypto.a" -Wl,-z,max-page-size=16384 -o "$out/android/libsparkbridge.so"
@@ -88,7 +89,7 @@ if [ "$targets" = mac ]; then
   osslt=darwin64-arm64-cc; [ "$arch" = x64 ] && osslt=darwin64-x86_64-cc
   export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-11.0}"
   openssl "$work/ossl-mac" "$osslt" clang
-  ossl="$work/ossl-mac/install"; lib="$ossl/lib"; [ -d "$ossl/lib64" ] && lib="$ossl/lib64"
+  ossl="$work/ossl-mac/prefix"; lib="$ossl/lib"; [ -d "$ossl/lib64" ] && lib="$ossl/lib64"
   secp "$work/secp-mac" "" clang clang++ "-I$ossl/include"
   mkdir -p "$out/spark-mac-$arch"
   clang++ -std=c++17 -O2 -D_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION -Wno-enum-constexpr-conversion "${INC[@]}" -I"$work/secp-mac/include" -I"$ossl/include" "${SRC[@]}" "$work/secp-mac/.libs/libsecp256k1.a" "$lib/libssl.a" "$lib/libcrypto.a" -o "$out/spark-mac-$arch/spark-bridge"
