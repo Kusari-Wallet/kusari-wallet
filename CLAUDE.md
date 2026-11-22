@@ -15,7 +15,7 @@ Java WebView (`android/java`) running the same code as an esbuild bundle (`src/a
   or the repository.
 - Tor never falls back to clearnet; CoinJoin requests only ever go out over Tor.
 - Don't copy GPL code. MIT code that is ported gets its notice in `THIRD-PARTY-NOTICES.md`.
-- The repository stays private; workflows run only by hand.
+- The repository is public (from 0.71.3); workflows run only by hand.
 - Commit only when asked.
 
 ## Build and test
