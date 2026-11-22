@@ -118,6 +118,14 @@ jobs:
             zec) timeout 900 "$B" --selftest https://zec.rocks:443 ;;
             arrr) timeout 900 "$B" --selftest https://pirate.mathnodes.com:443,https://lightwalletd1.cryptoforge.cc:443,https://lightwalletd2.cryptoforge.cc:443,https://arrr.qortal.link:443,https://arrr2.qortal.link:443,https://arrr3.qortal.link:443 - "$D" ;;
             zano) timeout 900 "$B" --selftest 37.27.100.59:10500 - "$D" ;;
+            spark)
+              # The same key must give the same address and view key as the Linux build.
+              K=$(printf '11%.0s' $(seq 32))
+              printf '{"id":1,"m":"address","p":{"key":"%s","index":1,"diversifier":0}}\n{"id":2,"m":"fvk","p":{"key":"%s","index":1}}\n' "$K" "$K" | "$B" | tee "$D/spark.txt"
+              grep -q '"r":"sm1lev5h7apfth2f5j50kvrmcr3h42mefefvezr9af5a5y9md6dvrvn2gtejfleklh5d09j468mnrrx0ptd3fvhjc06ujcw55zryvvrl4rcmhdy0mv8a5unu9j4dmnh5e9pcewznnqh6f39q"' "$D/spark.txt" \
+                && grep -q '"r":"1e8b5cea519eb1da578b481e818ce89f3dcaa5399875ce8ba5f1201e17ef9b3dae0600ddc698666595cb724e70d13baea14c93e279e033e4f54c49a3789dd25713615d82956cc52fc7f1697d1ad50f4acf6773eab5a602c5a3291ccffdbcfab9000024932fa5f7acc5905dec9fe928bf710d42214f6206a9c0e9a9e6cad7133742830000"' "$D/spark.txt" \
+                && echo "selftest ok"
+              ;;
             *) echo "no network check for $ENGINE; --version passed" ;;
           esac
           echo "== check exit $?"
