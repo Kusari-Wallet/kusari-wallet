@@ -3,6 +3,7 @@
 // (apple-codesign, an official release checked by its SHA256SUMS) from RCODESIGN or the PATH. An ad-hoc signature is
 // not an Apple Developer ID: Gatekeeper still asks the user to confirm the first start.
 const { execFileSync } = require('node:child_process');
+const fs = require('node:fs');
 const path = require('node:path');
 
 exports.default = async function afterSign(context) {
@@ -15,7 +16,9 @@ exports.default = async function afterSign(context) {
   const tool = process.env.RCODESIGN || 'rcodesign';
   execFileSync(tool, ['sign', app], { stdio: 'inherit' });
   // rcodesign's verify expects a CMS signature, which an ad-hoc one hasn't: check the code directory is there.
-  for (const f of [path.join(app, 'Contents/MacOS', context.packager.appInfo.productFilename), path.join(app, 'Contents/Frameworks/Electron Framework.framework/Versions/A/Electron Framework')]) {
+  // The coin engines in Resources come signed ad hoc from the Mac that built them; check they still are.
+  const engines = ['zec', 'zano', 'arrr', 'mweb', 'spark'].map((e) => path.join(app, 'Contents/Resources', e, `${e}-bridge`)).filter((f) => fs.existsSync(f));
+  for (const f of [path.join(app, 'Contents/MacOS', context.packager.appInfo.productFilename), path.join(app, 'Contents/Frameworks/Electron Framework.framework/Versions/A/Electron Framework'), ...engines]) {
     const info = execFileSync(tool, ['print-signature-info', f], { encoding: 'utf8' });
     if (!/code_directory|cdhash/i.test(info)) throw new Error(`No code signature on ${f}`);
   }
