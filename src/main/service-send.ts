@@ -4,7 +4,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import QRCode from 'qrcode';
 import { formatAmount, parseAmount } from './amount';
-import { KUSARI_FEE_XMR, Asset, BTC_EXPLORER_TX, DECIMALS, FIRO_EXPLORER_TX, SOL_EXPLORER_TX, BUY_PAGE, BCH_EXPLORER_TX, LTC_EXPLORER_TX, DOGE_EXPLORER_TX, DASH_EXPLORER_TX, ARRR_EXPLORER_TX, KSR_EXPLORER_TX, ZANO_EXPLORER_TX, ZEC_EXPLORER_TX, NETWORKS, OWN_SERVER_COINS, Settings } from './config';
+import { Asset, BTC_EXPLORER_TX, DECIMALS, FIRO_EXPLORER_TX, SOL_EXPLORER_TX, BUY_PAGE, BCH_EXPLORER_TX, LTC_EXPLORER_TX, DOGE_EXPLORER_TX, DASH_EXPLORER_TX, ARRR_EXPLORER_TX, KSR_EXPLORER_TX, ZANO_EXPLORER_TX, ZEC_EXPLORER_TX, NETWORKS, OWN_SERVER_COINS, Settings } from './config';
 import { TronTransfer, deriveTronAccount, isTronAddress } from './tron';
 import { requestJson, getJson, requestBinary, socksAgent, isolatedAgent } from './request';
 import { parseOhttpKeys, parsePayjoin, payjoinUri, type OhttpKeys, type Post } from './payjoin';
@@ -739,11 +739,7 @@ export class SendService extends ServiceCore {
     } else if (asset === 'XMR') {
       if (!(await monero.isValidAddress(address))) throw new Error('Not a Monero address on this network.');
       const amount = isMax ? 'max' as const : parseAmount(amountInput, decimals);
-      const kusariFee = this.swapFeeFor.get(address);
-      this.swapFeeFor.delete(address);
-      if (kusariFee !== undefined && amount === 'max') throw new Error('Enter an amount for this step.');
-      const draft = await monero.draft(address, amount, kusariFee ? { address: KUSARI_FEE_XMR, amount: kusariFee } : undefined);
-      if (kusariFee) warnings.push(`Kusari Wallet's fee: ${formatAmount(kusariFee, 12)} XMR (0.3%), in the same transaction.`);
+      const draft = await monero.draft(address, amount);
       preview = this.storePreview({ asset, to: address, amount: draft.amount, fee: draft.fee, monero: draft });
     } else {
       if (!isTronAddress(address)) throw new Error('Not a Tron address. Only addresses starting with T can be used.');

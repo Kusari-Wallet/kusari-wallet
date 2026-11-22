@@ -21,14 +21,6 @@ export const SOL_RPCS = ['https://api.mainnet-beta.solana.com', 'https://api.mai
 export const SOL_EXPLORER_TX = 'https://solscan.io/tx/';
 // Buying opens LocalCoinSwap's P2P marketplace in the browser. The code only credits the referral account.
 export const BUY_PAGE = 'https://localcoinswap.com/';
-/**
- * Kusari Wallet's fee on a privacy swap's second step (XMR out to the final coin): 0.3% of the XMR, paid as a second
- * output of the same Monero transaction. Monero hides output amounts and addresses, so it doesn't show on the chain.
- */
-export const KUSARI_SWAP_FEE_PER_MILLE = 3n;
-export const KUSARI_FEE_XMR = '46ZEpH2zBmjCu1cRXiN6DYbwZDvw5LUrRNKKeketbJNv7f8thMEbFABSoZVYT6nJ2CGQfPvAXcEficrwZXN35mdZLTBHVNL';
-/** The fee on an amount of XMR (piconero), rounded up. */
-export const kusariSwapFee = (xmr: bigint): bigint => (xmr * KUSARI_SWAP_FEE_PER_MILLE + 999n) / 1000n;
 // BitPay's public Bitcore API. It needs no key.
 // The Litecoin project's mempool site, the same API as mempool.space.
 /** A blockbook+ entry is a Blockbook server, read through an Esplora-shaped adapter. */

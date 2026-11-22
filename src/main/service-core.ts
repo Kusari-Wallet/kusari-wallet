@@ -108,8 +108,6 @@ export class ServiceCore extends EventEmitter {
   protected sessionGen = 0;
   protected previews = new Map<string, Preview>();
   protected privacyTargets = new Map<string, Asset>();
-  /** Kusari Wallet's fee for the XMR send to a privacy swap's step-2 deposit address, set just before its preview. */
-  protected swapFeeFor = new Map<string, bigint>();
   protected pendingSwaps = new Map<string, { id: string; from: Asset; to: Asset; amount: string; receive: string; rate: string; providerId: SwapProviderId; provider: string; approximate: boolean; statusKey?: string; withdrawalAddress: string; privacy?: { leg: 'first'; via: string; destination: string } | { leg: 'second'; id: string } }>();
   readonly tor: TorManager;
   protected priceAgent: ReturnType<typeof socksAgent> | undefined;

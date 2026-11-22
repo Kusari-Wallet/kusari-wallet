@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { formatAmount, parseAmount } from './amount';
-import { Asset, DECIMALS, kusariSwapFee } from './config';
+import { Asset, DECIMALS } from './config';
 import { isTronAddress } from './tron';
 import { socksAgent, newTorRoute } from './request';
 import { DexCall, DexId, DexQuote, NATIVE, UNISWAP_CHAINS, UniswapClient, approvalCalls, narrowPermit, pancakeQuote, pancakeSwapCall } from './dex';
@@ -274,14 +274,13 @@ export class WalletService extends SendService {
     return sub as string;
   }
 
-  protected async openOrder(from: Asset, to: Asset, amount: string, providerId: SwapProviderId, withdrawal: string, refund: string, external: boolean, privacy?: { leg: 'first'; via: string; destination: string } | { leg: 'second'; id: string }, kusariFee?: bigint) {
+  protected async openOrder(from: Asset, to: Asset, amount: string, providerId: SwapProviderId, withdrawal: string, refund: string, external: boolean, privacy?: { leg: 'first'; via: string; destination: string } | { leg: 'second'; id: string }) {
     const client = this.swapClients()[providerId];
     if (!client) throw new Error('This provider is not available right now.');
     const quote = await client.quote(from, to, amount);
     if (quote.problem) throw new Error(quote.problem);
     const order = await client.create(from, to, amount, quote.receive, withdrawal, refund);
-    if (kusariFee) this.swapFeeFor.set(order.depositAddress, kusariFee);
-    const preview = await this.prepareSend(from, order.depositAddress, amount).finally(() => this.swapFeeFor.delete(order.depositAddress));
+    const preview = await this.prepareSend(from, order.depositAddress, amount);
     if (preview.amount !== amount) throw new Error('The send amount differs, so this was stopped.');
     const swap = { id: order.id, from, to, amount, receive: order.receive, rate: order.rate, providerId, provider: order.provider, approximate: order.approximate, statusKey: order.statusKey, receiveAddress: withdrawal, withdrawalAddress: withdrawal, external, privacy };
     this.pendingSwaps.set(preview.id, swap);
@@ -385,9 +384,7 @@ export class WalletService extends SendService {
   async privacySecondQuote(id: string, amountInput: string) {
     const p = (await this.privacyList()).find((x) => x.id === id);
     if (!p) throw new Error('No such privacy swap.');
-    // Quoted on what reaches the service: the amount less Kusari Wallet's 0.3%.
-    const value = parseAmount(amountInput, 12);
-    const list = await this.swapQuote('XMR', p.to, formatAmount(value - kusariSwapFee(value), 12));
+    const list = await this.swapQuote('XMR', p.to, amountInput);
     // Offer a different service from step one first.
     return list.sort((a, b) => Number(a.providerId === p.firstProviderId) - Number(b.providerId === p.firstProviderId));
   }
@@ -399,10 +396,7 @@ export class WalletService extends SendService {
     if (p.stage !== 'ready') throw new Error('You can continue after the XMR arrives and unlocks.');
     const value = parseAmount(amountInput, 12);
     if (value > parseAmount(p.unlocked === '0' ? '0.000000000001' : p.unlocked, 12)) throw new Error(`You can send up to ${p.unlocked} XMR from this swap.`);
-    // Kusari Wallet's 0.3% comes out of the amount and goes in the same Monero transaction as the deposit.
-    const fee = kusariSwapFee(value);
-    if (value - fee <= 0n) throw new Error('The amount is too small.');
-    return this.openOrder('XMR', p.to, formatAmount(value - fee, 12), providerId, p.destination, p.via, true, { leg: 'second', id }, fee);
+    return this.openOrder('XMR', p.to, formatAmount(value, 12), providerId, p.destination, p.via, true, { leg: 'second', id });
   }
 
   async swapConfirm(previewId: string, password: string) {

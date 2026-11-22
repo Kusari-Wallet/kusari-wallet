@@ -1727,11 +1727,9 @@
 "Amount (BTC)": "Сума (BTC)",
 "Copy link": "Копіювати посилання",
 "Stop": "Зупинити",
-"Kusari Wallet keeps 0.3% of the XMR sent in this step, in the same transaction. The quotes above are for the rest.": "Kusari Wallet бере 0.3% XMR, надісланого на цьому кроці, у тій самій транзакції. Котирування вище — для решти.",
-"Kusari Wallet's fee: {0} XMR (0.3%), in the same transaction.": "Комісія Kusari Wallet: {0} XMR (0.3%), у тій самій транзакції.",
 "Wallet": "Гаманець",
 "Balance": "Баланс",
 "Menu": "Меню",
 "Settings sections": "Розділи налаштувань",
-"Kusari Wallet is free. If it helps you, you can support its development. Donations are optional and change nothing in the app. Donations go to the developer's living costs and the costs of development.": "Kusari Wallet безкоштовний. Якщо він вам корисний, ви можете підтримати розробку. Пожертви добровільні й нічого не змінюють у застосунку. Пожертви йдуть на витрати розробника на життя та на витрати на розробку."
+"Kusari Wallet is free. If it helps you, you can support its development. Donations are optional and change nothing in the app. Donations go to the developer's living costs and the costs of development. Most of it goes to development costs.": "Kusari Wallet безкоштовний. Якщо він вам корисний, ви можете підтримати розробку. Пожертви добровільні й нічого не змінюють у застосунку. Пожертви йдуть на витрати розробника на життя та на витрати на розробку. Більша частина йде на витрати на розробку."
 }

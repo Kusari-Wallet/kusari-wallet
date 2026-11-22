@@ -27,7 +27,7 @@ export interface MoneroState {
   error: string | null;
 }
 
-export interface MoneroDraft { txs: any[]; fee: bigint; amount: bigint; /** Kusari Wallet's fee, a second output. */ kusariFee?: bigint }
+export interface MoneroDraft { txs: any[]; fee: bigint; amount: bigint }
 
 type NetType = 'mainnet' | 'stagenet';
 const ENGINE_TIMEOUT_MS = 60_000;
@@ -307,20 +307,17 @@ export class MoneroClient extends EventEmitter {
     return moneroTs.MoneroUtils.isValidAddress(address, netEnum(this.opts.type));
   }
 
-  /** `extra`: a second output in the same transaction (Kusari Wallet's swap fee); never with 'max'. */
-  async draft(to: string, amount: bigint | 'max', extra?: { address: string; amount: bigint }): Promise<MoneroDraft> {
+  async draft(to: string, amount: bigint | 'max'): Promise<MoneroDraft> {
     const synced = await withTimeout(this.refreshSynced(), this.viaTor ? 40_000 : 8_000).catch(() => false);
     if (!synced) throw new Error('Monero must finish syncing before it can send.');
     const txs: any[] = amount === 'max'
       ? await this.wallet.sweepUnlocked({ accountIndex: 0, address: to, relay: false })
-      : [await this.wallet.createTx(extra
-        ? { accountIndex: 0, destinations: [{ address: to, amount }, { address: extra.address, amount: extra.amount }], relay: false }
-        : { accountIndex: 0, address: to, amount, relay: false })];
+      : [await this.wallet.createTx({ accountIndex: 0, address: to, amount, relay: false })];
     const fee = txs.reduce((sum, tx) => sum + BigInt(tx.getFee()), 0n);
     const sent = amount === 'max'
       ? txs.reduce((sum, tx) => sum + BigInt(tx.getOutgoingAmount()), 0n)
       : amount;
-    return { txs, fee, amount: sent, ...(extra ? { kusariFee: extra.amount } : {}) };
+    return { txs, fee, amount: sent };
   }
 
   /**

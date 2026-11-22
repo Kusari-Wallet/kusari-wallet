@@ -63,7 +63,7 @@ async function setup(t) {
     isValidAddress: async (a) => /^[48][A-Za-z]{94}$/.test(a),
     createSubaddress: async () => `8${String(++subs).repeat(1)}${'S'.repeat(93)}`,
     receivedBy: async () => v.received,
-    draft: async (to, amount, extra) => ({ to, amount, fee: 1n, ...(extra ? { extra } : {}) }),
+    draft: async (to, amount) => ({ to, amount, fee: 1n }),
     relay: async (d) => { sent.push(d); return ['ef'.repeat(32)]; },
   };
   s.vault.open = async () => ({ tronMnemonic: 'test test test test test test test test test test test junk' });
@@ -142,15 +142,9 @@ test('privacy: full path, two orders, nothing moves in step two without approval
   assert.equal(orders[1].tickerFrom, 'xmr');
   assert.equal(orders[1].tickerTo, 'eth');
   assert.equal(b.swap.external, true);
-  // Kusari Wallet's 0.3% leaves in the same Monero transaction; the service gets the rest.
-  assert.equal(orders[1].amount, '1.4955');
-  assert.equal(b.amount, '1.4955');
-  assert.ok(b.warnings.some((w) => /Kusari Wallet's fee: 0.0045 XMR \(0.3%\)/.test(w)));
   const done = await s.swapConfirm(b.id, 'pw');
   assert.equal(done.privacy.stage, 'second');
   assert.equal(sent.length, 2);
-  assert.deepEqual(sent[1].extra, { address: '46ZEpH2zBmjCu1cRXiN6DYbwZDvw5LUrRNKKeketbJNv7f8thMEbFABSoZVYT6nJ2CGQfPvAXcEficrwZXN35mdZLTBHVNL', amount: 4_500_000_000n });
-  assert.equal(sent[0].extra, undefined, 'step one carries no fee');
   v.status[done.privacy.secondId] = 'finished';
   assert.equal((await s.privacyRefresh(p.id)).stage, 'done');
   assert.equal((await s.privacyList())[0].stage, 'done', 'saved');

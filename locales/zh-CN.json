@@ -1727,11 +1727,9 @@
 "Amount (BTC)": "金额 (BTC)",
 "Copy link": "复制链接",
 "Stop": "停止",
-"Kusari Wallet keeps 0.3% of the XMR sent in this step, in the same transaction. The quotes above are for the rest.": "Kusari Wallet 会在同一笔交易中收取本步骤所发 XMR 的 0.3%。上面的报价按其余金额计算。",
-"Kusari Wallet's fee: {0} XMR (0.3%), in the same transaction.": "Kusari Wallet 手续费：{0} XMR (0.3%)，在同一笔交易中。",
 "Wallet": "钱包",
 "Balance": "余额",
 "Menu": "菜单",
 "Settings sections": "设置分区",
-"Kusari Wallet is free. If it helps you, you can support its development. Donations are optional and change nothing in the app. Donations go to the developer's living costs and the costs of development.": "Kusari Wallet 是免费的。如果它对您有帮助,您可以支持其开发。捐赠完全自愿,不会改变应用中的任何内容。 捐款将用于开发者的生活费和开发费用。"
+"Kusari Wallet is free. If it helps you, you can support its development. Donations are optional and change nothing in the app. Donations go to the developer's living costs and the costs of development. Most of it goes to development costs.": "Kusari Wallet 是免费的。如果它对您有帮助,您可以支持其开发。捐赠完全自愿,不会改变应用中的任何内容。 捐款将用于开发者的生活费和开发费用。 捐款的大部分用于开发费用。"
 }
