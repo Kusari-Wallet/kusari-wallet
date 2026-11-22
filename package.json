@@ -230,7 +230,50 @@
       "hardenedRuntime": false,
       "gatekeeperAssess": false,
       "darkModeSupport": true,
-      "extraResources": []
+      "extraResources": [
+        {
+          "from": "native-bin/params",
+          "to": "zec",
+          "filter": [
+            "**/*"
+          ]
+        },
+        {
+          "from": "native-bin/zec-mac-${arch}",
+          "to": "zec",
+          "filter": [
+            "**/*"
+          ]
+        },
+        {
+          "from": "native-bin/zano-mac-${arch}",
+          "to": "zano",
+          "filter": [
+            "**/*"
+          ]
+        },
+        {
+          "from": "native-bin/arrr-mac-${arch}",
+          "to": "arrr",
+          "filter": [
+            "**/*"
+          ]
+        },
+        {
+          "from": "native-bin/mweb-mac-${arch}",
+          "to": "mweb",
+          "filter": [
+            "**/*"
+          ]
+        },
+        {
+          "from": "native-bin/spark-mac-${arch}",
+          "to": "spark",
+          "filter": [
+            "**/*"
+          ]
+        }
+      ]
     },
     "electronFuses": {
       "runAsNode": false,

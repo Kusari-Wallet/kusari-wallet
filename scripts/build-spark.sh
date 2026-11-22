@@ -3,7 +3,9 @@
 # Sources: firoorg/sparkmobile (MIT) as vendored by cypherstack/flutter_libsparkmobile (MIT) at a pinned commit,
 # with its C wrapper, plus nlohmann/json (MIT). Needs g++, autotools, Boost headers, OpenSSL headers (Linux),
 # zig for Windows (pip install ziglang) and the Android NDK (NDK=/path/to/android-ndk-r26c).
-# Usage: scripts/build-spark.sh [linux|windows|android|all|verify]
+# Usage: scripts/build-spark.sh [linux|windows|android|all|verify|mac]
+# "mac" runs on a Mac (Xcode command line tools, Homebrew autoconf, automake, libtool, boost, GNU sed) for its own
+# architecture, into native-bin/spark-mac-<arm64|x64>.
 # "verify" builds a Linux test tool that checks spends as a Firo node does; it is never shipped.
 set -euo pipefail
 here="$(cd "$(dirname "$0")/.." && pwd)"
@@ -79,6 +81,19 @@ if [ "$targets" = android ] || [ "$targets" = all ]; then
   secp "$work/secp-android" aarch64-linux-android "$tc/aarch64-linux-android26-clang" "$tc/aarch64-linux-android26-clang++" "-I$ossl/include"
   # An executable named like a library, so Android unpacks it next to the app's other native code.
   "$tc/aarch64-linux-android26-clang++" -std=c++17 -O2 -s -fPIE -pie -static-libstdc++ -D_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION -Wno-enum-constexpr-conversion "${INC[@]}" -I"$work/secp-android/include" -I"$ossl/include" "${SRC[@]}" "$work/secp-android/.libs/libsecp256k1.a" "$lib/libssl.a" "$lib/libcrypto.a" -Wl,-z,max-page-size=16384 -o "$out/android/libsparkbridge.so"
+fi
+
+if [ "$targets" = mac ]; then
+  arch="$(uname -m)"; [ "$arch" = x86_64 ] && arch=x64
+  osslt=darwin64-arm64-cc; [ "$arch" = x64 ] && osslt=darwin64-x86_64-cc
+  export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-11.0}"
+  openssl "$work/ossl-mac" "$osslt" clang
+  ossl="$work/ossl-mac/install"; lib="$ossl/lib"; [ -d "$ossl/lib64" ] && lib="$ossl/lib64"
+  secp "$work/secp-mac" "" clang clang++ "-I$ossl/include"
+  mkdir -p "$out/spark-mac-$arch"
+  clang++ -std=c++17 -O2 -D_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION -Wno-enum-constexpr-conversion "${INC[@]}" -I"$work/secp-mac/include" -I"$ossl/include" "${SRC[@]}" "$work/secp-mac/.libs/libsecp256k1.a" "$lib/libssl.a" "$lib/libcrypto.a" -o "$out/spark-mac-$arch/spark-bridge"
+  strip -x "$out/spark-mac-$arch/spark-bridge"
+  codesign --force --sign - "$out/spark-mac-$arch/spark-bridge"
 fi
 
 ls -la "$out/spark-linux" "$out/spark" "$out/android" 2>/dev/null | grep -i spark || true

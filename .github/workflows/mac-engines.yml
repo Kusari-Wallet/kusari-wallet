@@ -1,0 +1,156 @@
+# Builds the five native engines (ZEC, ZANO, ARRR, MWEB, Spark) on real Macs, for Apple Silicon and Intel, runs a
+# quick check on each, and pushes the binaries with their build logs to the "mac-engines" branch.
+name: macOS native engines
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/mac-engines.yml
+      - native/zano-bridge/**
+      - native/zec-bridge/**
+      - native/arrr-bridge/**
+      - native/mweb-bridge/**
+      - native/spark-bridge/**
+      - scripts/build-spark.sh
+permissions:
+  contents: read
+concurrency:
+  group: mac-engines
+  cancel-in-progress: true
+env:
+  MACOSX_DEPLOYMENT_TARGET: '11.0'
+  WEBZJS_COMMIT: a50df944c32243cb8da9f86e7d52cb65ac926439
+  STASHI_COMMIT: dedf63381996c5770945d16a4afa63ec7e35a676
+  ZANO_LIB_COMMIT: 08b38232c5
+  CARGO_PROFILE_RELEASE_LTO: thin
+  CARGO_PROFILE_RELEASE_CODEGEN_UNITS: 16
+  CARGO_PROFILE_RELEASE_STRIP: symbols
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        engine: [zec, zano, arrr, mweb, spark]
+        arch: [arm64, x64]
+        include:
+          - arch: arm64
+            os: macos-15
+          - arch: x64
+            os: macos-15-intel
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    env:
+      ENGINE: ${{ matrix.engine }}
+      ARCH: ${{ matrix.arch }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        if: matrix.engine == 'mweb'
+        with:
+          go-version-file: native/mweb-bridge/go.mod
+          cache: false
+      - name: Build
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/up"
+          LOG="$RUNNER_TEMP/up/$ENGINE-$ARCH.log"
+          exec > >(tee -a "$LOG") 2>&1
+          uname -a; sw_vers
+          brew install -q gnu-sed coreutils protobuf autoconf automake libtool boost git-lfs >/dev/null || true
+          export PATH="$(brew --prefix gnu-sed)/libexec/gnubin:$(brew --prefix coreutils)/libexec/gnubin:$PATH"
+          OUT="$RUNNER_TEMP/up/$ENGINE"
+          mkdir -p "$OUT"
+          case "$ENGINE" in
+            zec)
+              git clone -q https://github.com/ChainSafe/WebZjs webzjs
+              git -C webzjs checkout -q "$WEBZJS_COMMIT"
+              bash native/zec-bridge/prepare.sh webzjs
+              (cd webzjs && cargo build --release -p zec-bridge)
+              cp webzjs/target/release/zec-bridge "$OUT/"
+              ;;
+            arrr)
+              git clone -q https://github.com/PirateNetwork/Pirate-Unified-Light-Wallet stashi
+              git -C stashi checkout -q "$STASHI_COMMIT"
+              bash native/arrr-bridge/prepare.sh stashi
+              (cd stashi/crates && cargo build --release -p arrr-bridge)
+              B=stashi/crates/target/release/arrr-bridge
+              [ -f "$B" ] || B=stashi/target/release/arrr-bridge
+              cp "$B" "$OUT/"
+              ;;
+            mweb)
+              (cd native/mweb-bridge && CGO_ENABLED=1 go build -trimpath -ldflags="-s -w" -o "$OUT/mweb-bridge" .)
+              ;;
+            spark)
+              BOOST_INCLUDE="$(brew --prefix boost)/include/boost" JOBS=4 bash scripts/build-spark.sh mac
+              cp "native-bin/spark-mac-$ARCH/spark-bridge" "$OUT/"
+              ;;
+            zano)
+              git lfs install
+              GIT_LFS_SKIP_SMUDGE=1 git clone -q https://github.com/hyle-team/zano_native_lib zlib
+              GIT_LFS_SKIP_SMUDGE=1 git -C zlib checkout -q "$ZANO_LIB_COMMIT"
+              git -C zlib lfs pull --include "_install_macosx/**"
+              cmake -S native/zano-bridge -B out -DCMAKE_BUILD_TYPE=Release "-DZANO_NATIVE_LIB_PATH=$PWD/zlib"
+              cmake --build out -j 4
+              cp out/zano-bridge "$OUT/"
+              ;;
+          esac
+          B="$OUT/$ENGINE-bridge"
+          strip -x "$B" || true
+          codesign --force --sign - "$B"
+          file "$B"
+          otool -L "$B"
+          otool -l "$B" | grep -A4 -E "LC_BUILD_VERSION|LC_VERSION_MIN" | head -12
+          shasum -a 256 "$B"
+          "$B" --version
+      - name: Quick check
+        shell: bash
+        continue-on-error: true
+        run: |
+          LOG="$RUNNER_TEMP/up/$ENGINE-$ARCH.log"
+          exec > >(tee -a "$LOG") 2>&1
+          export PATH="$(brew --prefix coreutils)/libexec/gnubin:$PATH"
+          B="$RUNNER_TEMP/up/$ENGINE/$ENGINE-bridge"
+          D="$RUNNER_TEMP/check"; mkdir -p "$D"
+          echo "== check $ENGINE $ARCH"
+          case "$ENGINE" in
+            zec) timeout 900 "$B" --selftest https://zec.rocks:443 ;;
+            arrr) timeout 900 "$B" --selftest https://pirate.mathnodes.com:443,https://lightwalletd1.cryptoforge.cc:443,https://lightwalletd2.cryptoforge.cc:443,https://arrr.qortal.link:443,https://arrr2.qortal.link:443,https://arrr3.qortal.link:443 - "$D" ;;
+            zano) timeout 900 "$B" --selftest 37.27.100.59:10500 - "$D" ;;
+            *) echo "no network check for $ENGINE; --version passed" ;;
+          esac
+          echo "== check exit $?"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ${{ matrix.engine }}-${{ matrix.arch }}
+          path: ${{ runner.temp }}/up
+          retention-days: 7
+  publish:
+    needs: build
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: got
+      - name: Push to the mac-engines branch
+        run: |
+          set -eu
+          mkdir pub && cd pub
+          git init -q -b mac-engines
+          for d in ../got/*; do
+            n=$(basename "$d"); engine=${n%-*}; arch=${n##*-}
+            mkdir -p logs "$engine-mac-$arch"
+            cp "$d"/*.log logs/ 2>/dev/null || true
+            if [ -f "$d/$engine/$engine-bridge" ]; then cp "$d/$engine/$engine-bridge" "$engine-mac-$arch/"; chmod 755 "$engine-mac-$arch/$engine-bridge"; fi
+          done
+          find . -path ./.git -prune -o -type f -print | sort
+          (find . -path ./.git -prune -o -type f -name '*-bridge' -print | sort | xargs -r sha256sum) > SHA256SUMS
+          echo "run ${{ github.run_id }} commit ${{ github.sha }}" > RUN
+          git add -A
+          git -c user.name=github-actions -c user.email=github-actions@users.noreply.github.com commit -q -m "macOS engines from ${{ github.sha }}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" mac-engines

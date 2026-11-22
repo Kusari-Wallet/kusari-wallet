@@ -15,7 +15,8 @@ Java WebView (`android/java`) running the same code as an esbuild bundle (`src/a
   or the repository.
 - Tor never falls back to clearnet; CoinJoin requests only ever go out over Tor.
 - Don't copy GPL code. MIT code that is ported gets its notice in `THIRD-PARTY-NOTICES.md`.
-- The repository is public (from 0.71.3); workflows run only by hand.
+- The repository is public (from 0.71.3); workflows run only by hand, except `mac-engines.yml`, which runs when
+  it or an engine's source changes on main.
 - Commit only when asked.
 
 ## Build and test
@@ -155,7 +156,8 @@ Java WebView (`android/java`) running the same code as an esbuild bundle (`src/a
 - No feature takes a fee for Kusari Wallet (swaps, mixers, CoinJoin, Tornado); donations are optional.
 - Releases: Windows, Linux and macOS (`npm run dist:win && npm run dist:linux && npm run dist:mac`); Android is no
   longer built. macOS zips (arm64, x64) are made on Linux and signed ad hoc after the fuses (`scripts/mac-adhoc-sign.js`,
-  rcodesign from `RCODESIGN`); no Developer ID, so Gatekeeper asks on first start. They carry no native engines yet
-  (ZEC, ZANO, ARRR, MWEB, Spark need a Mac or the macOS SDK to build), so those coins stay off there.
+  rcodesign from `RCODESIGN`); no Developer ID, so Gatekeeper asks on first start. Their engines (ZEC, ZANO, ARRR, MWEB, Spark) are built on
+  GitHub's Macs by `.github/workflows/mac-engines.yml` (arm64 and x64, ad hoc signed, logs included) and pushed to
+  the `mac-engines` branch; copy them into `native-bin/<engine>-mac-<arch>/` before `npm run dist:mac`.
 - Wide windows (960 px+): side menu (`sideNav`, `navOn` in ui.ts), holdings cards on home, settings section index
   (`settingsIndex`); narrow windows keep the bottom menu.
