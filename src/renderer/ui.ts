@@ -2,11 +2,11 @@
 declare const wallet: any;
 declare const jsQR: any;
 
-type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'LINK' | 'SOL' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA' | 'BCH' | 'LTC' | 'DOGE' | 'DASH' | 'FIRO' | 'ZEC' | 'ZANO' | 'KSR' | 'ARRR' | 'ETHP' | 'PEPE' | 'BNB' | 'USDTB' | 'USDCE' | 'USDCB' | 'USDCS' | 'USDCP' | 'USDCA' | 'SHIB' | 'ORCA' | 'PUMP' | 'DCR' | 'GRAM' | 'USDTT';
+type Asset = 'BTC' | 'XMR' | 'ETH' | 'TRX' | 'USDT' | 'USDTE' | 'LINK' | 'SOL' | 'USDTS' | 'POL' | 'USDTP' | 'ARB' | 'ETHA' | 'USDTA' | 'BCH' | 'LTC' | 'DOGE' | 'DASH' | 'FIRO' | 'ZEC' | 'ZANO' | 'ARRR' | 'ETHP' | 'PEPE' | 'BNB' | 'USDTB' | 'USDCE' | 'USDCB' | 'USDCS' | 'USDCP' | 'USDCA' | 'SHIB' | 'ORCA' | 'PUMP' | 'DCR' | 'GRAM' | 'USDTT';
 type Attrs = Record<string, any>;
 type Child = Node | string | null | undefined | false;
 
-const ALL_ASSETS: Asset[] = ['XMR', 'BTC', 'ETH', 'USDTE', 'USDCE', 'LINK', 'PEPE', 'SHIB', 'ZEC', 'SOL', 'USDTS', 'USDCS', 'ORCA', 'PUMP', 'TRX', 'USDT', 'GRAM', 'USDTT', 'BNB', 'USDTB', 'USDCB', 'POL', 'ETHP', 'USDTP', 'USDCP', 'ARB', 'ETHA', 'USDTA', 'USDCA', 'BCH', 'LTC', 'DCR', 'DOGE', 'DASH', 'FIRO', 'ZANO', 'KSR', 'ARRR'];
+const ALL_ASSETS: Asset[] = ['XMR', 'BTC', 'ETH', 'USDTE', 'USDCE', 'LINK', 'PEPE', 'SHIB', 'ZEC', 'SOL', 'USDTS', 'USDCS', 'ORCA', 'PUMP', 'TRX', 'USDT', 'GRAM', 'USDTT', 'BNB', 'USDTB', 'USDCB', 'POL', 'ETHP', 'USDTP', 'USDCP', 'ARB', 'ETHA', 'USDTA', 'USDCA', 'BCH', 'LTC', 'DCR', 'DOGE', 'DASH', 'FIRO', 'ZANO', 'ARRR'];
 /** Tokens shown under the coin of their chain on the home screen, folded until opened. */
 const GROUPS: Partial<Record<Asset, Asset[]>> = { ETH: ['USDTE', 'USDCE', 'LINK', 'PEPE', 'SHIB'], SOL: ['USDTS', 'USDCS', 'ORCA', 'PUMP'], TRX: ['USDT'], GRAM: ['USDTT'], BNB: ['USDTB', 'USDCB'], POL: ['ETHP', 'USDTP', 'USDCP'], ARB: ['ETHA', 'USDTA', 'USDCA'] };
 const IN_GROUP = new Set(Object.values(GROUPS).flat());
@@ -15,7 +15,7 @@ const EVM_ASSETS: Asset[] = ['ETH', 'USDTE', 'USDCE', 'LINK', 'ETHP', 'PEPE', 'P
 const SPL_ASSETS: Asset[] = ['USDTS', 'USDCS', 'ORCA', 'PUMP'];
 const BSC_ASSETS: Asset[] = ['BNB', 'USDTB', 'USDCB'];
 // These need their engines, which aren't in every build or on every phone.
-let ASSETS: Asset[] = ALL_ASSETS.filter((a) => a !== 'ZEC' && a !== 'ZANO' && a !== 'KSR' && a !== 'ARRR');
+let ASSETS: Asset[] = ALL_ASSETS.filter((a) => a !== 'ZEC' && a !== 'ZANO' && a !== 'ARRR');
 let zecInSession = false;
 let refreshNote = 'no answer yet';
 const COIN: Record<Asset, { label: string; file: string; note: string }> = {
@@ -35,7 +35,6 @@ const COIN: Record<Asset, { label: string; file: string; note: string }> = {
   DASH: { label: 'DASH', file: 'coins/dash.png', note: 'Dash mainnet only. The fee is paid in DASH.' },
   ARRR: { label: 'ARRR', file: 'coins/arrr.png', note: 'Every Pirate Chain transaction is shielded. The fee is paid in ARRR.' },
   ZANO: { label: 'ZANO', file: 'coins/zano.png', note: 'Received coins can be used after 10 confirmations. The fee is a fixed 0.01 ZANO.' },
-  KSR: { label: 'KSR', file: 'coins/ksr.png', note: 'Kusari, a private chain of its own. Received coins can be used after 10 confirmations. The fee is a fixed 0.01 KSR.' },
   ZEC: { label: 'ZEC', file: 'coins/zec.png', note: 'Sent from your shielded balance. The fee is paid in ZEC.' },
   ETH: { label: 'ETH', file: 'coins/eth.png', note: 'The fee for sending USDT (Eth) is also paid in ETH.' },
   USDTE: { label: 'USDT (Eth)', file: 'coins/usdt.png', note: 'Ethereum network only. ETH is needed for the fee. Don\'t send to addresses on other chains.' },
@@ -287,7 +286,7 @@ function notYetAvailable(a: Asset): string {
   if (!(total > free) || !(total - free > 1e-12)) return '';
   const amount = shortAmount((total - free).toFixed(12).replace(/0+$/, '').replace(/\.$/, ''));
   const name = coinName(a);
-  if (a === 'XMR' || a === 'ZANO' || a === 'ARRR' || a === 'KSR') return `${amount} ${name} is still locked. New coins unlock after 10 confirmations.`;
+  if (a === 'XMR' || a === 'ZANO' || a === 'ARRR') return `${amount} ${name} is still locked. New coins unlock after 10 confirmations.`;
   if (a === 'ZEC') return `${amount} ${name} is transparent or not yet confirmed. Transparent ZEC is shielded first, then it can be sent.`;
   if (a === 'DASH') return `${amount} ${name} is mixed (CoinJoin) or not yet confirmed. Mixed coins are sent with the private send option.`;
   return `${amount} ${name} is waiting for a confirmation. It can be sent once confirmed, usually within minutes.`;

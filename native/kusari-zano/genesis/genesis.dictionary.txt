@@ -1,7 +1,0 @@
--------------genesis_acc.cpp-------------
-const std::string ggenesis_tx_pub_key_str = "b103edbca3817c9c39f25252238d579cb84babbe87391bc745d2b978abe01f48";
-const crypto::public_key ggenesis_tx_pub_key = epee::string_tools::parse_tpod_from_hex_string<crypto::public_key>(ggenesis_tx_pub_key_str);
-extern const genesis_tx_dictionary_entry ggenesis_dict[1];
-const genesis_tx_dictionary_entry ggenesis_dict[1] = {
-{3400077418352947518ULL,0}
-};

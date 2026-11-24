@@ -8,9 +8,8 @@ async function enterWallet(): Promise<void> {
   // Decided here because the first balance round can take a while on a phone, and the row shouldn't wait for it.
   zecInSession = await wallet.zecInfo().then((i: any) => Boolean(i.started)).catch(() => false);
   const zanoInSession = await wallet.zanoInfo().then((i: any) => Boolean(i.started)).catch(() => false);
-  const ksrInSession = await wallet.ksrInfo().then((i: any) => Boolean(i.started)).catch(() => false);
   const arrrInSession = await wallet.arrrInfo().then((i: any) => Boolean(i.started)).catch(() => false);
-  ASSETS = ALL_ASSETS.filter((a) => (a !== 'ZEC' || zecInSession) && (a !== 'ZANO' || zanoInSession) && (a !== 'KSR' || ksrInSession) && (a !== 'ARRR' || arrrInSession));
+  ASSETS = ALL_ASSETS.filter((a) => (a !== 'ZEC' || zecInSession) && (a !== 'ZANO' || zanoInSession) && (a !== 'ARRR' || arrrInSession));
   torState = (await wallet.torInfo().catch(() => null))?.enabled ? (await wallet.torInfo()).state : null;
   renderHome();
   void refresh(); // Balances fill in on the home screen; a slow node or Tor must not hold it back.
@@ -92,7 +91,7 @@ function totalUsd(): { value: string; note: string } {
   if (pending.length && !failed.length) {
     if (overview.tor && overview.tor.phase !== 'ready') return { value: usdFormat(sum), note: 'Tor is connecting. Balances load once it connects.' };
     // A first sync reads the chain on this device and can take a long while: say so, with how far it is.
-    const syncing = (a: Asset) => (a === 'ZEC' && overview.zec?.syncing && !overview.zec.firstScanDone) || (a === 'ARRR' && overview.arrr?.scanning) || (a === 'BTC' && btcScanning()) || (a === 'ZANO' && overview.balances.ZANO?.pending) || (a === 'KSR' && overview.balances.KSR?.pending);
+    const syncing = (a: Asset) => (a === 'ZEC' && overview.zec?.syncing && !overview.zec.firstScanDone) || (a === 'ARRR' && overview.arrr?.scanning) || (a === 'BTC' && btcScanning()) || (a === 'ZANO' && overview.balances.ZANO?.pending);
     const first = pending.filter(syncing);
     const rest = pending.filter((a) => !syncing(a));
     const names = (list: Asset[]) => list.map((a) => (a === 'ARRR' && overview.arrr?.percent ? `${coinName(a)} ${overview.arrr.percent}%` : coinName(a))).join(', ');
@@ -250,7 +249,7 @@ function assetRow(a: Asset, child = false, toggle?: HTMLElement): HTMLElement {
     ? (moneroBusy() ? syncLabel() : status)
     : p
       ? h('span', {}, usdFormat(p.usd), p.change !== null && h('span', { class: p.change >= 0 ? 'up' : 'down' }, `${p.change >= 0 ? '+' : ''}${p.change.toFixed(2)}%`))
-      : a === 'BTC' ? 'Bitcoin' : a === 'SOL' ? 'Solana' : a === 'GRAM' || a === 'USDTT' ? 'TON' : a === 'DOGE' ? 'Dogecoin' : a === 'DCR' ? 'Decred' : a === 'BCH' ? 'Bitcoin Cash' : a === 'LTC' ? 'Litecoin' : a === 'DASH' ? 'Dash' : a === 'FIRO' ? 'Firo' : a === 'ZEC' ? 'Zcash' : a === 'ZANO' ? 'Zano' : a === 'KSR' ? 'Kusari' : a === 'ARRR' ? 'Pirate Chain' : a === 'ETH' || a === 'ETHA' ? 'Ethereum' : a === 'POL' ? 'Polygon' : a === 'LINK' ? 'Chainlink' : a === 'ARB' ? 'Arbitrum' : a === 'PEPE' ? 'Pepe' : a === 'ETHP' ? 'Ethereum' : a === 'BNB' ? 'BNB Smart Chain' : a === 'SHIB' ? 'Shiba Inu' : a === 'ORCA' ? 'Orca' : a === 'PUMP' ? 'pump.fun' : a === 'USDT' || a === 'USDTE' || a === 'USDTS' || a === 'USDTP' || a === 'USDTA' || a === 'USDTB' ? 'Tether' : a.startsWith('USDC') ? 'USD Coin' : a === 'TRX' ? 'Tron' : a === 'XMR' ? 'Monero' : a;
+      : a === 'BTC' ? 'Bitcoin' : a === 'SOL' ? 'Solana' : a === 'GRAM' || a === 'USDTT' ? 'TON' : a === 'DOGE' ? 'Dogecoin' : a === 'DCR' ? 'Decred' : a === 'BCH' ? 'Bitcoin Cash' : a === 'LTC' ? 'Litecoin' : a === 'DASH' ? 'Dash' : a === 'FIRO' ? 'Firo' : a === 'ZEC' ? 'Zcash' : a === 'ZANO' ? 'Zano' : a === 'ARRR' ? 'Pirate Chain' : a === 'ETH' || a === 'ETHA' ? 'Ethereum' : a === 'POL' ? 'Polygon' : a === 'LINK' ? 'Chainlink' : a === 'ARB' ? 'Arbitrum' : a === 'PEPE' ? 'Pepe' : a === 'ETHP' ? 'Ethereum' : a === 'BNB' ? 'BNB Smart Chain' : a === 'SHIB' ? 'Shiba Inu' : a === 'ORCA' ? 'Orca' : a === 'PUMP' ? 'pump.fun' : a === 'USDT' || a === 'USDTE' || a === 'USDTS' || a === 'USDTP' || a === 'USDTA' || a === 'USDTB' ? 'Tether' : a.startsWith('USDC') ? 'USD Coin' : a === 'TRX' ? 'Tron' : a === 'XMR' ? 'Monero' : a;
   const usd = assetUsd(a);
   return h('button', { class: `asset${child ? ' child' : ''}`, id: `asset-${a}`, onclick: () => { selected = a; void renderAsset(); } },
     coin(a),
@@ -328,7 +327,6 @@ async function renderAsset(): Promise<void> {
       a === 'LTC' && ltcScanning() && h('div', { class: 'sync-banner', id: 'ltc-filter-scan' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), `Checking Litecoin blocks privately, on this device: ${ltcBlocksLeft()} blocks to go.`),
       a === 'ARRR' && b?.ok && b.total !== b.spendable && h('div', { class: 'warn' }, `${b.spendable} ARRR can be sent now. The rest is waiting for confirmations.`),
       a === 'ZANO' && b?.ok && b.total !== b.spendable && h('div', { class: 'warn' }, `${b.spendable} ZANO can be sent now. Received coins can be used after 10 confirmations.`),
-      a === 'KSR' && b?.ok && b.total !== b.spendable && h('div', { class: 'warn' }, `${b.spendable} KSR can be sent now. Received coins can be used after 10 confirmations.`),
       a === 'ZEC' && b?.ok && b.total !== b.spendable && h('div', { class: 'warn' }, `${b.spendable} ZEC can be sent now. The rest is waiting for confirmations or for shielding.`),
       a === 'ZEC' && overview?.zec?.canShield && h('div', { class: 'panel', id: 'zec-shield-panel' },
         h('p', { class: 'small' }, `You have ${overview.zec.transparent} ZEC in transparent balance. It's public on the chain and can't be sent directly. ZEC received from swaps arrives here too.`), h('br'),

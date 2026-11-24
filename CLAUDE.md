@@ -29,9 +29,8 @@ Java WebView (`android/java`) running the same code as an esbuild bundle (`src/a
 - `npm run dist:linux`: Linux x64 tar.gz; engines come from `native-bin/*-linux` (zec, zano, arrr, mweb, spark). The
   Linux zano-bridge links a static libbacktrace (`-DBACKTRACE_LIB_PATH`), which the Zano package lacks.
 - `npm run dist:win-dev` (`scripts/dist-dev.js`): "Kusari Wallet Dev" into `release/dev/`, with its own app ID and data
-  folder. It is built with `KUSARI_FLAVOR=developer` (`src/main/flavor.ts`, `DEVELOPER_BUILD`), shows a ribbon, and
-  carries coins and features not yet released (KSR, from `native-bin/_later/`). Gate new unreleased work on
-  `DEVELOPER_BUILD`. Regular builds never ship the KSR engine.
+  folder. It is built with `KUSARI_FLAVOR=developer` (`src/main/flavor.ts`, `DEVELOPER_BUILD`) and shows a ribbon.
+  Gate new unreleased work on `DEVELOPER_BUILD`.
 - Bump `version` in `package.json` and `package-lock.json` for each release.
 - The desktop app runs one bundle: `npm run build` ends with `scripts/bundle-main.js`, which bundles `dist/main/main.js`
   into `dist/main/app.js` (the package `main`) and monero-ts's worker into `dist/main/monero-worker.js`. Only
@@ -78,7 +77,7 @@ Java WebView (`android/java`) running the same code as an esbuild bundle (`src/a
 - Uniswap: `checkRouterCommands` (`dex.ts`) decodes the router call the Trading API returns and allows only V2/V3
   swaps, the Permit2 permit, wrap/unwrap and sweep, all paying this wallet, with at least the quoted minimum.
   V4 routes aren't asked for: their calls aren't read.
-- `src/main/socks-gate.ts` (desktop) and `android/java/.../SocksGate.java`: a SOCKS gateway per engine (Zano, KSR,
+- `src/main/socks-gate.ts` (desktop) and `android/java/.../SocksGate.java`: a SOCKS gateway per engine (Zano,
   ZEC, ARRR) that logs in to Tor; `renewTorRoute` changes the login, so each send gets a fresh circuit.
 - `src/main/seed.ts`: the BIP39 seed with the open wallet's optional passphrase. Every key from the 12 words goes
   through `bip39Seed`/`passphraseOf`; never call `mnemonicToSeedSync` directly. ZEC and ARRR engines take the
@@ -147,9 +146,7 @@ Java WebView (`android/java`) running the same code as an esbuild bundle (`src/a
   `sol-pool-later.json`, while unlocked).
 - `src/main/tor-bridges.ts`: Snowflake/obfs4 via lyrebird (`scripts/fetch-lyrebird-android.sh` for Android).
 - `src/main/blockbook.ts`, `config.ts`: servers and their backups.
-- `src/main/zano.ts`, `zano-process.ts`: Zano, and Kusari (KSR) on the same client with its own engine (`ksr-bridge`:
-  `native/zano-bridge` built against the KSR chain), key label, wallet file, node and Tor route. `native/kusari-zano/`
-  is the KSR chain itself (see its README).
+- `src/main/zano.ts`, `zano-process.ts`: Zano (`native/zano-bridge`).
 - Swap providers in `swap.ts`, each with its own coin table (coin + network as that provider names it; GhostSwap
   matches tokens by contract): Exolix, SimpleSwap, GhostSwap, ETZ Swap, CCECash, ChangeNOW, PegasusSwap (HMAC-SHA512
   of the endpoint name, `x-api-*` headers). ETZ, CCECash and PegasusSwap keys can read the account's orders.

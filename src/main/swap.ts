@@ -46,7 +46,6 @@ const COIN: Record<Asset, { coin: string; network: RegExp; fallback: string }> =
   ZEC: { coin: 'ZEC', network: /^(zec|zcash)$/i, fallback: 'ZEC' },
   ZANO: { coin: 'ZANO', network: /^zano$/i, fallback: 'ZANO' },
   ARRR: { coin: 'ARRR', network: /^(arrr|pirate)/i, fallback: 'ARRR' },
-  KSR: { coin: '', network: /^$/, fallback: '' }, // not listed anywhere yet: see NOT_SWAPPABLE
 };
 
 /** Ethereum addresses differ only in checksum casing, which services often drop. */
@@ -59,9 +58,6 @@ function sameAddress(a: unknown, b: string): boolean {
 }
 
 export interface SwapQuote { from: Asset; to: Asset; amount: string; receive: string; rate: string; min: string | null; max: string | null; problem: string | null; provider: string; providerId: SwapProviderId; approximate: boolean }
-
-/** No provider takes the private form of a coin; it's made from or turned back into the plain one in the wallet. */
-export const NOT_SWAPPABLE: ReadonlySet<Asset> = new Set<Asset>(['KSR']);
 
 export type SwapProviderId = 'exolix' | 'simpleswap' | 'ghostswap' | 'etzswap' | 'ccecash' | 'changenow' | 'pegasus';
 
@@ -224,7 +220,6 @@ const SIMPLE_COIN: Record<Asset, { ticker: string; network: string }> = {
   ZEC: { ticker: 'zec', network: 'zec' },
   ZANO: { ticker: 'zano', network: 'zano' },
   ARRR: { ticker: 'arrr', network: 'arrr' },
-  KSR: { ticker: '', network: '' },
 };
 
 export class SimpleSwapClient implements SwapProvider {
@@ -867,6 +862,6 @@ export class PegasusClient implements SwapProvider {
   }
 }
 
-export const PRIVACY_ASSETS: Asset[] = (Object.keys(DECIMALS) as Asset[]).filter((a) => a !== 'XMR' && !NOT_SWAPPABLE.has(a));
+export const PRIVACY_ASSETS: Asset[] = (Object.keys(DECIMALS) as Asset[]).filter((a) => a !== 'XMR');
 export const SWAP_DEAD = ['failed', 'refunded', 'refund', 'overdue', 'expired'];
 export const SWAP_DONE = ['success', 'finished'];

@@ -1,5 +1,4 @@
-// Starts the native Zano engine, or Kusari's (the same bridge built against the KSR chain), and talks to it one line
-// at a time.
+// Starts the native Zano engine and talks to it one line at a time.
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
@@ -15,7 +14,6 @@ export interface ZanoEngine {
 /** Which engine: its file (under resources/<folder>/), its own folder for wallet files, and its name in messages. */
 interface EngineKind { exe: string; folder: string; name: string }
 const ZANO: EngineKind = { exe: 'zano-bridge', folder: 'zano', name: 'Zano' };
-const KSR: EngineKind = { exe: 'ksr-bridge', folder: 'ksr', name: 'Kusari' };
 
 function findEngine(override: string | undefined, kind: EngineKind): string | null {
   const exe = process.platform === 'win32' ? `${kind.exe}.exe` : kind.exe;
@@ -25,15 +23,9 @@ function findEngine(override: string | undefined, kind: EngineKind): string | nu
 
 export const zanoEngineAvailable = (override?: string): boolean => findEngine(override, ZANO) !== null;
 export const zanoEngineInfo = (override?: string): string => findEngine(override, ZANO) ?? 'Engine file not found';
-export const ksrEngineAvailable = (override?: string): boolean => findEngine(override, KSR) !== null;
-export const ksrEngineInfo = (override?: string): string => findEngine(override, KSR) ?? 'Engine file not found';
 
 export function startZanoEngine(override: string | undefined, dir: string): ZanoEngine {
   return startEngine(override, dir, ZANO);
-}
-
-export function startKsrEngine(override: string | undefined, dir: string): ZanoEngine {
-  return startEngine(override, dir, KSR);
 }
 
 function startEngine(override: string | undefined, dir: string, kind: EngineKind): ZanoEngine {

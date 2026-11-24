@@ -3,6 +3,3 @@
 declare const __KUSARI_FLAVOR__: string | undefined;
 
 export const DEVELOPER_BUILD: boolean = (typeof __KUSARI_FLAVOR__ !== 'undefined' ? __KUSARI_FLAVOR__ : process.env.KUSARI_FLAVOR) === 'developer';
-
-/** Coins only the developer build offers, until they launch. */
-export const DEVELOPER_ONLY_ASSETS = ['KSR'] as const;

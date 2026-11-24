@@ -8,7 +8,7 @@ import { balanceCacheKey, readBalanceCache, writeBalanceCache, SavedBalance, SAV
 import path from 'node:path';
 const { wordlist: BIP39_WORDS } = require('@scure/bip39/wordlists/english');
 import { formatAmount, parseAmount } from './amount';
-import { Asset, BTC_APIS, BTC_ONION_APIS, DECIMALS, FIRO_APIS, SOL_RPCS, TON_APIS, BCH_APIS, LTC_APIS, DOGE_APIS, DOGE_PUSH_URLS, DOGE_BACKUP, DOGE_RAW_URLS, POL_RPCS, POL_SCOUT, ARB_RPCS, ARB_SCOUT, BSC_RPCS, BSC_SCOUT, DASH_APIS, DEFAULT_SETTINGS, ARRR_SERVERS, ZANO_NODE, KSR_NODE, ZEC_SERVERS, ETH_RPCS, ETH_SCOUT, ETH_USDT, NETWORKS, NetworkId, Settings, estimateMainnetHeight } from './config';
+import { Asset, BTC_APIS, BTC_ONION_APIS, DECIMALS, FIRO_APIS, SOL_RPCS, TON_APIS, BCH_APIS, LTC_APIS, DOGE_APIS, DOGE_PUSH_URLS, DOGE_BACKUP, DOGE_RAW_URLS, POL_RPCS, POL_SCOUT, ARB_RPCS, ARB_SCOUT, BSC_RPCS, BSC_SCOUT, DASH_APIS, DEFAULT_SETTINGS, ARRR_SERVERS, ZANO_NODE, ZEC_SERVERS, ETH_RPCS, ETH_SCOUT, ETH_USDT, NETWORKS, NetworkId, Settings, estimateMainnetHeight } from './config';
 import { MIN_PASSWORD, Secrets, Vault } from './vault';
 import { TronClient, deriveTronAccount, generateTronMnemonic } from './tron';
 import { socksAgent, getJson, newTorRoute, isolatedAgent, USER_AGENT } from './request';
@@ -23,15 +23,15 @@ import { LTC_P2P } from './p2p-net';
 import type { ReceiveSession } from './btc-payjoin';
 import type { Post } from './payjoin';
 import { clearPassphrases, setPassphrase } from './seed';
-import { PRICE_TIERS, PriceMap, PriceSource, coingecko, mirror, NO_MARKET } from './prices';
+import { PRICE_TIERS, PriceMap, PriceSource, coingecko, mirror } from './prices';
 import { ArrrClient } from './arrr';
 import { startArrrEngine, arrrEngineAvailable } from './arrr-process';
 import { startMwebEngine, mwebEngineAvailable } from './mweb-process';
 import { MwebClient } from './mweb';
 import { startSparkEngine, sparkEngineAvailable } from './spark-process';
 import { SparkClient, sparkKey } from './spark';
-import { ZanoClient, zanoKeys, ksrKeys, KSR_CHAIN } from './zano';
-import { startZanoEngine, zanoEngineAvailable, startKsrEngine, ksrEngineAvailable } from './zano-process';
+import { ZanoClient, zanoKeys } from './zano';
+import { startZanoEngine, zanoEngineAvailable } from './zano-process';
 import { ZecClient, zecHeightForDate } from './zec';
 import { startZecEngine, zecEngineAvailable } from './zec-process';
 import { FiroClient, firoAccountXpub } from './firo';
@@ -98,8 +98,6 @@ export class ServiceCore extends EventEmitter {
   protected solPool: SolPool | null = null;
   protected zec: ZecClient | null = null;
   protected zano: ZanoClient | null = null;
-  /** Kusari (KSR): the Zano client on its own engine, chain and keys. */
-  protected ksr: ZanoClient | null = null;
   protected arrr: ArrrClient | null = null;
   protected mweb: MwebClient | null = null;
   protected spark: SparkClient | null = null;
@@ -125,7 +123,7 @@ export class ServiceCore extends EventEmitter {
   settings: Settings = { ...DEFAULT_SETTINGS };
 
   constructor(protected readonly baseDir: string, protected readonly kdf?: { N: number; r: number; p: number }, protected readonly dev: {
-    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; bchApi?: string; ltcApi?: string; polRpc?: string; polScout?: string; polUsdt?: string; arbRpc?: string; arbScout?: string; arbUsdt?: string; bscRpc?: string; bscScout?: string; uniswapKey?: string; uniswapBase?: string; dashApi?: string; dashSeeds?: string[]; dashConnect?: string; firoApi?: string; solRpc?: string; solPoolRelayer?: string; tonApi?: string;  dogeApi?: string; dogeBackup?: string; dcrApi?: string; zecBin?: string; zecServers?: string[]; zanoBin?: string; zanoNode?: string; ksrBin?: string; ksrNode?: string; arrrBin?: string; arrrServers?: string[]; mwebBin?: string; mwebConnect?: string; sparkBin?: string; sparkServer?: string; sparkConnect?: string; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; tornadoRelayerNames?: { name: string; address: string; url?: string }[]; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; etzSwapBase?: string; cceCashBase?: string; changeNowBase?: string; pegasusBase?: string; quoteDeadlineMs?: number; btcApi?: string; coinjoinCoordinator?: string; coinjoinTest?: { pollMs?: number; registrationMarginMs?: number; minInputs?: number };
+    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; bchApi?: string; ltcApi?: string; polRpc?: string; polScout?: string; polUsdt?: string; arbRpc?: string; arbScout?: string; arbUsdt?: string; bscRpc?: string; bscScout?: string; uniswapKey?: string; uniswapBase?: string; dashApi?: string; dashSeeds?: string[]; dashConnect?: string; firoApi?: string; solRpc?: string; solPoolRelayer?: string; tonApi?: string;  dogeApi?: string; dogeBackup?: string; dcrApi?: string; zecBin?: string; zecServers?: string[]; zanoBin?: string; zanoNode?: string; arrrBin?: string; arrrServers?: string[]; mwebBin?: string; mwebConnect?: string; sparkBin?: string; sparkServer?: string; sparkConnect?: string; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; tornadoRelayerNames?: { name: string; address: string; url?: string }[]; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; etzSwapBase?: string; cceCashBase?: string; changeNowBase?: string; pegasusBase?: string; quoteDeadlineMs?: number; btcApi?: string; coinjoinCoordinator?: string; coinjoinTest?: { pollMs?: number; registrationMarginMs?: number; minInputs?: number };
     /** Android: every outside address goes through the app's local forwarder. */
     route?: (url: string) => string;
     moneroStore?: (net: NetworkId, walletId: string) => MoneroOptions['store'];
@@ -495,7 +493,7 @@ export class ServiceCore extends EventEmitter {
     // The privacy engines start side by side and in the background: unlocking no longer waits for each in turn,
     // and each balance fills in when its engine is up.
     const gen = this.viewGen;
-    this.enginesStarting = Promise.allSettled([this.startZec(secrets), this.startZano(secrets), this.startKsr(secrets), this.startArrr(secrets), this.startMweb(secrets), this.startSpark(secrets)])
+    this.enginesStarting = Promise.allSettled([this.startZec(secrets), this.startZano(secrets), this.startArrr(secrets), this.startMweb(secrets), this.startSpark(secrets)])
       .then(() => { if (gen === this.viewGen) this.emit('balance-changed'); });
     if (this.dev.tronHost) await this.enginesStarting; // tests expect them up when unlocking returns
   }
@@ -751,39 +749,6 @@ export class ServiceCore extends EventEmitter {
     if (gen !== this.sessionGen) void Promise.resolve(client.stop()).catch(() => undefined); // locked while it started
   }
 
-  /** KSR isn't launched: only the developer build (and the tests' stand-in engine) runs it. */
-  protected get ksrAvailable(): boolean { return (DEVELOPER_BUILD || Boolean(this.dev.ksrBin)) && ksrEngineAvailable(this.dev.ksrBin); }
-
-  /** The node KSR uses: the person's own, or the public one (none until the chain launches). */
-  protected get ksrNode(): string { return this.dev.ksrNode ?? ((this.settings.customKsrNode ?? '').trim() || KSR_NODE); }
-
-  /**
-   * Kusari, on the Zano client: its own engine, its own key (a label of its own, so a K... address can't be tied to
-   * this seed's Zano address), wallet file and password, and its own Tor route. No fallback to a direct connection.
-   */
-  protected async startKsr(secrets: Secrets): Promise<void> {
-    const gen = this.sessionGen;
-    // The developer build shows KSR before there is any node: the wallet, its address and the screens work, and
-    // the balance says no node is set. Until one is, the engine is pointed at a local port that refuses (through Tor,
-    // Tor refuses it), so nothing goes anywhere.
-    const node = this.ksrNode || (DEVELOPER_BUILD ? KSR_NO_NODE : '');
-    if (!this.ksrAvailable || !node) return;
-    const torPort = this.torActive ? (await this.tor.isolated('ksr')) || undefined : undefined; // its own gate: a fresh route per send
-    if (this.torActive && !torPort) return; // Never fall back to a direct connection.
-    const client = new ZanoClient({
-      engine: () => startKsrEngine(this.dev.ksrBin, this.dir),
-      node,
-      socks: torPort,
-      canConnect: () => !this.torNotReady,
-      onChange: () => this.emit('balance-changed'),
-      chain: KSR_CHAIN,
-    }, ksrKeys(secrets.tronMnemonic, secrets.moneroFilePasswords.mainnet));
-    if (gen !== this.sessionGen) return; // locked while waiting for Tor
-    this.ksr = client;
-    try { await client.start(); } catch (e) { client.lastError = (e as Error).message; }
-    if (gen !== this.sessionGen) void Promise.resolve(client.stop()).catch(() => undefined); // locked while it started
-  }
-
   protected get zecAvailable(): boolean { return zecEngineAvailable(this.dev.zecBin); }
 
   /** Every other coin works without this, so a problem here stays on the Zcash row. */
@@ -891,10 +856,9 @@ export class ServiceCore extends EventEmitter {
     this.solPool = null;
     // Engines stop in the background; deleting a wallet waits for them, since they hold its files open.
     const starting = this.enginesStarting;
-    this.engineStops = Promise.allSettled([this.zec?.stop(), this.zano?.stop(), this.ksr?.stop(), this.arrr?.stop(), starting]).then(() => undefined);
+    this.engineStops = Promise.allSettled([this.zec?.stop(), this.zano?.stop(), this.arrr?.stop(), starting]).then(() => undefined);
     this.zec = null;
     this.zano = null;
-    this.ksr = null;
     this.arrr = null;
     this.mweb?.close();
     this.mweb = null;
@@ -1225,7 +1189,6 @@ export class ServiceCore extends EventEmitter {
     const { eth, dash, firo } = this.session();
     const zec = this.zec;
     const zano = this.zano;
-    const ksr = this.ksr;
     const arrr = this.arrr;
     const arrrView = (): BalanceView => {
       const b = arrr?.balance();
@@ -1237,13 +1200,6 @@ export class ServiceCore extends EventEmitter {
       const b = zano?.balance();
       if (b) return { ok: true, total: formatAmount(b[0], 12), spendable: formatAmount(b[1], 12) };
       if (zano?.lastError && !this.torNotReady) return { ok: false, total: '', spendable: '', error: this.friendlyError(new Error(zano.lastError)) };
-      return { ok: false, pending: true, total: '', spendable: '' };
-    };
-    const ksrView = (): BalanceView => {
-      if (!this.ksrNode) return { ok: false, total: '', spendable: '', error: 'No Kusari node is set yet. KSR has no public network before it launches: add a node in Settings to try it.' };
-      const b = ksr?.balance();
-      if (b) return { ok: true, total: formatAmount(b[0], 12), spendable: formatAmount(b[1], 12) };
-      if (ksr?.lastError && !this.torNotReady) return { ok: false, total: '', spendable: '', error: this.friendlyError(new Error(ksr.lastError)) };
       return { ok: false, pending: true, total: '', spendable: '' };
     };
     const zecView = (): BalanceView => {
@@ -1296,7 +1252,7 @@ export class ServiceCore extends EventEmitter {
       ...EXTRA_ASSETS.map((a) => settle(a, async () => { const b = isSpl(a) ? await this.sol!.getUsdtBalance(a) : await this.evm(a).balanceOf(a as EthAsset); return [b, b]; }, DECIMALS[a])),
       ...ACCOUNT_LIST.map((a) => settle(a, async () => { const c = this.accounts.get(a); if (!c) throw new Error('The wallet is locked.'); const b = await c.getBalance(); return [b.total, b.spendable]; }, DECIMALS[a])),
     ], this.dev.tronHost ? 120_000 : OVERVIEW_WAIT_MS);
-    const balances: Record<string, BalanceView | undefined> = { XMR, BTC, ETH, TRX, USDTE, USDT, SOL, USDTS, LINK, POL, USDTP, ARB, ETHA, USDTA, BCH, LTC, DOGE, DCR, DASH, FIRO, ...Object.fromEntries(EXTRA_ASSETS.map((a, i) => [a, EXTRA[i]])), ...Object.fromEntries(ACCOUNT_LIST.map((a, i) => [a, EXTRA[EXTRA_ASSETS.length + i]])), ...(zec ? { ZEC: zecView() } : {}), ...(zano ? { ZANO: zanoView() } : {}), ...(ksr ? { KSR: ksrView() } : {}), ...(arrr ? { ARRR: arrrView() } : {}) };
+    const balances: Record<string, BalanceView | undefined> = { XMR, BTC, ETH, TRX, USDTE, USDT, SOL, USDTS, LINK, POL, USDTP, ARB, ETHA, USDTA, BCH, LTC, DOGE, DCR, DASH, FIRO, ...Object.fromEntries(EXTRA_ASSETS.map((a, i) => [a, EXTRA[i]])), ...Object.fromEntries(ACCOUNT_LIST.map((a, i) => [a, EXTRA[EXTRA_ASSETS.length + i]])), ...(zec ? { ZEC: zecView() } : {}), ...(zano ? { ZANO: zanoView() } : {}), ...(arrr ? { ARRR: arrrView() } : {}) };
     this.withSavedBalances(balances);
     return {
       network: this.settings.network,
@@ -1311,8 +1267,7 @@ export class ServiceCore extends EventEmitter {
       btcSync: this.btcFilters ? { ...this.btcFilters.progress, error: this.btcFilters.lastError } : null,
       ltcSync: this.ltcFilters ? { ...this.ltcFilters.progress, error: this.ltcFilters.lastError } : null,
       zec: zec ? { ...zec.state(), address: zec.receive?.unified ?? '', transparentAddress: zec.transparentAddress } : null,
-      addresses: { ...Object.fromEntries(EVM.map((a) => [a, this.evm(a).address])), BTC: btc.receiveAddress, XMR: await monero.getPrimaryAddress(), ETH: eth.address, TRX: tron.address, USDTE: eth.address, USDT: tron.address, DASH: dash.receiveAddress, FIRO: firo.receiveAddress, SOL: this.sol!.receiveAddress, USDTS: this.sol!.receiveAddress, USDCS: this.sol!.receiveAddress, ORCA: this.sol!.receiveAddress, PUMP: this.sol!.receiveAddress, BCH: bareBch(this.bch!.receiveAddress), LTC: this.ltc!.receiveAddress, DOGE: this.doge!.receiveAddress, ...Object.fromEntries([...this.accounts].map(([a, c]) => [a, c.receiveAddress])), ...(this.dcr ? { DCR: this.dcr.receiveAddress } : {}), ...(zec ? { ZEC: zec.receive?.unified ?? '' } : {}), ...(zano ? { ZANO: zano.receive } : {}), ...(ksr ? { KSR: ksr.receive } : {}), ...(arrr ? { ARRR: arrr.receive } : {}) },
-      ksr: ksr ? { scanning: ksr.isScanning } : null,
+      addresses: { ...Object.fromEntries(EVM.map((a) => [a, this.evm(a).address])), BTC: btc.receiveAddress, XMR: await monero.getPrimaryAddress(), ETH: eth.address, TRX: tron.address, USDTE: eth.address, USDT: tron.address, DASH: dash.receiveAddress, FIRO: firo.receiveAddress, SOL: this.sol!.receiveAddress, USDTS: this.sol!.receiveAddress, USDCS: this.sol!.receiveAddress, ORCA: this.sol!.receiveAddress, PUMP: this.sol!.receiveAddress, BCH: bareBch(this.bch!.receiveAddress), LTC: this.ltc!.receiveAddress, DOGE: this.doge!.receiveAddress, ...Object.fromEntries([...this.accounts].map(([a, c]) => [a, c.receiveAddress])), ...(this.dcr ? { DCR: this.dcr.receiveAddress } : {}), ...(zec ? { ZEC: zec.receive?.unified ?? '' } : {}), ...(zano ? { ZANO: zano.receive } : {}), ...(arrr ? { ARRR: arrr.receive } : {}) },
       monero: monero.state,
     };
   }
@@ -1321,7 +1276,7 @@ export class ServiceCore extends EventEmitter {
   async addresses() {
     const { tron, monero, btc, eth, dash } = this.session();
     // Every Ethereum, Polygon and Arbitrum coin and token lives on the one 0x address.
-    return { ...Object.fromEntries(EVM.map((a) => [a, this.evm(a).address])), DASH: dash.receiveAddress, FIRO: this.firo!.receiveAddress, SOL: this.sol!.receiveAddress, USDTS: this.sol!.receiveAddress, USDCS: this.sol!.receiveAddress, ORCA: this.sol!.receiveAddress, PUMP: this.sol!.receiveAddress, BCH: bareBch(this.bch!.receiveAddress), LTC: this.ltc!.receiveAddress, DOGE: this.doge!.receiveAddress, ...Object.fromEntries([...this.accounts].map(([a, c]) => [a, c.receiveAddress])), ...(this.dcr ? { DCR: this.dcr.receiveAddress } : {}), BTC: btc.receiveAddress, XMR: await monero.getPrimaryAddress(), ETH: eth.address, TRX: tron.address, USDTE: eth.address, USDT: tron.address, ...(this.zec ? { ZEC: this.zec.receive?.unified ?? '', ZEC_T: this.zec.transparentAddress } : {}), ...(this.zano ? { ZANO: this.zano.receive } : {}), ...(this.ksr ? { KSR: this.ksr.receive } : {}), ...(this.arrr ? { ARRR: this.arrr.receive } : {}) };
+    return { ...Object.fromEntries(EVM.map((a) => [a, this.evm(a).address])), DASH: dash.receiveAddress, FIRO: this.firo!.receiveAddress, SOL: this.sol!.receiveAddress, USDTS: this.sol!.receiveAddress, USDCS: this.sol!.receiveAddress, ORCA: this.sol!.receiveAddress, PUMP: this.sol!.receiveAddress, BCH: bareBch(this.bch!.receiveAddress), LTC: this.ltc!.receiveAddress, DOGE: this.doge!.receiveAddress, ...Object.fromEntries([...this.accounts].map(([a, c]) => [a, c.receiveAddress])), ...(this.dcr ? { DCR: this.dcr.receiveAddress } : {}), BTC: btc.receiveAddress, XMR: await monero.getPrimaryAddress(), ETH: eth.address, TRX: tron.address, USDTE: eth.address, USDT: tron.address, ...(this.zec ? { ZEC: this.zec.receive?.unified ?? '', ZEC_T: this.zec.transparentAddress } : {}), ...(this.zano ? { ZANO: this.zano.receive } : {}), ...(this.arrr ? { ARRR: this.arrr.receive } : {}) };
   }
 
   async torInfo() {
@@ -1350,7 +1305,6 @@ export class ServiceCore extends EventEmitter {
     if (asset === 'BCH') return this.bch!.getHistory();
     if (asset === 'ZEC') return this.zec ? this.zec.getHistory() : [];
     if (asset === 'ZANO') return this.zano ? this.zano.getHistory() : [];
-    if (asset === 'KSR') return this.ksr ? this.ksr.getHistory() : [];
     if (asset === 'ARRR') return this.arrr ? this.arrr.getHistory() : [];
     if (asset === 'BTC') return btc.getHistory();
     if (asset === 'LTC') return this.ltc!.getHistory();
@@ -1502,8 +1456,7 @@ export class ServiceCore extends EventEmitter {
     const tor = this.torActive;
     const agent = this.pricesAgent();
     const ask = async (source: PriceSource) => source.parse(await getJson(source.url, { agent, timeoutMs: tor ? 30_000 : 10_000, headers: { Accept: 'application/json', 'User-Agent': USER_AGENT, ...source.headers } }));
-    // A coin no market lists (KSR before launch) can't be found in a later tier either, so it sends no one there.
-    const missing = (v: PriceMap | null) => !v || (Object.keys(DECIMALS) as Asset[]).some((a) => !NO_MARKET.has(a) && !v[a]);
+    const missing = (v: PriceMap | null) => !v || (Object.keys(DECIMALS) as Asset[]).some((a) => !v[a]);
     // Each tier only when the ones before it left a coin out; within a tier all at once, earlier sources winning.
     let value: PriceMap | null = null;
     let failures = 0;
@@ -1586,10 +1539,7 @@ export class ServiceCore extends EventEmitter {
 }
 
 /** The engines that reach their node through a gate of their own (see socks-gate.ts). */
-const ENGINE_GATE: Record<string, string | undefined> = { ZANO: 'zano', KSR: 'ksr', ZEC: 'zec', ARRR: 'arrr' };
-
-/** Where KSR points with no node set (developer build): a local port nothing listens on. */
-const KSR_NO_NODE = '127.0.0.1:1';
+const ENGINE_GATE: Record<string, string | undefined> = { ZANO: 'zano', ZEC: 'zec', ARRR: 'arrr' };
 
 /** The block a private Bitcoin sync starts from for a wallet first used on `date`: a week early, never before taproot. */
 /** Litecoin's first block to scan for a wallet first used on a date: two days early, never before the checkpoint. */

@@ -140,7 +140,6 @@ export interface Preview {
   solUsdt?: SolUsdtDraft;
   zec?: ZecDraft;
   zano?: ZanoDraft;
-  ksr?: ZanoDraft;
   arrr?: ArrrDraft;
   /** A send on one of ACCOUNT_COINS. */
   account?: { asset: Asset; draft: any };

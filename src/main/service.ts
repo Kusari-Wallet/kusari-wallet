@@ -12,7 +12,7 @@ import { isBtcAddress, isLtcAddress } from './btc';
 import { isArrrAddress } from './arrr';
 import { isMwebAddress } from './mweb';
 import { isSparkAddress } from './spark';
-import { isZanoAddress, isKsrAddress } from './zano';
+import { isZanoAddress } from './zano';
 import { isZecAddress } from './zec';
 import { isFiroAddress } from './firo';
 import { isDogeAddress } from './doge';
@@ -21,7 +21,7 @@ import { isBchAddress, normalBchAddress } from './bch';
 import { isSolAddress } from './sol';
 import { isDashAddress } from './dash';
 import { BSC, EvmChain, EthAsset, chainOf, isEthAddress } from './eth';
-import { BUILTIN_SWAP_KEYS, CCECASH_BASE, CHANGENOW_BASE, CceCashClient, ChangeNowClient, PEGASUS_BASE, PegasusClient, ETZSWAP_BASE, EtzSwapClient, GHOSTSWAP_BASE, GhostSwapClient, NOT_SWAPPABLE, PRIVACY_ASSETS, PrivacySwap, SIMPLESWAP_BASE, SWAP_BASE, SWAP_DEAD, SWAP_DONE, SimpleSwapClient, SwapClient, SwapProvider, SwapProviderId, SwapRecord } from './swap';
+import { BUILTIN_SWAP_KEYS, CCECASH_BASE, CHANGENOW_BASE, CceCashClient, ChangeNowClient, PEGASUS_BASE, PegasusClient, ETZSWAP_BASE, EtzSwapClient, GHOSTSWAP_BASE, GhostSwapClient, PRIVACY_ASSETS, PrivacySwap, SIMPLESWAP_BASE, SWAP_BASE, SWAP_DEAD, SWAP_DONE, SimpleSwapClient, SwapClient, SwapProvider, SwapProviderId, SwapRecord } from './swap';
 import { QUOTE_DEADLINE_MS, QUOTE_DEADLINE_TOR_MS, QUOTE_EXTRAS_MS, SWAP_NAMES, within, isSpl, isEvm, ASSET_LABEL, swapCost } from './service-common';
 import { SendService } from './service-send';
 export { checkOwnServer, isLocalServer, lookupRetryDelay, swapCost } from './service-common';
@@ -187,7 +187,6 @@ export class WalletService extends SendService {
     this.session();
     if (this.torNotReady) throw new Error('Tor is connecting. Try again once it connects.');
     if (from === to) throw new Error('Choose a different coin.');
-    if (NOT_SWAPPABLE.has(from) || NOT_SWAPPABLE.has(to)) throw new Error('This coin can\'t be swapped.');
     const amount = formatAmount(parseAmount(amountInput, DECIMALS[from]), DECIMALS[from]);
     const clients = Object.entries(this.swapClients()) as [SwapProviderId, SwapProvider][];
     // The slowest provider mustn't hold up the others, so each gets a deadline and the screen shows whoever answered.
@@ -229,7 +228,6 @@ export class WalletService extends SendService {
       : asset === 'BCH' ? isBchAddress(address)
       : asset === 'ZEC' ? isZecAddress(address)
       : asset === 'ZANO' ? isZanoAddress(address)
-      : asset === 'KSR' ? isKsrAddress(address)
       : asset === 'ARRR' ? isArrrAddress(address)
       : asset === 'XMR' ? await monero.isValidAddress(address)
         : isEvm(asset) ? isEthAddress(address)
@@ -248,10 +246,6 @@ export class WalletService extends SendService {
     if (asset === 'ZANO') {
       if (!this.zano?.receive) throw new Error('The Zano wallet is getting ready. Try again shortly.');
       return this.zano.receive;
-    }
-    if (asset === 'KSR') {
-      if (!this.ksr?.receive) throw new Error('The Kusari wallet is getting ready. Try again shortly.');
-      return this.ksr.receive;
     }
     if (asset === 'ZEC') {
       // Swap services pay transparent addresses. The coins get shielded on arrival.
@@ -291,7 +285,6 @@ export class WalletService extends SendService {
 
   /** Gets a fresh rate, opens the order, checks it, and prepares the deposit like any other send. Nothing is signed yet. */
   async swapPrepare(from: Asset, to: Asset, amountInput: string, providerId: SwapProviderId = 'exolix', destination = '') {
-    if (NOT_SWAPPABLE.has(from) || NOT_SWAPPABLE.has(to)) throw new Error('This coin can\'t be swapped.');
     this.session();
     if (from === to) throw new Error('Choose a different coin.');
     const amount = formatAmount(parseAmount(amountInput, DECIMALS[from]), DECIMALS[from]);

@@ -4,9 +4,8 @@ const fs = require('node:fs');
 const readline = require('node:readline');
 const log = process.env.FAKE_ZANO_LOG;
 const note = (o) => { if (log) fs.appendFileSync(log, JSON.stringify(o) + '\n'); };
-// Kusari's stand-in (fake-ksr-engine.js) sets a K... address; Zano's is Zx...
 const ADDRESS = process.env.FAKE_ZANO_ADDRESS || 'Zx' + 'C'.repeat(95);
-const VALID = ADDRESS.startsWith('K') ? /^[KL]/ : /^(Zx|iZ)/;
+const VALID = /^(Zx|iZ)/;
 let balance = 20000000000000000n; // past 2^53, on purpose
 let unlocked = 15000000000000000n;
 const wallets = new Set();

@@ -1,7 +1,5 @@
-// Zano, and Kusari (KSR): a chain built from Zano's code, run by the same wallet library with its own prefixes. The
-// wallet file is the library's own, encrypted with a password from the vault. The key comes from the same BIP39 seed
-// as the other coins, so one seed brings this wallet back too. The derivation must never change, and each chain has
-// labels of its own: the same key on both would show that a Zano address and a K... address are one person's.
+// Zano. The wallet file is the library's own, encrypted with a password from the vault. The key comes from the same
+// BIP39 seed as the other coins, so one seed brings this wallet back too. The derivation must never change.
 import { bip39Seed } from './seed';
 import { computeHmac, toUtf8Bytes, sha256 } from 'ethers';
 import { formatAmount } from './amount';
@@ -10,8 +8,6 @@ import type { ZanoEngine } from './zano-process';
 
 export const ZANO_DECIMALS = 12;
 export const ZANO_FEE = 10_000_000_000n; // 0.01 ZANO, the network's fixed minimum
-export const KSR_DECIMALS = 12;
-export const KSR_FEE = 10_000_000_000n; // 0.01 KSR, as on Zano
 const ZANO_MIXIN = 15;
 const ZANO_NATIVE_ASSET = 'd6329b5b1f7c0805b5c345f4957554002a2f557845f64d7645dae0e051a6498a';
 // Nothing derived here can hold coins from before this feature existed, so scanning starts there on every restore.
@@ -25,13 +21,8 @@ export function isZanoAddress(address: string): boolean {
   return /^(Zx|iZ|aZ|ai)[1-9A-HJ-NP-Za-km-z]{90,120}$/.test(address);
 }
 
-/** K... (regular and integrated) and L... (auditable). M... gateway addresses can't receive directly, as on Zano. */
-export function isKsrAddress(address: string): boolean {
-  return /^[KL][1-9A-HJ-NP-Za-km-z]{90,120}$/.test(address);
-}
-
 export interface ZanoChain {
-  asset: 'ZANO' | 'KSR';
+  asset: 'ZANO';
   name: string;
   /** In the key derivation: never change one that is in use. */
   label: string;
@@ -40,7 +31,6 @@ export interface ZanoChain {
   isAddress(address: string): boolean;
 }
 export const ZANO_CHAIN: ZanoChain = { asset: 'ZANO', name: 'Zano', label: 'zano', filePrefix: 'kusari-', fee: ZANO_FEE, isAddress: isZanoAddress };
-export const KSR_CHAIN: ZanoChain = { asset: 'KSR', name: 'Kusari', label: 'ksr', filePrefix: 'ksr-', fee: KSR_FEE, isAddress: isKsrAddress };
 
 export function zanoKeys(mnemonic: string, vaultSecret: string, chain: ZanoChain = ZANO_CHAIN) {
   const seed: Uint8Array = bip39Seed(mnemonic);
@@ -51,8 +41,6 @@ export function zanoKeys(mnemonic: string, vaultSecret: string, chain: ZanoChain
     file: `${chain.filePrefix}${sha256(toUtf8Bytes(`kusari/${chain.label}/name/v1\0${vaultSecret}`)).slice(2, 18)}`,
   };
 }
-
-export const ksrKeys = (mnemonic: string, vaultSecret: string) => zanoKeys(mnemonic, vaultSecret, KSR_CHAIN);
 
 /** Amounts can pass 2^53, so they go through as text. */
 function parse(text: string): any {

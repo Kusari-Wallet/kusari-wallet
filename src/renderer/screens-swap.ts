@@ -8,14 +8,14 @@ const SWAP_STATUS: Record<string, string> = {
 };
 
 function coinSelect(id: string, current: Asset, onPick: (a: Asset) => void): HTMLElement {
-  const menu = h('div', { class: 'menu', hidden: true, id: `${id}-menu` }, ...coinMenu(id, ASSETS.filter((a) => a !== 'KSR'), current, onPick));
+  const menu = h('div', { class: 'menu', hidden: true, id: `${id}-menu` }, ...coinMenu(id, ASSETS, current, onPick));
   return h('div', { class: 'coin-select' },
     h('button', { type: 'button', id, class: 'coin-select-btn', 'aria-label': `Choose a coin, currently ${coinName(current)}`, onclick: () => { menu.hidden = !menu.hidden; } }, coin(current), h('span', {}, coinName(current)), icon('down')),
     menu);
 }
 
 // Every coin except XMR itself can go out through XMR and come back as another coin.
-const PRIVACY_ASSETS: Asset[] = ALL_ASSETS.filter((a) => a !== 'XMR' && a !== 'KSR');
+const PRIVACY_ASSETS: Asset[] = ALL_ASSETS.filter((a) => a !== 'XMR');
 
 async function renderSwap(from: Asset = selected, to: Asset = selected === 'XMR' ? 'BTC' : 'XMR', keep = '', privacy = false): Promise<void> {
   navOn = 'swap';
@@ -163,7 +163,7 @@ async function paintSwapList(el: HTMLElement): Promise<void> {
 }
 
 /** Coins whose chain hides senders, receivers and amounts: a provider learns nothing about the rest of the wallet. */
-const PRIVATE_CHAIN: Asset[] = ['XMR', 'ZANO', 'ARRR', 'KSR'];
+const PRIVATE_CHAIN: Asset[] = ['XMR', 'ZANO', 'ARRR'];
 
 /** What the swap provider learns from this order, and the private swap when neither side hides it. */
 function swapSees(p: any, makePrivate: () => void): HTMLElement {
