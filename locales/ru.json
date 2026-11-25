@@ -1733,5 +1733,11 @@
 "Turning on Silent Payments…": "Включение Silent Payments…",
 "Already received to this address? Look from (optional)": "Уже получали на этот адрес? Искать начиная с (необязательно)",
 "Looking back scans those blocks again, which takes a few minutes per day.": "Поиск в прошлом заново проверяет эти блоки: несколько минут на каждый день.",
-"Enter the date as YYYY-MM-DD, not in the future.": "Введите дату в формате ГГГГ-ММ-ДД, не в будущем."
+"Enter the date as YYYY-MM-DD, not in the future.": "Введите дату в формате ГГГГ-ММ-ДД, не в будущем.",
+"This spends a coin that hasn't finished mixing: it hides among fewer than {0} others so far, so it's easier to trace. Letting it mix more rounds first keeps it better hidden.": "Тратится монета, которая ещё не домешалась: пока она прячется среди менее чем {0} других, поэтому её легче отследить. Если дать ей пройти ещё несколько раундов, она будет скрыта лучше.",
+"This spends a Silent Payments coin together with other coins, which ties that payment to them on the chain. Sending it on its own keeps it apart.": "Монета Silent Payments тратится вместе с другими монетами, и в блокчейне этот платёж связывается с ними. Отправив её отдельно, вы сохраните их раздельными.",
+"This spends more than one Silent Payments coin together, which shows they were paid to the same person.": "Тратится сразу несколько монет Silent Payments, что показывает: их получил один человек.",
+"This spends coins from more than one address together, which shows they belong to one person. Choose coins under Coins to keep sources apart.": "Тратятся монеты с нескольких адресов вместе, что показывает: они принадлежат одному человеку. Чтобы не смешивать источники, выберите монеты в разделе «Монеты».",
+"Reused address": "Повторно использованный адрес",
+"The Silent Payments server can't be reached right now. The blocks it missed are checked again on the next sync.": "Сервер Silent Payments сейчас недоступен. Пропущенные блоки будут проверены снова при следующей синхронизации."
 }

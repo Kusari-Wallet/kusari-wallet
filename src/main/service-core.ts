@@ -8,7 +8,7 @@ import { balanceCacheKey, readBalanceCache, writeBalanceCache, SavedBalance, SAV
 import path from 'node:path';
 const { wordlist: BIP39_WORDS } = require('@scure/bip39/wordlists/english');
 import { formatAmount, parseAmount } from './amount';
-import { Asset, BTC_APIS, BTC_ONION_APIS, SP_TWEAK_SERVER, DECIMALS, FIRO_APIS, SOL_RPCS, TON_APIS, BCH_APIS, LTC_APIS, DOGE_APIS, DOGE_PUSH_URLS, DOGE_BACKUP, DOGE_RAW_URLS, POL_RPCS, POL_SCOUT, ARB_RPCS, ARB_SCOUT, BSC_RPCS, BSC_SCOUT, DASH_APIS, DEFAULT_SETTINGS, ARRR_SERVERS, ZANO_NODE, ZEC_SERVERS, ETH_RPCS, ETH_SCOUT, ETH_USDT, NETWORKS, NetworkId, Settings, estimateMainnetHeight } from './config';
+import { Asset, BTC_APIS, BTC_ONION_APIS, SP_TWEAK_SERVER, SP_MAX_TWEAKS, DECIMALS, FIRO_APIS, SOL_RPCS, TON_APIS, BCH_APIS, LTC_APIS, DOGE_APIS, DOGE_PUSH_URLS, DOGE_BACKUP, DOGE_RAW_URLS, POL_RPCS, POL_SCOUT, ARB_RPCS, ARB_SCOUT, BSC_RPCS, BSC_SCOUT, DASH_APIS, DEFAULT_SETTINGS, ARRR_SERVERS, ZANO_NODE, ZEC_SERVERS, ETH_RPCS, ETH_SCOUT, ETH_USDT, NETWORKS, NetworkId, Settings, estimateMainnetHeight } from './config';
 import { MIN_PASSWORD, Secrets, Vault } from './vault';
 import { TronClient, deriveTronAccount, generateTronMnemonic } from './tron';
 import { socksAgent, getJson, newTorRoute, isolatedAgent, USER_AGENT } from './request';
@@ -17,7 +17,7 @@ import { poolKeys } from './sol-privacy';
 import { runSolPool } from './solpool-run';
 import type { Agent } from 'node:http';
 import { AAVE_MARKETS, aaveCall, readAave } from './aave';
-import { BITCOIN, BITCOIN_MIXED, BTC_MIXED_PATH, BTC_PATH, BTC_V0_PATH, V0_CHAIN, BtcClient, LITECOIN, btcAccountXpub, coinId, ltcAccountXpub, silentKeys } from './btc';
+import { BITCOIN, BITCOIN_MIXED, BTC_MIXED_PATH, BTC_PATH, BTC_V0_PATH, V0_CHAIN, SP_CHAIN, BtcClient, LITECOIN, btcAccountXpub, coinId, ltcAccountXpub, silentKeys } from './btc';
 import { encodeSilentAddress } from './btc-silent';
 import { FilterSync, LTC_CHECKPOINTS, TAPROOT_HEIGHT, estimateBtcHeight, estimateLtcHeight } from './btc-filter-sync';
 import { LTC_P2P } from './p2p-net';
@@ -533,7 +533,7 @@ export class ServiceCore extends EventEmitter {
     if (!this.btcMixer) throw new Error('CoinJoin is not available.');
     const frozen = new Set((await this.btcCoinNotes()).frozen);
     // bc1q change isn't mixed: the coordinators here take taproot coins.
-    const all = (await btc.coins()).filter((u) => u.confirmed && u.value >= 5000n && u.chain !== V0_CHAIN);
+    const all = (await btc.coins()).filter((u) => u.confirmed && u.value >= 5000n && u.chain !== V0_CHAIN && u.chain !== SP_CHAIN);
     const chosen = coins?.length ? all.filter((u) => coins.includes(coinId(u))) : all.filter((u) => !frozen.has(coinId(u)));
     const use = chosen.sort((a, b) => (b.value > a.value ? 1 : -1));
     const coordinator = this.settings.coinjoinCoordinator || COINJOIN_COORDINATORS[0].url;
@@ -1036,6 +1036,7 @@ export class ServiceCore extends EventEmitter {
 
   // ---- Silent Payments receiving ----
 
+
   /** This wallet's sp1 address (the same from the same 12 words and passphrase), once a session is open. */
   protected spAddress = '';
   protected get spFile(): string { return path.join(this.dir, 'btc-sp.json'); }
@@ -1058,8 +1059,9 @@ export class ServiceCore extends EventEmitter {
   protected async spTweaks(height: number, agent: ReturnType<typeof socksAgent> | undefined): Promise<Uint8Array[]> {
     const base = this.dev.spTweakServer ?? SP_TWEAK_SERVER;
     const list = await getJson(`${base}/tweak-index/${height}?dustLimit=0`, { agent, timeoutMs: 60_000 });
-    if (!Array.isArray(list) || list.length > 200_000 || list.some((t) => typeof t !== 'string' || !/^0[23][0-9a-f]{64}$/.test(t))) throw new Error('The Silent Payments server sent something that is not a list of tweaks.');
-    return list.map((t: string) => Uint8Array.from(Buffer.from(t, 'hex')));
+    // A block holds a few thousand payments at most; a longer list would only keep this device busy for nothing.
+    if (!Array.isArray(list) || list.length > SP_MAX_TWEAKS || list.some((t) => typeof t !== 'string' || !/^0[23][0-9a-f]{64}$/i.test(t))) throw new Error('The Silent Payments server sent something that is not a list of tweaks.');
+    return [...new Set(list.map((t: string) => t.toLowerCase()))].map((t) => Uint8Array.from(Buffer.from(t, 'hex')));
   }
 
   protected torRoute(name: string): ReturnType<typeof socksAgent> | undefined {

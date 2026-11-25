@@ -32,7 +32,7 @@ import type { EthClient } from './eth';
 import { POOL_TOKENS, type PoolAsset } from './sol-privacy';
 import { DASH_DUST, dashFee, isDashAddress, signDashOutputs, typicalDashFee } from './dash';
 import { DashMixer, MIX_ROUNDS } from './dash-mix';
-import { COINJOIN_COORDINATORS, MIX_TARGETS } from './btc-mix';
+import { COINJOIN_COORDINATORS, DEFAULT_MIX_TARGET, MIX_TARGETS } from './btc-mix';
 import type { InsightUtxo } from './insight';
 import { ETH_EXTRA_FIRST, chainOf, deriveEthAccount, isEthAddress } from './eth';
 import { TOR_BRIDGES, TorBridge, parseCustomBridges } from './tor-bridges';
@@ -563,6 +563,8 @@ export class SendService extends ServiceCore {
     return coins.sort((a, b) => (b.value > a.value ? 1 : b.value < a.value ? -1 : 0)).map((u) => ({
       id: coinId(u), amount: formatAmount(u.value, 8), address: u.address, change: u.chain === 1, confirmed: u.confirmed,
       label: notes.labels[coinId(u)] ?? '', frozen: frozen.has(coinId(u)),
+      // Paid to an address that got another payment too: anyone can already see those coins are one person's.
+      reused: coins.filter((x) => x.address === u.address).length > 1, silent: u.chain === SP_CHAIN,
     }));
   }
 
@@ -702,14 +704,25 @@ export class SendService extends ServiceCore {
       if (opts.fromMixed === true) {
         // Only mixed coins pay, and the change stays in the CoinJoin account.
         if (!this.btcMixed) throw new Error('CoinJoin is not available.');
-        const draft = await this.btcMixed.draft(address, isMax ? 'max' : parseAmount(amountInput, decimals));
+        // Coins that haven't hidden among enough others yet (or came back as change, unmixed) are left out when the
+        // others cover it, and named when they're in.
+        const target = this.settings.coinjoinTarget ?? DEFAULT_MIX_TARGET;
+        const mixedCoins = (await this.btcMixed.coins()).filter((u) => u.confirmed);
+        const weak = new Set<string>();
+        for (const u of mixedCoins) if (((await this.btcMixer?.scoreOf(coinId(u))) ?? 0) < target) weak.add(coinId(u));
+        const want = isMax ? 'max' as const : parseAmount(amountInput, decimals);
+        let draft: BtcDraft;
+        try { draft = isMax || !weak.size ? await this.btcMixed.draft(address, want) : await this.btcMixed.draft(address, want, { frozen: weak }); }
+        catch { draft = await this.btcMixed.draft(address, want); }
         if (draft.fee * 2n > draft.amount) warnings.push('The fee is more than half of the amount being sent.');
         if (draft.inputs.length > 1) warnings.push('This spends more than one mixed coin together, which shows they belong to one person. Sending each coin on its own keeps them apart.');
+        if (draft.inputs.some((u) => weak.has(coinId(u)))) warnings.push(`This spends a coin that hasn't finished mixing: it hides among fewer than ${target} others so far, so it's easier to trace. Letting it mix more rounds first keeps it better hidden.`);
         preview = this.storePreview({ asset, to: address, amount: draft.amount, fee: draft.fee, btcMixed: draft });
       } else {
         const use = Array.isArray(opts.coins) ? opts.coins.filter((c) => typeof c === 'string' && COIN_ID.test(c)) : [];
         const draft = await btc.draft(address, isMax ? 'max' : parseAmount(amountInput, decimals), { use, frozen: new Set((await this.btcCoinNotes()).frozen) });
         if (draft.fee * 2n > draft.amount) warnings.push('The fee is more than half of the amount being sent.');
+        btcLinkWarnings(draft.inputs, warnings);
         const payjoin = opts.payjoin ? this.payjoinTarget(opts.payjoin, draft, silent, warnings) : undefined;
         preview = this.storePreview({ asset, to: address, amount: draft.amount, fee: draft.fee, btc: draft, ...(payjoin ? { payjoin } : {}) });
       }
@@ -1267,7 +1280,7 @@ export class SendService extends ServiceCore {
   async silentInfo() {
     this.session();
     const st = await this.spState();
-    return { address: this.spAddress, on: st !== null && this.btcFilters !== null, from: st?.from ?? null, privateSync: this.btcFilters !== null };
+    return { address: this.spAddress, on: st !== null && this.btcFilters !== null, from: st?.from ?? null, privateSync: this.btcFilters !== null, error: this.btcFilters?.silentError ?? null };
   }
 
   /**
@@ -1941,3 +1954,14 @@ export const UNATTENDED_FEE_PERCENT = 2n;
 export const DELAY_CHOICES = [10, 60, 240];
 /** When a mixer send goes out later: a random moment 1 to 24 hours from now (the wallet has to be open then). */
 export function randomLater(now = Date.now()): number { return now + Math.round((60 + Math.random() * 23 * 60) * 60_000); }
+
+/**
+ * What spending these coins together gives away: a Silent Payments coin tied to the wallet's other coins, coins
+ * from more than one source, or coins on an address that was paid more than once.
+ */
+export function btcLinkWarnings(inputs: { address: string; chain: number }[], warnings: string[]): void {
+  const silent = inputs.filter((u) => u.chain === SP_CHAIN).length;
+  if (silent && inputs.length > silent) warnings.push('This spends a Silent Payments coin together with other coins, which ties that payment to them on the chain. Sending it on its own keeps it apart.');
+  else if (silent > 1) warnings.push('This spends more than one Silent Payments coin together, which shows they were paid to the same person.');
+  else if (new Set(inputs.map((u) => u.address)).size > 1) warnings.push('This spends coins from more than one address together, which shows they belong to one person. Choose coins under Coins to keep sources apart.');
+}

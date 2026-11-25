@@ -264,6 +264,8 @@ interface SyncState {
   pending: Record<string, { at: number; spends: string[] }>;
   /** Silent Payments outputs found so far, by script, with their tweaks: watched for spends like any other. */
   silent?: Record<string, { account: string; index: number; tweak: string }>;
+  /** The first block whose Silent Payments tweaks couldn't be fetched: scanned again from there on the next sync. */
+  silentRetry?: number;
 }
 
 export interface FilterSyncOptions {
@@ -290,6 +292,8 @@ export class FilterSync {
   private items: Buffer[] = [];
   private readonly checkpoint: Checkpoint;
   private silent: SilentScanner | null = null;
+  /** Why Silent Payments scanning paused (the index server couldn't be reached); the rest of the sync goes on. */
+  silentError: string | null = null;
   lastError: string | null = null;
   progress = { scanned: 0, tip: 0 };
 
@@ -382,6 +386,8 @@ export class FilterSync {
       } catch { this.pool.drop(p); }
     }
     if (changedFrom !== null && changedFrom <= s.scanned) this.rewind(changedFrom - 1);
+    // Blocks scanned while the Silent Payments server was out of reach are scanned again, with it.
+    if (this.silent && s.silentRetry !== undefined && s.silentRetry <= s.scanned) { this.rewind(Math.max(this.silent.from, s.silentRetry) - 1); delete s.silentRetry; }
     const tip = chain.tip;
     this.progress = { scanned: s.scanned, tip };
     this.opts.onProgress?.(this.progress);
@@ -424,13 +430,21 @@ export class FilterSync {
         }
       }
       const filters = await a.filters(start, stop, end - start + 1);
-      const sp = this.silent;
+      let sp = this.silent;
       for (let i = 0; i < filters.length; i++) {
         const height = start + i;
         const f = filters[i];
         if (!f.block.equals(Buffer.from(chain.hashAt(height)!)) || !Buffer.from(filterHash(f.filter)).equals(fh.hashes[i])) throw new Error(`A ${this.net.name} node sent a filter that does not match.`);
         // Silent Payments candidates, one block at a time (a block can have thousands).
-        const extra = sp && height >= sp.from ? (await sp.candidates([height], end)).get(height) ?? [] : [];
+        let extra: SpCandidate[] = [];
+        if (sp && height >= sp.from) {
+          try { extra = (await sp.candidates([height], end)).get(height) ?? []; this.silentError = null; } catch (e) {
+            // The balance sync goes on; these blocks get a second look for Silent Payments next time.
+            s.silentRetry = Math.min(s.silentRetry ?? height, height);
+            this.silentError = (e as Error).message;
+            sp = null;
+          }
+        }
         const items = extra.length ? [...this.items, ...extra.map((c) => Buffer.from(c.script))] : this.items;
         if (filterMatchesAny(f.filter, f.block, items)) await this.applyBlock(height, f.block, ok, extra);
       }

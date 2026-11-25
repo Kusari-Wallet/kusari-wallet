@@ -1733,5 +1733,11 @@
 "Turning on Silent Payments…": "Silent Payments를 켜는 중…",
 "Already received to this address? Look from (optional)": "이 주소로 이미 받은 적이 있나요? 찾기 시작할 날짜(선택)",
 "Looking back scans those blocks again, which takes a few minutes per day.": "이전 날짜부터 찾으면 그 블록들을 다시 검사하므로 하루치마다 몇 분씩 걸립니다.",
-"Enter the date as YYYY-MM-DD, not in the future.": "날짜를 YYYY-MM-DD 형식으로, 미래가 아닌 날로 입력하세요."
+"Enter the date as YYYY-MM-DD, not in the future.": "날짜를 YYYY-MM-DD 형식으로, 미래가 아닌 날로 입력하세요.",
+"This spends a coin that hasn't finished mixing: it hides among fewer than {0} others so far, so it's easier to trace. Letting it mix more rounds first keeps it better hidden.": "아직 섞기가 끝나지 않은 코인을 씁니다. 지금은 {0}개보다 적은 코인 사이에 숨어 있어서 추적하기가 더 쉽습니다. 몇 라운드 더 섞은 뒤에 쓰면 더 잘 숨겨집니다.",
+"This spends a Silent Payments coin together with other coins, which ties that payment to them on the chain. Sending it on its own keeps it apart.": "Silent Payments 코인을 다른 코인과 함께 씁니다. 그러면 체인에서 그 결제가 다른 코인들과 연결됩니다. 따로 보내면 분리됩니다.",
+"This spends more than one Silent Payments coin together, which shows they were paid to the same person.": "Silent Payments 코인을 여러 개 함께 씁니다. 그러면 같은 사람이 받은 돈이라는 게 드러납니다.",
+"This spends coins from more than one address together, which shows they belong to one person. Choose coins under Coins to keep sources apart.": "여러 주소의 코인을 함께 씁니다. 그러면 한 사람의 코인이라는 게 드러납니다. 출처를 분리하려면 코인에서 직접 고르세요.",
+"Reused address": "재사용된 주소",
+"The Silent Payments server can't be reached right now. The blocks it missed are checked again on the next sync.": "지금은 Silent Payments 서버에 연결할 수 없습니다. 놓친 블록은 다음 동기화 때 다시 확인합니다."
 }

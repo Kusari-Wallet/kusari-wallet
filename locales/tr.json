@@ -1733,5 +1733,11 @@
 "Turning on Silent Payments…": "Silent Payments açılıyor…",
 "Already received to this address? Look from (optional)": "Bu adrese daha önce ödeme aldınız mı? Şu tarihten itibaren ara (isteğe bağlı)",
 "Looking back scans those blocks again, which takes a few minutes per day.": "Geriye dönük arama o blokları yeniden tarar; her gün için birkaç dakika sürer.",
-"Enter the date as YYYY-MM-DD, not in the future.": "Tarihi YYYY-AA-GG biçiminde, gelecekte olmayacak şekilde girin."
+"Enter the date as YYYY-MM-DD, not in the future.": "Tarihi YYYY-AA-GG biçiminde, gelecekte olmayacak şekilde girin.",
+"This spends a coin that hasn't finished mixing: it hides among fewer than {0} others so far, so it's easier to trace. Letting it mix more rounds first keeps it better hidden.": "Bu, karıştırması henüz bitmemiş bir coini harcıyor: şimdilik {0} diğerinden azının arasında saklanıyor, bu yüzden izlemesi daha kolay. Önce birkaç tur daha karışmasına izin vermek onu daha iyi gizler.",
+"This spends a Silent Payments coin together with other coins, which ties that payment to them on the chain. Sending it on its own keeps it apart.": "Bu, bir Silent Payments coinini başka coinlerle birlikte harcıyor; bu da o ödemeyi zincirde onlara bağlar. Tek başına göndermek onları ayrı tutar.",
+"This spends more than one Silent Payments coin together, which shows they were paid to the same person.": "Bu, birden fazla Silent Payments coinini birlikte harcıyor; bu da hepsinin aynı kişiye ödendiğini gösterir.",
+"This spends coins from more than one address together, which shows they belong to one person. Choose coins under Coins to keep sources apart.": "Bu, birden fazla adresteki coinleri birlikte harcıyor; bu da hepsinin tek bir kişiye ait olduğunu gösterir. Kaynakları ayrı tutmak için coinleri Coinler'den seçin.",
+"Reused address": "Tekrar kullanılan adres",
+"The Silent Payments server can't be reached right now. The blocks it missed are checked again on the next sync.": "Silent Payments sunucusuna şu anda ulaşılamıyor. Kaçırılan bloklar bir sonraki eşitlemede yeniden kontrol edilir."
 }

@@ -89,7 +89,12 @@ Java WebView (`android/java`) running the same code as an esbuild bundle (`src/a
   `/tweak-index/<h>`, through Tor; every block is asked, so it learns nothing), turned into candidate outputs with the
   scan key (kept in memory while unlocked) and matched against the block filters (`FilterSync.setSilent`, account
   `btc:sp`, found outputs kept with their tweak in the filter state). Coins are `SP_CHAIN`, spent with spend key plus
-  tweak (no taproot tweak), never in Payjoin. `tests/sp-regtest.js` runs it against bitcoind by hand.
+  tweak (no taproot tweak), never in Payjoin or CoinJoin; automatic coin choice leaves them (and SP dust under
+  `SP_DUST` entirely) out when other coins pay. When the server can't be reached the sync goes on and those blocks are
+  scanned again next time (`silentRetry`). `tests/sp-regtest.js` runs it against bitcoind by hand.
+- Coins spent together: `btcLinkWarnings` (service-send) names Silent Payments coins mixed with others and coins
+  from several addresses; mixed sends leave out coins under the CoinJoin target when others cover it and name them
+  when they're in; coin control tags reused addresses.
 - BTC fee bumps: `BtcClient.bumpDraft` (RBF, own sends kept in `btc-sent.json`) and `cpfpDraft`; sends signal RBF.
 - BTC/LTC sends look like Bitcoin Core's (`coreLike`): lock time at the tip (sometimes up to 99 lower), coins in
   random order, change at a random place. Beside a non-taproot payment the change is bc1q (BIP84 `m/84'/0'/0'/1/i`,

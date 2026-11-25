@@ -17,6 +17,8 @@ export const BTC_APIS = ['https://mempool.space/api', 'https://blockstream.info/
  * is fetched, so the server learns nothing about the wallet; reached through Tor.
  */
 export const SP_TWEAK_SERVER = 'https://silentpayments.dev/blindbit/mainnet';
+/** More tweaks than one block can have transactions (a 4 MB block holds about 12,000 of the smallest). */
+export const SP_MAX_TWEAKS = 15_000;
 export const BTC_ONION_APIS = ['http://mempoolhqx4isw62xs7abwphsq7ldayuidyx2v2oethdhhj6mlo2r6ad.onion/api', 'http://explorerzydxu5ecjrkwceayqybizmpjjznk5izmitf2modhcusuqlid.onion/api'];
 export const BTC_EXPLORER_TX = 'https://mempool.space/tx/';
 

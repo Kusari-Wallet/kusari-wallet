@@ -1733,5 +1733,11 @@
 "Turning on Silent Payments…": "Silent Payments をオンにしています…",
 "Already received to this address? Look from (optional)": "このアドレスですでに受け取ったことがありますか? 探し始める日付(任意)",
 "Looking back scans those blocks again, which takes a few minutes per day.": "さかのぼると、その期間のブロックを再度調べるため、1 日分ごとに数分かかります。",
-"Enter the date as YYYY-MM-DD, not in the future.": "日付は YYYY-MM-DD 形式で、未来でない日を入力してください。"
+"Enter the date as YYYY-MM-DD, not in the future.": "日付は YYYY-MM-DD 形式で、未来でない日を入力してください。",
+"This spends a coin that hasn't finished mixing: it hides among fewer than {0} others so far, so it's easier to trace. Letting it mix more rounds first keeps it better hidden.": "まだミックスが終わっていないコインを使います。今は {0} 個未満のコインの中に紛れているだけなので、追跡されやすくなります。もう何ラウンドかミックスしてから使うと、よりよく隠れます。",
+"This spends a Silent Payments coin together with other coins, which ties that payment to them on the chain. Sending it on its own keeps it apart.": "Silent Payments のコインをほかのコインと一緒に使います。チェーン上でその支払いがほかのコインと結びつきます。単独で送れば切り離せます。",
+"This spends more than one Silent Payments coin together, which shows they were paid to the same person.": "Silent Payments のコインを複数まとめて使います。同じ人に支払われたものだとわかってしまいます。",
+"This spends coins from more than one address together, which shows they belong to one person. Choose coins under Coins to keep sources apart.": "複数のアドレスのコインをまとめて使います。同じ人のコインだとわかってしまいます。出どころを分けるには「コイン」から選んでください。",
+"Reused address": "再利用されたアドレス",
+"The Silent Payments server can't be reached right now. The blocks it missed are checked again on the next sync.": "いまは Silent Payments サーバーに接続できません。取りこぼしたブロックは次の同期で再確認します。"
 }

@@ -1733,5 +1733,11 @@
 "Turning on Silent Payments…": "Đang bật Silent Payments…",
 "Already received to this address? Look from (optional)": "Đã từng nhận vào địa chỉ này? Tìm từ ngày (không bắt buộc)",
 "Looking back scans those blocks again, which takes a few minutes per day.": "Tìm lùi lại sẽ quét lại các khối đó, mất vài phút cho mỗi ngày.",
-"Enter the date as YYYY-MM-DD, not in the future.": "Nhập ngày theo dạng YYYY-MM-DD, không phải ngày trong tương lai."
+"Enter the date as YYYY-MM-DD, not in the future.": "Nhập ngày theo dạng YYYY-MM-DD, không phải ngày trong tương lai.",
+"This spends a coin that hasn't finished mixing: it hides among fewer than {0} others so far, so it's easier to trace. Letting it mix more rounds first keeps it better hidden.": "Giao dịch này tiêu một coin chưa trộn xong: hiện nó chỉ lẫn giữa ít hơn {0} coin khác nên dễ bị lần theo hơn. Để nó trộn thêm vài vòng trước sẽ giấu tốt hơn.",
+"This spends a Silent Payments coin together with other coins, which ties that payment to them on the chain. Sending it on its own keeps it apart.": "Giao dịch này tiêu một coin Silent Payments cùng với các coin khác, khiến khoản thanh toán đó bị liên kết với chúng trên chuỗi. Gửi riêng nó sẽ giữ chúng tách biệt.",
+"This spends more than one Silent Payments coin together, which shows they were paid to the same person.": "Giao dịch này tiêu nhiều coin Silent Payments cùng lúc, cho thấy chúng được trả cho cùng một người.",
+"This spends coins from more than one address together, which shows they belong to one person. Choose coins under Coins to keep sources apart.": "Giao dịch này tiêu coin từ nhiều địa chỉ cùng lúc, cho thấy chúng thuộc về một người. Hãy chọn coin trong Số đồng để giữ các nguồn tách biệt.",
+"Reused address": "Địa chỉ dùng lại",
+"The Silent Payments server can't be reached right now. The blocks it missed are checked again on the next sync.": "Hiện không kết nối được máy chủ Silent Payments. Các khối bị bỏ lỡ sẽ được kiểm tra lại ở lần đồng bộ sau."
 }

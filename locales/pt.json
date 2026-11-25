@@ -1733,5 +1733,11 @@
 "Turning on Silent Payments…": "Ativando Silent Payments…",
 "Already received to this address? Look from (optional)": "Já recebeu neste endereço? Procurar a partir de (opcional)",
 "Looking back scans those blocks again, which takes a few minutes per day.": "Procurar no passado verifica esses blocos de novo, o que leva alguns minutos por dia.",
-"Enter the date as YYYY-MM-DD, not in the future.": "Digite a data como AAAA-MM-DD, sem ser no futuro."
+"Enter the date as YYYY-MM-DD, not in the future.": "Digite a data como AAAA-MM-DD, sem ser no futuro.",
+"This spends a coin that hasn't finished mixing: it hides among fewer than {0} others so far, so it's easier to trace. Letting it mix more rounds first keeps it better hidden.": "Isto gasta uma moeda que ainda não terminou de misturar: por enquanto ela se esconde entre menos de {0} outras, então é mais fácil de rastrear. Deixar que passe por mais rodadas antes a mantém mais escondida.",
+"This spends a Silent Payments coin together with other coins, which ties that payment to them on the chain. Sending it on its own keeps it apart.": "Isto gasta uma moeda de Silent Payments junto com outras moedas, o que liga esse pagamento a elas na blockchain. Enviá-la sozinha mantém tudo separado.",
+"This spends more than one Silent Payments coin together, which shows they were paid to the same person.": "Isto gasta mais de uma moeda de Silent Payments juntas, o que mostra que foram pagas à mesma pessoa.",
+"This spends coins from more than one address together, which shows they belong to one person. Choose coins under Coins to keep sources apart.": "Isto gasta moedas de mais de um endereço juntas, o que mostra que pertencem a uma só pessoa. Escolha as moedas em Moedas para manter as origens separadas.",
+"Reused address": "Endereço reutilizado",
+"The Silent Payments server can't be reached right now. The blocks it missed are checked again on the next sync.": "O servidor de Silent Payments não está acessível agora. Os blocos que faltaram são verificados de novo na próxima sincronização."
 }

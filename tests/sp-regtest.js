@@ -67,9 +67,11 @@ async function main() {
 
   // The stand-in tweak server.
   const asked = new Set();
+  const failOnce = new Set();
   const server = http.createServer((req, res) => {
     const m = /^\/tweak-index\/(\d+)/.exec(req.url);
     if (!m) { res.writeHead(404).end(); return; }
+    if (failOnce.delete(Number(m[1]))) { res.writeHead(503).end('down'); return; }
     asked.add(Number(m[1]));
     res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(tweaksOf(Number(m[1]))));
   });
@@ -105,7 +107,15 @@ async function main() {
   assert.ok(await sync.broadcast(Buffer.from(sent.hex, 'hex')) >= 1, 'a peer took the payment');
   for (let i = 0; i < 40 && !JSON.parse(cli(0, 'getrawmempool')).includes(sent.id); i++) await sleep(250);
   mine(1); await synced();
+  const payHeight = Number(cli(0, 'getblockcount'));
   mine(2); await synced(); // blocks after it, with no payment, are scanned too
+  // The tweak server is down for the payment's block: the sync goes on, and the next one looks again.
+  failOnce.add(payHeight);
+  await sleep(21_000);
+  await sync.sync(true);
+  assert.deepEqual(sync.view('btc:sp').coins, [], 'not found while the server was down');
+  assert.ok(sync.silentError, 'the pause is reported');
+  assert.equal(sync.view('btc').tip, Number(cli(0, 'getblockcount')), 'the rest of the sync went on');
   await sleep(21_000);
   await sync.sync(true);
   const tip = Number(cli(0, 'getblockcount'));

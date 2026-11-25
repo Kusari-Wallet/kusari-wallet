@@ -23,6 +23,8 @@ export const BTC_V0_PATH = "m/84'/0'/0'";
 export const V0_CHAIN = 2;
 /** Coins received on the Silent Payments address: not on any derivation path, each spent with its own tweak. */
 export const SP_CHAIN = 3;
+/** Below this, a Silent Payments coin is treated as dust sent to the published address (see `draft`). */
+export const SP_DUST = 1_000n;
 const GAP = 20;
 const GAP_CHANGE = 5;
 const GAP_RECHECK = 3; // past the last used address, on the quick rechecks
@@ -575,7 +577,14 @@ export class BtcClient {
       if (chosen.some((u) => this.reserved.has(coinId(u!)))) throw new Error('A chosen coin is already in a send that goes out later.');
       picked = spendExactly(chosen as BtcUtxo[], amount, rate, this.coin);
     } else {
-      picked = selectCoins(state.utxos.filter((u) => u.confirmed && !pick.frozen?.has(coinId(u)) && !this.reserved.has(coinId(u))), amount, rate, this.coin);
+      // Tiny Silent Payments coins are left out: anyone can send dust to a published address, hoping it gets spent
+      // beside other coins and ties them together. They can still be chosen by hand.
+      const free = state.utxos.filter((u) => u.confirmed && !pick.frozen?.has(coinId(u)) && !this.reserved.has(coinId(u)) && !(u.chain === SP_CHAIN && u.value < SP_DUST));
+      // Silent Payments coins are kept apart from the rest: only when the others can't pay does one go in.
+      const plain = free.filter((u) => u.chain !== SP_CHAIN);
+      let first: typeof picked | null = null;
+      if (amount !== 'max' && plain.length < free.length && plain.length) { try { first = selectCoins(plain, amount, rate, this.coin); } catch { /* the Silent Payments coins are needed */ } }
+      picked = first ?? selectCoins(free, amount, rate, this.coin);
     }
     const look = coreLike(await this.tipHeight());
     const changePath: [number, number] = this.v0 && v0ChangeFor(to) ? [V0_CHAIN, state.nextChangeV0] : [1, state.nextChange];

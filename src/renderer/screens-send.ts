@@ -129,7 +129,7 @@ function coinControl(purpose: 'send' | 'mix' = 'send'): { el: HTMLElement; chose
         label.addEventListener('change', () => void wallet.btcCoinSet(c.id, { label: label.value }).catch((e: Error) => box.show(e.message)));
         const freeze = h('button', { type: 'button', class: 'link coin-freeze', 'aria-pressed': String(c.frozen) }, c.frozen ? 'Unfreeze' : 'Freeze');
         freeze.addEventListener('click', () => void wallet.btcCoinSet(c.id, { frozen: !c.frozen }).then(load).catch((e: Error) => box.show(e.message)));
-        const tags = [c.confirmed ? '' : 'Waiting for confirmation', c.change ? 'Change' : '', c.frozen ? 'Frozen' : ''].filter(Boolean).flatMap((t) => [' · ', h('span', {}, t)]);
+        const tags = [c.confirmed ? '' : 'Waiting for confirmation', c.change ? 'Change' : '', c.silent ? 'Silent Payments' : '', c.reused ? 'Reused address' : '', c.frozen ? 'Frozen' : ''].filter(Boolean).flatMap((t) => [' · ', h('span', {}, t)]);
         return h('div', { class: 'coin-row' + (c.frozen ? ' frozen' : '') },
           h('label', { class: 'check' }, pick, h('span', { class: 'mono' }, `${c.amount} BTC`)),
           h('div', { class: 'small muted', title: c.id }, h('span', { class: 'mono' }, `${c.id.slice(0, 8)}…:${c.id.split(':')[1]}`), ...tags),
@@ -581,6 +581,7 @@ async function silentPanel(extra: HTMLElement, box: ReturnType<typeof errorBox>)
       qr && h('div', { class: 'qr-frame' }, h('img', { src: qr, alt: 'QR code of the Silent Payments address' })),
       h('div', { class: 'mono small', id: 'sp-address' }, st.address),
       h('p', { class: 'small muted' }, `Payments are found from block ${st.from} on. They show in the balance and History like other coins.`),
+      st.error && h('p', { class: 'small muted', id: 'sp-error' }, 'The Silent Payments server can\'t be reached right now. The blocks it missed are checked again on the next sync.'),
       h('div', { class: 'row' }, h('button', { onclick: async () => { await wallet.copy(st.address); status.textContent = 'Copied. It clears from the clipboard in 60 seconds.'; } }, 'Copy address')),
       status));
   };

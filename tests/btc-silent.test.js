@@ -120,3 +120,15 @@ test('BIP352 receiving: every official vector without labels, from the tweak', (
   }
   assert.ok(checked >= 18, `checked ${checked}`);
 });
+
+test('spending coins together: warnings for Silent Payments coins, several addresses, none for one coin', () => {
+  const { btcLinkWarnings } = require('../dist/main/service-send');
+  const { SP_CHAIN } = require('../dist/main/btc');
+  const w = (inputs) => { const out = []; btcLinkWarnings(inputs, out); return out; };
+  assert.deepStrictEqual(w([{ address: 'a', chain: 0 }]), []);
+  assert.deepStrictEqual(w([{ address: 'a', chain: 0 }, { address: 'a', chain: 0 }]), []);
+  assert.match(w([{ address: 'a', chain: 0 }, { address: 'b', chain: 1 }])[0], /more than one address/);
+  assert.match(w([{ address: 's', chain: SP_CHAIN }, { address: 'b', chain: 0 }])[0], /Silent Payments coin together with other coins/);
+  assert.match(w([{ address: 's', chain: SP_CHAIN }, { address: 't', chain: SP_CHAIN }])[0], /more than one Silent Payments coin/);
+  assert.deepStrictEqual(w([{ address: 's', chain: SP_CHAIN }]), []);
+});
