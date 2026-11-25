@@ -1719,5 +1719,19 @@
 "Settings sections": "设置分区",
 "Kusari Wallet is free. If it helps you, you can support its development. Donations are optional and change nothing in the app. Donations go to the developer's living costs and the costs of development. Most of it goes to development costs.": "Kusari Wallet 是免费的。如果它对您有帮助,您可以支持其开发。捐赠完全自愿,不会改变应用中的任何内容。 捐款将用于开发者的生活费和开发费用。 捐款的大部分用于开发费用。",
 "PegasusSwap doesn't offer this coin.": "PegasusSwap 不支持此币。",
-"Check the PegasusSwap API key.": "请检查 PegasusSwap API 密钥。"
+"Check the PegasusSwap API key.": "请检查 PegasusSwap API 密钥。",
+"A Silent Payments address can be published or reused: every payment to it lands on a new address only this wallet can find, so nobody can look up what it received. The payer's wallet must support Silent Payments (sp1). Payments are found through private sync, from the block after you turn it on.": "Silent Payments 地址可以公开，也可以反复使用：每笔付到它的款都会落到一个只有本钱包才能找到的新地址上，因此没人能查到它收到了什么。付款方的钱包需要支持 Silent Payments（sp1）。付款通过私密同步查找，从开启后的下一个区块开始。",
+"Payments are found from block {0} on. They show in the balance and History like other coins.": "从区块 {0} 起查找付款。它们会像其他币一样显示在余额和记录中。",
+"QR code of the Silent Payments address": "Silent Payments 地址的二维码",
+"Receive with Silent Payments": "用 Silent Payments 收款",
+"Silent Payments": "Silent Payments",
+"Silent Payments address": "Silent Payments 地址",
+"Silent Payments need private Bitcoin sync. Turn it on in Settings first.": "Silent Payments 需要私密 Bitcoin 同步。请先在设置中开启。",
+"Silent Payments need private Bitcoin sync. Turn it on in Settings to receive to an sp1 address.": "Silent Payments 需要私密 Bitcoin 同步。要用 sp1 地址收款，请在设置中开启。",
+"Silent Payments need private sync.": "Silent Payments 需要私密同步。",
+"The Silent Payments server sent something that is not a list of tweaks.": "Silent Payments 服务器发来的不是 tweak 列表。",
+"Turning on Silent Payments…": "正在开启 Silent Payments…",
+"Already received to this address? Look from (optional)": "之前已用这个地址收过款？从这天开始查找（可选）",
+"Looking back scans those blocks again, which takes a few minutes per day.": "往回查找会重新扫描那些区块，每一天大约需要几分钟。",
+"Enter the date as YYYY-MM-DD, not in the future.": "请按 YYYY-MM-DD 输入日期，且不能是未来的日期。"
 }

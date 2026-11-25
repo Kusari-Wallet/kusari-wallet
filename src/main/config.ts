@@ -12,6 +12,11 @@ export const BTC_APIS = ['https://mempool.space/api', 'https://blockstream.info/
  * The same two explorers' own onion services (from their Onion-Location headers). Over Tor these come first: no exit
  * node in between, so nothing for the site to block and no exit to time out.
  */
+/**
+ * Silent Payments tweaks for each block (a BlindBit index server, v1 API: /tweak-index/<height>). Every block's list
+ * is fetched, so the server learns nothing about the wallet; reached through Tor.
+ */
+export const SP_TWEAK_SERVER = 'https://silentpayments.dev/blindbit/mainnet';
 export const BTC_ONION_APIS = ['http://mempoolhqx4isw62xs7abwphsq7ldayuidyx2v2oethdhhj6mlo2r6ad.onion/api', 'http://explorerzydxu5ecjrkwceayqybizmpjjznk5izmitf2modhcusuqlid.onion/api'];
 export const BTC_EXPLORER_TX = 'https://mempool.space/tx/';
 

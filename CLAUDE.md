@@ -82,8 +82,13 @@ Java WebView (`android/java`) running the same code as an esbuild bundle (`src/a
 - `src/main/seed.ts`: the BIP39 seed with the open wallet's optional passphrase. Every key from the 12 words goes
   through `bip39Seed`/`passphraseOf`; never call `mnemonicToSeedSync` directly. ZEC and ARRR engines take the
   words themselves, so they stay off in a wallet with a passphrase.
-- `src/main/btc-silent.ts`: paying Silent Payments (sp1) addresses (BIP352); the output is made at signing time.
-  Receiving needs a tweak index server, which isn't done.
+- `src/main/btc-silent.ts`: Silent Payments (BIP352). Paying sp1 addresses: the output is made at signing time.
+  Receiving (private sync only, turned on from the BTC receive screen; sealed `btc-sp.json` holds the first block,
+  a date can look back): each block's tweaks from a BlindBit index server (`SP_TWEAK_SERVER`, v1
+  `/tweak-index/<h>`, through Tor; every block is asked, so it learns nothing), turned into candidate outputs with the
+  scan key (kept in memory while unlocked) and matched against the block filters (`FilterSync.setSilent`, account
+  `btc:sp`, found outputs kept with their tweak in the filter state). Coins are `SP_CHAIN`, spent with spend key plus
+  tweak (no taproot tweak), never in Payjoin. `tests/sp-regtest.js` runs it against bitcoind by hand.
 - BTC fee bumps: `BtcClient.bumpDraft` (RBF, own sends kept in `btc-sent.json`) and `cpfpDraft`; sends signal RBF.
 - BTC/LTC sends look like Bitcoin Core's (`coreLike`): lock time at the tip (sometimes up to 99 lower), coins in
   random order, change at a random place. Beside a non-taproot payment the change is bc1q (BIP84 `m/84'/0'/0'/1/i`,

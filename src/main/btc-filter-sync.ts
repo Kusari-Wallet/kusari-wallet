@@ -10,6 +10,7 @@ import type { Dial } from './dash-p2p';
 import { RETARGET, bitsToTarget, dsha, fromHexLE, hashValue, headerWork, parseBlock, parseTx, readHeader } from './btc-block';
 import { filterHash, filterMatchesAny } from './btc-gcs';
 import type { Records } from './records';
+import type { SpCandidate } from './btc-silent';
 
 /** Blocks the chain is followed from, from Bitcoin Core's own parameters, with the least difficulty expected after each. */
 export interface Checkpoint { height: number; hash: string; minDifficulty: number }
@@ -237,7 +238,23 @@ export class PeerPool {
 // ---- the wallet's view ----
 
 export interface FilterAccount { id: string; script(chain: number, index: number): Uint8Array; gap: [number, number] }
-export interface FilterCoin { txid: string; vout: number; value: string; account: string; chain: number; index: number; height: number; spentBy?: string; spentHeight?: number }
+export interface FilterCoin {
+  txid: string; vout: number; value: string; account: string; chain: number; index: number; height: number; spentBy?: string; spentHeight?: number;
+  /** Silent Payments: t_k, added to the spend key to spend it (hex). */
+  tweak?: string;
+}
+
+/**
+ * Silent Payments receiving: from height `from`, each block's candidate outputs (one per tweak, k = 0) are matched
+ * against its filter too; `next` gives the k + 1 output after a match. Found outputs are kept as account `account`.
+ */
+export interface SilentScanner {
+  account: string;
+  from: number;
+  /** `last`: the last block this run will ask about, so the next few blocks' tweaks can be fetched meanwhile. */
+  candidates(heights: number[], last?: number): Promise<Map<number, SpCandidate[]>>;
+  next(c: SpCandidate): SpCandidate;
+}
 export interface FilterTx { txid: string; height: number; time: number; accounts: Record<string, { in: string; out: string }> }
 interface SyncState {
   v: 1; birthday: number; base: number; scanned: number; filterHeader: string;
@@ -245,6 +262,8 @@ interface SyncState {
   coins: Record<string, FilterCoin>;
   txs: Record<string, FilterTx>;
   pending: Record<string, { at: number; spends: string[] }>;
+  /** Silent Payments outputs found so far, by script, with their tweaks: watched for spends like any other. */
+  silent?: Record<string, { account: string; index: number; tweak: string }>;
 }
 
 export interface FilterSyncOptions {
@@ -270,6 +289,7 @@ export class FilterSync {
   private scripts = new Map<string, { account: string; chain: number; index: number }>();
   private items: Buffer[] = [];
   private readonly checkpoint: Checkpoint;
+  private silent: SilentScanner | null = null;
   lastError: string | null = null;
   progress = { scanned: 0, tip: 0 };
 
@@ -284,6 +304,9 @@ export class FilterSync {
   get net(): P2pNet { return this.opts.net ?? BTC_P2P; }
   get file(): string { return path.join(this.opts.dir, `${this.net.id}-filters.json`); }
   get headersFile(): string { return path.join(this.opts.dir, `${this.net.id}-headers.txt`); }
+
+  /** Turns Silent Payments receiving on (or off with null) for blocks from scanner.from. */
+  setSilent(scanner: SilentScanner | null): void { this.silent = scanner; }
 
   addAccount(a: FilterAccount): void {
     this.accounts = [...this.accounts.filter((x) => x.id !== a.id), a];
@@ -318,6 +341,7 @@ export class FilterSync {
       const next = s.next[a.id] ?? [0, 0];
       for (const chain of [0, 1]) for (let i = 0; i < next[chain] + a.gap[chain]; i++) this.scripts.set(Buffer.from(a.script(chain, i)).toString('hex'), { account: a.id, chain, index: i });
     }
+    for (const [script, m] of Object.entries(s.silent ?? {})) this.scripts.set(script, { account: m.account, chain: 0, index: m.index });
     this.items = [...this.scripts.keys()].map((k) => Buffer.from(k, 'hex'));
   }
 
@@ -400,11 +424,15 @@ export class FilterSync {
         }
       }
       const filters = await a.filters(start, stop, end - start + 1);
+      const sp = this.silent;
       for (let i = 0; i < filters.length; i++) {
         const height = start + i;
         const f = filters[i];
         if (!f.block.equals(Buffer.from(chain.hashAt(height)!)) || !Buffer.from(filterHash(f.filter)).equals(fh.hashes[i])) throw new Error(`A ${this.net.name} node sent a filter that does not match.`);
-        if (filterMatchesAny(f.filter, f.block, this.items)) await this.applyBlock(height, f.block, ok);
+        // Silent Payments candidates, one block at a time (a block can have thousands).
+        const extra = sp && height >= sp.from ? (await sp.candidates([height], end)).get(height) ?? [] : [];
+        const items = extra.length ? [...this.items, ...extra.map((c) => Buffer.from(c.script))] : this.items;
+        if (filterMatchesAny(f.filter, f.block, items)) await this.applyBlock(height, f.block, ok, extra);
       }
       s.scanned = end;
       s.filterHeader = headers[headers.length - 1].toString('hex');
@@ -430,7 +458,7 @@ export class FilterSync {
     throw new Error(`${this.net.name} nodes disagree about block filters. It will retry with others.`);
   }
 
-  private async applyBlock(height: number, hash: Buffer, peers: BtcPeer[]): Promise<void> {
+  private async applyBlock(height: number, hash: Buffer, peers: BtcPeer[], silent: SpCandidate[] = []): Promise<void> {
     const recent = this.chain!.tip - height < 280;
     let raw: Buffer | null = null;
     for (const p of [...peers.filter((x) => x.fullHistory || recent), ...this.pool.connected.filter((x) => !peers.includes(x) && (x.fullHistory || recent))]) {
@@ -440,7 +468,9 @@ export class FilterSync {
     const { header, txs } = parseBlock(raw);
     if (!Buffer.from(header.hash).equals(hash)) throw new Error(`A ${this.net.name} node sent the wrong block.`);
     const s = this.state!;
+    const spFirst = new Map(silent.map((c) => [Buffer.from(c.script).toString('hex'), c]));
     for (const tx of txs) {
+      if (spFirst.size && this.silent) this.findSilent(tx.outputs.map((o) => Buffer.from(o.script).toString('hex')), spFirst, this.silent);
       const touched: Record<string, { in: bigint; out: bigint }> = {};
       const mark = (acc: string) => (touched[acc] ??= { in: 0n, out: 0n });
       for (const i of tx.inputs) {
@@ -452,7 +482,8 @@ export class FilterSync {
         if (!m) return;
         const key = `${tx.txid}:${vout}`;
         const had = s.coins[key];
-        s.coins[key] = { txid: tx.txid, vout, value: o.value.toString(), account: m.account, chain: m.chain, index: m.index, height, ...(had?.spentBy ? { spentBy: had.spentBy, spentHeight: had.spentHeight } : {}) };
+        const tweak = s.silent?.[Buffer.from(o.script).toString('hex')]?.tweak;
+        s.coins[key] = { txid: tx.txid, vout, value: o.value.toString(), account: m.account, chain: m.chain, index: m.index, height, ...(tweak ? { tweak } : {}), ...(had?.spentBy ? { spentBy: had.spentBy, spentHeight: had.spentHeight } : {}) };
         mark(m.account).in += o.value;
         const next = (s.next[m.account] ??= [0, 0]);
         if (m.index + 1 > next[m.chain]) { next[m.chain] = m.index + 1; this.rebuildScripts(); }
@@ -462,6 +493,33 @@ export class FilterSync {
         delete s.pending[tx.txid];
       }
     }
+  }
+
+  /**
+   * A transaction's outputs paid to this wallet's Silent Payments address: a k = 0 candidate among them, then k = 1,
+   * 2, ... while they're there too (BIP352). Each is kept with its tweak and watched from then on.
+   */
+  private findSilent(scripts: string[], first: Map<string, SpCandidate>, sp: SilentScanner): void {
+    const s = this.state!;
+    const have = new Set(scripts);
+    let found = false;
+    for (const script of scripts) {
+      let c = first.get(script);
+      while (c) {
+        const sc = Buffer.from(c.script).toString('hex');
+        if (!have.has(sc)) break;
+        s.silent ??= {};
+        if (!s.silent[sc]) { s.silent[sc] = { account: sp.account, index: Object.keys(s.silent).length, tweak: Buffer.from(c.tweak).toString('hex') }; found = true; }
+        c = c.k + 1 < 2323 ? sp.next(c) : undefined;
+      }
+    }
+    if (found) this.rebuildScripts();
+  }
+
+  /** Scans again from `height` (Silent Payments turned on for blocks already scanned); coins found again as before. */
+  async rescanFrom(height: number): Promise<void> {
+    await this.load();
+    if (height <= this.state!.scanned) { this.rewind(Math.max(0, height - 1)); await this.save(); }
   }
 
   /** A reorganisation: what the replaced blocks did is undone and they are scanned again. */

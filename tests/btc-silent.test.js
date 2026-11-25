@@ -95,3 +95,28 @@ test('a wallet send to an sp1 address: the recipient, scanning with its own keys
   const q = P.BASE.multiply(big(taprootOutputKey(child.privateKey))).toBytes(true).slice(1);
   assert.strictEqual(Buffer.from(q).toString('hex'), Buffer.from(btc.OutScript.decode(btc.OutScript.encode(btc.Address(btc.NETWORK).decode(c.addressAt(0, 0)))).pubkey).toString('hex'));
 });
+
+test('BIP352 receiving: every official vector without labels, from the tweak', () => {
+  const { spShared, spOutput, spMatchTx, spPrivateKey, encodeSilentAddress } = require('../dist/main/btc-silent');
+  const { secp256k1: curve } = require('@noble/curves/secp256k1.js');
+  let checked = 0;
+  for (const v of vectors) for (const r of v.receiving) {
+    const g = r.given; const e = r.expected;
+    if ((g.labels ?? []).length || !e.tweak) continue;
+    const scan = Buffer.from(g.key_material.scan_priv_key, 'hex');
+    const spendPriv = Buffer.from(g.key_material.spend_priv_key, 'hex');
+    const spendPub = curve.getPublicKey(spendPriv, true);
+    assert.strictEqual(encodeSilentAddress(curve.getPublicKey(scan, true), spendPub), e.addresses[0], v.comment);
+    const shared = spShared(Buffer.from(e.tweak, 'hex'), scan);
+    if (e.shared_secret) assert.strictEqual(Buffer.from(shared).toString('hex'), e.shared_secret, v.comment);
+    const outs = g.outputs.map((o) => Buffer.from(o, 'hex'));
+    const found = spMatchTx(spOutput(shared, 0, spendPub), outs, spendPub);
+    const got = found.map((f) => ({ pub: Buffer.from(f.c.xonly).toString('hex'), tweak: Buffer.from(f.c.tweak).toString('hex') })).sort((a, b) => a.pub.localeCompare(b.pub));
+    const want = e.outputs.map((o) => ({ pub: o.pub_key, tweak: o.priv_key_tweak })).sort((a, b) => a.pub.localeCompare(b.pub));
+    assert.deepStrictEqual(got, want, v.comment);
+    // The spending key's public key is the output key.
+    for (const f of found) assert.strictEqual(Buffer.from(curve.getPublicKey(spPrivateKey(spendPriv, f.c.tweak), true).slice(1)).toString('hex'), Buffer.from(f.c.xonly).toString('hex'));
+    checked++;
+  }
+  assert.ok(checked >= 18, `checked ${checked}`);
+});

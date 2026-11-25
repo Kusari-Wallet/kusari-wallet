@@ -1719,5 +1719,19 @@
 "Settings sections": "Розділи налаштувань",
 "Kusari Wallet is free. If it helps you, you can support its development. Donations are optional and change nothing in the app. Donations go to the developer's living costs and the costs of development. Most of it goes to development costs.": "Kusari Wallet безкоштовний. Якщо він вам корисний, ви можете підтримати розробку. Пожертви добровільні й нічого не змінюють у застосунку. Пожертви йдуть на витрати розробника на життя та на витрати на розробку. Більша частина йде на витрати на розробку.",
 "PegasusSwap doesn't offer this coin.": "PegasusSwap не пропонує цю монету.",
-"Check the PegasusSwap API key.": "Перевірте ключ API PegasusSwap."
+"Check the PegasusSwap API key.": "Перевірте ключ API PegasusSwap.",
+"A Silent Payments address can be published or reused: every payment to it lands on a new address only this wallet can find, so nobody can look up what it received. The payer's wallet must support Silent Payments (sp1). Payments are found through private sync, from the block after you turn it on.": "Адресу Silent Payments можна публікувати й використовувати повторно: кожен платіж на неї надходить на нову адресу, яку може знайти лише цей гаманець, тож ніхто не дізнається, що на неї надійшло. Гаманець платника має підтримувати Silent Payments (sp1). Платежі шукаються через приватну синхронізацію, починаючи з наступного блоку після ввімкнення.",
+"Payments are found from block {0} on. They show in the balance and History like other coins.": "Платежі шукаються починаючи з блоку {0}. Вони видні в балансі та історії, як інші монети.",
+"QR code of the Silent Payments address": "QR-код адреси Silent Payments",
+"Receive with Silent Payments": "Отримувати через Silent Payments",
+"Silent Payments": "Silent Payments",
+"Silent Payments address": "Адреса Silent Payments",
+"Silent Payments need private Bitcoin sync. Turn it on in Settings first.": "Для Silent Payments потрібна приватна синхронізація Bitcoin. Спершу ввімкніть її в налаштуваннях.",
+"Silent Payments need private Bitcoin sync. Turn it on in Settings to receive to an sp1 address.": "Для Silent Payments потрібна приватна синхронізація Bitcoin. Увімкніть її в налаштуваннях, щоб отримувати на адресу sp1.",
+"Silent Payments need private sync.": "Для Silent Payments потрібна приватна синхронізація.",
+"The Silent Payments server sent something that is not a list of tweaks.": "Сервер Silent Payments надіслав не список tweak-значень.",
+"Turning on Silent Payments…": "Увімкнення Silent Payments…",
+"Already received to this address? Look from (optional)": "Уже отримували на цю адресу? Шукати починаючи з (необов'язково)",
+"Looking back scans those blocks again, which takes a few minutes per day.": "Пошук у минулому знову перевіряє ці блоки: кілька хвилин на кожен день.",
+"Enter the date as YYYY-MM-DD, not in the future.": "Введіть дату у форматі РРРР-ММ-ДД, не в майбутньому."
 }

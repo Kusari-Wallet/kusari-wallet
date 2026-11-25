@@ -528,7 +528,12 @@ async function renderReceive(current?: string): Promise<void> {
     try { await listEth(); } catch { /* the main address is already on screen */ }
     return;
   }
-  if (asset === 'BTC') { await payjoinPanel(extra, box); return; }
+  if (asset === 'BTC') {
+    const pj = h('div', {}); const sp = h('div', { id: 'sp-box' });
+    setKids(extra, pj, sp);
+    await Promise.all([payjoinPanel(pj, box), silentPanel(sp, box)]);
+    return;
+  }
   if (asset !== 'XMR') return;
   const add = h('button', { class: 'ghost', id: 'new-sub', onclick: () => busy(add, 'Creating… This can take a while during sync', box, async () => { await renderReceive(await wallet.newSubaddress()); }) }, 'New address');
   setKids(extra, add);
@@ -538,6 +543,48 @@ async function renderReceive(current?: string): Promise<void> {
     setKids(extra, add, h('div', { class: 'sub-list' }, ...list.map((s) => h('button', { class: `mono${s.address === address ? ' on' : ''}`, onclick: () => void renderReceive(s.address) },
       `${s.index === 0 ? 'Main' : '#' + s.index}  ${s.address.slice(0, 14)}…${s.address.slice(-10)}`))));
   } catch { /* the main address is already on screen */ }
+}
+
+/** Bitcoin: the Silent Payments address (BIP352), one address to share that never shows up on the chain. */
+async function silentPanel(extra: HTMLElement, box: ReturnType<typeof errorBox>): Promise<void> {
+  const about = 'A Silent Payments address can be published or reused: every payment to it lands on a new address only this wallet can find, so nobody can look up what it received. The payer\'s wallet must support Silent Payments (sp1). Payments are found through private sync, from the block after you turn it on.';
+  const draw = async (): Promise<void> => {
+    if (!extra.isConnected) return;
+    const st = await wallet.silentInfo();
+    if (!extra.isConnected) return;
+    if (!st.on) {
+      if (!st.privateSync) { setKids(extra, h('p', { class: 'small muted', id: 'sp-off' }, 'Silent Payments need private Bitcoin sync. Turn it on in Settings to receive to an sp1 address.')); return; }
+      const start = h('button', { class: 'ghost', id: 'sp-start', onclick: () => {
+        const pw = h('input', { type: 'password', id: 'sp-pw', autocomplete: 'current-password' }) as HTMLInputElement;
+        const since = h('input', { type: 'date', id: 'sp-since' }) as HTMLInputElement;
+        const go = h('button', { class: 'primary', id: 'sp-go', type: 'submit' }, 'Turn on');
+        setKids(extra, h('form', { class: 'panel', id: 'sp-form', onsubmit: (e: Event) => {
+          e.preventDefault();
+          busy(go, 'Turning on Silent Payments…', box, async () => { await wallet.silentOn(pw.value, since.value); pw.value = ''; await draw(); });
+        } },
+        h('span', { class: 'label' }, 'Silent Payments'),
+        h('p', { class: 'small muted' }, about),
+        h('label', { class: 'field' }, h('span', {}, 'Already received to this address? Look from (optional)'), since),
+        h('p', { class: 'small muted' }, 'Looking back scans those blocks again, which takes a few minutes per day.'),
+        h('label', { class: 'field' }, h('span', {}, 'Password'), pw),
+        go));
+        pw.focus();
+      } }, 'Receive with Silent Payments');
+      setKids(extra, start);
+      return;
+    }
+    const qr = await wallet.qr(st.address).catch(() => null);
+    if (!extra.isConnected) return;
+    const status = h('span', { class: 'status', role: 'status' });
+    setKids(extra, h('div', { class: 'panel', id: 'sp-panel' },
+      h('span', { class: 'label' }, 'Silent Payments address'),
+      qr && h('div', { class: 'qr-frame' }, h('img', { src: qr, alt: 'QR code of the Silent Payments address' })),
+      h('div', { class: 'mono small', id: 'sp-address' }, st.address),
+      h('p', { class: 'small muted' }, `Payments are found from block ${st.from} on. They show in the balance and History like other coins.`),
+      h('div', { class: 'row' }, h('button', { onclick: async () => { await wallet.copy(st.address); status.textContent = 'Copied. It clears from the clipboard in 60 seconds.'; } }, 'Copy address')),
+      status));
+  };
+  try { await draw(); } catch (e) { box.show(e); }
 }
 
 /** Bitcoin: asking to be paid with Payjoin (BIP77), and following the request while it runs. */

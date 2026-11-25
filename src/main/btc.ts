@@ -4,7 +4,8 @@ import { getJson, requestText } from './request';
 import { blockbookGet, blockbookSend, isBlockbook } from './blockbook';
 import { formatAmount } from './amount';
 import type { FilterSync } from './btc-filter-sync';
-import { isSilentAddress, silentOutputs, taprootScript } from './btc-silent';
+import { isSilentAddress, silentOutputs, taprootScript, spCandidates, spOutput, spOutputKey, spPrivateKey, SP_SPEND_PATH, SP_SCAN_PATH } from './btc-silent';
+import type { SilentScanner } from './btc-filter-sync';
 import { randomInt } from 'node:crypto';
 
 // These packages are ESM only, which require() handles in this Node version.
@@ -20,6 +21,8 @@ export const BTC_MIXED_PATH = "m/86'/0'/1'";
  */
 export const BTC_V0_PATH = "m/84'/0'/0'";
 export const V0_CHAIN = 2;
+/** Coins received on the Silent Payments address: not on any derivation path, each spent with its own tweak. */
+export const SP_CHAIN = 3;
 const GAP = 20;
 const GAP_CHANGE = 5;
 const GAP_RECHECK = 3; // past the last used address, on the quick rechecks
@@ -34,7 +37,11 @@ const RESUME_MS = 120_000;
 
 
 export interface BtcScanHints { used: string[]; nexts: Record<string, number>; lastFullScan: number }
-export interface BtcUtxo { txid: string; vout: number; value: bigint; address: string; chain: number; index: number; confirmed: boolean }
+export interface BtcUtxo {
+  txid: string; vout: number; value: bigint; address: string; chain: number; index: number; confirmed: boolean;
+  /** Silent Payments coins (chain SP_CHAIN): t_k, hex. */
+  tweak?: string;
+}
 export interface BtcDraft {
   to: string; amount: bigint; fee: bigint; change: bigint; changeAddress: string; changePath: [number, number]; inputs: BtcUtxo[];
   /** A fee bump: the send (by ID) this one replaces (RBF), or the waiting transaction it pulls along (CPFP). */
@@ -222,6 +229,37 @@ export class BtcClient {
     // The segwit v0 change addresses, as an account of their own with change only.
     if (this.v0) sync.addAccount({ id: `${id}:v0`, gap: [0, GAP_CHANGE], script: (_chain, index) => btc.OutScript.encode(btc.Address(btc.NETWORK).decode(this.addressAt(V0_CHAIN, index))) });
   }
+  /**
+   * Silent Payments receiving on private sync: from block `from`, each block's tweaks (fetched by `tweaks`, through
+   * Tor) give this wallet's possible outputs, which the block filters are checked for. The scan key stays in memory
+   * while the wallet is open; spending needs the 12 words as usual.
+   */
+  private silent: { spendPub: Uint8Array } | null = null;
+  useSilent(opts: { scanKey: Uint8Array; spendPub: Uint8Array; from: number; tweaks: (height: number) => Promise<Uint8Array[]> }): void {
+    if (!this.filters) throw new Error('Silent Payments need private sync.');
+    const { scanKey, spendPub } = opts;
+    this.silent = { spendPub };
+    const ahead = new Map<number, Promise<Uint8Array[]>>();
+    const scanner: SilentScanner = {
+      account: `${this.filters.id}:sp`, from: opts.from,
+      next: (c) => spOutput(c.shared, c.k + 1, spendPub),
+      candidates: async (heights, last) => {
+        const out = new Map<number, Awaited<ReturnType<typeof spCandidates>>>();
+        for (const h of heights) {
+          // The next few blocks' tweaks are fetched while this one's candidates are worked out.
+          for (let n = h; n <= Math.min(h + 3, last ?? h); n++) if (!ahead.has(n)) { const p = opts.tweaks(n); p.catch(() => undefined); ahead.set(n, p); }
+          const list = ahead.get(h)!;
+          ahead.delete(h);
+          for (const k of [...ahead.keys()]) if (k < h) ahead.delete(k);
+          out.set(h, await spCandidates(await list, scanKey, spendPub));
+        }
+        return out;
+      },
+    };
+    this.filters.sync.setSilent(scanner);
+  }
+  stopSilent(): void { this.silent = null; this.filters?.sync.setSilent(null); }
+
   get usesFilters(): boolean { return this.filters !== null; }
   /** How far the private sync has got, when it is on. */
   get filterProgress(): { scanned: number; tip: number; error: string | null } | null {
@@ -243,7 +281,13 @@ export class BtcClient {
       used.add(address);
       return { txid: c.txid, vout: c.vout, value: BigInt(c.value), address, chain, index: c.index, confirmed: c.height > 0 };
     };
-    const utxos: BtcUtxo[] = [...v.coins.map((c) => coin(c, c.chain)), ...(v0?.coins ?? []).map((c) => coin(c, V0_CHAIN))];
+    const sp = f.sync.view(`${f.id}:sp`);
+    const spCoin = (c: { txid: string; vout: number; value: string; height: number; index: number; tweak?: string }): BtcUtxo | null => {
+      if (!c.tweak || !this.silent) return null;
+      const address = silentCoinAddress(spOutputKey(this.silent.spendPub, Buffer.from(c.tweak, 'hex')));
+      return { txid: c.txid, vout: c.vout, value: BigInt(c.value), address, chain: SP_CHAIN, index: c.index, confirmed: c.height > 0, tweak: c.tweak };
+    };
+    const utxos: BtcUtxo[] = [...v.coins.map((c) => coin(c, c.chain)), ...(v0?.coins ?? []).map((c) => coin(c, V0_CHAIN)), ...(sp?.coins ?? []).map(spCoin).filter((u): u is BtcUtxo => u !== null)];
     const total = utxos.reduce((s, u) => s + u.value, 0n);
     const spendable = utxos.filter((u) => u.confirmed).reduce((s, u) => s + u.value, 0n);
     this.nexts.set('taproot0', v.next[0]); this.nexts.set('taproot1', v.next[1]);
@@ -644,10 +688,11 @@ export class BtcClient {
       if (!v) return [];
       // The bc1q change account's transactions too, each counted once across both.
       const v0 = this.v0 ? this.filters.sync.view(`${id}:v0`) : null;
+      const sp = this.silent ? this.filters.sync.view(`${id}:sp`) : null;
       const byId = new Map(v.txs.map((t) => [t.txid, t]));
-      for (const t of v0?.txs ?? []) if (!byId.has(t.txid)) byId.set(t.txid, t);
+      for (const t of [...(v0?.txs ?? []), ...(sp?.txs ?? [])]) if (!byId.has(t.txid)) byId.set(t.txid, t);
       return [...byId.values()].map((t): BtcHistoryItem => {
-        const parts = [t.accounts[id], t.accounts[`${id}:v0`]].filter(Boolean);
+        const parts = [t.accounts[id], t.accounts[`${id}:v0`], t.accounts[`${id}:sp`]].filter(Boolean);
         const got = parts.reduce((s, a) => s + BigInt(a.in), 0n); const spent = parts.reduce((s, a) => s + BigInt(a.out), 0n);
         const net = got - spent;
         const direction = spent === 0n ? 'in' : net < 0n ? 'out' : 'self';
@@ -701,7 +746,19 @@ export function signBtcDraft(draft: BtcDraft, mnemonic: string, path = BTC_PATH)
   const tx = new btc.Transaction({ lockTime: draft.lockTime ?? 0 });
   const keys: Uint8Array[] = [];
   const isTaproot: boolean[] = [];
+  const spIdx: number[] = [];
   for (const u of draft.inputs) {
+    if (u.chain === SP_CHAIN) {
+      // A Silent Payments coin: its key is the spend key plus the coin's tweak, used as it is (no taproot tweak).
+      if (path !== BTC_PATH || !u.tweak) throw new Error('An input address does not match this wallet\'s keys, so signing was stopped.');
+      const key = spPrivateKey(root.derive(SP_SPEND_PATH).privateKey, Buffer.from(u.tweak, 'hex'));
+      const xonly = xOnly(require('@noble/curves/secp256k1.js').secp256k1.getPublicKey(key, true));
+      if (silentCoinAddress(xonly) !== u.address) throw new Error('An input address does not match this wallet\'s keys, so signing was stopped.');
+      tx.addInput({ txid: u.txid, index: u.vout, witnessUtxo: { script: taprootScript(xonly), amount: u.value }, sequence: RBF_SEQUENCE });
+      spIdx.push(keys.length);
+      keys.push(key); isTaproot.push(true);
+      continue;
+    }
     if (u.chain === V0_CHAIN) {
       if (!v0) throw new Error('An input address does not match this wallet\'s keys, so signing was stopped.');
       const child = v0.deriveChild(1).deriveChild(u.index);
@@ -720,7 +777,7 @@ export function signBtcDraft(draft: BtcDraft, mnemonic: string, path = BTC_PATH)
   const pay = (): void => {
     if (isSilentAddress(draft.to)) {
       // Silent Payments: the output key comes from the recipient's keys and these inputs' (tweaked) private keys.
-      const spend = draft.inputs.map((u, i) => ({ txid: u.txid, vout: u.vout, key: isTaproot[i] ? taprootOutputKey(keys[i]) : keys[i], taproot: isTaproot[i] }));
+      const spend = draft.inputs.map((u, i) => ({ txid: u.txid, vout: u.vout, key: isTaproot[i] && u.chain !== SP_CHAIN ? taprootOutputKey(keys[i]) : keys[i], taproot: isTaproot[i] }));
       const [out] = silentOutputs(spend, [draft.to]);
       tx.addOutput({ script: taprootScript(out), amount: draft.amount });
     } else tx.addOutputAddress(draft.to, draft.amount);
@@ -737,9 +794,26 @@ export function signBtcDraft(draft: BtcDraft, mnemonic: string, path = BTC_PATH)
   if (draft.changeFirst) { change(); pay(); } else { pay(); change(); }
   const totalIn = draft.inputs.reduce((s, u) => s + u.value, 0n);
   if (totalIn - draft.amount - draft.change !== draft.fee) throw new Error('The amounts do not add up, so signing was stopped.');
-  keys.forEach((k, i) => tx.signIdx(k, i));
+  keys.forEach((k, i) => { if (!spIdx.includes(i)) tx.signIdx(k, i); });
+  if (spIdx.length) {
+    // BIP341 key-path signatures over every input's script and amount, with SIGHASH_DEFAULT.
+    const { schnorr } = require('@noble/curves/secp256k1.js');
+    const prevScripts = draft.inputs.map((_, i) => tx.getInput(i).witnessUtxo.script);
+    const amounts = draft.inputs.map((u) => u.value);
+    for (const i of spIdx) tx.updateInput(i, { tapKeySig: schnorr.sign(tx.preimageWitnessV1(i, prevScripts, 0, amounts), keys[i]) });
+  }
   tx.finalize();
   return { hex: tx.hex, id: tx.id };
+}
+
+/** The address of a Silent Payments output: its key is the output key itself, with no taproot tweak on top. */
+export const silentCoinAddress = (xonly: Uint8Array): string => btc.Address(btc.NETWORK).encode({ type: 'tr', pubkey: xonly });
+
+/** The Silent Payments keys from the 12 words (BIP352 paths): the scan key itself, and the public keys. */
+export function silentKeys(mnemonic: string): { scan: Uint8Array; scanPub: Uint8Array; spendPub: Uint8Array } {
+  const root = HDKey.fromMasterSeed(bip39Seed(mnemonic));
+  const scan = root.derive(SP_SCAN_PATH);
+  return { scan: Uint8Array.from(scan.privateKey), scanPub: scan.publicKey, spendPub: root.derive(SP_SPEND_PATH).publicKey };
 }
 
 export const BITCOIN: UtxoCoin = {

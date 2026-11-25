@@ -1,6 +1,8 @@
-// Sending to Silent Payments addresses (BIP352, sp1...). The address holds two public keys; the sender combines
-// them with the private keys of the coins it spends, so each payment lands on a taproot address nobody else can
-// tie to the published sp1 address. Everything here runs on the device, at signing time.
+// Silent Payments (BIP352, sp1...). The address holds two public keys; the sender combines them with the private keys
+// of the coins it spends, so each payment lands on a taproot address nobody else can tie to the published sp1
+// address. Sending runs at signing time. Receiving: each block's "tweaks" (input hash times summed input keys, one
+// per eligible transaction) come from an index server; this wallet's scan key turns each into the output it would
+// be, and the block filter says whether any of them is in the block.
 const { secp256k1, schnorr } = require('@noble/curves/secp256k1.js');
 const { bech32m } = require('@scure/base');
 
@@ -93,3 +95,83 @@ export function silentOutputs(inputs: SpendingKey[], recipients: string[], allOu
 /** The taproot output script for an x-only key: OP_1 <32 bytes>, the key used as it is. */
 export const taprootScript = (xonly: Uint8Array): Uint8Array => Uint8Array.from([0x51, 0x20, ...xonly]);
 export { fromBig as scalarBytes };
+
+// ---- Receiving ----
+
+/** BIP352's paths: the scan key, which only finds payments, and the spend key, which spends them. */
+export const SP_SCAN_PATH = "m/352'/0'/0'/1'/0";
+export const SP_SPEND_PATH = "m/352'/0'/0'/0'/0";
+
+/** sp1q... for these two compressed public keys. */
+export function encodeSilentAddress(scan: Uint8Array, spend: Uint8Array, testnet = false): string {
+  if (scan.length !== 33 || spend.length !== 33) throw new Error('bad key');
+  return bech32m.encode(testnet ? 'tsp' : 'sp', [0, ...bech32m.toWords(Uint8Array.from([...scan, ...spend]))], 1023);
+}
+
+export interface SpCandidate {
+  /** The shared secret (33 bytes), kept to look for the next output (k + 1) in the same transaction. */
+  shared: Uint8Array;
+  k: number;
+  /** t_k: what's added to the spend key to spend this output. */
+  tweak: Uint8Array;
+  /** The x-only output key and its script. */
+  xonly: Uint8Array;
+  script: Uint8Array;
+}
+
+/** The output for shared secret `shared` and counter k: P_k = B_spend + t_k·G. */
+export function spOutput(shared: Uint8Array, k: number, spendPub: Uint8Array): SpCandidate {
+  const kb = Buffer.alloc(4); kb.writeUInt32BE(k);
+  const t = toBig(tagged('BIP0352/SharedSecret', shared, kb));
+  if (t === 0n || t >= N) throw new Error('bad shared secret');
+  const xonly = Point.fromHex(hex(spendPub)).add(Point.BASE.multiply(t)).toBytes(true).slice(1);
+  return { shared, k, tweak: fromBig(t), xonly, script: taprootScript(xonly) };
+}
+
+/** The shared secret for one tweak (33-byte point from the index server): tweak · b_scan. */
+export function spShared(tweak: Uint8Array, scanKey: Uint8Array): Uint8Array {
+  return Point.fromHex(hex(tweak)).multiply(toBig(scanKey) % N).toBytes(true);
+}
+
+/**
+ * The k = 0 output of every tweak, in slices that let other work run between them (each takes a few milliseconds).
+ * A tweak that isn't a valid point is skipped: a server could send anything.
+ */
+export async function spCandidates(tweaks: Uint8Array[], scanKey: Uint8Array, spendPub: Uint8Array): Promise<SpCandidate[]> {
+  const out: SpCandidate[] = [];
+  for (let i = 0; i < tweaks.length; i++) {
+    try { out.push(spOutput(spShared(tweaks[i], scanKey), 0, spendPub)); } catch { /* not a point */ }
+    if (i % 16 === 15) await new Promise((r) => setImmediate(r));
+  }
+  return out;
+}
+
+/**
+ * Of a transaction's taproot outputs (x-only keys), those paid to this wallet, starting from a k = 0 match:
+ * BIP352 numbers a sender's outputs to one recipient k = 0, 1, 2, ..., in any order among the outputs.
+ */
+export function spMatchTx(first: SpCandidate, outputs: Uint8Array[], spendPub: Uint8Array): { vout: number; c: SpCandidate }[] {
+  const keys = outputs.map((o) => hex(o));
+  const found: { vout: number; c: SpCandidate }[] = [];
+  let c = first;
+  for (;;) {
+    const vout = keys.indexOf(hex(c.xonly));
+    if (vout < 0) break;
+    found.push({ vout, c });
+    if (c.k + 1 >= K_MAX) break;
+    c = spOutput(c.shared, c.k + 1, spendPub);
+  }
+  return found;
+}
+
+/** The x-only key of a received output from its tweak: B_spend + t·G. */
+export function spOutputKey(spendPub: Uint8Array, tweak: Uint8Array): Uint8Array {
+  return Point.fromHex(hex(spendPub)).add(Point.BASE.multiply(toBig(tweak))).toBytes(true).slice(1);
+}
+
+/** The private key of a received output: b_spend + t_k (made even by the signer, as BIP340 does). */
+export function spPrivateKey(spendKey: Uint8Array, tweak: Uint8Array): Uint8Array {
+  const d = (toBig(spendKey) + toBig(tweak)) % N;
+  if (d === 0n) throw new Error('bad key');
+  return fromBig(d);
+}

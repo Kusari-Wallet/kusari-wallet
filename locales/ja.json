@@ -1719,5 +1719,19 @@
 "Settings sections": "設定の項目",
 "Kusari Wallet is free. If it helps you, you can support its development. Donations are optional and change nothing in the app. Donations go to the developer's living costs and the costs of development. Most of it goes to development costs.": "Kusari Walletは無料です。役に立ったら開発を支援できます。寄付は任意で、アプリの機能は何も変わりません。 寄付は開発者の生活費と開発費用に使われます。 寄付の大部分は開発費用に使われます。",
 "PegasusSwap doesn't offer this coin.": "PegasusSwap はこのコインに対応していません。",
-"Check the PegasusSwap API key.": "PegasusSwap の API キーを確認してください。"
+"Check the PegasusSwap API key.": "PegasusSwap の API キーを確認してください。",
+"A Silent Payments address can be published or reused: every payment to it lands on a new address only this wallet can find, so nobody can look up what it received. The payer's wallet must support Silent Payments (sp1). Payments are found through private sync, from the block after you turn it on.": "Silent Payments アドレスは公開しても繰り返し使っても構いません。このアドレスへの支払いは毎回、このウォレットだけが見つけられる新しいアドレスに届くため、誰もこのアドレスの受取履歴を調べられません。支払う側のウォレットが Silent Payments(sp1)に対応している必要があります。支払いはプライベート同期で、オンにした次のブロックから探します。",
+"Payments are found from block {0} on. They show in the balance and History like other coins.": "ブロック {0} 以降の支払いを探します。ほかのコインと同じく残高と履歴に表示されます。",
+"QR code of the Silent Payments address": "Silent Payments アドレスの QR コード",
+"Receive with Silent Payments": "Silent Payments で受け取る",
+"Silent Payments": "Silent Payments",
+"Silent Payments address": "Silent Payments アドレス",
+"Silent Payments need private Bitcoin sync. Turn it on in Settings first.": "Silent Payments にはプライベートな Bitcoin 同期が必要です。先に設定でオンにしてください。",
+"Silent Payments need private Bitcoin sync. Turn it on in Settings to receive to an sp1 address.": "Silent Payments にはプライベートな Bitcoin 同期が必要です。sp1 アドレスで受け取るには設定でオンにしてください。",
+"Silent Payments need private sync.": "Silent Payments にはプライベート同期が必要です。",
+"The Silent Payments server sent something that is not a list of tweaks.": "Silent Payments サーバーが tweak の一覧ではないものを送ってきました。",
+"Turning on Silent Payments…": "Silent Payments をオンにしています…",
+"Already received to this address? Look from (optional)": "このアドレスですでに受け取ったことがありますか? 探し始める日付(任意)",
+"Looking back scans those blocks again, which takes a few minutes per day.": "さかのぼると、その期間のブロックを再度調べるため、1 日分ごとに数分かかります。",
+"Enter the date as YYYY-MM-DD, not in the future.": "日付は YYYY-MM-DD 形式で、未来でない日を入力してください。"
 }

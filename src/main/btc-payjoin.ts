@@ -1,7 +1,7 @@
 // Payjoin for this wallet's Bitcoin (taproot, BIP86): paying a Payjoin link, and asking to be paid by one.
 import { HDKey as HDKeyType } from '@scure/bip32';
 import { bip39Seed } from './seed';
-import { BTC_PATH, V0_CHAIN, signBtcDraft, type BtcDraft } from './btc';
+import { BTC_PATH, V0_CHAIN, SP_CHAIN, signBtcDraft, type BtcDraft } from './btc';
 import { isSilentAddress } from './btc-silent';
 import {
   buildProposal, checkProposal, errorReply, signProposal, originalPsbt, receiveOriginal, receivePoll, receiveReply, sendV1, sendV2, senderParams,
@@ -44,7 +44,7 @@ export async function payjoinPay(o: { draft: BtcDraft; mnemonic: string; target:
   const { draft } = o;
   const signed = signBtcDraft(draft, o.mnemonic);
   const plain: PayjoinResult = { ...signed, draft, payjoin: false };
-  if (draft.inputs.some((u) => u.chain === V0_CHAIN) || isSilentAddress(draft.to)) return { ...plain, problem: 'Payjoin was skipped for this payment.' };
+  if (draft.inputs.some((u) => u.chain === V0_CHAIN || u.chain === SP_CHAIN) || isSilentAddress(draft.to)) return { ...plain, problem: 'Payjoin was skipped for this payment.' };
   try {
     const prevouts = draft.inputs.map((u) => ({ script: btcScriptOf(u.address), amount: u.value }));
     const original = originalPsbt(signed.hex, prevouts);

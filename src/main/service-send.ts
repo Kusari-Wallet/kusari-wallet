@@ -10,7 +10,8 @@ import { requestJson, getJson, requestBinary, socksAgent, isolatedAgent } from '
 import { parseOhttpKeys, parsePayjoin, payjoinUri, type OhttpKeys, type Post } from './payjoin';
 import { PAYJOIN_DIRECTORIES, btcAddressOf, btcScriptOf, coinKey, newReceiverKey, payjoinPay, receiveStep } from './btc-payjoin';
 import { isSilentAddress } from './btc-silent';
-import { type BtcClient, type BtcDraft, LITECOIN, V0_CHAIN, coinId, estimateVbytes, isBtcAddress, isLtcAddress } from './btc';
+import { type BtcClient, type BtcDraft, LITECOIN, V0_CHAIN, SP_CHAIN, coinId, estimateVbytes, isBtcAddress, isLtcAddress, silentKeys } from './btc';
+import { TAPROOT_HEIGHT, estimateBtcHeight } from './btc-filter-sync';
 import { DEPOSIT_GAS, TORNADO_CHAINS, TORNADO_POOLS, type TornadoChain, TornadoNote, chainOfNote, isTornadoChain, TornadoStore, WITHDRAW_GAS, abi as tornadoAbi, checkRelayerUrl, denomination, noteSecrets, noteText, pickRelayer, relayerFee, relayerHost, relayerStatus, relayerSubmit, splitPlan, tornadoEngineCheck } from './tornado';
 import { runTornado } from './tornado-run';
 import { isArrrAddress } from './arrr';
@@ -1260,6 +1261,39 @@ export class SendService extends ServiceCore {
     clearTimeout(this.poolTimers.get(id)); this.poolTimers.delete(id);
     await this.records.write(this.poolLaterPath, (await this.poolLaterList()).filter((x) => x.id !== String(id)));
   }
+  // ---- receiving with Silent Payments (BIP352) ----
+
+  /** The sp1 address and whether this wallet is looking for payments to it (from which block). */
+  async silentInfo() {
+    this.session();
+    const st = await this.spState();
+    return { address: this.spAddress, on: st !== null && this.btcFilters !== null, from: st?.from ?? null, privateSync: this.btcFilters !== null };
+  }
+
+  /**
+   * Starts looking for payments to the sp1 address from the next block on. It needs private sync: the blocks'
+   * filters are what's checked, so no server is ever asked about this wallet's outputs.
+   */
+  async silentOn(password: string, since?: string) {
+    this.session();
+    if (!this.btcFilters) throw new Error('Silent Payments need private Bitcoin sync. Turn it on in Settings first.');
+    const secrets = await this.vault.open(password);
+    if (!(await this.spState())) {
+      // A date: payments from then on are looked for too (a wallet restored here), which scans those blocks again.
+      let from = (this.btcFilters.tip || estimateBtcHeight(new Date())) + 1;
+      if (typeof since === 'string' && since.trim()) {
+        const d = new Date(since.trim() + 'T00:00:00Z');
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(since.trim()) || Number.isNaN(d.getTime()) || d.getTime() > Date.now()) throw new Error('Enter the date as YYYY-MM-DD, not in the future.');
+        from = Math.min(from, Math.max(TAPROOT_HEIGHT, estimateBtcHeight(d) - 144));
+        await this.btcFilters.rescanFrom(from);
+      }
+      await this.records.write(this.spFile, { from });
+    }
+    await this.startSilent(silentKeys(secrets.tronMnemonic));
+    void this.btc?.refresh(true).catch(() => undefined);
+    return this.silentInfo();
+  }
+
   // ---- receiving with Payjoin (BIP77) ----
   // A request lives while the wallet is unlocked, for up to an hour: the coin this wallet adds is held out of other
   // sends meanwhile, and its key is kept in memory only.
@@ -1271,7 +1305,7 @@ export class SendService extends ServiceCore {
     if (!this.torActive) throw new Error('Payjoin needs Tor. Turn it on in Settings first.');
     const amount = typeof amountInput === 'string' && amountInput.trim() ? formatAmount(parseAmount(amountInput.trim(), 8), 8) : undefined;
     const frozen = new Set((await this.btcCoinNotes()).frozen);
-    const coins = (await btc.coins()).filter((u) => u.confirmed && u.chain !== V0_CHAIN && u.value >= 10_000n && !frozen.has(coinId(u)) && !btc.reserved.has(coinId(u)));
+    const coins = (await btc.coins()).filter((u) => u.confirmed && u.chain !== V0_CHAIN && u.chain !== SP_CHAIN && u.value >= 10_000n && !frozen.has(coinId(u)) && !btc.reserved.has(coinId(u)));
     if (!coins.length) throw new Error('Payjoin needs a confirmed, unfrozen coin of at least 0.0001 BTC in this wallet, to add to the payment.');
     // The smallest: the payer sees the coin added, so the least is shown.
     const coin = coins.sort((a, b) => (a.value < b.value ? -1 : a.value > b.value ? 1 : 0))[0];
@@ -1370,7 +1404,7 @@ export class SendService extends ServiceCore {
     if (!pj) { warnings.push('This Payjoin link can\'t be used safely, so this goes out as an ordinary payment.'); return undefined; }
     if (pj.kind === 'v2' && pj.expires * 1000 < Date.now()) { warnings.push('This Payjoin link has expired, so this goes out as an ordinary payment.'); return undefined; }
     if (!this.torActive) { warnings.push('Payjoin needs Tor, so this goes out as an ordinary payment. Turn on Tor in Settings to use it.'); return undefined; }
-    if (silent || draft.inputs.some((u) => u.chain === V0_CHAIN)) { warnings.push('Payjoin can\'t be used with these coins, so this goes out as an ordinary payment.'); return undefined; }
+    if (silent || draft.inputs.some((u) => u.chain === V0_CHAIN || u.chain === SP_CHAIN)) { warnings.push('Payjoin can\'t be used with these coins, so this goes out as an ordinary payment.'); return undefined; }
     warnings.push('Payjoin: the recipient can add a coin of theirs to this payment, so the chain doesn\'t show which coins were yours or how much was paid. If they don\'t answer within a minute, the ordinary payment goes out instead.');
     return pj;
   }

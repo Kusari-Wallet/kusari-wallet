@@ -1719,5 +1719,19 @@
 "Settings sections": "Các mục cài đặt",
 "Kusari Wallet is free. If it helps you, you can support its development. Donations are optional and change nothing in the app. Donations go to the developer's living costs and the costs of development. Most of it goes to development costs.": "Kusari Wallet miễn phí. Nếu nó hữu ích, bạn có thể ủng hộ việc phát triển. Ủng hộ là tùy ý và không thay đổi gì trong ứng dụng. Tiền ủng hộ được dùng cho chi phí sinh hoạt của nhà phát triển và chi phí phát triển. Phần lớn tiền ủng hộ được dùng cho chi phí phát triển.",
 "PegasusSwap doesn't offer this coin.": "PegasusSwap không hỗ trợ coin này.",
-"Check the PegasusSwap API key.": "Hãy kiểm tra khóa API PegasusSwap."
+"Check the PegasusSwap API key.": "Hãy kiểm tra khóa API PegasusSwap.",
+"A Silent Payments address can be published or reused: every payment to it lands on a new address only this wallet can find, so nobody can look up what it received. The payer's wallet must support Silent Payments (sp1). Payments are found through private sync, from the block after you turn it on.": "Địa chỉ Silent Payments có thể công khai hoặc dùng lại: mỗi khoản thanh toán tới nó đều vào một địa chỉ mới mà chỉ ví này tìm được, nên không ai tra được nó đã nhận gì. Ví của người trả cần hỗ trợ Silent Payments (sp1). Các khoản được tìm qua đồng bộ riêng tư, từ khối ngay sau khi bạn bật.",
+"Payments are found from block {0} on. They show in the balance and History like other coins.": "Các khoản thanh toán được tìm từ khối {0} trở đi. Chúng hiện trong số dư và Lịch sử như các coin khác.",
+"QR code of the Silent Payments address": "Mã QR của địa chỉ Silent Payments",
+"Receive with Silent Payments": "Nhận bằng Silent Payments",
+"Silent Payments": "Silent Payments",
+"Silent Payments address": "Địa chỉ Silent Payments",
+"Silent Payments need private Bitcoin sync. Turn it on in Settings first.": "Silent Payments cần đồng bộ Bitcoin riêng tư. Hãy bật nó trong Cài đặt trước.",
+"Silent Payments need private Bitcoin sync. Turn it on in Settings to receive to an sp1 address.": "Silent Payments cần đồng bộ Bitcoin riêng tư. Bật nó trong Cài đặt để nhận vào địa chỉ sp1.",
+"Silent Payments need private sync.": "Silent Payments cần đồng bộ riêng tư.",
+"The Silent Payments server sent something that is not a list of tweaks.": "Máy chủ Silent Payments gửi về thứ không phải danh sách tweak.",
+"Turning on Silent Payments…": "Đang bật Silent Payments…",
+"Already received to this address? Look from (optional)": "Đã từng nhận vào địa chỉ này? Tìm từ ngày (không bắt buộc)",
+"Looking back scans those blocks again, which takes a few minutes per day.": "Tìm lùi lại sẽ quét lại các khối đó, mất vài phút cho mỗi ngày.",
+"Enter the date as YYYY-MM-DD, not in the future.": "Nhập ngày theo dạng YYYY-MM-DD, không phải ngày trong tương lai."
 }

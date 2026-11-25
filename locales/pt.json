@@ -1719,5 +1719,19 @@
 "Settings sections": "Seções das configurações",
 "Kusari Wallet is free. If it helps you, you can support its development. Donations are optional and change nothing in the app. Donations go to the developer's living costs and the costs of development. Most of it goes to development costs.": "A Kusari Wallet é gratuita. Se ela ajuda você, pode apoiar o desenvolvimento. Doações são opcionais e não mudam nada no app. As doações vão para o custo de vida do desenvolvedor e os custos de desenvolvimento. A maior parte vai para os custos de desenvolvimento.",
 "PegasusSwap doesn't offer this coin.": "A PegasusSwap não oferece esta moeda.",
-"Check the PegasusSwap API key.": "Verifique a chave de API da PegasusSwap."
+"Check the PegasusSwap API key.": "Verifique a chave de API da PegasusSwap.",
+"A Silent Payments address can be published or reused: every payment to it lands on a new address only this wallet can find, so nobody can look up what it received. The payer's wallet must support Silent Payments (sp1). Payments are found through private sync, from the block after you turn it on.": "Um endereço Silent Payments pode ser publicado ou reutilizado: cada pagamento a ele cai num endereço novo que só esta carteira consegue encontrar, então ninguém consegue consultar o que ele recebeu. A carteira de quem paga precisa suportar Silent Payments (sp1). Os pagamentos são encontrados pela sincronização privada, a partir do bloco seguinte ao que você ativar.",
+"Payments are found from block {0} on. They show in the balance and History like other coins.": "Os pagamentos são procurados a partir do bloco {0}. Eles aparecem no saldo e no Histórico como outras moedas.",
+"QR code of the Silent Payments address": "Código QR do endereço Silent Payments",
+"Receive with Silent Payments": "Receber com Silent Payments",
+"Silent Payments": "Silent Payments",
+"Silent Payments address": "Endereço Silent Payments",
+"Silent Payments need private Bitcoin sync. Turn it on in Settings first.": "Silent Payments precisam da sincronização privada de Bitcoin. Ative-a primeiro nas Configurações.",
+"Silent Payments need private Bitcoin sync. Turn it on in Settings to receive to an sp1 address.": "Silent Payments precisam da sincronização privada de Bitcoin. Ative-a nas Configurações para receber num endereço sp1.",
+"Silent Payments need private sync.": "Silent Payments precisam da sincronização privada.",
+"The Silent Payments server sent something that is not a list of tweaks.": "O servidor de Silent Payments enviou algo que não é uma lista de tweaks.",
+"Turning on Silent Payments…": "Ativando Silent Payments…",
+"Already received to this address? Look from (optional)": "Já recebeu neste endereço? Procurar a partir de (opcional)",
+"Looking back scans those blocks again, which takes a few minutes per day.": "Procurar no passado verifica esses blocos de novo, o que leva alguns minutos por dia.",
+"Enter the date as YYYY-MM-DD, not in the future.": "Digite a data como AAAA-MM-DD, sem ser no futuro."
 }

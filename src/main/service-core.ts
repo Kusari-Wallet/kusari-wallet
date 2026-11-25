@@ -8,7 +8,7 @@ import { balanceCacheKey, readBalanceCache, writeBalanceCache, SavedBalance, SAV
 import path from 'node:path';
 const { wordlist: BIP39_WORDS } = require('@scure/bip39/wordlists/english');
 import { formatAmount, parseAmount } from './amount';
-import { Asset, BTC_APIS, BTC_ONION_APIS, DECIMALS, FIRO_APIS, SOL_RPCS, TON_APIS, BCH_APIS, LTC_APIS, DOGE_APIS, DOGE_PUSH_URLS, DOGE_BACKUP, DOGE_RAW_URLS, POL_RPCS, POL_SCOUT, ARB_RPCS, ARB_SCOUT, BSC_RPCS, BSC_SCOUT, DASH_APIS, DEFAULT_SETTINGS, ARRR_SERVERS, ZANO_NODE, ZEC_SERVERS, ETH_RPCS, ETH_SCOUT, ETH_USDT, NETWORKS, NetworkId, Settings, estimateMainnetHeight } from './config';
+import { Asset, BTC_APIS, BTC_ONION_APIS, SP_TWEAK_SERVER, DECIMALS, FIRO_APIS, SOL_RPCS, TON_APIS, BCH_APIS, LTC_APIS, DOGE_APIS, DOGE_PUSH_URLS, DOGE_BACKUP, DOGE_RAW_URLS, POL_RPCS, POL_SCOUT, ARB_RPCS, ARB_SCOUT, BSC_RPCS, BSC_SCOUT, DASH_APIS, DEFAULT_SETTINGS, ARRR_SERVERS, ZANO_NODE, ZEC_SERVERS, ETH_RPCS, ETH_SCOUT, ETH_USDT, NETWORKS, NetworkId, Settings, estimateMainnetHeight } from './config';
 import { MIN_PASSWORD, Secrets, Vault } from './vault';
 import { TronClient, deriveTronAccount, generateTronMnemonic } from './tron';
 import { socksAgent, getJson, newTorRoute, isolatedAgent, USER_AGENT } from './request';
@@ -17,7 +17,8 @@ import { poolKeys } from './sol-privacy';
 import { runSolPool } from './solpool-run';
 import type { Agent } from 'node:http';
 import { AAVE_MARKETS, aaveCall, readAave } from './aave';
-import { BITCOIN, BITCOIN_MIXED, BTC_MIXED_PATH, BTC_PATH, BTC_V0_PATH, V0_CHAIN, BtcClient, LITECOIN, btcAccountXpub, coinId, ltcAccountXpub } from './btc';
+import { BITCOIN, BITCOIN_MIXED, BTC_MIXED_PATH, BTC_PATH, BTC_V0_PATH, V0_CHAIN, BtcClient, LITECOIN, btcAccountXpub, coinId, ltcAccountXpub, silentKeys } from './btc';
+import { encodeSilentAddress } from './btc-silent';
 import { FilterSync, LTC_CHECKPOINTS, TAPROOT_HEIGHT, estimateBtcHeight, estimateLtcHeight } from './btc-filter-sync';
 import { LTC_P2P } from './p2p-net';
 import type { ReceiveSession } from './btc-payjoin';
@@ -123,7 +124,7 @@ export class ServiceCore extends EventEmitter {
   settings: Settings = { ...DEFAULT_SETTINGS };
 
   constructor(protected readonly baseDir: string, protected readonly kdf?: { N: number; r: number; p: number }, protected readonly dev: {
-    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; bchApi?: string; ltcApi?: string; polRpc?: string; polScout?: string; polUsdt?: string; arbRpc?: string; arbScout?: string; arbUsdt?: string; bscRpc?: string; bscScout?: string; uniswapKey?: string; uniswapBase?: string; dashApi?: string; dashSeeds?: string[]; dashConnect?: string; firoApi?: string; solRpc?: string; solPoolRelayer?: string; tonApi?: string;  dogeApi?: string; dogeBackup?: string; dcrApi?: string; zecBin?: string; zecServers?: string[]; zanoBin?: string; zanoNode?: string; arrrBin?: string; arrrServers?: string[]; mwebBin?: string; mwebConnect?: string; sparkBin?: string; sparkServer?: string; sparkConnect?: string; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; tornadoRelayerNames?: { name: string; address: string; url?: string }[]; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; etzSwapBase?: string; cceCashBase?: string; changeNowBase?: string; pegasusBase?: string; quoteDeadlineMs?: number; btcApi?: string; coinjoinCoordinator?: string; coinjoinTest?: { pollMs?: number; registrationMarginMs?: number; minInputs?: number };
+    tronHost?: string; priceUrl?: string; priceSources?: PriceSource[]; torBin?: string; socks?: string; ethRpc?: string; ethScout?: string; bchApi?: string; ltcApi?: string; polRpc?: string; polScout?: string; polUsdt?: string; arbRpc?: string; arbScout?: string; arbUsdt?: string; bscRpc?: string; bscScout?: string; uniswapKey?: string; uniswapBase?: string; dashApi?: string; dashSeeds?: string[]; dashConnect?: string; firoApi?: string; solRpc?: string; solPoolRelayer?: string; tonApi?: string;  dogeApi?: string; dogeBackup?: string; dcrApi?: string; zecBin?: string; zecServers?: string[]; zanoBin?: string; zanoNode?: string; arrrBin?: string; arrrServers?: string[]; mwebBin?: string; mwebConnect?: string; sparkBin?: string; sparkServer?: string; sparkConnect?: string; tornadoPools?: Record<string, string>; tornadoLocalRelayer?: boolean; tornadoRelayerNames?: { name: string; address: string; url?: string }[]; swapBase?: string; simpleSwapBase?: string; ghostSwapBase?: string; etzSwapBase?: string; cceCashBase?: string; changeNowBase?: string; pegasusBase?: string; quoteDeadlineMs?: number; btcApi?: string; spTweakServer?: string; coinjoinCoordinator?: string; coinjoinTest?: { pollMs?: number; registrationMarginMs?: number; minInputs?: number };
     /** Android: every outside address goes through the app's local forwarder. */
     route?: (url: string) => string;
     moneroStore?: (net: NetworkId, walletId: string) => MoneroOptions['store'];
@@ -389,6 +390,9 @@ export class ServiceCore extends EventEmitter {
     this.btc = new BtcClient(btcAccountXpub(secrets.tronMnemonic), btcApis, btcAgent, slow ? 60_000 : 30_000, BITCOIN, () => newTorRoute(btcAgent));
     this.btc.useV0Change(btcAccountXpub(secrets.tronMnemonic, BTC_V0_PATH));
     if (this.btcFilters) this.btc.useFilters(this.btcFilters, 'btc');
+    const sk = silentKeys(secrets.tronMnemonic);
+    this.spAddress = encodeSilentAddress(sk.scanPub, sk.spendPub);
+    await this.startSilent(sk).catch(() => undefined);
     // Own sends, kept (encrypted) so a stuck one can be sped up later.
     const sentFile = path.join(this.dir, 'btc-sent.json');
     this.btc.loadSent(await this.records.read(sentFile).catch(() => undefined));
@@ -1029,6 +1033,34 @@ export class ServiceCore extends EventEmitter {
 
   /** Decred ticket records loaded and their coins held back once the client exists (service-send). */
   protected dcrStakeLoad?: () => Promise<void>;
+
+  // ---- Silent Payments receiving ----
+
+  /** This wallet's sp1 address (the same from the same 12 words and passphrase), once a session is open. */
+  protected spAddress = '';
+  protected get spFile(): string { return path.join(this.dir, 'btc-sp.json'); }
+  protected async spState(): Promise<{ from: number } | null> {
+    const st = await this.records.read(this.spFile).catch(() => undefined) as { from?: unknown } | undefined;
+    return st && Number.isInteger(st.from) && (st.from as number) > 0 ? { from: st.from as number } : null;
+  }
+
+  /** On once turned on (the sealed btc-sp.json holds the first block to look at), and only with private sync. */
+  protected async startSilent(keys: { scan: Uint8Array; spendPub: Uint8Array }): Promise<boolean> {
+    if (!this.btcFilters || !this.btc) return false;
+    const st = await this.spState();
+    if (!st) return false;
+    const route = this.torRoute('btc-sp');
+    this.btc.useSilent({ scanKey: keys.scan, spendPub: keys.spendPub, from: st.from, tweaks: (h) => this.spTweaks(h, route) });
+    return true;
+  }
+
+  /** One block's tweaks: 33-byte points; anything else in the answer is refused. */
+  protected async spTweaks(height: number, agent: ReturnType<typeof socksAgent> | undefined): Promise<Uint8Array[]> {
+    const base = this.dev.spTweakServer ?? SP_TWEAK_SERVER;
+    const list = await getJson(`${base}/tweak-index/${height}?dustLimit=0`, { agent, timeoutMs: 60_000 });
+    if (!Array.isArray(list) || list.length > 200_000 || list.some((t) => typeof t !== 'string' || !/^0[23][0-9a-f]{64}$/.test(t))) throw new Error('The Silent Payments server sent something that is not a list of tweaks.');
+    return list.map((t: string) => Uint8Array.from(Buffer.from(t, 'hex')));
+  }
 
   protected torRoute(name: string): ReturnType<typeof socksAgent> | undefined {
     if (!this.torProxy) return undefined;

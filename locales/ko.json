@@ -1719,5 +1719,19 @@
 "Settings sections": "설정 항목",
 "Kusari Wallet is free. If it helps you, you can support its development. Donations are optional and change nothing in the app. Donations go to the developer's living costs and the costs of development. Most of it goes to development costs.": "Kusari Wallet은 무료입니다. 도움이 되었다면 개발을 후원할 수 있습니다. 후원은 선택이며 앱에서 달라지는 것은 없습니다. 이 기금은 개발자 생활비 및 개발 비용에 쓰입니다. 기부금의 대부분은 개발 비용에 사용됩니다.",
 "PegasusSwap doesn't offer this coin.": "PegasusSwap은 이 코인을 지원하지 않습니다.",
-"Check the PegasusSwap API key.": "PegasusSwap API 키를 확인하세요."
+"Check the PegasusSwap API key.": "PegasusSwap API 키를 확인하세요.",
+"A Silent Payments address can be published or reused: every payment to it lands on a new address only this wallet can find, so nobody can look up what it received. The payer's wallet must support Silent Payments (sp1). Payments are found through private sync, from the block after you turn it on.": "Silent Payments 주소는 공개하거나 여러 번 써도 됩니다. 이 주소로 온 결제는 매번 이 지갑만 찾을 수 있는 새 주소로 들어오므로, 누구도 이 주소가 받은 내역을 조회할 수 없습니다. 보내는 쪽 지갑이 Silent Payments(sp1)를 지원해야 합니다. 결제는 비공개 동기화로 찾으며, 켠 다음 블록부터 찾습니다.",
+"Payments are found from block {0} on. They show in the balance and History like other coins.": "블록 {0}부터 결제를 찾습니다. 다른 코인처럼 잔액과 기록에 표시됩니다.",
+"QR code of the Silent Payments address": "Silent Payments 주소의 QR 코드",
+"Receive with Silent Payments": "Silent Payments로 받기",
+"Silent Payments": "Silent Payments",
+"Silent Payments address": "Silent Payments 주소",
+"Silent Payments need private Bitcoin sync. Turn it on in Settings first.": "Silent Payments에는 비공개 Bitcoin 동기화가 필요합니다. 먼저 설정에서 켜세요.",
+"Silent Payments need private Bitcoin sync. Turn it on in Settings to receive to an sp1 address.": "Silent Payments에는 비공개 Bitcoin 동기화가 필요합니다. sp1 주소로 받으려면 설정에서 켜세요.",
+"Silent Payments need private sync.": "Silent Payments에는 비공개 동기화가 필요합니다.",
+"The Silent Payments server sent something that is not a list of tweaks.": "Silent Payments 서버가 tweak 목록이 아닌 것을 보냈습니다.",
+"Turning on Silent Payments…": "Silent Payments를 켜는 중…",
+"Already received to this address? Look from (optional)": "이 주소로 이미 받은 적이 있나요? 찾기 시작할 날짜(선택)",
+"Looking back scans those blocks again, which takes a few minutes per day.": "이전 날짜부터 찾으면 그 블록들을 다시 검사하므로 하루치마다 몇 분씩 걸립니다.",
+"Enter the date as YYYY-MM-DD, not in the future.": "날짜를 YYYY-MM-DD 형식으로, 미래가 아닌 날로 입력하세요."
 }

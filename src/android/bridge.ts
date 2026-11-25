@@ -125,6 +125,8 @@ const bioCall = (fn: (id: number) => void) => new Promise<string>((resolve, reje
   btcMixStop: call(() => service.btcMixStop()),
   payjoinReceiveStart: call((password: string, amount?: string) => service.payjoinReceiveStart(password, amount)),
   payjoinReceiveStatus: call(() => service.payjoinReceiveStatus()),
+  silentInfo: call(() => service.silentInfo()),
+  silentOn: call((password: string, since?: string) => service.silentOn(password, since)),
   payjoinReceiveEnd: call(() => service.payjoinReceiveEnd()),
   btcCoinSet: call((id: string, change: { label?: string; frozen?: boolean }) => service.btcCoinSet(id, change ?? {})),
   cancelSend: call((id: string) => service.cancelSend(id)),
