@@ -57,8 +57,9 @@ Java WebView (`android/java`) running the same code as an esbuild bundle (`src/a
   matching on the device, reorgs), `btc-p2p.ts` (onion peers over Tor), `btc-gcs.ts` (filters), `btc-block.ts`.
   `BtcClient.useFilters` switches a client over. On for new wallets (`btc-sync.json`, sealed); needs Tor.
   Litecoin uses the same sync (`p2p-net.ts`: magic, seeds, scrypt work, its difficulty rule; `ltc-seeds.ts`, onion and
-  IPv4 peers through Tor exits; files `ltc-*`); MWEB still syncs through the MWEB server. `tests/ltc-regtest.js` runs
-  it by hand against two litecoind regtest nodes.
+  IPv4 peers through Tor exits; files `ltc-*`). MWEB has its own light client (`native/mweb-bridge`, mwebd's): it
+  downloads every MWEB output from Litecoin nodes over Tor and scans them on the device, so no server is involved.
+  `tests/ltc-regtest.js` runs the filter sync by hand against two litecoind regtest nodes.
 - Payjoin (BIP77/78): `payjoin.ts` (links, OHTTP+BHTTP at 8192 bytes, HPKE messages A/B at 7168, PSBT checks both
   ways), `hpke.ts` (RFC 9180, secp256k1 DHKEM, ChaCha20-Poly1305), `ellswift.ts` (BIP324), `btc-payjoin.ts`
   (`payjoinPay`: the ordinary payment is signed first and goes out on any problem or after 60 s; `receiveStep`).
