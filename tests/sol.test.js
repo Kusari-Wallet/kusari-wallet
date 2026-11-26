@@ -136,11 +136,12 @@ function usdtRpc(state) {
       r.setHeader('content-type', 'application/json');
       const ok = (result) => r.end(JSON.stringify({ jsonrpc: '2.0', id: 1, result }));
       if (method === 'getBalance') return ok({ value: state.sol ?? 10_000_000 });
-      if (method === 'getTokenAccountsByOwner') return ok({ value: state.rows ?? [tokenRow(ME, state.usdt ?? 5_000_000)] });
+      if (method === 'getTokenAccountsByOwner') return r.end(JSON.stringify({ jsonrpc: '2.0', id: 1, error: { code: -32602, message: 'Indexed requests require a personal token.' } }));
       if (method === 'getAccountInfo') {
         if (params[0] === OTHER) return ok({ value: state.otherIsToken ? { owner: TOKEN, data: ['', 'base64'] } : null });
         if (params[0] === tokenAccountOf(OTHER)) return ok({ value: state.receiverHas ? { owner: TOKEN, data: tokenRow(OTHER, 0, undefined, state.receiverMint).account.data } : null });
-        return ok({ value: null });
+        const row = (state.rows ?? [tokenRow(ME, state.usdt ?? 5_000_000)]).find((x) => x.pubkey === params[0]);
+        return ok({ value: row ? row.account : null });
       }
       if (method === 'getMinimumBalanceForRentExemption') return ok(RENT);
       if (method === 'getLatestBlockhash') return ok({ value: { blockhash: HASH } });

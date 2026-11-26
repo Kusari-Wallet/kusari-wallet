@@ -1229,6 +1229,22 @@ const PASSWORD = 'correct horse battery';
     assert.ok(overflow <= 0, 'nothing pushes the wide page sideways');
   }
   await shot('desk-history');
+  // Switching wallets in a wide window: to the second one and back.
+  await page.click('#side-home');
+  await page.click('#wallet-switch');
+  await page.locator('#wallet-list').waitFor({ timeout: 10000 });
+  await shot('desk-wallets');
+  await page.locator('.wallet-row:not(.on) .wallet-pick').click();
+  await page.locator('#unlock').waitFor({ timeout: 20000 });
+  await page.fill('#pw', 'second wallet password');
+  await page.click('#unlock');
+  await page.locator('#wallet-name', { hasText: 'Second wallet' }).waitFor({ timeout: 90000 });
+  await page.click('#wallet-switch');
+  await page.locator('.wallet-row:not(.on) .wallet-pick').click();
+  await page.locator('#unlock').waitFor({ timeout: 20000 });
+  await page.fill('#pw', PASSWORD);
+  await page.click('#unlock');
+  await page.locator('#wallet-name', { hasText: 'Savings' }).waitFor({ timeout: 90000 });
   await sized(500, 880);
   await page.waitForTimeout(300);
   assert.equal(await page.locator('.side').isVisible(), false, 'narrow again: the side menu goes');

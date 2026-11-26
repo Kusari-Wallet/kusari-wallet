@@ -1739,5 +1739,6 @@
 "This spends more than one Silent Payments coin together, which shows they were paid to the same person.": "Витрачається одразу кілька монет Silent Payments, що показує: їх отримала одна людина.",
 "This spends coins from more than one address together, which shows they belong to one person. Choose coins under Coins to keep sources apart.": "Монети з кількох адрес витрачаються разом, що показує: вони належать одній людині. Щоб не змішувати джерела, виберіть монети в розділі «Монети».",
 "Reused address": "Повторно використана адреса",
-"The Silent Payments server can't be reached right now. The blocks it missed are checked again on the next sync.": "Сервер Silent Payments зараз недоступний. Пропущені блоки буде перевірено знову під час наступної синхронізації."
+"The Silent Payments server can't be reached right now. The blocks it missed are checked again on the next sync.": "Сервер Silent Payments зараз недоступний. Пропущені блоки буде перевірено знову під час наступної синхронізації.",
+"Locking this wallet…": "Блокування цього гаманця…"
 }

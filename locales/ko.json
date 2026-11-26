@@ -1739,5 +1739,6 @@
 "This spends more than one Silent Payments coin together, which shows they were paid to the same person.": "Silent Payments 코인을 여러 개 함께 씁니다. 그러면 같은 사람이 받은 돈이라는 게 드러납니다.",
 "This spends coins from more than one address together, which shows they belong to one person. Choose coins under Coins to keep sources apart.": "여러 주소의 코인을 함께 씁니다. 그러면 한 사람의 코인이라는 게 드러납니다. 출처를 분리하려면 코인에서 직접 고르세요.",
 "Reused address": "재사용된 주소",
-"The Silent Payments server can't be reached right now. The blocks it missed are checked again on the next sync.": "지금은 Silent Payments 서버에 연결할 수 없습니다. 놓친 블록은 다음 동기화 때 다시 확인합니다."
+"The Silent Payments server can't be reached right now. The blocks it missed are checked again on the next sync.": "지금은 Silent Payments 서버에 연결할 수 없습니다. 놓친 블록은 다음 동기화 때 다시 확인합니다.",
+"Locking this wallet…": "이 지갑을 잠그는 중…"
 }

@@ -264,11 +264,16 @@ async function renderWallets(back: () => void): Promise<void> {
   const box = errorBox();
   const newName = h('input', { id: 'wallet-new-name', autocomplete: 'off', maxlength: '20', value: `Wallet ${r.list.length + 1}` });
   const add = h('button', { class: 'primary', id: 'wallet-add', type: 'submit' }, 'Add wallet');
+  const status = h('p', { class: 'small muted', id: 'wallet-status', role: 'status' });
   const leave = async (task: () => Promise<void>) => {
+    if (deleting) return;
     deleting = true; // Locking is expected here, so the lock screen must not jump in first.
-    try { await task(); await boot(); } catch (e) { box.show(e); } finally { deleting = false; }
+    // Locking can take a few seconds (engines and the Monero wallet close first), so it shows while it runs.
+    for (const b of document.querySelectorAll<HTMLButtonElement>('#wallet-list button, #wallet-add')) b.disabled = true;
+    status.textContent = 'Locking this wallet…';
+    try { await task(); await boot(); } catch (e) { status.textContent = ''; box.show(e); for (const b of document.querySelectorAll<HTMLButtonElement>('#wallet-list button, #wallet-add')) b.disabled = false; } finally { deleting = false; }
   };
-  show('send', subBar('Wallets', back), h('div', { class: 'scroll' }, box.el,
+  show('send', subBar('Wallets', back), h('div', { class: 'scroll' }, box.el, status,
     h('div', { id: 'wallet-list' }, ...r.list.map((w: any) => {
       const on = w.id === r.active;
       return h('div', { class: `panel wallet-row${on ? ' on' : ''}` },

@@ -63,7 +63,7 @@ function mockNode() {
       const url = req.url.split('?')[0];
       if (url.startsWith('/dash-firo/addrs/') && url.endsWith('/utxo')) return send([]);
       if (url.startsWith('/dash-firo/addrs/') && url.includes('/txs')) return send({ totalItems: 0, items: [] });
-      if (url === '/sol') return send({ jsonrpc: '2.0', id: 1, result: json.method === 'getBalance' ? { value: 0 } : json.method === 'getTokenAccountsByOwner' ? { value: [] } : [] });
+      if (url === '/sol') return send({ jsonrpc: '2.0', id: 1, result: json.method === 'getBalance' ? { value: 0 } : json.method === 'getAccountInfo' ? { value: null } : [] });
       if (url === '/scrt/cosmos/base/tendermint/v1beta1/node_info') return send({ default_node_info: { network: 'secret-4' } });
       if (url.startsWith('/scrt/cosmos/bank/v1beta1/balances/')) return send({ balances: [{ denom: 'uscrt', amount: '2500000' }] });
       if (url.startsWith('/scrt/cosmos/tx/v1beta1/txs') && req.method === 'GET') return send({ tx_responses: [] });

@@ -1739,5 +1739,6 @@
 "This spends more than one Silent Payments coin together, which shows they were paid to the same person.": "这会把多个 Silent Payments 币一起花，显示出它们付给的是同一个人。",
 "This spends coins from more than one address together, which shows they belong to one person. Choose coins under Coins to keep sources apart.": "这会把来自多个地址的币一起花，显示出它们属于同一个人。可在“币”中手动选择，让不同来源分开。",
 "Reused address": "重复使用的地址",
-"The Silent Payments server can't be reached right now. The blocks it missed are checked again on the next sync.": "暂时无法连接 Silent Payments 服务器。错过的区块会在下次同步时重新检查。"
+"The Silent Payments server can't be reached right now. The blocks it missed are checked again on the next sync.": "暂时无法连接 Silent Payments 服务器。错过的区块会在下次同步时重新检查。",
+"Locking this wallet…": "正在锁定此钱包…"
 }

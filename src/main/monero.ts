@@ -408,6 +408,8 @@ export class MoneroClient extends EventEmitter {
     const wallet = this.wallet;
     this.wallet = null;
     this.removeAllListeners();
-    if (wallet) await wallet.close(true).catch(() => undefined);
+    // Closing waits for a sync step to end, which over a slow Tor circuit can take minutes. It was saved just above,
+    // so locking (or switching wallets) doesn't wait longer than this; the old wallet finishes closing behind.
+    if (wallet) await withTimeout(wallet.close(true), 15_000).catch(() => undefined);
   }
 }

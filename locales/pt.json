@@ -1739,5 +1739,6 @@
 "This spends more than one Silent Payments coin together, which shows they were paid to the same person.": "Isto gasta mais de uma moeda de Silent Payments juntas, o que mostra que foram pagas à mesma pessoa.",
 "This spends coins from more than one address together, which shows they belong to one person. Choose coins under Coins to keep sources apart.": "Isto gasta moedas de mais de um endereço juntas, o que mostra que pertencem a uma só pessoa. Escolha as moedas em Moedas para manter as origens separadas.",
 "Reused address": "Endereço reutilizado",
-"The Silent Payments server can't be reached right now. The blocks it missed are checked again on the next sync.": "O servidor de Silent Payments não está acessível agora. Os blocos que faltaram são verificados de novo na próxima sincronização."
+"The Silent Payments server can't be reached right now. The blocks it missed are checked again on the next sync.": "O servidor de Silent Payments não está acessível agora. Os blocos que faltaram são verificados de novo na próxima sincronização.",
+"Locking this wallet…": "Bloqueando esta carteira…"
 }

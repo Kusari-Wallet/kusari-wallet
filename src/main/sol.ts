@@ -231,16 +231,20 @@ export class SolClient {
     return id;
   }
 
+  /**
+   * The balance of the standard token account, the one every wallet sends to and the only one spent from. It's read
+   * by its address (getAccountInfo): free public servers refuse the owner-wide search (getTokenAccountsByOwner)
+   * without a personal key, and through Tor the others often limit it.
+   */
   private async tokenIn(account: string, token: SplToken): Promise<bigint> {
-    const r = await this.rpc('getTokenAccountsByOwner', [account, { mint: token.mint }, { encoding: 'jsonParsed', commitment: 'confirmed' }]);
-    if (!Array.isArray(r?.value)) throw new Error('The SOL server gave an unexpected answer.');
-    // Only the standard account is spent from and shown, the one every wallet sends to.
-    const mine = tokenAccountOf(account, token.mint, programOf(token));
-    const row = r.value.find((v: any) => v?.pubkey === mine);
-    if (!row) return 0n;
-    const info = row.account?.data?.parsed?.info;
+    const program = programOf(token);
+    const mine = tokenAccountOf(account, token.mint, program);
+    const r = await this.rpc('getAccountInfo', [mine, { encoding: 'jsonParsed', commitment: 'confirmed' }]);
+    if (!r || typeof r !== 'object' || !('value' in r)) throw new Error('The SOL server gave an unexpected answer.');
+    if (r.value === null) return 0n; // never received this token
+    const info = r.value?.data?.parsed?.info;
     const amount = info?.tokenAmount?.amount;
-    if (info?.mint !== token.mint || info?.owner !== account || typeof amount !== 'string' || !/^\d+$/.test(amount)) throw new Error('The SOL server gave an unexpected answer.');
+    if (r.value.owner !== program || info?.mint !== token.mint || info?.owner !== account || typeof amount !== 'string' || !/^\d+$/.test(amount)) throw new Error('The SOL server gave an unexpected answer.');
     return BigInt(amount);
   }
 

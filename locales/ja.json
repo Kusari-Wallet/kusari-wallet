@@ -1739,5 +1739,6 @@
 "This spends more than one Silent Payments coin together, which shows they were paid to the same person.": "Silent Payments のコインを複数まとめて使います。同じ人に支払われたものだとわかってしまいます。",
 "This spends coins from more than one address together, which shows they belong to one person. Choose coins under Coins to keep sources apart.": "複数のアドレスのコインをまとめて使います。同じ人のコインだとわかってしまいます。出どころを分けるには「コイン」から選んでください。",
 "Reused address": "再利用されたアドレス",
-"The Silent Payments server can't be reached right now. The blocks it missed are checked again on the next sync.": "いまは Silent Payments サーバーに接続できません。取りこぼしたブロックは次の同期で再確認します。"
+"The Silent Payments server can't be reached right now. The blocks it missed are checked again on the next sync.": "いまは Silent Payments サーバーに接続できません。取りこぼしたブロックは次の同期で再確認します。",
+"Locking this wallet…": "このウォレットをロックしています…"
 }

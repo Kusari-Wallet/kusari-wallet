@@ -1739,5 +1739,6 @@
 "This spends more than one Silent Payments coin together, which shows they were paid to the same person.": "Bu, birden fazla Silent Payments coinini birlikte harcıyor; bu da hepsinin aynı kişiye ödendiğini gösterir.",
 "This spends coins from more than one address together, which shows they belong to one person. Choose coins under Coins to keep sources apart.": "Bu, birden fazla adresteki coinleri birlikte harcıyor; bu da hepsinin tek bir kişiye ait olduğunu gösterir. Kaynakları ayrı tutmak için coinleri Coinler'den seçin.",
 "Reused address": "Tekrar kullanılan adres",
-"The Silent Payments server can't be reached right now. The blocks it missed are checked again on the next sync.": "Silent Payments sunucusuna şu anda ulaşılamıyor. Kaçırılan bloklar bir sonraki eşitlemede yeniden kontrol edilir."
+"The Silent Payments server can't be reached right now. The blocks it missed are checked again on the next sync.": "Silent Payments sunucusuna şu anda ulaşılamıyor. Kaçırılan bloklar bir sonraki eşitlemede yeniden kontrol edilir.",
+"Locking this wallet…": "Bu cüzdan kilitleniyor…"
 }
